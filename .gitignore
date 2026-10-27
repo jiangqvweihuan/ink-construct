@@ -1,0 +1,8 @@
+# Godot 4+ specific ignores
+.godot/
+.godot_bak/
+/android/
+
+# 测试与调试产物
+tests/out/
+.screenshots/

@@ -1,0 +1,37 @@
+﻿Godot_v4.6.2-stable_mono_win64.exe : ERROR: Could not create directory: 'res://tests'.
+所在位置 行:15 字符: 1313
++ ... t@trae.ai'; & "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (ERROR: Could no... 'res://tests'.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+   at: make_dir_recursive (core/io/dir_access.cpp:178)
+SCRIPT ERROR: Parse Error: Expected statement, found "Indent" instead.
+   at: GDScript::reload (res://scripts/player/player.gd:378)
+   GDScript backtrace (most recent call first):
+       [0] _build_actors (res://scripts/world/room_01.gd:172)
+       [1] _ready (res://scripts/world/room_01.gd:37)
+ERROR: Failed to load script "res://scripts/player/player.gd" with error "Parse error".
+   at: load (modules/gdscript/gdscript.cpp:2907)
+   GDScript backtrace (most recent call first):
+       [0] _build_actors (res://scripts/world/room_01.gd:172)
+       [1] _ready (res://scripts/world/room_01.gd:37)
+SCRIPT ERROR: Invalid access to property or key 'died' on a base object of type 'CharacterBody2D'.
+   at: _build_actors (res://scripts/world/room_01.gd:175)
+   GDScript backtrace (most recent call first):
+       [0] _build_actors (res://scripts/world/room_01.gd:175)
+       [1] _ready (res://scripts/world/room_01.gd:37)
+SCRIPT ERROR: Invalid call. Nonexistent function 'set_upgrades' in base 'CharacterBody2D'.
+   at: apply_to (res://scripts/systems/run_state.gd:159)
+   GDScript backtrace (most recent call first):
+       [0] apply_to (res://scripts/systems/run_state.gd:159)
+       [1] <anonymous lambda> (res://scripts/world/room_01.gd:273)
+       [2] pick (res://scripts/ui/blessing_panel.gd:53)
+ERROR: 1 RID allocations of type 'P11GodotBody2D' were leaked at exit.
+ERROR: 1 RID allocations of type 'P12GodotShape2D' were leaked at exit.
+WARNING: 2 RIDs of type "CanvasItem" were leaked.
+   at: _free_rids (servers/rendering/renderer_canvas_cull.cpp:2692)
+WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
+   at: cleanup (core/object/object.cpp:2641)
+ERROR: 1 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:810)

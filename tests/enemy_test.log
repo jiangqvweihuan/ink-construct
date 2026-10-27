@@ -1,0 +1,33 @@
+[ET] created player=@SpineSprite@6:<SpineSprite#30098327046> enemy=@SpineSprite@72:<SpineSprite#32430360150>
+[ET] player state -> 0
+[ET] enemy state -> 0 x=980.0
+[ET] enemy hp -> 3
+[ET] player state -> 3
+[ET] player state -> 0
+[ET] enemy state -> 1 x=980.0
+[ET] saved 01_patrol err=0
+[ET] player state -> 1
+[ET] enemy state -> 2 x=1048.99987792969
+[ET] approach done, dist=218.669677734375
+[ET] saved 02_chase err=0
+[ET] player state -> 0
+[ET] enemy state -> 3 x=915.999694824219
+[ET] saved 03_enemy_attack err=0
+[ET] player state -> 6
+[ET] player state -> 0
+[ET] enemy state -> 2 x=909.749633789063
+[ET] player state -> 5
+[ET] enemy state -> 4 x=862.439514160156
+[ET] enemy hp -> 2
+[ET] enemy state -> 2 x=867.439514160156
+[ET] enemy state -> 3 x=867.439514160156
+[ET] enemy state -> 4 x=869.691101074219
+[ET] enemy hp -> 1
+[ET] enemy state -> 2 x=874.691467285156
+[ET] enemy state -> 3 x=874.691467285156
+[ET] enemy state -> 5 x=874.691467285156
+[ET] enemy hp -> 0
+[ET] saved 04_enemy_dead err=0
+[ET] player state -> 0
+[ET] saved 05_corpse err=0
+[ET] ALL DONE, enemy state=5 hp=0 player state=0

@@ -1,0 +1,146 @@
+skeleton.png
+size: 1024, 256
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+dabi1
+  rotate: true
+  xy: 936, 196
+  size: 58, 60
+  orig: 58, 60
+  offset: 0, 0
+  index: -1
+dabi2
+  rotate: false
+  xy: 2, 2
+  size: 77, 32
+  orig: 77, 32
+  offset: 0, 0
+  index: -1
+datui1
+  rotate: false
+  xy: 371, 173
+  size: 104, 81
+  orig: 104, 81
+  offset: 0, 0
+  index: -1
+datui2
+  rotate: false
+  xy: 477, 174
+  size: 98, 80
+  orig: 98, 80
+  offset: 0, 0
+  index: -1
+jiao1
+  rotate: false
+  xy: 81, 5
+  size: 29, 29
+  orig: 29, 29
+  offset: 0, 0
+  index: -1
+jiao2
+  rotate: true
+  xy: 659, 178
+  size: 21, 34
+  orig: 21, 34
+  offset: 0, 0
+  index: -1
+shenti
+  rotate: true
+  xy: 207, 15
+  size: 80, 85
+  orig: 80, 85
+  offset: 0, 0
+  index: -1
+shou1
+  rotate: false
+  xy: 998, 227
+  size: 24, 27
+  orig: 24, 27
+  offset: 0, 0
+  index: -1
+shou2
+  rotate: false
+  xy: 998, 199
+  size: 23, 26
+  orig: 23, 26
+  offset: 0, 0
+  index: -1
+tou
+  rotate: true
+  xy: 371, 127
+  size: 44, 104
+  orig: 44, 104
+  offset: 0, 0
+  index: -1
+wuqi2
+  rotate: false
+  xy: 2, 36
+  size: 203, 218
+  orig: 203, 218
+  offset: 0, 0
+  index: -1
+xiaobi1
+  rotate: false
+  xy: 873, 214
+  size: 61, 40
+  orig: 61, 40
+  offset: 0, 0
+  index: -1
+xiaobi2
+  rotate: false
+  xy: 809, 215
+  size: 62, 39
+  orig: 62, 39
+  offset: 0, 0
+  index: -1
+xiaotui1
+  rotate: false
+  xy: 543, 116
+  size: 38, 56
+  orig: 38, 56
+  offset: 0, 0
+  index: -1
+xiaotui2
+  rotate: true
+  xy: 477, 129
+  size: 43, 64
+  orig: 43, 64
+  offset: 0, 0
+  index: -1
+yao
+  rotate: false
+  xy: 577, 201
+  size: 119, 53
+  orig: 119, 53
+  offset: 0, 0
+  index: -1
+yaodai1
+  rotate: true
+  xy: 577, 176
+  size: 23, 80
+  orig: 23, 80
+  offset: 0, 0
+  index: -1
+yaodai2
+  rotate: true
+  xy: 698, 220
+  size: 34, 109
+  orig: 34, 109
+  offset: 0, 0
+  index: -1
+yifu1
+  rotate: false
+  xy: 297, 113
+  size: 72, 141
+  orig: 72, 141
+  offset: 0, 0
+  index: -1
+yifu2
+  rotate: false
+  xy: 207, 97
+  size: 88, 157
+  orig: 88, 157
+  offset: 0, 0
+  index: -1
+

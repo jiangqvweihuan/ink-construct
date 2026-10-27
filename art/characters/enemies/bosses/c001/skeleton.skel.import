@@ -1,0 +1,14 @@
+[remap]
+
+importer="spine.skel"
+type="SpineSkeletonFileResource"
+uid="uid://dxlsohvgvyfnt"
+path="res://.godot/imported/skeleton.skel-69d29a570c0fdc1a1b6fe9bb135c66c1.spskel"
+
+[deps]
+
+source_file="res://art/characters/enemies/bosses/c001/skeleton.skel"
+dest_files=["res://.godot/imported/skeleton.skel-69d29a570c0fdc1a1b6fe9bb135c66c1.spskel"]
+
+[params]
+

@@ -1,0 +1,8 @@
+[S] 分辨率应用: (1600, 900) -> PASS
+[S] Music bus: idx=1 db=-10.46 -> PASS
+[S] SFX bus: idx=2 db=-3.10 -> PASS
+[S] cfg 写盘: PASS music=0.3 res=(1600, 900)
+[S] 重载读取: music=0.30 -> PASS
+[S] 延迟后窗口保持: (1600, 900) -> PASS
+[S] 已还原默认设置
+[S] ALL DONE

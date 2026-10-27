@@ -1,0 +1,14 @@
+[CT] player hp -> 5
+[CT] enemy hp -> 3
+[CT] saved 01_start err=0
+[CT] player hp -> 4
+[CT] saved 02_player_hit err=0
+[CT] after enemy attacks, player hp=3
+[CT] player hp -> 3
+[CT] enemy hp -> 2
+[CT] saved 03_enemy_hit err=0
+[CT] player hp -> 2
+[CT] enemy hp -> 1
+[CT] enemy hp -> 0
+[CT] saved 04_enemy_dead err=0
+[CT] ALL DONE, player hp=2 enemy hp=0 enemy state=5

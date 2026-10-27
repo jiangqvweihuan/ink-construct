@@ -1,0 +1,29 @@
+[P] probe start
+[P] class SpineSprite exists=true
+[P] class SpineAtlasResource exists=true
+[P] class SpineSkeletonFileResource exists=true
+[P] class SpineSkeletonDataResource exists=true
+[P] class SpineAnimationState exists=true
+[P] class SpineSkeleton exists=true
+[P] class SpineSkeletonData exists=false
+[P] class SpineAnimation exists=true
+[P] --- load via import (.atlas) ---
+[P] load(.atlas) => <SpineAtlasResource#-9223372008769714706>
+[P] class=SpineAtlasResource source_path=res://art/characters/player/skeleton.atlas textures=[(res://art/characters/player/skeleton.png):<CompressedTexture2D#-9223372008635496973>]
+[P] --- manual load_from_atlas_file ---
+[P] instantiate => <SpineAtlasResource#-9223372008232843790>
+[P] manual err=0 source_path=res://art/characters/player/skeleton.atlas textures=[(res://art/characters/player/skeleton.png):<CompressedTexture2D#-9223372008635496973>]
+[P] --- skel load via import (.skel) ---
+[P] load(.skel) => <SpineSkeletonFileResource#-9223372008014739977>
+[P] class=SpineSkeletonFileResource
+[P] methods of SpineSkeletonFileResource: load_from_file
+[P] --- skeleton data resource ---
+[P] methods of SpineSkeletonDataResource: is_skeleton_data_loaded, set_atlas_res, get_atlas_res, set_skeleton_file_res, get_skeleton_file_res, set_default_mix, get_default_mix, set_animation_mixes, get_animation_mixes, find_bone, find_slot, find_skin, find_event, find_animation, find_ik_constraint_data, find_transform_constraint_data, find_path_constraint_data, find_physics_constraint_data, get_skeleton_name, get_bones, get_slots, get_skins, get_default_skin, set_default_skin, get_events, get_animations, get_ik_constraints, get_transform_constraints, get_path_constraints, get_physics_constraints, get_x, get_y, get_width, get_height, get_version, get_hash, get_images_path, get_audio_path, get_fps, get_reference_scale, set_reference_scale, update_skeleton_data, _on_resources_reimported
+[P]   prop: atlas_res type=24 class=SpineAtlasResource
+[P]   prop: skeleton_file_res type=24 class=SpineSkeletonFileResource
+[P]   prop: default_mix type=3 class=
+[P]   prop: animation_mixes type=28 class=
+[P]   prop: resource_local_to_scene type=1 class=
+[P]   prop: resource_name type=4 class=
+[P]   prop: script type=24 class=Script
+[P] probe done, idling 3s

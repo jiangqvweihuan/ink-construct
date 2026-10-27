@@ -1,0 +1,125 @@
+Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
+OpenGL API 3.3.0 NVIDIA 595.97 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 4070 Laptop GPU
+
+[R] loaded res://art/environment/background/bg_main.png (1920.0, 720.0)
+[R] loaded res://art/environment/foreground/fg_tree_l.png (460.0, 660.0)
+[R] loaded res://art/environment/foreground/fg_tree_r.png (431.0, 660.0)
+[R] loaded res://art/environment/tilesets/ground_ink.png (1920.0, 110.0)
+ERROR: Resource file not found: res://art/characters/player (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:150)
+       [1] _ready (res://scripts/player/player.gd:102)
+       [2] _build_actors (res://scripts/world/room_01.gd:118)
+       [3] _ready (res://scripts/world/room_01.gd:35)
+ERROR: Error loading resource: 'res:///art/characters/player/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:150)
+       [1] _ready (res://scripts/player/player.gd:102)
+       [2] _build_actors (res://scripts/world/room_01.gd:118)
+       [3] _ready (res://scripts/world/room_01.gd:35)
+ERROR: Can't load texture: "res:///art/characters/player/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:150)
+       [1] _ready (res://scripts/player/player.gd:102)
+       [2] _build_actors (res://scripts/world/room_01.gd:118)
+       [3] _ready (res://scripts/world/room_01.gd:35)
+WARNING: Camera2D overridden to physics process mode due to use of physics interpolation.
+   at: _update_process_callback (scene/2d/camera_2d.cpp:85)
+   GDScript backtrace (most recent call first):
+       [0] _build_actors (res://scripts/world/room_01.gd:128)
+       [1] _ready (res://scripts/world/room_01.gd:35)
+ERROR: Resource file not found: res://art/characters/enemies/c035 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c035/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+ERROR: Can't load texture: "res:///art/characters/enemies/c035/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+[R] saved 01_view err=0
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+[R] saved 02_walk err=0
+ERROR: Resource file not found: res://art/characters/enemies/c017 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c017/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+ERROR: Can't load texture: "res:///art/characters/enemies/c017/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
+       [1] _ready (res://scripts/enemies/c016.gd:86)
+       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
+       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+[R] saved 03_fight err=0
+[R] saved 04_after err=0
+[R] saved 05_before_swap err=0
+ERROR: Resource file not found: res://art/characters/player/skulls/c023 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:150)
+       [1] swap_skull (res://scripts/player/player.gd:466)
+       [2] _try_swap_skull (res://scripts/player/player.gd:452)
+       [3] _physics_process (res://scripts/player/player.gd:190)
+ERROR: Error loading resource: 'res:///art/characters/player/skulls/c023/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:150)
+       [1] swap_skull (res://scripts/player/player.gd:466)
+       [2] _try_swap_skull (res://scripts/player/player.gd:452)
+       [3] _physics_process (res://scripts/player/player.gd:190)
+ERROR: Can't load texture: "res:///art/characters/player/skulls/c023/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:150)
+       [1] swap_skull (res://scripts/player/player.gd:466)
+       [2] _try_swap_skull (res://scripts/player/player.gd:452)
+       [3] _physics_process (res://scripts/player/player.gd:190)
+[R] saved 06_swap err=0
+[R] saved 07_swap_skill err=0
+[R] ALL DONE player=(845.7286, 639.934)

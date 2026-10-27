@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/tests/settlement_test.gd" id="1"]
+
+[node name="SettlementClearTest" type="Node"]
+script = ExtResource("1")
+test_clear = true
