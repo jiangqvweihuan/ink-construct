@@ -427,6 +427,7 @@ func die() -> void:
 	FX.spawn(get_tree().current_scene, "vanish", global_position,
 		{"scale": _scale * 1.6, "z": 5})
 	Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
+	Score.add_kill() # 本局击杀计数（结算战绩用）
 	died.emit()
 	_cleanup()
 

@@ -2,6 +2,7 @@ extends CanvasLayer
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
+const BossTypes = preload("res://scripts/enemies/boss_types.gd")
 const SFX_SETTLE := preload("res://audio/sfx/settle.wav")
 const SFX_WIN := preload("res://audio/sfx/win.wav")
 const SFX_LOSE := preload("res://audio/sfx/lose.wav")
@@ -66,32 +67,105 @@ func _ready() -> void:
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(title)
 
-	# 收获明细：契合增量 / 新解锁 / 墨锭沉淀，逐行居中列出
-	var lines: Array = []
+	# ---- 内容区：战绩 → Boss 讨伐 → 契合经验条 → 新解锁 / 墨锭，光标逐行往下排 ----
+	var cy := 226.0
+
+	# 本局战绩：最高连击 / 击杀 / 剩余墨骨
+	_make_line("最高连击 %d ｜ 击杀 %d ｜ 墨骨 %d" % [Score.max_combo, Score.kills, Score.bones], DIM, 20, cy)
+	cy += 34.0
+
+	# Boss 讨伐：通关局亮朱砂大字
+	if _cleared and BossTypes.BOSSES.has(Run.boss_id):
+		_make_line("讨伐 · %s" % str(BossTypes.get_boss(Run.boss_id).get("label", "")), RED, 26, cy)
+		cy += 42.0
+
+	# 契合经验：每个有增量的形态一行文字 + 一条从旧值涨到新值的经验条（升级则朱砂高亮）
+	var rows := 0
 	for id in diff["mastery"]:
-		lines.append({
-			"text": "%s  契合 +%d（%s）" % [str(Skulls.get_profile(id)["label"]), int(diff["mastery"][id]), Meta.mastery_text(id)],
-			"color": PAPER,
-		})
+		if rows >= 3 or cy > 420.0:
+			break
+		var old_exp := int(Run.meta_snapshot.get("mastery", {}).get(id, 0))
+		_make_mastery_row(id, int(diff["mastery"][id]), old_exp, cy, rows)
+		cy += 52.0
+		rows += 1
+
+	# 新解锁 / 墨锭沉淀
 	for id in diff["unlocks"]:
-		lines.append({"text": "新化身解锁：%s" % str(Skulls.get_profile(id)["label"]), "color": RED})
-	if ink_gain > 0:
-		lines.append({"text": "墨锭 +%d（总 %d）" % [ink_gain, Meta.ink], "color": PAPER})
-	if lines.is_empty():
-		lines.append({"text": "本局无收获", "color": DIM})
-	for i in mini(lines.size(), 6):
-		var l := Label.new()
-		l.text = str(lines[i]["text"])
-		l.size = Vector2(560, 32)
-		l.position = Vector2(360, 232 + i * 34)
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		l.add_theme_color_override("font_color", lines[i]["color"])
-		l.add_theme_font_size_override("font_size", 22)
-		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(l)
+		if cy > 456.0:
+			break
+		_make_line("新化身解锁：%s" % str(Skulls.get_profile(id)["label"]), RED, 22, cy)
+		cy += 34.0
+	if ink_gain > 0 and cy <= 456.0:
+		_make_line("墨锭 +%d（总 %d）" % [ink_gain, Meta.ink], PAPER, 22, cy)
+		cy += 34.0
+	if rows == 0 and diff["unlocks"].is_empty() and ink_gain <= 0:
+		_make_line("本局无额外收获", DIM, 20, cy)
 
 	_make_button("再来一局", 490, _restart)
 	_make_button("回主菜单", 565, _to_menu)
+
+
+## 居中文本行
+func _make_line(text: String, color: Color, font_size: int, y: float) -> void:
+	var l := Label.new()
+	l.text = text
+	l.size = Vector2(560, 32)
+	l.position = Vector2(360, y)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_font_size_override("font_size", font_size)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(l)
+
+
+## 契合经验行：文字 + 经验条（旧值 → 新值缓动填充，暂停中也要播）
+func _make_mastery_row(id: String, gain: int, old_exp: int, y: float, row: int) -> void:
+	var new_exp := Meta.mastery_exp(id)
+	var lv_old := _level_of(old_exp)
+	var lv_new := Meta.mastery_level(id)
+	var leveled := lv_new > lv_old
+	var text := "%s  契合 +%d（%s）" % [str(Skulls.get_profile(id)["label"]), gain, Meta.mastery_text(id)]
+	if leveled:
+		text = "%s  契合 +%d  Lv%d → Lv%d！" % [str(Skulls.get_profile(id)["label"]), gain, lv_old, lv_new]
+	_make_line(text, RED if leveled else PAPER, 20, y)
+
+	# 经验条：320×12，底板暗色，填充朱砂
+	var bar_bg := ColorRect.new()
+	bar_bg.color = Color(0, 0, 0, 0.55)
+	bar_bg.size = Vector2(320, 12)
+	bar_bg.position = Vector2(480, y + 30)
+	bar_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(bar_bg)
+	var fill := ColorRect.new()
+	fill.color = RED
+	fill.position = Vector2.ZERO
+	fill.size = Vector2(_frac_of(old_exp) * 320.0, 12)
+	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar_bg.add_child(fill)
+	# 暂停中 Tween 默认不走，显式设成始终处理；逐级错开入场
+	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tw.tween_property(fill, "size:x", _frac_of(new_exp) * 320.0, 0.7) \
+		.set_delay(0.4 + row * 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+
+
+## 契合等级：与 Meta.mastery_level 同规则，但按传入经验算（对比旧值用）
+func _level_of(exp: int) -> int:
+	var lv := 0
+	for need in Meta.LV_EXP:
+		if exp >= int(need):
+			lv += 1
+	return lv
+
+
+## 当前等级内的经验进度 0..1（满级恒 1）
+func _frac_of(exp: int) -> float:
+	var prev := 0
+	for need in Meta.LV_EXP:
+		var n := int(need)
+		if exp < n:
+			return float(exp - prev) / float(n - prev)
+		prev = n
+	return 1.0
 
 
 func _restart() -> void:

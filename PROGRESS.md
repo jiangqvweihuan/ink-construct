@@ -89,7 +89,7 @@
 
 - [ ] **投射物特效**：现在 `projectile.gd` 用 `_draw` 直接画轨迹，硬编码圆形；改为从精灵条生成弹道（墨弹 / 火球 / 雷矢）
 - [ ] **音效全覆盖**：现在只有 hit_qi / voice_sword_hit / voice_skill_cast / hit_fist 四个，Boss 技能命中 / 火区爆炸 / 玩家 dash 都还没音效
-- [ ] **结算面板强化**：加本局化身战绩、Boss 击杀统计、"契合度经验 +XX" 视觉条
+- [x] **结算面板强化**：战绩行（最高连击/击杀/墨骨，Score 新增 max_combo/kills 记账）+ 通关局朱砂「讨伐 · Boss 名」+ 契合经验条（旧值→新值缓动填充、升级显示 Lv↑ 高亮，暂停中 Tween 走 TWEEN_PAUSE_PROCESS）
 
 ### P4 · 打磨
 

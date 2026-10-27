@@ -12,6 +12,8 @@ const MAX_COMBO := 999
 
 var combo := 0
 var bones := 0
+var max_combo := 0 # 本局最高连击（结算面板战绩用）
+var kills := 0 # 本局击杀数（墨骨含奖励加成，不能当击杀数用）
 var _combo_left := 0.0
 
 
@@ -22,8 +24,14 @@ func _ready() -> void:
 ## 每次成功命中调用一次。注意：多段技能一次打中多个敌人算多次命中。
 func add_hit() -> void:
 	combo = mini(combo + 1, MAX_COMBO)
+	max_combo = maxi(max_combo, combo)
 	_combo_left = COMBO_WINDOW
 	combo_changed.emit(combo)
+
+
+## 击杀一只怪（与 Meta.add_kill 同处调用）
+func add_kill() -> void:
+	kills += 1
 
 
 func add_bones(n := 1) -> void:
@@ -46,6 +54,8 @@ func spend_bones(n: int) -> bool:
 func reset() -> void:
 	combo = 0
 	bones = 0
+	max_combo = 0
+	kills = 0
 	_combo_left = 0.0
 	combo_changed.emit(0)
 	bones_changed.emit(0)
