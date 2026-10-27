@@ -15,6 +15,7 @@ var _cam: Camera2D
 var _shake_until := 0
 var _shake_start := 0
 var _shake_amt := 0.0
+var _zoom_tween: Tween # 登场运镜的推拉动画，重复触发时杀掉旧的
 
 
 func _ready() -> void:
@@ -46,6 +47,18 @@ func shake(amount := 5.0, dur := 0.16) -> void:
 	if until > _shake_until:
 		_shake_start = now
 		_shake_until = until
+
+
+## Boss 登场运镜：先把镜头拉到 out_scale 看清全场，再用 dur 秒缓推回正常视角。
+## 只动 zoom，不影响 shake 用的 offset；相机带边界 limit，拉远时被左墙挡住会自然偏向场中。
+func intro_zoom(out_scale := 0.8, dur := 1.6) -> void:
+	if _cam == null or not is_instance_valid(_cam):
+		return
+	if _zoom_tween != null and _zoom_tween.is_valid():
+		_zoom_tween.kill()
+	_cam.zoom = Vector2(out_scale, out_scale)
+	_zoom_tween = create_tween()
+	_zoom_tween.tween_property(_cam, "zoom", Vector2.ONE, dur).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 
 func _process(_delta: float) -> void:

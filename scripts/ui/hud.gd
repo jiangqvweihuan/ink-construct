@@ -12,6 +12,7 @@ const SLOT_GAP := 62.0 # 格间步距
 const VERMILION := Color(0.659, 0.196, 0.165) # 朱砂 #A8322A
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
+const BOSS_FONT = preload("res://art/ui/fonts/slidefu_regular.ttf") # Boss 名专用：演示佛系体
 
 var _root: Control
 var _action_root: Control
@@ -201,7 +202,7 @@ const BOSS_BAR_W := 480.0
 const BOSS_BAR_H := 26.0
 
 
-## Boss 登场时由房间调用：亮出血条并挂信号
+## Boss 登场时由房间调用：落款先弹出，大血条延迟淡入并挂信号
 func show_boss(boss: Node2D) -> void:
 	if _boss_bar == null:
 		_build_boss_bar(_root)
@@ -210,6 +211,37 @@ func show_boss(boss: Node2D) -> void:
 	boss.hp_changed.connect(_on_boss_hp_changed)
 	boss.died.connect(hide_boss)
 	_on_boss_hp_changed(int(boss.get("hp")), int(boss.get("max_hp")))
+	# 登场演出：中央落款先亮相，血条等落款定格后再淡入
+	_splash_boss_name(_boss_name.text)
+	_boss_bar.modulate.a = 0.0
+	var tw := create_tween()
+	tw.tween_property(_boss_bar, "modulate:a", 1.0, 0.7).set_delay(0.7)
+
+
+## Boss 登场落款：场景中央大字缩放定格 -> 停留 -> 淡去，配合 Feel.intro_zoom 的镜头推拉
+func _splash_boss_name(text: String) -> void:
+	var splash := Label.new()
+	splash.text = text
+	splash.add_theme_font_size_override("font_size", 110)
+	splash.add_theme_font_override("font", BOSS_FONT)
+	splash.add_theme_color_override("font_color", PAPER)
+	splash.add_theme_color_override("font_outline_color", INK)
+	splash.add_theme_constant_override("outline_size", 18)
+	splash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(splash)
+	splash.reset_size()
+	splash.position = Vector2(640.0 - splash.size.x * 0.5, 190.0)
+	splash.pivot_offset = splash.size * 0.5 # 缩放绕中心，不然会从左上角膨胀
+	splash.scale = Vector2(1.7, 1.7)
+	splash.modulate.a = 0.0
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(splash, "modulate:a", 1.0, 0.22)
+	tw.tween_property(splash, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.set_parallel(false)
+	tw.tween_interval(1.4)
+	tw.tween_property(splash, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(splash.queue_free)
 
 
 func hide_boss() -> void:
@@ -243,6 +275,7 @@ func _build_boss_bar(root: Control) -> void:
 	_boss_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_boss_name.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_boss_name.add_theme_color_override("font_color", PAPER)
+	_boss_name.add_theme_font_override("font", BOSS_FONT)
 	_boss_name.add_theme_font_size_override("font_size", 15)
 	_boss_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_boss_bar.add_child(_boss_name)

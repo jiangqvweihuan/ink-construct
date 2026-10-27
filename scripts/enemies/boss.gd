@@ -154,6 +154,7 @@ func entrance() -> void:
 		_play("chuchang", false)
 		_state_timer = float(_anim_durations.get("chuchang", 1.2))
 	Feel.shake(7.0, 0.3)
+	Feel.intro_zoom(0.8, _state_timer + 0.5) # 拉远看清全场，登场收尾时推回正常视角
 	_sfx_player.stream = SFX_BOSS_ENTER
 	_sfx_player.play()
 	_fx_play(_fx.get("enter", {})) # 登场特效：虎首地裂 / 紫焰火柱 / 速度线
