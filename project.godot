@@ -29,14 +29,13 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 
-[gui]
-
-; 全局游戏字体：庞门正道粗书体（Boss 名由 hud 单独覆写为演示佛系体）
-theme/custom="res://art/ui/fonts/main_theme.tres"
-
 [dotnet]
 
 project/assembly_name="InkConstruct"
+
+[gui]
+
+theme/custom="res://art/ui/fonts/main_theme.tres"
 
 [input]
 
