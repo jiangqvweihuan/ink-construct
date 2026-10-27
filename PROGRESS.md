@@ -14,9 +14,9 @@
 | 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | 多化身（4 形态：刀客 / 弓手 / 法师 / 弓弩手）各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中（双刺闪扫路径判定）、dash、jump、coyote、受伤无敌 |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel` 启动 / `brake` 制动 / `turn_accel` 反向转向，均 `@export` 可调）、lunge 惯性（`brake*0.5` 代替 `accel` 秒刹）、hit_at × 0.9 提前判定、预警泛红闪 0.2s（原 0.35s） |
 | 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动的巡逻 / 追击 / 挑招式 / 出手令牌 / 攻击锁定 / 受击硬直分层（普通 vs 精英霸体）；range_probe 标定 ranges + hit_at |
-| Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换（血量阈值）+ 变身无敌 + 僵直窗口（奖励输出）+ 冲锋技（蓄力→碾压→撞墙大硬直）；C032 自带 transform/transform1/transform2 三套变身动画，P2/P3 各演一套；HUD 大血条；`ROSTER` 随机登场 |
+| Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换（血量阈值）+ 变身无敌 + 僵直窗口（奖励输出）+ 冲锋技（蓄力→碾压→撞墙大硬直）；C032 自带 transform/transform1/transform2 三套变身动画，P2/P3 各演一套；HUD 大血条 + 登场书法落款演出；`ROSTER` 随机登场；每形态独立主题背景（`room_01.BOSS_BG` 表，整图铺底不拼接） |
 | 特效系统 | `scripts/systems/fx.gd` | GIF 精灵条逐帧播放器，12 条特效（ink_hit / ink_claw / slash / pillar / tiger / thunder / fire_pillar / speedline / crack / gather / vanish / fire_hit）；Boss fx 配置表驱动（登场 / 变身 / 冲锋拖尾 / 撞墙 / 受击）+ 焚鼎 P3 封锁火区（聚气预警 → 火柱喷发 → 范围灼烧） |
-| 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | 三层推进（普通房×2 → Boss 房）；`RoomIndex` + `is_boss_room` 路由；Boss 房换幽谷背景 + 暗色宫殿剪影 |
+| 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | 三层推进（普通房×2 → Boss 房）；`RoomIndex` + `is_boss_room` 路由；Boss 房按形态换主题背景（`BOSS_BG` 表） |
 
 ### UI / 数据
 
@@ -28,7 +28,8 @@
 | 赐福 | `scripts/ui/blessing_panel.gd` | 开局三选一 |
 | 强化 | `scripts/ui/upgrade_panel.gd` | 中途三选一 |
 | 伤害数字 | `scripts/ui/damage_number.gd` | 飘字 |
-| 局外养成 | `scripts/systems/meta.gd` | 击杀 / 通关计数；契合度 Lv1/Lv2/Lv3 加伤 + 冷却 + 免费 |
+| 局外养成 | `scripts/systems/meta.gd` | 击杀 / 通关计数；契合度 Lv1/Lv2/Lv3 加伤 + 冷却 + 免费；`user://meta.json` 持久化 |
+| 字体 | `art/ui/fonts/main_theme.tres` + `hud.gd` | 全局 UI = 庞门正道粗书体（project.godot `gui/theme/custom` 挂主题）；Boss 落款/大血条名 = 演示佛系体（`hud.BOSS_FONT` 覆写）。字体文件用 ASCII 名进项目（slidefu_regular / pangmen） |
 
 ### 素材管线
 
@@ -61,6 +62,8 @@
 | spine_probe 标定命中位置未对齐玩家 hitbox | 低 | 全局 | ranges 是"骨架伸展像素 × scale"，hit_at 是"峰值时刻"；但玩家 hitbox 只有 70px 高、120-130px 范围——boss 277-580px 的 range 实际只打半个房间，数值大但合理（Boss 要远程威慑） |
 | re-import 后 Godot 偶发 "No loader found" | 低 | 全局 | 删除 png 后没清 .import，`--import` 能自动修；但删掉 birds.png / palace_dark.png 后如果用户本地已有 .import cache，F5 可能报 "Can't load texture"——下次改完素材记得先 `--import` |
 | project.godot 注释只认 `;` 不认 `#` | 中 | `project.godot` | `#` 注释行会让整个 section 静默解析失败（设置项丢失、引擎零报错）。曾因 `[gui]` 段 `#` 注释导致全局字体主题丢失；排障用 `scripts/tests/font_probe.gd` 探针断言 |
+| 编辑器开着玩时不要跑回归 | 中 | 全局 | 编辑器重扫/重导会让运行中实例骨架加载失败（`res:///art/...` 目录路径空文件名报错），玩家死亡 → 结算暂停 → 测试挂死。**重跑一次即恢复**；回归前最好让用户关编辑器 |
+| 特效锚点分两派 | 低 | `scripts/systems/fx.gd` LIB | `pivot` 字段：bottom（pillar/tiger/fire_pillar/crack/gather/vanish，pos=脚底）vs center（ink_hit/ink_claw/slash/thunder/speedline/fire_hit，pos=中心）。Boss 特效落点审计过一轮：受击爪痕在**来袭侧**（`signf(source_x - boss_x)`，写反过）、冲锋拖尾 `off_y` 按体型抬到躯干（~45% 身高）、撞墙 crack 炸在 `ARENA_L/R` 墙根 |
 
 ---
 
@@ -75,7 +78,7 @@
 
 ### P1 · Boss 房视觉完整（2-3 天）
 
-- [ ] **五个 Boss 房独立背景**：现在只有一张 `bg_boss.png` 通吃，应该 c009（巨兽山巅） / c015a1（焚鼎熔炉） / c001（战车校场） / c008（碎岳山门） / c032（鸣钟古阁）各一张
+- [x] **五个 Boss 房独立背景**：`room_01.BOSS_BG` 表按 `boss_id` 选图——c001 废墟校场 / c008 山门黄昏 / c009 云海山巅压冷 / c015a1 群峰熏暮色熔炉（暖棕 tint 0.62,0.42,0.34）/ c032 阴暗古寺；整图铺底（1024x512 放大 1.875，底缘对齐裁顶部），**不要叠剪影装饰**（拼接感重，用户明确否决）；素材源 `E:\素材\墨构素材库\横版水墨风场景 (*)_爱给网_aigei_com.png`
 - [x] **Boss 登场演出强化**：镜头拉远 → 缓推回（`Feel.intro_zoom`）、大血条延迟淡入、Boss 名书法大字中央定格弹出后淡去（`hud._splash_boss_name`）；boss_test 回归通过
 - [ ] **焚鼎 P3 火区视觉优化**：fire_hit 打完玩家身上那一下现在只是一个橙色炸开——应该加持续 0.4s 灼烧 DOT 视觉（不做真实 DOT 伤害，只视觉）
 
@@ -108,6 +111,7 @@
 # Boss 真身冒烟（五选一）
 $env:BOSS_ID = "c009"  # 或 c015a1 / c001 / c008 / c032 / _debug
 & "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" "res://scenes/tests/boss_test.tscn"
+# 注意：经 MCP 启动时环境变量传不进去，需临时把 boss_test.gd L26 的 "_debug" 硬编码成目标 id，跑完还原
 
 # 重导素材（删 png 后必跑）
 & "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" --import
@@ -135,7 +139,7 @@ art/
 │   ├── enemies/     # 小怪骨架 + atlas
 │   └── bosses/      # c009 / c015a1 / c001 / c008 / c032 骨架 + atlas
 ├── fx/              # 12 条精灵条特效（.png + .json）
-└── environment/     # decor + background（bg_boss.png / bg_green.png）
+└── environment/     # decor + background（bg_main / bg_boss + bg_boss_c009/c015a1/c001/c008/c032 五张主题图）
 
 tools/               # gif2strip / key_alpha / contact_sheet 素材管线
 scenes/tests/        # 测试场景（见上表）
@@ -153,3 +157,29 @@ tests/out/           # 回归截图 + 日志
 
 ## 最重要
 用户有无限的素材资源，想要查看或者使用啥的直接跟用户说想要看看新素材，我把整个文件给你你自己决断，当然，里面的spine版本可能比较低，你选好你想要的然后告诉我，我帮你转换成spine4.2版本
+
+---
+
+## 七、交接笔记（2026-10-27 收官）
+
+### 本轮干了什么
+1. **Boss 池 3 → 5**：碎岳 C008 / 鸣钟 C032 入池（探针实测 → 配表 → 硬编码回归法跑 boss_test → 截图验收）
+2. **登场演出**：`Feel.intro_zoom` 镜头拉远缓推回 + 书法落款中央定格 + 大血条延迟淡入
+3. **字体落地**：全局庞门正道粗书体 + Boss 名演示佛系体；踩了 project.godot 注释坑（见遗留坑）
+4. **代码审查修了 5 个真 bug**：闪现受击残留穿怪、清场回调缺 `_ended` 守卫叠面板、买血上限公式漏算、cd 查询死代码、普攻缺 `_idle_queued`
+5. **Boss 特效落点审计**：爪痕来袭侧（方向曾写反）、冲锋拖尾躯干高度（`off_y` 按体型）、撞墙 crack 贴墙根
+6. **五张 Boss 房主题背景**：整图铺底 + 每形态 tint 调色，**用户明确否决了剪影拼接方案**
+
+### 经验心得（继任者必读）
+- **探针先行**：新 Boss 永远是 range_probe 量骨架 → boss_types 配表 → boss_test 回归看截图，别拍脑袋填数
+- **截图验收不可替代**：游戏视觉问题（特效位置/字体/背景）只有截图能查，日志全绿不代表画面正常
+- **特效锚点两派**（fx.gd pivot bottom vs center）是落点错乱的重灾区，配新特效先想 pos 是脚底还是中心
+- **测试挂死先想"结算暂停"**：玩家死亡/通关都会 `paused=true`，测试流程里 `create_timer` 全部冻结；挂死先查玩家是不是死了
+- **回归环境**：用户编辑器开着玩会污染导入缓存（骨架加载失败），重跑一次即可，别慌着改代码
+
+### 下一步（按优先级）
+1. **音效全覆盖**（P3，用户素材库找音效包）：Boss 技能命中 / 火区爆炸 / dash / UI 按钮
+2. **焚鼎 P3 火区灼烧视觉**（P1 剩项）：fire_hit 后玩家身上持续 0.4s 灼烧粒子
+3. **投射物特效**（P3，用户明确要求过）：projectile.gd `_draw` 硬编码圆 → 精灵条弹道
+4. **正式启动场景**（P4）：main_menu → blessing → room_01 流程
+5. **C014 存档**：剪影左偏+伸展 <200px，适合做格挡/瞬移精英怪，不适合 Boss；C032 的 `transform2` 变身动画留着可开第 4 阶段

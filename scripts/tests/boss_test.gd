@@ -1,4 +1,4 @@
-extends Node
+﻿extends Node
 
 ## Boss 战冒烟测试：登场 -> 阶段变身 -> 冲锋撞墙 -> 斩杀 -> 通关结算。
 ## 用 _debug 占位 Boss（c037 骨架放大版）走通全链路，真身转换好后换 ROSTER 即可。

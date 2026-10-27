@@ -116,27 +116,30 @@ func _build_decor() -> void:
 		add_child(s)
 
 
-## Boss 房「墨堂深处」：幽谷背景放大裁顶压暗，暗色宫殿与断崖剪影立在远处
+## Boss 房背景表：每个形态一张主题场景图（1024x512 放大 1.875 铺满 1920，顶 25% 裁出画外）
+## tint 为整体调色：压暗压出夜晚/暮色氛围，焚鼎用暖棕熏出熔炉感
+const BOSS_BG := {
+	"_debug": {"tex": "res://art/environment/background/bg_boss.png", "scale": 1.25, "tint": Color(0.45, 0.5, 0.55)},
+	"c001": {"tex": "res://art/environment/background/bg_boss_c001.png", "scale": 1.875, "tint": Color(0.5, 0.48, 0.45)}, # 废墟校场，灰调即可
+	"c008": {"tex": "res://art/environment/background/bg_boss_c008.png", "scale": 1.875, "tint": Color(0.48, 0.48, 0.55)}, # 白昼山门压成黄昏
+	"c009": {"tex": "res://art/environment/background/bg_boss_c009.png", "scale": 1.875, "tint": Color(0.42, 0.5, 0.62)}, # 云海山巅压冷
+	"c015a1": {"tex": "res://art/environment/background/bg_boss_c015a1.png", "scale": 1.875, "tint": Color(0.62, 0.42, 0.34)}, # 群峰熏成暮色熔炉
+	"c032": {"tex": "res://art/environment/background/bg_boss_c032.png", "scale": 1.875, "tint": Color(0.6, 0.6, 0.66)}, # 阴暗古寺原调偏暗，少压
+}
+
+
+## Boss 房「墨堂深处」：按 boss_id 换主题背景 + 暗色宫殿与断崖剪影立在远处
 func _build_boss_background() -> void:
+	var cfg: Dictionary = BOSS_BG.get(Run.boss_id, BOSS_BG["_debug"])
 	var bg := Sprite2D.new()
-	bg.texture = _load_tex("res://art/environment/background/bg_boss.png")
+	bg.texture = _load_tex(str(cfg["tex"]))
 	bg.centered = false
-	bg.scale = Vector2(1.25, 1.25) # 1536x768 -> 1920x960，上缘 240px 裁出画外
-	bg.position = Vector2(0, -240)
-	bg.modulate = Color(0.45, 0.5, 0.55) # 整体压暗偏冷，幽谷夜色
+	var bg_sc := float(cfg["scale"])
+	bg.scale = Vector2(bg_sc, bg_sc)
+	bg.position = Vector2(0, 720.0 - bg.texture.get_height() * bg_sc) # 底缘对齐视口底，顶部裁出画外
+	bg.modulate = cfg["tint"]
 	add_child(bg)
-	var defs := [
-		{"tex": "res://art/environment/decor/palace_cliff.png", "x": 340.0, "scale": 1.0, "sink": 26.0},
-		{"tex": "res://art/environment/decor/cliff_dark.png", "x": 1250.0, "scale": 1.4, "sink": 20.0},
-	]
-	for d in defs:
-		var s := Sprite2D.new()
-		s.texture = _load_tex(str(d["tex"]))
-		var sc := float(d["scale"])
-		s.scale = Vector2(sc, sc)
-		s.position = Vector2(float(d["x"]), GROUND_Y + float(d["sink"]) - s.texture.get_height() * sc * 0.5)
-		s.modulate = Color(0.35, 0.38, 0.45, 0.95) # 剪影再压暗，藏进背景
-		add_child(s)
+	# 不再叠宫殿/断崖剪影：整图铺底，拼接感太重
 
 
 func _build_ground() -> void:
