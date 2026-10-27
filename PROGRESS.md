@@ -56,12 +56,11 @@
 
 | 坑 | 严重度 | 位置 | 说明 |
 |---|---|---|---|
-| c016 攻击期 lunge 制动仍是 `accel` 秒刹 | 中 | `c016.gd` `_attack_tick` | 和玩家前几次手感一样的问题，只修了玩家没同步小怪 |
 | Boss 火区只在 chase / idle 状态触发 | 低 | `boss.gd` `_fz_tick` | 冲锋 / 变身 / 僵直期间 `_fz_tick` 走不到——逻辑对，但意图要写清楚 |
 | c001 武车 stun / charge 复用 stop 动画 | 低 | `boss_types.gd` `c001.charge` | 骨架 stun 是空帧，撞墙自晕姿势用 `stop`；视觉上就是急停 pose，缺一段更"撞懵了"的动画 |
 | spine_probe 标定命中位置未对齐玩家 hitbox | 低 | 全局 | ranges 是"骨架伸展像素 × scale"，hit_at 是"峰值时刻"；但玩家 hitbox 只有 70px 高、120-130px 范围——boss 277-580px 的 range 实际只打半个房间，数值大但合理（Boss 要远程威慑） |
 | re-import 后 Godot 偶发 "No loader found" | 低 | 全局 | 删除 png 后没清 .import，`--import` 能自动修；但删掉 birds.png / palace_dark.png 后如果用户本地已有 .import cache，F5 可能报 "Can't load texture"——下次改完素材记得先 `--import` |
-| room_01.gd `_build_actors` 里 `set_upgrades` / `died` 对 CharacterBody2D 报 Invalid access | 低 | `room_01.gd:175` + `run_state.gd:159` | 背景任务日志里看到的，room_test 能过但 F5 主场景 launch 会刷两条 SCRIPT ERROR；不崩但不干净，应该是类型检查漏补 `is_instance_valid` 守卫 |
+| project.godot 注释只认 `;` 不认 `#` | 中 | `project.godot` | `#` 注释行会让整个 section 静默解析失败（设置项丢失、引擎零报错）。曾因 `[gui]` 段 `#` 注释导致全局字体主题丢失；排障用 `scripts/tests/font_probe.gd` 探针断言 |
 
 ---
 
