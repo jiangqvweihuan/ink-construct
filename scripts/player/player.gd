@@ -281,6 +281,17 @@ func _attack_tick(delta: float) -> void:
 	while not _attack_hits.is_empty() and t >= _attack_hits[0]:
 		_attack_hits.pop_front()
 		_deal_hit()
+	# 取消窗口：本段命中全部结算完后、lock 后 30%（atk["cancel"] 可调）允许提前
+	# 接下一招 / 移动 / dash——不用干等收招帧，连段手感跟得上输入节奏
+	var cancel_from: float = lock * (1.0 - float(attacks[_attack_idx].get("cancel", 0.3)))
+	if t >= cancel_from and _attack_hits.is_empty():
+		if _attack_queued and _attack_idx < attacks.size() - 1:
+			_start_attack(_attack_idx + 1)
+			return
+		if Input.get_axis("move_left", "move_right") != 0.0:
+			_set_state(State.IDLE if is_on_floor() else State.FALL)
+			return
+		_try_dash()
 	if _attack_timer <= 0.0:
 		if _attack_queued and _attack_idx < attacks.size() - 1:
 			_start_attack(_attack_idx + 1)

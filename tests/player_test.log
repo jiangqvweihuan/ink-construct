@@ -15,8 +15,8 @@
 [PT] state -> 0 pos=(835.8338, 599.9337)
 [PT] state -> 5 pos=(838.2227, 599.9337)
 [PT] saved 05_atk1 err=0 state=5 pos=(839.7225, 599.9337)
-[PT] saved 06_atk2 err=0 state=5 pos=(839.7225, 599.9337)
-[PT] saved 07_atk3 err=0 state=5 pos=(843.0558, 599.9339)
+[PT] saved 06_atk2 err=0 state=5 pos=(843.0558, 599.9339)
+[PT] saved 07_atk3 err=0 state=5 pos=(846.8892, 599.9337)
 [PT] saved 08_back_idle err=0 state=5 pos=(846.8892, 599.9337)
 [PT] ALL DONE, final state=5 pos=(846.8892, 599.9337)
 [PT] saved 09_before_swap err=0 state=5 pos=(846.8892, 599.9337)
@@ -30,7 +30,7 @@
 [PT] state -> 6 pos=(851.3226, 599.9337)
 [PT] saved 13_ult_c023 err=0 state=6 pos=(851.8115, 599.9337)
 [PT] state -> 0 pos=(851.8115, 599.9337)
-[PT] swap -> skull=z000 hud=["skill01", "skill02", "skill04"] attacks=3 skills=["skill01", "skill02", "skill04"] bones=44
+[PT] swap -> skull=z000 hud=["skill01", "skill02", "skill04"] attacks=3 skills=["skill01", "skill02", "skill04"] bones=52
 [PT] saved 10_swap_z000 err=0 state=0 pos=(851.8115, 599.9337)
 [PT] state -> 5 pos=(853.8115, 599.9337)
 [PT] saved 11_atk_z000 err=0 state=5 pos=(855.6448, 599.9337)
@@ -39,7 +39,7 @@
 [PT] state -> 6 pos=(856.8448, 599.9337)
 [PT] state -> 0 pos=(857.4337, 599.9337)
 [PT] saved 13_ult_z000 err=0 state=0 pos=(857.4337, 599.9337)
-[PT] swap -> skull=c013 hud=["skill01", "skill03", "skill02"] attacks=3 skills=["skill01", "skill03", "skill02"] bones=36
+[PT] swap -> skull=c013 hud=["skill01", "skill03", "skill02"] attacks=3 skills=["skill01", "skill03", "skill02"] bones=44
 [PT] saved 10_swap_c013 err=0 state=0 pos=(857.4337, 599.9337)
 [PT] state -> 5 pos=(859.2667, 599.9326)
 [PT] saved 11_atk_c013 err=0 state=5 pos=(860.767, 599.9339)
@@ -48,7 +48,7 @@
 [PT] state -> 6 pos=(861.8673, 599.9343)
 [PT] saved 13_ult_c013 err=0 state=6 pos=(862.3562, 599.9337)
 [PT] state -> 0 pos=(862.3562, 599.9337)
-[PT] swap -> skull=c012 hud=["skill01", "skill02"] attacks=1 skills=["skill01", "skill02"] bones=28
+[PT] swap -> skull=c012 hud=["skill01", "skill02"] attacks=1 skills=["skill01", "skill02"] bones=36
 [PT] saved 10_swap_c012 err=0 state=0 pos=(862.3562, 599.9337)
 [PT] state -> 5 pos=(865.1895, 599.9337)
 [PT] saved 11_atk_c012 err=0 state=5 pos=(869.3562, 599.9337)

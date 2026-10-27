@@ -170,6 +170,11 @@ func _build_ground() -> void:
 
 func _build_actors() -> void:
 	_player = load("res://scenes/player/player.tscn").instantiate()
+	# 脚本编译失败时实例化出来的是裸 CharacterBody2D（没 died/set_upgrades），
+	# 宁可在这里报一条清晰错误，也不要等 connect 时刷 Invalid access
+	if not _player.has_signal("died"):
+		push_error("room_01: 玩家脚本未加载（检查 player.gd 编译错误），本局无法继续")
+		return
 	# Boss 房玩家进门往场中站：给 Boss 登场留出镜头，也让开场距离够触发它的冲锋
 	_player.position = Vector2(460.0 if Run.is_boss_room() else 220.0, 560)
 	_player.died.connect(_on_player_died)

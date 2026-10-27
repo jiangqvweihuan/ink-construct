@@ -156,6 +156,10 @@ func snapshot(player) -> void:
 
 ## 进入房间后：把 run 状态装回玩家（强化 / 血量 / 形态）
 func apply_to(player) -> void:
+	# 玩家脚本没编译过时实例是裸 CharacterBody2D，直接跳过避免 Invalid access
+	if not player.has_method("set_upgrades"):
+		push_error("Run.apply_to: 玩家缺少 set_upgrades（脚本未加载？），状态未装回")
+		return
 	player.set_upgrades(upgrades)
 	max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() # 铁砚护身赐福 + 固元（局外）
 	player.max_hp = max_hp

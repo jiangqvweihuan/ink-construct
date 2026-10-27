@@ -69,10 +69,10 @@
 
 ### P0 · 玩家手感收尾（1-2 天）
 
-- [ ] **小怪也上三档加速度**（accel 提速、lunge 用 `brake*0.5` 惯性）
-- [ ] **玩家攻击后期可取消**：`attacks` 数组加 `cancel_window`（后 30% 允许输入提前进下一招或移动）
+- [x] **小怪也上三档加速度**：c016 新增 `accel/brake/turn_accel`（1300/1700/2100），巡逻/追击从瞬时变速改为渐加速，反向转向走 turn_accel；攻击 lunge 改用 `brake*0.5` 半速制动带惯性（对齐玩家手感）
+- [x] **玩家攻击后期可取消**：`_attack_tick` 在本段 hits 全结算后、lock 后 30%（`atk["cancel"]` 可调）允许提前接下一招 / 移动 / dash
 - [ ] **hitstop 强度分档**：普攻 0.045s、技能 0.06s、Boss 命中 0.08s 已够；弹反场景（未来）要单独 0.12s
-- [ ] **清 room_01.gd / run_state.gd 的两个 Invalid access**
+- [x] **清 room_01.gd / run_state.gd 的两个 Invalid access**：根因是当时 player.gd 语法错误 → 实例化成裸 CharacterBody2D；已补 `has_signal("died")` / `has_method("set_upgrades")` 守卫，再发生时报清晰错误而非刷屏
 
 ### P1 · Boss 房视觉完整（2-3 天）
 
@@ -94,7 +94,7 @@
 
 ### P4 · 打磨
 
-- [ ] **存档文件持久化**：`meta.gd` / `run_state.gd` 现在全是内存变量，没写 localStorage（Godot 的 ConfigFile 或 JSON）
+- [x] ~~存档文件持久化~~：meta.gd 已实现 `user://meta.json`（JSON 存累计击杀/通关/契合经验），此条为过时记录
 - [ ] **正式启动场景**：现在 F5 直接进 room_01，缺 main_menu → blessing → room_01 的正式流程
 - [ ] **移动端适配**：当前 1280×720 PC 分辨率，UI 按钮没考虑触摸
 

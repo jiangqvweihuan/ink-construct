@@ -41,6 +41,11 @@ var attack_lunge := 300.0 # 出手前冲，保证挥到脸上
 var gravity := 2000.0
 var hurt_time := 0.3
 
+# 三档加速度（对齐玩家手感：起步渐快、急停更快、反向转向最快），替换原先硬编码的瞬时变速
+var accel := 1300.0 # 启动/追击提速
+var brake := 1700.0 # 制动
+var turn_accel := 2100.0 # 反向转向
+
 var _armor := 0 # 伤害低于此值不打断出手（精英霸体）
 var _bones := 1 # 死亡掉落墨骨数
 var _dead_min := 1.2 # 尸体最少停留时间（补死动画过短的形态）
@@ -223,7 +228,7 @@ func _physics_process(delta: float) -> void:
 # ---------- 状态逻辑 ----------
 
 func _idle_tick(delta: float) -> void:
-	velocity.x = move_toward(velocity.x, 0.0, 1200.0 * delta)
+	velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 	_idle_timer -= delta
 	if _chase_block <= 0.0 and _sees_player(detect_range):
 		_set_state(State.CHASE)
@@ -231,7 +236,7 @@ func _idle_tick(delta: float) -> void:
 		_set_state(State.PATROL)
 
 
-func _patrol_tick(_delta: float) -> void:
+func _patrol_tick(delta: float) -> void:
 	if _sees_player(detect_range):
 		_set_state(State.CHASE)
 		return
@@ -241,7 +246,7 @@ func _patrol_tick(_delta: float) -> void:
 		_patrol_dir = 1
 	facing = _patrol_dir
 	_apply_facing()
-	velocity.x = _patrol_dir * patrol_speed
+	velocity.x = move_toward(velocity.x, _patrol_dir * patrol_speed, accel * delta)
 
 
 func _chase_tick(delta: float) -> void:
@@ -261,14 +266,16 @@ func _chase_tick(delta: float) -> void:
 		return
 	# 贴太近但还在冷却：先退开一点保持站位，别和同伴挤在同一格
 	if absf(dx) < keep_dist and _attack_cd > 0.0:
-		velocity.x = move_toward(velocity.x, -facing * 80.0, 900.0 * delta)
+		velocity.x = move_toward(velocity.x, -facing * 80.0, accel * delta)
 		return
-	velocity.x = move_toward(velocity.x, facing * chase_speed, 1500.0 * delta)
+	var acc := turn_accel if signf(velocity.x) != 0.0 and signf(velocity.x) != signf(dx) else accel
+	velocity.x = move_toward(velocity.x, facing * chase_speed, acc * delta)
 
 
 func _attack_tick(delta: float) -> void:
 	_attack_timer -= delta
-	velocity.x = move_toward(velocity.x, 0.0, 1500.0 * delta)
+	# lunge 用半速制动带惯性（对齐玩家 brake*0.5 的思路）：原来 1500 秒刹，前冲位移几乎为零
+	velocity.x = move_toward(velocity.x, 0.0, brake * 0.5 * delta)
 	if not _attack_hit_done and _attack_timer <= _attack_dur - _attack_hit_at:
 		_attack_hit_done = true
 		_deal_hit()
@@ -285,7 +292,7 @@ func _attack_tick(delta: float) -> void:
 
 func _hurt_tick(delta: float) -> void:
 	_hurt_timer -= delta
-	velocity.x = move_toward(velocity.x, 0.0, 1500.0 * delta)
+	velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 	if _hurt_timer <= 0.0:
 		_set_state(State.CHASE if _target != null else State.IDLE)
 
