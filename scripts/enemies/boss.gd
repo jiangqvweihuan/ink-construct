@@ -397,7 +397,7 @@ func _spawn_fire_zones() -> void:
 		xs.append(randf_range(ARENA_L + 120.0, ARENA_R - 120.0))
 	for x in xs:
 		var pos := Vector2(clampf(x, ARENA_L + 60.0, ARENA_R - 60.0), global_position.y)
-		FX.spawn(get_tree().current_scene, "gather", pos, {"scale": 0.55, "mod": Color(1.0, 0.5, 0.45, 0.95)})
+		FX.spawn(get_tree().current_scene, "telegraph", pos, {"scale": 0.55, "mod": Color(1.0, 0.5, 0.45, 0.95)})
 		_fire_zone_burst(pos)
 
 

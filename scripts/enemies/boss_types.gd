@@ -296,8 +296,8 @@ const BOSSES := {
 			"cooldown": 6.5, "min_dist": 430.0, "damage": 2},
 		# 特效：变身动画自带大范围聚气演出，外部特效只作点缀
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.45},
-			"enter": {"name": "gather", "scale": 0.9},
-			"transform": {"name": "gather", "scale": 1.2},
+			"enter": {"name": "pillar", "scale": 1.1},
+			"transform": {"name": "pillar", "scale": 1.0},
 			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1, "off_y": 175.0},
 			"charge_wall": {"name": "crack", "scale": 0.65}},
 	},

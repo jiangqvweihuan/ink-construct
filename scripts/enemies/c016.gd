@@ -354,8 +354,8 @@ func _telegraph() -> void:
 	sprite.modulate = Color(1.9, 0.5, 0.45)
 	var tw := create_tween()
 	tw.tween_property(sprite, "modulate", Color.WHITE, 0.2) # 0.35 → 0.2：预警闪一下就退，不盖过后续命中反馈
-	# 脚下聚气（泛红）：体积跟随形态缩放，精英一小团、Boss 一大团
-	FX.spawn(get_tree().current_scene, "gather", global_position, {"scale": _scale * 1.1, "mod": Color(1.0, 0.55, 0.5, 0.9)})
+	# 脚下墨环（泛红）：体积跟随形态缩放，精英一小圈、Boss 一大圈
+	FX.spawn(get_tree().current_scene, "telegraph", global_position, {"scale": _scale * 1.1, "mod": Color(1.0, 0.55, 0.5, 0.9)})
 
 
 func _deal_hit() -> void:

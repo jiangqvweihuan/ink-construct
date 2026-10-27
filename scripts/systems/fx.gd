@@ -15,6 +15,7 @@ const LIB := {
 	"speedline": {"tex": "res://art/fx/speedline.png", "frames": 5, "fps": 14.0, "pivot": "center"}, # 水墨速度线：冲锋拖尾
 	"crack": {"tex": "res://art/fx/crack.png", "frames": 35, "fps": 14.0, "pivot": "bottom"}, # 地裂爆炸：撞墙
 	"gather": {"tex": "res://art/fx/gather.png", "frames": 14, "fps": 14.0, "pivot": "bottom"}, # 聚气：起手预警
+	"telegraph": {"tex": "res://art/fx/telegraph.png", "frames": 12, "fps": 14.0, "pivot": "bottom"}, # 预警墨环：程序化生成，出手/火区预警
 	"vanish": {"tex": "res://art/fx/vanish.png", "frames": 9, "fps": 14.0, "pivot": "bottom"}, # 墨散：小怪尸体消散
 	"fire_hit": {"tex": "res://art/fx/fire_hit.png", "frames": 10, "fps": 14.0, "pivot": "center"}, # 火焰受击：焚鼎命中
 }
