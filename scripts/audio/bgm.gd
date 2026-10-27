@@ -40,13 +40,11 @@ func play_bgm(track: String) -> void:
 	if stream == null:
 		push_error("BGM: 加载失败 " + path)
 		return
-	# OGG/MP3 用 stream.loop = true；WAV 用 loop_mode 枚举（LOOP_FORWARD=1）
+	# OGG/MP3 用 stream.loop = true；WAV 的循环在导入参数里开（.import: edit/loop_mode=2 Forward），
+	# 导入器会把 loop 区间烘焙进资源——运行时别手动设 loop_end（WAV 已压缩成 QOA 算不出帧数，
+	# 设 0 会让循环区间为空、曲子进循环即静音）
 	if stream is AudioStreamOggVorbis or stream is AudioStreamMP3:
 		stream.loop = true
-	elif stream is AudioStreamWAV:
-		stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
-		stream.loop_begin = 0
-		stream.loop_end = 0 # 0 = 到末尾
 	_current = track
 
 	var from := _active

@@ -40,6 +40,7 @@ var _fx: Dictionary = {} # 特效配置（hit/enter/transform/charge_trail/charg
 var _trail_timer := 0.0 # 冲锋拖尾特效的喷溅间隔
 var _fz: Dictionary = {} # 当前阶段的封锁火区配置（空 = 无此机制）
 var _fz_cd := 0.0 # 火区冷却
+var _transform_flip := false # 掉头演出（transform_flip）：播完把 facing 翻转，跟演出保持一致
 
 
 # ---------- 形态注入 ----------
@@ -229,6 +230,7 @@ func _enter_stage(next: int) -> void:
 		state = S_TRANSFORM
 		_state_timer = float(_anim_durations.get(tname, 2.0))
 		velocity.x = 0.0
+		_transform_flip = bool(st.get("transform_flip", false))
 		_play(tname, false)
 		_telegraph()
 		Feel.shake(6.0, 0.25)
@@ -240,6 +242,12 @@ func _enter_stage(next: int) -> void:
 
 func _finish_transform() -> void:
 	_invincible = false
+	# 掉头演出（武车 zhuanshen）结束后朝向跟着翻转：演出里车已经调头，
+	# 不翻的话紧接着的 idle 会按旧朝向把车身瞬间翻回去，视觉突兀
+	if _transform_flip:
+		facing = -facing
+		_apply_facing()
+	_transform_flip = false
 	_apply_stage(_stages[stage])
 	_attack_cd = attack_cooldown # 僵直窗口是奖励输出的，起身不许立刻贴脸一刀
 	# 变身后的僵直窗口：不变身也照给（无变身动画的阶段切换也要有节奏感）

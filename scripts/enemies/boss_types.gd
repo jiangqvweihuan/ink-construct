@@ -183,7 +183,8 @@ const BOSSES := {
 		"stages": [
 			{"attacks": ["skill03", "skill01"], "attack_cooldown": 2.6, "chase_speed": 110.0},
 			# zhuanshen（1.4s 双马转身）当二阶段演出：战车调头，节奏全面提速
-			{"attacks": ["skill01", "skill01-", "skill03"], "attack_cooldown": 1.9, "chase_speed": 135.0, "transform": "zhuanshen", "stagger": 0.5},
+			# transform_flip：演出是掉头，播完引擎朝向跟着翻转，否则 idle 会把车瞬间翻回去
+			{"attacks": ["skill01", "skill01-", "skill03"], "attack_cooldown": 1.9, "chase_speed": 135.0, "transform": "zhuanshen", "transform_flip": true, "stagger": 0.5},
 		],
 		# 探针实测 @scale1：skill01/skill01- 1154@1.97（长枪横扫）、skill03 峰值在 0 帧（车体本身 817 宽），
 		# 取挥击中段 1.0s 结算，range 按车体实测宽度 817 × 0.5 = 409
