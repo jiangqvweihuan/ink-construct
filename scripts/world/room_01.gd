@@ -116,16 +116,16 @@ func _build_decor() -> void:
 		add_child(s)
 
 
-## Boss 房背景表：每个形态一张主题场景图（1024x512 放大 1.875 铺满 1920）
-## ground = 原图里"画出来的地面线"的 y 坐标（512 高的源图像素系），摆放时让它正好落在
+## Boss 房背景表：每个形态一张主题场景图（1536x768 放大 1.875 铺满 1920，右侧 1/3 在屏外）
+## ground = 原图里"画出来的地面线"的 y 坐标（768 高的源图像素系），摆放时让它正好落在
 ## GROUND_Y——角色脚踩处即画中地面，和小怪房 bg_main 一个逻辑；tint 为整体调色
 const BOSS_BG := {
 	"_debug": {"tex": "res://art/environment/background/bg_boss.png", "scale": 1.25, "ground": 704.0, "tint": Color(0.45, 0.5, 0.55)},
-	"c001": {"tex": "res://art/environment/background/bg_boss_c001.png", "scale": 1.875, "ground": 408.0, "tint": Color(0.5, 0.48, 0.45)}, # 废墟校场，灰调即可
-	"c008": {"tex": "res://art/environment/background/bg_boss_c008.png", "scale": 1.875, "ground": 441.0, "tint": Color(0.48, 0.48, 0.55)}, # 白昼山门压成黄昏
-	"c009": {"tex": "res://art/environment/background/bg_boss_c009.png", "scale": 1.875, "ground": 448.0, "tint": Color(0.42, 0.5, 0.62)}, # 云海山巅压冷
-	"c015a1": {"tex": "res://art/environment/background/bg_boss_c015a1.png", "scale": 1.875, "ground": 434.0, "tint": Color(0.62, 0.42, 0.34)}, # 群峰熏成暮色熔炉
-	"c032": {"tex": "res://art/environment/background/bg_boss_c032.png", "scale": 1.875, "ground": 441.0, "tint": Color(0.6, 0.6, 0.66)}, # 阴暗古寺原调偏暗，少压
+	"c001": {"tex": "res://art/environment/background/bg_boss_c001.png", "scale": 1.875, "ground": 668.0, "tint": Color(0.5, 0.48, 0.45)}, # 废墟校场，灰调即可
+	"c008": {"tex": "res://art/environment/background/bg_boss_c008.png", "scale": 1.875, "ground": 675.0, "tint": Color(0.48, 0.48, 0.55)}, # 白昼山门压成黄昏
+	"c009": {"tex": "res://art/environment/background/bg_boss_c009.png", "scale": 1.875, "ground": 675.0, "tint": Color(0.42, 0.5, 0.62)}, # 云海山巅压冷
+	"c015a1": {"tex": "res://art/environment/background/bg_boss_c015a1.png", "scale": 1.875, "ground": 690.0, "tint": Color(0.62, 0.42, 0.34)}, # 群峰熏成暮色熔炉
+	"c032": {"tex": "res://art/environment/background/bg_boss_c032.png", "scale": 1.875, "ground": 690.0, "tint": Color(0.6, 0.6, 0.66)}, # 阴暗古寺原调偏暗，少压
 }
 
 
@@ -145,12 +145,14 @@ func _build_boss_background() -> void:
 
 
 func _build_ground() -> void:
-	var g := TextureRect.new()
-	g.texture = _load_tex("res://art/environment/tilesets/ground_ink.png")
-	g.size = Vector2(ROOM_W, 110) # 石板带，顶边羽化
-	g.position = Vector2(0, GROUND_Y - 20) # 带顶缘 620，视觉平面在 640=碰撞面
-	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(g)
+	# Boss 房场景不分层：背景整图自带地面，不再铺石板带（仅普通房铺）
+	if not Run.is_boss_room():
+		var g := TextureRect.new()
+		g.texture = _load_tex("res://art/environment/tilesets/ground_ink.png")
+		g.size = Vector2(ROOM_W, 110) # 石板带，顶边羽化
+		g.position = Vector2(0, GROUND_Y - 20) # 带顶缘 620，视觉平面在 640=碰撞面
+		g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(g)
 
 	var body := StaticBody2D.new()
 	body.position = Vector2(ROOM_W * 0.5, GROUND_Y + 40)

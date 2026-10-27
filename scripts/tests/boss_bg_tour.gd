@@ -22,7 +22,15 @@ func _ready() -> void:
 		await get_tree().create_timer(0.5).timeout
 		room._player.max_hp = 99
 		room._player.hp = 99
-		await get_tree().create_timer(1.3).timeout # 登场演出中段：落款在、镜头推回中
+		# 等登场动作进入中段（落款还在、Boss 姿态展开），再收稳镜头截图
+		await get_tree().create_timer(1.8).timeout
+		# 登场运镜时长 = chuchang 时长+0.5，每个 Boss 都不一样；截图前强制收稳，
+		# 否则拍到的是 zoom 中途画面，背景位置不是稳态，量地面线全白搭
+		if Feel._zoom_tween != null and Feel._zoom_tween.is_valid():
+			Feel._zoom_tween.kill()
+		if Feel._cam != null and is_instance_valid(Feel._cam):
+			Feel._cam.zoom = Vector2.ONE
+		await get_tree().process_frame
 		await RenderingServer.frame_post_draw
 		var img = get_viewport().get_texture().get_image()
 		var err = img.save_png(OUT_DIR + "bg_tour_" + id + ".png")
