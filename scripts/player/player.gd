@@ -430,8 +430,8 @@ func _hurt_tick(delta: float) -> void:
 
 ## 给 HUD 查技能冷却进度：返回 0（就绪）~ 1（刚放完）。未知技能返回 0。
 func get_skill_cd_ratio(n: String) -> float:
-	var cfg = skill_config.get(n, {})
-	if cfg == null:
+	var cfg: Dictionary = skill_config.get(n, {})
+	if cfg.is_empty():
 		return 0.0
 	var total: float = cfg["cooldown"]
 	if total <= 0.0:
@@ -476,6 +476,7 @@ func _start_attack(idx: int) -> void:
 	_play(str(atk["anim"]), false)
 	_play_sfx("weapon_sword") # 起手嗖一声
 	_queue(anim_map["idle"], true) # 打完自动回 idle，防止卡在收招帧
+	_idle_queued = true # 与 _start_skill 一致：idle 已在队列里，收招超时别再 _play 重开淡化
 
 
 func _try_skill() -> void:
@@ -545,6 +546,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO) -> void:
 	if state == State.DEAD or state == State.DASH or _invincible or _hurt_invincible > 0.0:
 		return
 	_hurt_invincible = 0.8
+	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
 	hp -= amount
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(amount, DMG_COLOR, 130.0)
@@ -586,6 +588,7 @@ func _spawn_number(amount: int, color: Color, height: float) -> void:
 
 func die() -> void:
 	state = State.DEAD
+	_set_blink(false) # 尸体也别穿怪
 	velocity = Vector2.ZERO
 	_idle_queued = false
 	_invincible = false

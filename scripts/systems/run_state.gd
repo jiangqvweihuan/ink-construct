@@ -142,7 +142,8 @@ func buy(key: String) -> bool:
 		return false
 	upgrades[key] = level(key) + 1
 	if key == "hp":
-		max_hp = BASE_HP + level("hp")
+		# 与 apply_to 同公式：铁砚护身赐福 + 固元（局外）都要算进上限
+		max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus()
 		hp = max_hp # 买了加血就回满，下一层的起始血量一并提高
 	return true
 

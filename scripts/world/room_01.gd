@@ -224,6 +224,8 @@ func _spawn_boss() -> void:
 # ---------- 通关 / 阵亡结算 ----------
 
 func _on_all_cleared() -> void:
+	if _ended: # 玩家已阵亡、结算计时已启动时，飞在途中的投射物清场不再叠开强化面板
+		return
 	_ended = true
 	# 把玩家现在的血量/形态写进 run，下一层继承
 	if is_instance_valid(_player):
