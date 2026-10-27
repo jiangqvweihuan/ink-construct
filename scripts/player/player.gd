@@ -312,6 +312,9 @@ func _deal_hit() -> void:
 		var p := e as Node2D
 		if p == null:
 			continue
+		# 尸体不结算：怪死了但尸体还在场（dead_min 停留），打上去不该涨连击/触发顿帧
+		if int(e.get("hp")) <= 0:
+			continue
 		var dx: float = p.global_position.x - global_position.x
 		var dy: float = absf(p.global_position.y - global_position.y)
 		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
@@ -374,6 +377,9 @@ func _deal_skill_hit(h: Dictionary) -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var p := e as Node2D
 		if p == null:
+			continue
+		# 尸体不结算：怪死了但尸体还在场（dead_min 停留），打上去不该涨连击/触发顿帧
+		if int(e.get("hp")) <= 0:
 			continue
 		var dx: float = p.global_position.x - global_position.x
 		var dy: float = absf(p.global_position.y - global_position.y)

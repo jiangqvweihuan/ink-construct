@@ -1,0 +1,4 @@
+theme font = (res://art/ui/fonts/pangmen.ttf):<FontFile#-9223372012846578766>
+setting = res://art/ui/fonts/main_theme.tres
+theme loaded = (res://art/ui/fonts/main_theme.tres):<Theme#-9223372012796247323>
+default_font = (res://art/ui/fonts/pangmen.ttf):<FontFile#-9223372012846578766>

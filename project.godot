@@ -31,7 +31,7 @@ window/stretch/mode="canvas_items"
 
 [gui]
 
-# 全局游戏字体：庞门正道粗书体（Boss 名由 hud 单独覆写为演示佛系体）
+; 全局游戏字体：庞门正道粗书体（Boss 名由 hud 单独覆写为演示佛系体）
 theme/custom="res://art/ui/fonts/main_theme.tres"
 
 [dotnet]

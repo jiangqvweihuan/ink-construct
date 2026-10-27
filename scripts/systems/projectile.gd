@@ -60,6 +60,8 @@ func _physics_process(delta: float) -> void:
 		var p := e as Node2D
 		if p == null:
 			continue
+		if int(e.get("hp")) <= 0: # 尸体不吃投射物，与近战判定一致
+			continue
 		if absf(p.global_position.x - global_position.x) <= 30.0 and absf(p.global_position.y - global_position.y) <= 80.0:
 			p.call("take_damage", _damage, global_position.x)
 			Score.add_hit()
