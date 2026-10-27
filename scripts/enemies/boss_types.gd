@@ -8,7 +8,7 @@ extends RefCounted
 const DEFAULT_ID := "_debug"
 
 ## 一局随机登场哪一个 Boss（_debug 仅供 boss_test 冒烟，不进随机池）
-const ROSTER := ["c009", "c015a1", "c001"]
+const ROSTER := ["c009", "c015a1", "c001", "c008"]
 
 const BOSSES := {
 	# ---------- 调试占位：墨堂守将（c037 骨架放大版），验证阶段/变身/冲锋/结算全链路 ----------
@@ -202,6 +202,56 @@ const BOSSES := {
 			"transform": {"name": "speedline", "scale": 1.2, "off_y": -120.0},
 			"charge_trail": {"name": "speedline", "scale": 1.5, "interval": 0.08},
 			"charge_wall": {"name": "crack", "scale": 0.8}},
+	},
+	# ---------- 碎岳 · 墨甲巨汉（C008）：重装压场型 Boss，探针身高 674.3px ----------
+	"c008": {
+		"label": "碎岳",
+		"data": "res://art/characters/enemies/bosses/c008/c008_data.tres",
+		"scale": 0.55, # 674.3px -> 约 371px，与墨霆同级的墨甲巨汉
+		# 骨架 dead/stun 为 0 帧空动画：倒地借 atked_fall_end，受击/变身借 def_break
+		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
+		"hp": 32,
+		"patrol_speed": 45.0,
+		"chase_speed": 85.0,
+		"patrol_range": 150.0,
+		"idle_time": 1.3,
+		"detect_range": 9999.0,
+		"lose_range": 9999.0,
+		"attack_range": 300.0,
+		"keep_dist": 160.0,
+		"attack_cooldown": 2.5,
+		"attack_lunge": 220.0,
+		"hit_height": 150.0,
+		"hurt_time": 0.35,
+		"armor": 99,
+		"telegraph": true,
+		"pick": "nearest",
+		"bones": 10,
+		"dead_min": 2.4,
+		"number_y": -390.0,
+		"stage_at": [0.65, 0.35],
+		"stages": [
+			{"attacks": ["skill01", "skill03"], "attack_cooldown": 2.5, "chase_speed": 85.0},
+			{"attacks": ["skill01", "skill03", "skill3"], "attack_cooldown": 1.9, "chase_speed": 105.0, "transform": "def_break", "stagger": 0.6},
+			# 三阶段觉醒：巨突刺（974px 全屏级突进）入池，节奏全面提速
+			{"attacks": ["skill04", "skill3", "skill01"], "attack_cooldown": 1.5, "chase_speed": 125.0, "transform": "def_break", "stagger": 0.5},
+		],
+		# 探针实测 @scale1：skill01 409@1.19（重劈）、skill03/skill3 494@0.71（双侧旋转扫）、
+		# skill04 974@0.92（巨突刺）；skill02 峰值在 0 帧（贴身砸地无前伸），不进招式池（×0.55）
+		"ranges": {"skill01": 225.0, "skill03": 272.0, "skill3": 272.0, "skill04": 536.0},
+		"hit_at": {"skill01": 1.19, "skill03": 0.71, "skill3": 0.71, "skill04": 0.92},
+		# 旋转扫击前后都够得到
+		"both": {"skill03": true, "skill3": true},
+		# 冲锋：run 奔冲 + def_break 急停/撞墙（骨架 stun 为空帧）
+		"charge": {"anim_run": "run", "anim_stop": "def_break", "anim_stun": "def_break",
+			"speed": 620.0, "hit_w": 150.0, "hit_h": 160.0, "stun_time": 1.8,
+			"cooldown": 6.5, "min_dist": 430.0, "damage": 2},
+		# 特效：登场/变身脚下地裂，冲锋拖速度线，撞墙地裂爆炸
+		"fx": {"hit": {"name": "ink_claw", "scale": 0.5},
+			"enter": {"name": "crack", "scale": 0.9},
+			"transform": {"name": "crack", "scale": 0.7},
+			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1},
+			"charge_wall": {"name": "crack", "scale": 0.7}},
 	},
 }
 
