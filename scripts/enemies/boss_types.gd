@@ -54,7 +54,7 @@ const BOSSES := {
 			"cooldown": 7.0, "min_dist": 430.0, "damage": 2},
 		# 特效配置：hit=受击 / enter=登场 / transform=变身 / charge_trail=冲锋拖尾 / charge_wall=撞墙
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.4},
-			"charge_trail": {"name": "speedline", "scale": 1.0, "interval": 0.1},
+			"charge_trail": {"name": "speedline", "scale": 1.0, "interval": 0.1, "off_y": 100.0},
 			"charge_wall": {"name": "crack", "scale": 0.5}},
 	},
 	# ---------- 墨霆 · 巨兽骑手（C009）：冲锋型 Boss，探针身高 628.6px ----------
@@ -105,7 +105,7 @@ const BOSSES := {
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.5},
 			"enter": {"name": "tiger", "scale": 1.1},
 			"transform": {"name": "tiger", "scale": 0.9},
-			"charge_trail": {"name": "speedline", "scale": 1.3, "interval": 0.1},
+			"charge_trail": {"name": "speedline", "scale": 1.3, "interval": 0.1, "off_y": 155.0},
 			"charge_wall": {"name": "crack", "scale": 0.65}},
 	},
 	# ---------- 焚鼎 · 紫焰锁链巨汉（C015_a1）：重装长臂型 Boss，探针身高 765.7px ----------
@@ -198,9 +198,9 @@ const BOSSES := {
 			"cooldown": 5.0, "min_dist": 400.0, "damage": 2},
 		# 特效：入场/转身拉速度线，冲锋拖更密的速度线，撞墙地裂爆炸
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.5},
-			"enter": {"name": "speedline", "scale": 1.6, "off_y": -120.0},
-			"transform": {"name": "speedline", "scale": 1.2, "off_y": -120.0},
-			"charge_trail": {"name": "speedline", "scale": 1.5, "interval": 0.08},
+			"enter": {"name": "speedline", "scale": 1.6, "off_y": -170.0},
+			"transform": {"name": "speedline", "scale": 1.2, "off_y": -170.0},
+			"charge_trail": {"name": "speedline", "scale": 1.5, "interval": 0.08, "off_y": 160.0},
 			"charge_wall": {"name": "crack", "scale": 0.8}},
 	},
 	# ---------- 碎岳 · 墨甲巨汉（C008）：重装压场型 Boss，探针身高 674.3px ----------
@@ -250,7 +250,7 @@ const BOSSES := {
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.5},
 			"enter": {"name": "crack", "scale": 0.9},
 			"transform": {"name": "crack", "scale": 0.7},
-			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1},
+			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1, "off_y": 165.0},
 			"charge_wall": {"name": "crack", "scale": 0.7}},
 	},
 	# ---------- 鸣钟 · 墨甲钟馗（C032）：三段变身型 Boss，探针身高 388.6px ----------
@@ -298,7 +298,7 @@ const BOSSES := {
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.45},
 			"enter": {"name": "gather", "scale": 0.9},
 			"transform": {"name": "gather", "scale": 1.2},
-			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1},
+			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1, "off_y": 175.0},
 			"charge_wall": {"name": "crack", "scale": 0.65}},
 	},
 }

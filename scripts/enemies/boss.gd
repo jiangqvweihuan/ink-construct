@@ -203,7 +203,7 @@ func _custom_tick(delta: float) -> void:
 			if not trail.is_empty() and _trail_timer <= 0.0:
 				_trail_timer = float(trail.get("interval", 0.1))
 				FX.spawn(get_tree().current_scene, str(trail["name"]),
-					global_position + Vector2(-_charge_dir * 120.0, -70.0),
+					global_position + Vector2(-_charge_dir * 120.0, -float(trail.get("off_y", 150.0))),
 					{"scale": float(trail.get("scale", 1.0)), "flip": _charge_dir < 0.0})
 			_charge_hit_check()
 			if is_on_wall() or global_position.x <= ARENA_L or global_position.x >= ARENA_R:
@@ -322,11 +322,12 @@ func _charge_hit_wall() -> void:
 	_play(str(_charge.get("anim_stun", "")), false)
 	_queue(str(_anim_map["idle"]), true) # 硬直比自晕动画长：接续 idle，避免播完闪回 setup pose
 	Feel.shake(9.0, 0.3)
-	# 撞墙地裂爆炸：贴墙根从脚下炸起
+	# 撞墙地裂爆炸：炸在墙根本体（ARENA 内沿），而不是离墙半个身位的场中
 	var wall_fx: Dictionary = _fx.get("charge_wall", {})
 	if not wall_fx.is_empty():
+		var wall_x := ARENA_R if _charge_dir > 0.0 else ARENA_L
 		FX.spawn(get_tree().current_scene, str(wall_fx["name"]),
-			Vector2(global_position.x + _charge_dir * float(_charge.get("hit_w", 130.0)) * 0.5, global_position.y),
+			Vector2(wall_x - _charge_dir * 30.0, global_position.y),
 			{"scale": float(wall_fx.get("scale", 1.0)), "flip": _charge_dir < 0.0})
 
 
@@ -348,8 +349,8 @@ func take_damage(amount: int, source_x: float) -> void:
 		die()
 		return
 	_flash()
-	# 受击爪痕：打在攻击者来袭的一侧躯干（而非 boss 正中），有"被砍了一刀"的方向感
-	var off_x := signf(global_position.x - source_x) * 50.0 # 来袭方向 → 爪痕在躯干那侧
+	# 受击爪痕：打在攻击者来袭的一侧躯干（玩家从左边砍，爪痕出在左半身）
+	var off_x := signf(source_x - global_position.x) * 60.0 # 朝向攻击者那侧
 	_fx_play(_fx.get("hit", {}), Vector2(off_x, _number_y * 0.55))
 	_check_stage()
 
