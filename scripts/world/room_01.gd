@@ -116,32 +116,30 @@ func _build_decor() -> void:
 		add_child(s)
 
 
-## Boss 房背景表：每个形态一张主题场景图（1536x768 放大 1.875 铺满 1920，右侧 1/3 在屏外）
+## Boss 房背景表：每个形态一张主题场景图（1536x768 按 1.25 原比例铺满 1920x960，
+## 整图完整不裁、不放大失衡、不加滤镜染色）
 ## ground = 原图里"画出来的地面线"的 y 坐标（768 高的源图像素系），摆放时让它正好落在
-## GROUND_Y——角色脚踩处即画中地面，和小怪房 bg_main 一个逻辑；tint 为整体调色
+## GROUND_Y——角色脚踩处即画中地面，和小怪房 bg_main 一个逻辑
 const BOSS_BG := {
-	"_debug": {"tex": "res://art/environment/background/bg_boss.png", "scale": 1.25, "ground": 704.0, "tint": Color(0.45, 0.5, 0.55)},
-	"c001": {"tex": "res://art/environment/background/bg_boss_c001.png", "scale": 1.875, "ground": 668.0, "tint": Color(0.5, 0.48, 0.45)}, # 废墟校场，灰调即可
-	"c008": {"tex": "res://art/environment/background/bg_boss_c008.png", "scale": 1.875, "ground": 675.0, "tint": Color(0.48, 0.48, 0.55)}, # 白昼山门压成黄昏
-	"c009": {"tex": "res://art/environment/background/bg_boss_c009.png", "scale": 1.875, "ground": 675.0, "tint": Color(0.42, 0.5, 0.62)}, # 云海山巅压冷
-	"c015a1": {"tex": "res://art/environment/background/bg_boss_c015a1.png", "scale": 1.875, "ground": 690.0, "tint": Color(0.62, 0.42, 0.34)}, # 群峰熏成暮色熔炉
-	"c032": {"tex": "res://art/environment/background/bg_boss_c032.png", "scale": 1.875, "ground": 690.0, "tint": Color(0.6, 0.6, 0.66)}, # 阴暗古寺原调偏暗，少压
+	"_debug": {"tex": "res://art/environment/background/bg_boss.png", "ground": 704.0},
+	"c001": {"tex": "res://art/environment/background/bg_boss_c001.png", "ground": 668.0}, # 废墟校场：石板路
+	"c008": {"tex": "res://art/environment/background/bg_boss_c008.png", "ground": 675.0}, # 白昼山门：山前沙地
+	"c009": {"tex": "res://art/environment/background/bg_boss_c009.png", "ground": 700.0}, # 云海山巅：云坪石滩
+	"c015a1": {"tex": "res://art/environment/background/bg_boss_c015a1.png", "ground": 700.0}, # 暮色群峰：湖畔石板路
+	"c032": {"tex": "res://art/environment/background/bg_boss_c032.png", "ground": 690.0}, # 阴暗古寺：石板广场
 }
 
 
-## Boss 房「墨堂深处」：按 boss_id 换主题背景，画中地面线对齐 GROUND_Y，整图铺底不拼装饰
+## Boss 房「墨堂深处」：按 boss_id 换主题背景，画中地面线对齐 GROUND_Y，单层整图不拼不染
 func _build_boss_background() -> void:
 	var cfg: Dictionary = BOSS_BG.get(Run.boss_id, BOSS_BG["_debug"])
 	var bg := Sprite2D.new()
 	bg.texture = _load_tex(str(cfg["tex"]))
 	bg.centered = false
-	var bg_sc := float(cfg["scale"])
-	bg.scale = Vector2(bg_sc, bg_sc)
+	bg.scale = Vector2(1.25, 1.25) # 1536x768 -> 1920x960，原比例铺满
 	# 画中地面线对齐 GROUND_Y：角色站在画的地面上，不是站在画前面的舞台上
-	bg.position = Vector2(0, GROUND_Y - float(cfg["ground"]) * bg_sc)
-	bg.modulate = cfg["tint"]
+	bg.position = Vector2(0, GROUND_Y - float(cfg["ground"]) * 1.25)
 	add_child(bg)
-	# 不再叠宫殿/断崖剪影：整图铺底，拼接感太重
 
 
 func _build_ground() -> void:
