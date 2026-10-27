@@ -8,7 +8,7 @@ extends RefCounted
 const DEFAULT_ID := "_debug"
 
 ## 一局随机登场哪一个 Boss（_debug 仅供 boss_test 冒烟，不进随机池）
-const ROSTER := ["c009", "c015a1", "c001", "c008"]
+const ROSTER := ["c009", "c015a1", "c001", "c008", "c032"]
 
 const BOSSES := {
 	# ---------- 调试占位：墨堂守将（c037 骨架放大版），验证阶段/变身/冲锋/结算全链路 ----------
@@ -252,6 +252,54 @@ const BOSSES := {
 			"transform": {"name": "crack", "scale": 0.7},
 			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1},
 			"charge_wall": {"name": "crack", "scale": 0.7}},
+	},
+	# ---------- 鸣钟 · 墨甲钟馗（C032）：三段变身型 Boss，探针身高 388.6px ----------
+	"c032": {
+		"label": "鸣钟",
+		"data": "res://art/characters/enemies/bosses/c032/c032_data.tres",
+		"scale": 1.15, # 388.6px（含枪尖）-> 约 447px，身形比碎岳瘦但落差不再弱一档
+		# 骨架 dead/stun 为空动画（0.083 / 0 帧）：倒地借 atked_fall_end，受击借 atked_heavy
+		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
+		"hp": 34,
+		"patrol_speed": 50.0,
+		"chase_speed": 100.0,
+		"patrol_range": 160.0,
+		"idle_time": 1.2,
+		"detect_range": 9999.0,
+		"lose_range": 9999.0,
+		"attack_range": 320.0,
+		"keep_dist": 170.0,
+		"attack_cooldown": 2.4,
+		"attack_lunge": 220.0,
+		"hit_height": 150.0,
+		"hurt_time": 0.3,
+		"armor": 99,
+		"telegraph": true,
+		"pick": "nearest",
+		"bones": 10,
+		"dead_min": 2.4,
+		"number_y": -390.0,
+		"stage_at": [0.65, 0.35],
+		# 本骨架自带 transform / transform1 / transform2 三套变身，P2 用 transform、P3 用 transform1
+		"stages": [
+			{"attacks": ["skill05", "skill02"], "attack_cooldown": 2.4, "chase_speed": 100.0},
+			{"attacks": ["skill01", "skill05", "skill02"], "attack_cooldown": 1.9, "chase_speed": 120.0, "transform": "transform", "stagger": 0.6},
+			{"attacks": ["skill03", "skill04", "skill01"], "attack_cooldown": 1.5, "chase_speed": 140.0, "transform": "transform1", "stagger": 0.5},
+		],
+		# 探针实测 @scale1：skill01 357@2.00、skill02 263@0.72、skill03 477@2.47（长扫）、
+		# skill04 323@2.16、skill05 349@0.64（快招）；剪影峰值全在原点右侧，无需 both（×1.15）
+		"ranges": {"skill01": 411.0, "skill02": 302.0, "skill03": 549.0, "skill04": 371.0, "skill05": 401.0},
+		"hit_at": {"skill01": 2.00, "skill02": 0.72, "skill03": 2.47, "skill04": 2.16, "skill05": 0.64},
+		# 冲锋：speed_run 高速奔跑 + stand 急停蓄力，撞墙借倒地姿势（骨架 stun 为空帧）
+		"charge": {"anim_run": "speed_run", "anim_stop": "stand", "anim_stun": "atked_fall_end",
+			"speed": 640.0, "hit_w": 140.0, "hit_h": 150.0, "stun_time": 1.8,
+			"cooldown": 6.5, "min_dist": 430.0, "damage": 2},
+		# 特效：变身动画自带大范围聚气演出，外部特效只作点缀
+		"fx": {"hit": {"name": "ink_claw", "scale": 0.45},
+			"enter": {"name": "gather", "scale": 0.9},
+			"transform": {"name": "gather", "scale": 1.2},
+			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1},
+			"charge_wall": {"name": "crack", "scale": 0.65}},
 	},
 }
 

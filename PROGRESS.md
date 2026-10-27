@@ -14,7 +14,7 @@
 | 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | 多化身（4 形态：刀客 / 弓手 / 法师 / 弓弩手）各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中（双刺闪扫路径判定）、dash、jump、coyote、受伤无敌 |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel` 启动 / `brake` 制动 / `turn_accel` 反向转向，均 `@export` 可调）、lunge 惯性（`brake*0.5` 代替 `accel` 秒刹）、hit_at × 0.9 提前判定、预警泛红闪 0.2s（原 0.35s） |
 | 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动的巡逻 / 追击 / 挑招式 / 出手令牌 / 攻击锁定 / 受击硬直分层（普通 vs 精英霸体）；range_probe 标定 ranges + hit_at |
-| Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 四真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008）；多阶段切换（血量阈值）+ 变身无敌 + 僵直窗口（奖励输出）+ 冲锋技（蓄力→碾压→撞墙大硬直）；HUD 大血条；`ROSTER` 随机登场 |
+| Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换（血量阈值）+ 变身无敌 + 僵直窗口（奖励输出）+ 冲锋技（蓄力→碾压→撞墙大硬直）；C032 自带 transform/transform1/transform2 三套变身动画，P2/P3 各演一套；HUD 大血条；`ROSTER` 随机登场 |
 | 特效系统 | `scripts/systems/fx.gd` | GIF 精灵条逐帧播放器，12 条特效（ink_hit / ink_claw / slash / pillar / tiger / thunder / fire_pillar / speedline / crack / gather / vanish / fire_hit）；Boss fx 配置表驱动（登场 / 变身 / 冲锋拖尾 / 撞墙 / 受击）+ 焚鼎 P3 封锁火区（聚气预警 → 火柱喷发 → 范围灼烧） |
 | 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | 三层推进（普通房×2 → Boss 房）；`RoomIndex` + `is_boss_room` 路由；Boss 房换幽谷背景 + 暗色宫殿剪影 |
 
@@ -43,7 +43,7 @@
 | 场景 | 用途 |
 |---|---|
 | `scenes/tests/room_test.tscn` | 主循环冒烟（刷怪 / 战斗 / 换头 / 化身 / 面板 / 结算） |
-| `scenes/tests/boss_test.tscn` | Boss 真身全链路（`$env:BOSS_ID=c009\|c015a1\|c001\|c008\|_debug`） |
+| `scenes/tests/boss_test.tscn` | Boss 真身全链路（`$env:BOSS_ID=c009\|c015a1\|c001\|c008\|c032\|_debug`） |
 | `scenes/tests/settlement_clear_test.tscn` | 通关结算 |
 | `scenes/tests/settlement_dead_test.tscn` | 阵亡结算 |
 | `scenes/tests/fx_test.tscn` | 特效总览 |
@@ -76,8 +76,8 @@
 
 ### P1 · Boss 房视觉完整（2-3 天）
 
-- [ ] **四个 Boss 房独立背景**：现在只有一张 `bg_boss.png` 通吃，应该 c009（巨兽山巅） / c015a1（焚鼎熔炉） / c001（战车校场） / c008（碎岳山门）各一张
-- [ ] **Boss 登场演出强化**：现在只震屏 + 播 chuchang + fx_play；加 camera shake 拉远 → 推近、Boss 血条渐显、"墨霆 / 焚鼎 / 武车 / 碎岳"书法落款弹出
+- [ ] **五个 Boss 房独立背景**：现在只有一张 `bg_boss.png` 通吃，应该 c009（巨兽山巅） / c015a1（焚鼎熔炉） / c001（战车校场） / c008（碎岳山门） / c032（鸣钟古阁）各一张
+- [ ] **Boss 登场演出强化**：现在只震屏 + 播 chuchang + fx_play；加 camera shake 拉远 → 推近、Boss 血条渐显、"墨霆 / 焚鼎 / 武车 / 碎岳 / 鸣钟"书法落款弹出
 - [ ] **焚鼎 P3 火区视觉优化**：fire_hit 打完玩家身上那一下现在只是一个橙色炸开——应该加持续 0.4s 灼烧 DOT 视觉（不做真实 DOT 伤害，只视觉）
 
 ### P2 · 新内容（看素材库）
@@ -106,8 +106,8 @@
 # 回归 room_test
 & "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" "res://scenes/tests/room_test.tscn"
 
-# Boss 真身冒烟（四选一）
-$env:BOSS_ID = "c009"  # 或 c015a1 / c001 / c008 / _debug
+# Boss 真身冒烟（五选一）
+$env:BOSS_ID = "c009"  # 或 c015a1 / c001 / c008 / c032 / _debug
 & "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" "res://scenes/tests/boss_test.tscn"
 
 # 重导素材（删 png 后必跑）
@@ -116,6 +116,9 @@ $env:BOSS_ID = "c009"  # 或 c015a1 / c001 / c008 / _debug
 # 骨架探针
 & "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" "res://scenes/tests/range_probe.tscn"
 ```
+
+> 拷素材只认 `E:\素材\墨构素材库\暗黑武侠水墨风人物Spine...\Character\<ID>`（4.2.11，可直接导入）；
+> `E:\素材\暗黑武侠水墨风人物Spine...`（不带"墨构素材库"前缀）是 **3.6.53 原版**，拷进来会导入失败、`.skel.import` 显示 `valid=false`。
 
 ## 五、目录速查
 
@@ -131,7 +134,7 @@ scripts/
 art/
 ├── characters/
 │   ├── enemies/     # 小怪骨架 + atlas
-│   └── bosses/      # c009 / c015a1 / c001 / c008 骨架 + atlas
+│   └── bosses/      # c009 / c015a1 / c001 / c008 / c032 骨架 + atlas
 ├── fx/              # 12 条精灵条特效（.png + .json）
 └── environment/     # decor + background（bg_boss.png / bg_green.png）
 

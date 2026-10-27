@@ -1,6 +1,6 @@
-[B] boss=碎岳 hp=32/32 stage=0
+[B] boss=鸣钟 hp=34/34 stage=0
 [B] saved 00_entrance err=0
-[B] stage2 entered, hp=20
+[B] stage2 entered, hp=22
 [B] saved 01_stage2 err=0
 [B] final stage entered, stage=2 hp=10
 [B] saved 02_stage3 err=0
