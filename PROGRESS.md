@@ -72,6 +72,7 @@
 | 特效/音效 | `fx_test.tscn`、`sfx_preview.tscn` |
 | 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`（自动扫描全部骨架 → `tests/anim_list.log`）、`anim_viewer.tscn`（可视化查看器：←→ 切骨架、↑↓ 切动画、空格重播、L 循环）、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
 | 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`、`settings_test.tscn`、`font_probe.tscn` |
+| **试炼场（调试单挑）** | **`sandbox.tscn`**：一块空地 + 任选敌人单挑，调技能机制/动画/判定专用。[/] 换玩家形态、,/. 轮换敌人（小怪+精英+Boss，直接读两张形态表，新增怪自动进表）、R 重刷敌人；双方无限血（999999）；启动 1s 自动存 `tests/out/sandbox_boot.png` 供回归验收，`-- --shot` 跑完整自动巡游 |
 
 ---
 
@@ -196,6 +197,7 @@ tests/out/           # 回归截图 + 日志
 
 ## 六、项目约束（别忘）
 
+- **⚠️ 新模型必须可浏览（用户强调）**：任何新人物骨架三件套必须放进 `art/characters/` 下并 `--import` 重导——`anim_viewer.tscn` 递归扫描该目录自动收录，**实装新角色/敌人/精英/Boss 时必须开查看器确认能浏览全部动画**；若素材放到其他目录，必须同步扩大 `anim_viewer.gd` 的 `ROOT` 扫描范围，不许出现"实装了但查看器里看不到"的情况
 - **投射物特效用户不自理**：空闲就修改 `projectile.gd` 的 `_draw` 视觉
 - **中文注释**：全项目中文注释
 - **WTE 规范**：preload 不用 `class_name`、函数内不能声明 `const`
@@ -236,6 +238,9 @@ skulls.gd 整段移除 c012；meta.gd 删解锁项（通关1）+ INK_SHOP 删 bu
 
 #### 环境备注
 本轮 IDE 沙箱对 `Start-Process` 持续报 `sandbox backend failed`（无 Godot 进程、--import 却正常），直接 `&` 调 mono Godot 静默不跑场景——**用 `mcp_godot_run_project` MCP 工具跑回归可绕过**
+
+#### 同晚追加 · 试炼场 sandbox.tscn
+用户要的调试单挑场：一块空地 + 任选敌人（小怪/精英/Boss 共 12 只，轮换表直读两张形态表，新增怪自动进表）+ 随意换玩家形态 + 双方无限血。键位 [/] 换形态、,/. 换敌人、R 重刷；换怪前若旧怪占着全局出手令牌须先归还，否则新怪永远出不了手。用户强调规则已写入「项目约束」：新模型必须可浏览（anim_viewer 自动扫描 art/characters，实装时同步确认）。
 
 ### 2026-10-28 下午 · 关卡互动装饰 + 形态专属强化
 
