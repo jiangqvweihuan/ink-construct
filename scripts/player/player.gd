@@ -486,6 +486,13 @@ func _skill_tick(delta: float) -> void:
 		if _skill_teleport > 0.0:
 			global_position.x += facing * _skill_teleport
 			_skill_teleport = 0.0
+			# 这一帧不能走 0.2s 姿态混合：旧姿势带 ~600px 动画位移，混向新位置的 stand
+			# 会在空中拖出一道残影——清轨道瞬时切，stand 从新位置直接起播
+			if _anim_state != null:
+				_anim_state.call("clear_track", 0)
+				_anim_state.call("set_animation", anim_map["idle"], true, 0)
+				_current_anim = anim_map["idle"]
+				_idle_queued = true # _set_state 走"stand 已就位"分支，别再重开淡化
 		# 收招兜底：命中段 at 略晚于动画时长时（力僧定山 at=3.12 > 3.05），
 		# 靠计时器驱动永远触发不到 t>=at，整段伤害会凭空丢失——退出这一帧补结算
 		while not _skill_hits.is_empty():

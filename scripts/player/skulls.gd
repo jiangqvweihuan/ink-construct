@@ -229,7 +229,7 @@ const SKULLS := {
 		],
 		"skills": {
 			# K 蓄力斩（atk03_03/atk04_02/skill01 随机，编号 #15/#17/#70）：蓄力期间霸体。
-			# 三段都是双手蓄力大斩，hit_at/range 按抽中动画逐帧标定（探针 ×0.431）；
+			# 三段都是双手蓄力大斩，hit_at 按"刀刃扫出中段"标定（比满伸展峰值提前，出手即判定不拖泥）；
 			# speed 0.8 慢放：原速太赶，蓄力顿挫感出不来——慢放后实长 1.21/1.44/1.98s。
 			# sword_qi：预留的远程剑气接口——以后这里填 {speed, range, damage} 就会在
 			# 挥剑时刻发射剑气（走 projectile 管线），现在为 null 只发近战判定
@@ -237,7 +237,7 @@ const SKULLS := {
 				"action": "skill", "cooldown": 8.0, "poise": true, "speed": 0.8,
 				"pool": ["atk03_03", "atk04_02", "skill01"],
 				"sword_qi": null, # 接口预留：剑气配置（未实装）
-				"hit_at": {"atk03_03": 0.41, "atk04_02": 0.58, "skill01": 0.85},
+				"hit_at": {"atk03_03": 0.34, "atk04_02": 0.53, "skill01": 0.83},
 				"range": {"atk03_03": 165.0, "atk04_02": 165.0, "skill01": 161.0},
 				"height": 100.0, "damage": 3, "both": true, "sfx": "skill_blade",
 			},
