@@ -134,13 +134,25 @@ func _make_card(id: String, i: int, cost: int) -> void:
 
 	var name_l := Label.new()
 	name_l.text = str(Skulls.get_profile(id)["label"]) if unlocked else "？？？"
-	name_l.size = Vector2(190, 44)
-	name_l.position = Vector2(0, 30)
+	name_l.size = Vector2(190, 40)
+	name_l.position = Vector2(0, 18)
 	name_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_l.add_theme_color_override("font_color", PAPER)
-	name_l.add_theme_font_size_override("font_size", 30)
+	name_l.add_theme_font_size_override("font_size", 28)
 	name_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(name_l)
+
+	# 真实姓名（未解锁不剧透）
+	if unlocked:
+		var real := Label.new()
+		real.text = str(Skulls.get_profile(id).get("name", ""))
+		real.size = Vector2(190, 26)
+		real.position = Vector2(0, 60)
+		real.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		real.add_theme_color_override("font_color", DIM)
+		real.add_theme_font_size_override("font_size", 16)
+		real.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(real)
 
 	var sub := Label.new()
 	if is_current:

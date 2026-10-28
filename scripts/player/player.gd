@@ -399,7 +399,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				did_hit = true
 		else:
 			var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
-			# both = 回身横扫（力僧狼牙棒、枪侠回马枪）：动画扫到身后也照样判定
+			# both = 回身横扫（力僧狼牙棒、双刺回身刺）：动画扫到身后也照样判定
 			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"]:
 				p.call("take_damage", int(h["damage"]) + damage_bonus, global_position.x)
 				Score.add_hit()

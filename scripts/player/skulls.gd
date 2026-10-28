@@ -12,7 +12,8 @@ const DEFAULT_ID := "c021"
 
 const SKULLS := {
 	"c021": {
-		"label": "枪侠",
+		"label": "双刺", # 代称：红缨双匕 + 面纱长裙的女刺客造型
+		"name": "冷红绫",
 		"data": "res://art/characters/player/c021_data.tres",
 		"scale": 0.394,
 		"anim": {
@@ -28,7 +29,7 @@ const SKULLS := {
 		"attacks": [
 			{"anim": "atk01", "lock": 0.55, "hits": [0.34], "damage": 1, "range": 100.0, "lunge": 110.0},
 			{"anim": "atk02", "lock": 0.50, "hits": [0.14], "damage": 1, "range": 85.0, "lunge": 110.0},
-			# atk03 是回身横扫：枪尖甩到原点左侧 92px，判 both（前后都算命中）
+			# atk03 是回身横扫：匕尖甩到原点左侧 92px，判 both（前后都算命中）
 			{"anim": "atk03", "lock": 1.30, "hits": [0.26, 0.72], "damage": 1, "range": 95.0, "lunge": 120.0, "both": true},
 		],
 		"skills": {
@@ -56,7 +57,8 @@ const SKULLS := {
 		"hud_skills": ["skill01", "skill03", "skill04"],
 	},
 	"c023": {
-		"label": "游魂",
+		"label": "梅剑", # 代称：黑袍白发 + 梅花枝长剑
+		"name": "白疏影",
 		"data": "res://art/characters/player/skulls/c023/c023_data.tres",
 		"scale": 0.474,
 		"anim": {
@@ -94,6 +96,7 @@ const SKULLS := {
 	# ---------- 力僧：C013，长柄狼牙棒，动作全是挥砸，出手重、收招慢 ----------
 	"c013": {
 		"label": "力僧",
+		"name": "定山",
 		"data": "res://art/characters/player/skulls/c013/c013_data.tres",
 		"scale": 0.487, # 骨架 262.9px -> 128px
 		"anim": {
@@ -134,6 +137,7 @@ const SKULLS := {
 	# ---------- 剑仙：Z000，持剑的远程剑客，招式最全（92 个动画），挥剑放剑气 ----------
 	"z000": {
 		"label": "剑仙",
+		"name": "洛惊鸿",
 		"data": "res://art/characters/player/skulls/z000/z000_data.tres",
 		"scale": 0.448, # 骨架 285.7px -> 128px
 		"anim": {
@@ -170,9 +174,10 @@ const SKULLS := {
 		},
 		"hud_skills": ["skill01", "skill02", "skill04"],
 	},
-	# ---------- 剑客：C012，细剑近身刺击，出手快、突进远 ----------
+	# ---------- 青笠：C012，青灰袍斗笠游侠，双剑近身刺击，出手快、突进远 ----------
 	"c012": {
-		"label": "剑客",
+		"label": "青笠",
+		"name": "顾沧洲",
 		"data": "res://art/characters/player/skulls/c012/c012_data.tres",
 		"scale": 0.487, # 骨架 262.9px -> 128px
 		"anim": {

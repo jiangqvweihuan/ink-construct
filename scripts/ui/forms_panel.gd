@@ -98,8 +98,10 @@ func _make_card(id: String, i: int) -> void:
 		card.modulate = Color(1, 1, 1, 0.55)
 	add_child(card)
 
-	# 名称 / 状态（解锁条件+进度 或 契合等级）；状态行避开卡片撕边上缘
-	_make_label(str(Skulls.get_profile(id)["label"]) if unlocked else "？？？", 26, 28, PAPER, card.position, Vector2(210, 40))
+	# 名称 / 姓名 / 状态（解锁条件+进度 或 契合等级）；状态行避开卡片撕边上缘
+	_make_label(str(Skulls.get_profile(id)["label"]) if unlocked else "？？？", 22, 28, PAPER, card.position, Vector2(210, 40))
+	if unlocked:
+		_make_label(str(Skulls.get_profile(id).get("name", "")), 58, 16, DIM, card.position, Vector2(210, 24))
 	var status := "契合  " + Meta.mastery_text(id)
 	if not unlocked:
 		status = Meta.unlock_hint(id) + "（" + Meta.unlock_progress(id) + "）"

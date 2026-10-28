@@ -93,7 +93,7 @@ func _ready() -> void:
 	for id in diff["unlocks"]:
 		if cy > 456.0:
 			break
-		_make_line("新化身解锁：%s" % str(Skulls.get_profile(id)["label"]), RED, 22, cy)
+		_make_line("新化身解锁：%s · %s" % [str(Skulls.get_profile(id)["label"]), str(Skulls.get_profile(id).get("name", ""))], RED, 22, cy)
 		cy += 34.0
 	if ink_gain > 0 and cy <= 456.0:
 		_make_line("墨锭 +%d（总 %d）" % [ink_gain, Meta.ink], PAPER, 22, cy)
@@ -124,9 +124,9 @@ func _make_mastery_row(id: String, gain: int, old_exp: int, y: float, row: int) 
 	var lv_old := _level_of(old_exp)
 	var lv_new := Meta.mastery_level(id)
 	var leveled := lv_new > lv_old
-	var text := "%s  契合 +%d（%s）" % [str(Skulls.get_profile(id)["label"]), gain, Meta.mastery_text(id)]
+	var text := "%s · %s  契合 +%d（%s）" % [str(Skulls.get_profile(id)["label"]), str(Skulls.get_profile(id).get("name", "")), gain, Meta.mastery_text(id)]
 	if leveled:
-		text = "%s  契合 +%d  Lv%d → Lv%d！" % [str(Skulls.get_profile(id)["label"]), gain, lv_old, lv_new]
+		text = "%s · %s  契合 +%d  Lv%d → Lv%d！" % [str(Skulls.get_profile(id)["label"]), str(Skulls.get_profile(id).get("name", "")), gain, lv_old, lv_new]
 	_make_line(text, RED if leveled else PAPER, 20, y)
 
 	# 经验条：320×12，底板暗色，填充朱砂
