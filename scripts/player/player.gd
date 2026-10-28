@@ -447,6 +447,17 @@ func _skill_tick(delta: float) -> void:
 	_skill_timer -= delta
 	var cfg: Dictionary = skill_config[_skill_name]
 	var t: float = (_skill_dur - _skill_timer) * _skill_speed # 动画时间：慢放技能的时刻表按动画帧标定，与 cfg 的 at/blink 对齐
+	# 自带位移动画（#87）尾声提前 0.12s 收尾：瞬移到终点 + 清轨道瞬时切 stand。
+	# 不能等收招帧才切——队列里自动接续的 stand 会在旧位置抢先起播、混出一帧残影（残影根因）；
+	# 提前切，缝在动画还在播时合上，path 命中仍在收招帧从终点回扫整段路径
+	if _skill_teleport > 0.0 and t >= _skill_dur * _skill_speed - 0.12:
+		global_position.x += facing * _skill_teleport
+		_skill_teleport = 0.0
+		if _anim_state != null:
+			_anim_state.call("clear_track", 0) # 连队列里排的 stand 一起清，防止它在旧位置自动接续
+			_anim_state.call("set_animation", anim_map["idle"], true, 0)
+			_current_anim = anim_map["idle"]
+			_idle_queued = true # _set_state 走"stand 已就位"分支，别再重开淡化
 	# 位移三分支：自带位移动画（#87）原地播放等收招瞬移；普通闪现段高速前冲+穿身；其余减速
 	if _skill_teleport > 0.0:
 		_set_blink(true) # 原地期间同样开穿身：动画画面在冲，站位不动不该被敌人挤住
@@ -482,17 +493,10 @@ func _skill_tick(delta: float) -> void:
 			e.call("time_stop", float(stop.get(tier, 2.0)))
 	# 纯时长驱动退出：到点的同一帧排队的 stand 恰好接续，别看 is_complete（会被 loop 污染）
 	if _skill_timer <= 0.0:
-		# 自带位移动画（#87）：收招瞬间先瞬移到位移终点再补结算——path 判定从终点回扫整条路径
+		# 自带位移动画兜底：正常尾声已提前 0.12s 瞬移+切 stand（见上），这里只兜底位置
 		if _skill_teleport > 0.0:
 			global_position.x += facing * _skill_teleport
 			_skill_teleport = 0.0
-			# 这一帧不能走 0.2s 姿态混合：旧姿势带 ~600px 动画位移，混向新位置的 stand
-			# 会在空中拖出一道残影——清轨道瞬时切，stand 从新位置直接起播
-			if _anim_state != null:
-				_anim_state.call("clear_track", 0)
-				_anim_state.call("set_animation", anim_map["idle"], true, 0)
-				_current_anim = anim_map["idle"]
-				_idle_queued = true # _set_state 走"stand 已就位"分支，别再重开淡化
 		# 收招兜底：命中段 at 略晚于动画时长时（力僧定山 at=3.12 > 3.05），
 		# 靠计时器驱动永远触发不到 t>=at，整段伤害会凭空丢失——退出这一帧补结算
 		while not _skill_hits.is_empty():
