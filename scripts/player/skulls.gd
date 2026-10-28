@@ -71,6 +71,8 @@ const SKULLS := {
 			"getup": "getup",
 		},
 		# C023 没有 atk01~03，用 animation 当快速挥击
+		# 骨架共 17 个动画，出去受击/倒地/起身/移动，真正能挥的只有 animation、skill01、skill02：
+		# "2"（1.683s）是持剑站姿不是攻击，已实测确认，不能拿来凑技能位
 		"attacks": [
 			{"anim": "animation", "lock": 0.42, "hits": [0.22], "damage": 1, "range": 125.0, "lunge": 110.0},
 		],

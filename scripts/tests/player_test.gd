@@ -120,6 +120,9 @@ func _ready() -> void:
 		_tap("skill")
 		await get_tree().create_timer(1.3).timeout
 		await _shot("12_skill_" + str(_player.skull_id))
+		_tap("skill_sweep")
+		await get_tree().create_timer(0.8).timeout
+		await _shot("12b_sweep_" + str(_player.skull_id))
 		_tap("skill_ult")
 		await get_tree().create_timer(1.0).timeout
 		# 定山反伤验证：蓄力中（reflect=1）挨打一下，应把伤害弹回攻击者且不断招

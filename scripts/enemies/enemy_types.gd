@@ -41,39 +41,6 @@ const TYPES := {
 		"bar_y": -120.0,
 		"number_y": -105.0,
 	},
-	# ---------- 精英 · 落梅弓手：C023 模型，弓箭 + 3 段远程斩/射 ----------
-	"c023": {
-		"label": "落梅弓手",
-		"data": "res://art/characters/enemies/c023/c023_data.tres",
-		"scale": 0.55, # 骨架 270px -> 约 148px，比玩家略高，一眼是精英
-		"elite": true,
-		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
-		"attacks": ["2", "skill01", "skill02"],
-		# range_probe 实测（骨架像素 @scale1 -> ×0.55）："2" 194@0.55s，skill01 790@0.71s，skill02 1054@3.54s
-		"hit_at": {"2": 0.55, "skill01": 0.71, "skill02": 3.54},
-		"ranges": {"2": 107.0, "skill01": 435.0, "skill02": 580.0},
-		"hp": 10,
-		"patrol_speed": 45.0,
-		"chase_speed": 105.0,
-		"patrol_range": 160.0,
-		"idle_time": 1.4,
-		"detect_range": 560.0, # 远距离斩击：看见 560 内就锁定
-		"lose_range": 760.0, # 脱战要比攻击距离更远，否则 435/580 的长斩永远用不出来
-		"attack_range": 560.0,
-		"keep_dist": 150.0,
-		"attack_cooldown": 2.6,
-		"attack_lunge": 180.0,
-		"hit_height": 110.0,
-		"hurt_time": 0.35,
-		"armor": 2, # 轻击（damage<2）不打断，重击才硬直
-		"telegraph": true,
-		"pick": "nearest",
-		"bones": 3,
-		"dead_min": 0.8, # dead 动画只有 0.083s，必须靠这个兜底才看得见尸体
-		"bar_w": 64.0,
-		"bar_y": -170.0,
-		"number_y": -180.0,
-	},
 	# ---------- 黑袍剑客：Z002，招式最全的普通怪，三段快剑 ----------
 	"z002": {
 		"label": "黑袍剑客",

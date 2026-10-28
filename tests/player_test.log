@@ -27,6 +27,7 @@
 [PT] saved 11_atk_c023 err=0 state=5 pos=(850.2226, 599.9339)
 [PT] state -> 0 pos=(850.2226, 599.9339)
 [PT] saved 12_skill_c023 err=0 state=0 pos=(850.2226, 599.9339)
+[PT] saved 12b_sweep_c023 err=0 state=0 pos=(850.2226, 599.9339)
 [PT] state -> 6 pos=(851.3226, 599.9337)
 [PT] saved 13_ult_c023 err=0 state=6 pos=(851.8115, 599.9337)
 [PT] ult_after skull=c023 hp=8/8
@@ -39,6 +40,7 @@
 [PT] state -> 0 pos=(855.6448, 599.9337)
 [PT] saved 12_skill_z000 err=0 state=0 pos=(855.6448, 599.9337)
 [PT] state -> 6 pos=(856.8448, 599.9337)
+[PT] saved 12b_sweep_z000 err=0 state=6 pos=(857.4337, 599.9337)
 [PT] state -> 0 pos=(857.4337, 599.9337)
 [PT] saved 13_ult_z000 err=0 state=0 pos=(857.4337, 599.9337)
 [PT] ult_after skull=z000 hp=8/8
@@ -51,20 +53,24 @@
 [PT] state -> 0 pos=(860.767, 599.9339)
 [PT] saved 12_skill_c013 err=0 state=0 pos=(860.767, 599.9339)
 [PT] state -> 6 pos=(861.8673, 599.9343)
-[PT] reflect_test c013: 挨打前 hp=5 挨打后 hp=4 trainer_taken=1 state=6（期望 trainer 吃到 1、仍为 SKILL=6）
-[PT] saved 13_ult_c013 err=0 state=6 pos=(862.3562, 599.9337)
+[PT] saved 12b_sweep_c013 err=0 state=6 pos=(862.3562, 599.9337)
 [PT] state -> 0 pos=(862.3562, 599.9337)
-[PT] ult_after skull=c013 hp=6/8
-[PT] saved 14_ult_after_c013 err=0 state=0 pos=(862.3562, 599.9337)
+[PT] state -> 7 pos=(862.3562, 599.9337)
+[PT] reflect_test c013: 挨打前 hp=5 挨打后 hp=2 trainer_taken=0 state=7（期望 hp 不掉、trainer 吃到 3、仍为 SKILL=6）
+[PT] state -> 0 pos=(863.201, 599.9998)
+[PT] saved 13_ult_c013 err=0 state=0 pos=(863.201, 599.9998)
+[PT] ult_after skull=c013 hp=2/8
+[PT] saved 14_ult_after_c013 err=0 state=0 pos=(863.201, 599.9998)
 [PT] swap -> skull=c012 hud=["skill01", "skill02"] attacks=1 skills=["skill01", "skill02"] bones=36
-[PT] saved 10_swap_c012 err=0 state=0 pos=(862.3562, 599.9337)
-[PT] state -> 5 pos=(865.1895, 599.9337)
-[PT] saved 11_atk_c012 err=0 state=5 pos=(869.3562, 599.9337)
-[PT] state -> 0 pos=(869.3562, 599.9337)
-[PT] saved 12_skill_c012 err=0 state=0 pos=(869.3562, 599.9337)
-[PT] state -> 6 pos=(871.0562, 599.9337)
-[PT] saved 13_ult_c012 err=0 state=6 pos=(872.6232, 599.9339)
-[PT] state -> 0 pos=(872.6232, 599.9339)
-[PT] ult_after skull=c012 hp=6/8
-[PT] saved 14_ult_after_c012 err=0 state=0 pos=(872.6232, 599.9339)
+[PT] saved 10_swap_c012 err=0 state=0 pos=(863.201, 599.9998)
+[PT] state -> 5 pos=(866.0344, 599.9337)
+[PT] saved 11_atk_c012 err=0 state=5 pos=(870.2007, 599.9337)
+[PT] state -> 0 pos=(870.2007, 599.9337)
+[PT] saved 12_skill_c012 err=0 state=0 pos=(870.2007, 599.9337)
+[PT] saved 12b_sweep_c012 err=0 state=0 pos=(870.2007, 599.9337)
+[PT] state -> 6 pos=(871.9003, 599.9327)
+[PT] saved 13_ult_c012 err=0 state=6 pos=(873.467, 599.9337)
+[PT] state -> 0 pos=(873.467, 599.9337)
+[PT] ult_after skull=c012 hp=2/8
+[PT] saved 14_ult_after_c012 err=0 state=0 pos=(873.467, 599.9337)
 [PT] SWAP DONE skull=c012

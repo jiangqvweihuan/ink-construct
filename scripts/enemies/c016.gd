@@ -2,7 +2,7 @@ extends CharacterBody2D
 
 ## 小怪通用 AI：巡逻 / 追击 / 攻击 / 受击 / 死亡
 ## 长什么样、出什么招、判定多长，全部来自 scripts/enemies/enemy_types.gd 的形态表。
-## c016.tscn = 普通刀客；c023_elite.tscn = C023 精英（落梅弓手）。
+## 主角形态不设同名敌人版本（梅剑 c023 的精英怪已删）。
 
 const Types := preload("res://scripts/enemies/enemy_types.gd")
 const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")

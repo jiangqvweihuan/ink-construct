@@ -14,7 +14,7 @@
 | 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / 青笠·顾沧洲 c012，默认 c021）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用） |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel`/`brake`/`turn_accel` 均 `@export`）、lunge 惯性（`brake*0.5`）、hit_at × 0.9 提前判定、预警泛红闪 0.2s；攻击后 30% 可取消窗口（`atk["cancel"]` 可调） |
 | 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at |
-| 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 3 种：c023_elite 落梅弓手 / c037_elite 大剑骑士 / c018_elite 双镰 |
+| 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 2 种：c037_elite 大剑骑士 / c018_elite 双镰。**主角形态不设同名敌人版本**（原 c023_elite 落梅弓手已删，与梅剑共用美术） |
 | 波次刷怪 | `scripts/systems/wave_spawner.gd` | 每房 3 波（5/7/9 只，血量速度递增 + 精英混入），同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared` |
 | Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技 + **绕后转身演出**（配 `turn` 动画的 Boss 被穿裆时播调头动画再翻转朝向，不瞬转，转身期不还手是奖励窗口，带冷却防锁死）；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底 |
 | 特效系统 | `scripts/systems/fx.gd` | GIF 精灵条逐帧播放器，12 条特效；Boss fx 配置表驱动 + 焚鼎 P3 封锁火区（聚气预警 → 火柱喷发 → 范围灼烧）；预警用程序化墨环（`tools/gen_telegraph.py`） |
@@ -70,7 +70,7 @@
 | Boss | `boss_test.tscn`（`BOSS_ID=c009\|c015a1\|c001\|c008\|c032\|_debug`）、`boss_bg_tour.tscn`（五房背景巡游）、`boss_cand_probe.tscn` |
 | 结算 | `settlement_clear_test.tscn` / `settlement_dead_test.tscn` |
 | 特效/音效 | `fx_test.tscn`、`sfx_preview.tscn` |
-| 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
+| 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`（自动扫描全部骨架 → `tests/anim_list.log`）、`anim_viewer.tscn`（可视化查看器：←→ 切骨架、↑↓ 切动画、空格重播、L 循环）、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
 | 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`、`settings_test.tscn`、`font_probe.tscn` |
 
 ---
@@ -89,6 +89,7 @@
 | 技能 `hits[].at` 不能超过动画时长 | 中 | `skulls.gd` | 命中按计时器 `t >= at` 触发，而 t 最大只到动画时长；at 填超了整段命中永远不结算、且零报错（力僧定山 at=3.12 > 时长 3.05 曾把 U 的伤害整个丢掉，只剩站桩）。`player.gd` `_skill_tick` 退出帧已加"剩余命中段补结算"兜底，但新填数值仍应保证 `at <= 时长` |
 | 力僧 U「定山」定位 | 低 | `skulls.gd` c013 | 蓄力 3.05s 期间**自身无敌 + 按实际伤害反弹**（`reflect` 字段：挨多少原样弹回攻击者，自身 0 掉血；`hurt` 第三参 `attacker` 传入）；砸地**不造成伤害**，只回 2 血（`heal` 字段，与是否命中无关），9s 冷却——站着吃招、惩罚近战的坦克循环 |
 | push 报连接重置的排查顺序 | 中 | 全局 | 症状 `Recv failure: Connection was reset` / `Connection timed out`。按序查：①`git config --get http.proxy` 看是否写死代理 ②`curl.exe -x <代理> -I https://github.com` 测代理能否到目标站 ③代理通但 git 不通 → 换代理协议（HTTP ↔ SOCKS5，本项目实测 `socks5h` 可用、`http` 被重置）④协议通了仍失败 → `http.version=HTTP/1.1`（git 默认 HTTP/2 在该代理下被重置）。本仓库已固化 `socks5h://127.0.0.1:33210` + `HTTP/1.1`；**梯子关掉时 GitHub 直连完全不通（443 超时），必须开着梯子** |
+| 骨架动画数 ≠ 可做技能数 | 中 | `skulls.gd` | 梅剑 c023 共 17 个动画，去掉受击/倒地/起身/移动后，真正能挥的只有 `animation`、`skill01`、`skill02`——所以只能 2 个技能。`"2"`（1.683s）名字像攻击，实测是**持剑站姿**（四帧几乎不动），当技能会变成站着发呆。新增技能前先跑 `anim_viewer.tscn` 看动作本身，别只看名字和时长 |
 | `bin/windows/~` 前缀 DLL 残留 | 低 | 全局 | `~xxx.dll` / `~RF*.TMP` 是 Windows 替换 GDExtension DLL 被占用中断留下的备份，编辑器正常关闭后可删；编辑器在跑时别删（正在用） |
 | 特效锚点分两派 | 低 | `scripts/systems/fx.gd` LIB | `pivot` 字段：bottom（pillar/tiger/fire_pillar/crack/gather/vanish，pos=脚底）vs center（ink_hit/ink_claw/slash/thunder/speedline/fire_hit，pos=中心）。受击爪痕在**来袭侧**、冲锋拖尾 `off_y` 按体型抬到躯干、撞墙 crack 炸在墙根 |
 
@@ -166,7 +167,7 @@ scripts/
 
 scenes/
 ├── ui/              # main_menu / forms_panel / pause_menu / settings_panel / hud / settlement / swap / blessing / upgrade
-├── enemies/         # c016 / z002 / c017 / c035 + c023_elite / c037_elite / c018_elite + bosses/boss
+├── enemies/         # c016 / z002 / c017 / c035 + c037_elite / c018_elite + bosses/boss
 ├── player/          # player.tscn
 ├── world/           # room_01.tscn
 └── tests/           # 测试场景（见上表）
