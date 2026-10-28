@@ -93,6 +93,8 @@ var skill_lifesteal := false # 技能命中回血（饮血）
 var poise := false # 技能期间霸体（定山）
 var _skill_poise := false # 当前技能自带的霸体（力僧定山：蓄力期间自身霸体，不依赖强化）
 var _skill_reflect := false # 当前技能自带的反伤（力僧定山：技能期间无敌，伤害原样弹回攻击者）
+var _skill_ranged_guard := false # 当前技能的远程格挡（梅剑转鞭：技能期间免疫并反弹敌方投射物）
+var _skill_tick_acc := 0.0 # 技能持续伤害段的计时累计（每 interval 秒结算一次）
 var blink_scale := 1.0 # 闪现突进距离倍率（疾影）
 var _lifesteal_cd := 0.0 # 饮血内置冷却
 var _skill_name := ""
@@ -309,9 +311,8 @@ func _attack_tick(delta: float) -> void:
 	# 到点结算命中（支持一段动画多次命中，如 atk03 双刺）
 	var lock: float = float(attacks[_attack_idx]["lock"])
 	var t: float = lock - _attack_timer # 动画已进行时间
-	while not _attack_hits.is_empty() and t >= _attack_hits[0]:
-		_attack_hits.pop_front()
-		_deal_hit()
+	while not _attack_hits.is_empty() and t >= _hit_time(_attack_hits[0]):
+		_deal_hit(_attack_hits.pop_front())
 	# 取消窗口：本段命中全部结算完后、lock 后 30%（atk["cancel"] 可调）允许提前
 	# 接下一招 / 移动 / dash——不用干等收招帧，连段手感跟得上输入节奏
 	var cancel_from: float = lock * (1.0 - float(attacks[_attack_idx].get("cancel", 0.3)))
@@ -330,7 +331,12 @@ func _attack_tick(delta: float) -> void:
 			_set_state(State.IDLE if is_on_floor() else State.FALL)
 
 
-func _deal_hit() -> void:
+## 命中段时刻：旧格式直接是秒数，新格式是 {"at": 秒, ...}
+func _hit_time(h) -> float:
+	return float(h["at"]) if h is Dictionary else float(h)
+
+
+func _deal_hit(h = null) -> void:
 	if _attack_idx < 0 or _attack_idx >= attacks.size():
 		return
 	var atk: Dictionary = attacks[_attack_idx]
@@ -340,7 +346,15 @@ func _deal_hit() -> void:
 		for i in proj_extra + 1:
 			_spawn_projectile(atk["projectile"], int(atk["damage"]) + damage_bonus + _mastery_dmg, "voice_sword_hit", i * 26.0)
 		return
+	# 命中段：旧格式是纯秒数（沿用本段统一 damage/range），
+	# 新格式是字典（一段动画里多段不同伤害/范围，如梅剑鞭击后接突刺）
+	var spec: Dictionary = h if h is Dictionary else atk
+	var dmg := int(spec.get("damage", atk.get("damage", 1))) + damage_bonus + _mastery_dmg
+	var reach := float(spec.get("range", atk.get("range", 100.0))) * range_scale
+	var side_any := bool(spec.get("both", atk.get("both", false)))
+	var pull := float(spec.get("pull", 0.0)) # 鞭击拉回：命中后把敌人拽到身前这个距离
 	var did_hit := false
+	var pulled := 0 # 已拉回的敌人数，多目标依次错开 34px 免得叠成一坨
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var p := e as Node2D
 		if p == null:
@@ -352,16 +366,21 @@ func _deal_hit() -> void:
 		var dy: float = absf(p.global_position.y - global_position.y)
 		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 		# both = 回身横扫：动画把武器甩到身后，前后两侧都算命中，否则"动画打到却没判上"
-		var side_ok: bool = in_front or bool(atk.get("both", false))
-		if side_ok and absf(dx) <= float(atk["range"]) * range_scale and dy <= 70.0:
-			p.call("take_damage", int(atk["damage"]) + damage_bonus + _mastery_dmg, global_position.x)
-			Score.add_hit() # 命中一只算一次连击
-			# 朱砂斩击打在攻击者与被击者的中点胸口高度：视觉上像"从玩家挥出"
-			var mx := (global_position.x + p.global_position.x) * 0.5
-			FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.45, "flip": facing < 0})
-			did_hit = true
+		if not (in_front or side_any) or absf(dx) > reach or dy > 70.0:
+			continue
+		# 朱砂斩击打在攻击者与被击者的中点胸口高度：视觉上像"从玩家挥出"（拉回前先取位置）
+		var mx := (global_position.x + p.global_position.x) * 0.5
+		p.call("take_damage", dmg, global_position.x)
+		Score.add_hit() # 命中一只算一次连击
+		if pull > 0.0:
+			# 只朝玩家方向收，已经贴脸的敌人不往前推
+			var want_x := global_position.x + float(facing) * (pull + pulled * 34.0)
+			p.global_position.x = minf(p.global_position.x, want_x) if facing > 0 else maxf(p.global_position.x, want_x)
+			pulled += 1
+		FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.45, "flip": facing < 0})
+		did_hit = true
 	if did_hit:
-		_play_sfx("voice_sword_hit")
+		_play_sfx(str(spec.get("sfx", "voice_sword_hit")))
 		Feel.hitstop(0.045) # 命中一僵，普攻比技能轻
 		Feel.shake(4.0, 0.13)
 
@@ -383,6 +402,14 @@ func _skill_tick(delta: float) -> void:
 	while not _skill_hits.is_empty() and t >= _skill_hits[0]["at"]:
 		var h: Dictionary = _skill_hits.pop_front()
 		_deal_skill_hit(h)
+	# 持续伤害段（梅剑·转鞭）：from~to 期间每隔 interval 秒结算一次，前后方范围内所有敌人
+	var tick: Dictionary = cfg.get("tick", {})
+	if not tick.is_empty() and t >= float(tick["from"]) and t <= float(tick.get("to", _skill_dur)):
+		_skill_tick_acc += delta
+		var iv := float(tick.get("interval", 0.5))
+		while _skill_tick_acc >= iv:
+			_skill_tick_acc -= iv
+			_deal_skill_tick(tick)
 	# 纯时长驱动退出：到点的同一帧排队的 stand 恰好接续，别看 is_complete（会被 loop 污染）
 	if _skill_timer <= 0.0:
 		# 收招兜底：命中段 at 略晚于动画时长时（力僧定山 at=3.12 > 3.05），
@@ -392,6 +419,8 @@ func _skill_tick(delta: float) -> void:
 		_invincible = false
 		_skill_poise = false
 		_skill_reflect = false
+		_skill_ranged_guard = false
+		_skill_tick_acc = 0.0
 		_set_blink(false)
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
 
@@ -479,6 +508,61 @@ func _apply_skill_heal(h: Dictionary) -> void:
 		get_tree().current_scene.add_child(dn)
 
 
+## 技能持续伤害段（梅剑·转鞭）：每 interval 秒对前后方范围内的所有敌人各打一次。
+## 不顿帧、不震屏——0.5s 一跳的持续伤害如果每跳都卡一下，打起来会抖。
+func _deal_skill_tick(tick: Dictionary) -> void:
+	var did_hit := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or int(e.get("hp")) <= 0:
+			continue
+		var dx: float = p.global_position.x - global_position.x
+		var dy: float = absf(p.global_position.y - global_position.y)
+		if dy > float(tick.get("height", 120.0)):
+			continue
+		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
+		# both = 转鞭：鞭子一直在转，前后方都扫得到
+		if not (in_front or bool(tick.get("both", false))) or absf(dx) > float(tick["range"]) * range_scale:
+			continue
+		p.call("take_damage", int(tick["damage"]) + damage_bonus, global_position.x)
+		Score.add_hit()
+		did_hit = true
+	if did_hit:
+		_play_sfx("voice_sword_hit")
+
+
+## 远程格挡（梅剑·转鞭）：技能期间免疫并反弹敌方投射物。
+## 目前工程里敌人还没有投射物，这里是预埋接口——以后敌方投射物命中玩家前先调用它，
+## 返回 true 表示这次远程攻击已被她免疫并原路弹回，投射物应反向飞回"第一个遇到的敌人"。
+func try_reflect_ranged(damage: int, from_x: float, attacker: Node = null) -> bool:
+	if not _skill_ranged_guard:
+		return false
+	# 反弹目标：优先攻击者本人；否则沿来源方向找最近的那个敌人
+	var target: Node = null
+	if attacker != null and is_instance_valid(attacker) and attacker.has_method("take_damage"):
+		target = attacker
+	else:
+		var dir := signf(from_x - global_position.x)
+		var best := INF
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var p := e as Node2D
+			if p == null or int(e.get("hp")) <= 0:
+				continue
+			var d: float = (p.global_position.x - global_position.x) * dir
+			if d >= 0.0 and d < best:
+				best = d
+				target = e
+	if target != null:
+		target.call("take_damage", damage, global_position.x)
+		Score.add_hit()
+		var tp := target as Node2D
+		if tp != null:
+			FX.spawn(get_tree().current_scene, "ink_hit", tp.global_position + Vector2(0, -60), {"scale": 0.4})
+		_play_sfx("voice_fan_hit")
+		Feel.shake(3.0, 0.1)
+	return true
+
+
 ## 发一颗投射物：从胸口高度出手，沿朝向直线飞
 func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0) -> void:
 	var pr = PROJECTILE.new()
@@ -563,6 +647,8 @@ func _start_skill(n: String) -> void:
 	_skill_start_x = global_position.x
 	_skill_poise = bool(skill_config[n].get("poise", false))
 	_skill_reflect = bool(skill_config[n].get("reflect", false))
+	_skill_ranged_guard = bool(skill_config[n].get("ranged_guard", false))
+	_skill_tick_acc = 0.0
 	_skill_cds[n] = float(skill_config[n]["cooldown"]) * cooldown_scale * _mastery_cd
 	_invincible = false
 	velocity.x = facing * float(attacks[0]["lunge"]) * 0.6 # 起手小前冲
@@ -598,6 +684,8 @@ func swap_skull(id: String) -> void:
 	_skill_timer = 0.0
 	_skill_poise = false
 	_skill_reflect = false
+	_skill_ranged_guard = false
+	_skill_tick_acc = 0.0
 	_apply_profile(id)
 	_setup_spine()
 	Run.skull_id = id # 局外养成的击杀/通关记账按当前形态归属，换头后立刻同步

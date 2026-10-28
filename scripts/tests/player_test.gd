@@ -2,9 +2,11 @@ extends Node2D
 
 ## 玩家控制器冒烟测试：模拟输入走一遍 idle/run/jump/dash/三连击，截图+日志。
 
-## 反伤测试替身：只记账不参与战斗，验证定山把伤害弹回攻击者
+## 反伤测试替身：只记账不参与战斗，验证定山把伤害弹回攻击者；
+## hp 是给"敌人组结算"读的属性（当普攻拉回 / 两段伤害的靶子用）
 class Trainer extends Node2D:
 	var damage_taken := 0
+	var hp := 99
 
 	func take_damage(amount: int, _source_x: float) -> void:
 		damage_taken += amount
@@ -114,15 +116,35 @@ func _ready() -> void:
 			_player.hp_changed.emit(5, _player.max_hp)
 			p("c013 压血 -> hp=5，准备验证定山回血")
 		await _shot("10_swap_" + str(_player.skull_id))
+		# 梅剑专项：普攻两段（2 点鞭击 + 3 点突刺）与鞭击拉回，靶子放在 300px 外
+		var dummy: Trainer = null
+		if _player.skull_id == "c023":
+			dummy = Trainer.new()
+			dummy.add_to_group("enemies")
+			add_child(dummy)
+			dummy.global_position = _player.global_position + Vector2(300.0 * _player.facing, 0.0)
+			p("c023 靶子起点距玩家 %.0fpx（期望被拉到约 80）" % absf(dummy.global_position.x - _player.global_position.x))
 		_tap("attack")
 		await get_tree().create_timer(0.3).timeout
 		await _shot("11_atk_" + str(_player.skull_id))
+		if dummy != null:
+			await get_tree().create_timer(0.6).timeout # 0.9s：鞭击已结算
+			p("c023 鞭击后靶子距玩家 %.0fpx（期望约 80）" % absf(dummy.global_position.x - _player.global_position.x))
+			await get_tree().create_timer(1.0).timeout # 1.9s：突刺已结算
+			p("c023 普攻总伤害=%d（期望 2+3=5）" % dummy.damage_taken)
+			dummy.queue_free()
+			dummy = null
+		await _wait_free() # 各形态招式时长不同，等回到可出招状态再按下一个键
 		_tap("skill")
 		await get_tree().create_timer(1.3).timeout
 		await _shot("12_skill_" + str(_player.skull_id))
+		if _player.skull_id == "c023":
+			p("c023 技能中转鞭 ranged_guard=%s（期望 true，无敌人时只免疫）" % str(_player.try_reflect_ranged(1, _player.global_position.x + 400.0)))
+		await _wait_free()
 		_tap("skill_sweep")
 		await get_tree().create_timer(0.8).timeout
 		await _shot("12b_sweep_" + str(_player.skull_id))
+		await _wait_free()
 		_tap("skill_ult")
 		await get_tree().create_timer(1.0).timeout
 		# 定山反伤验证：蓄力中（reflect=1）挨打一下，应把伤害弹回攻击者且不断招
@@ -157,6 +179,16 @@ func _tap(action: String) -> void:
 	Input.action_press(action)
 	await get_tree().physics_frame
 	Input.action_release(action)
+
+
+## 等玩家回到可出招状态（IDLE/RUN），最多等 max_wait 秒。
+## 各形态普攻/技能时长差得远（梅剑普攻 1.883s、定山 U 3.05s），硬编码等待会让
+## 下一次按键落在上一招的锁定里被吞掉，测试就测不到该测的东西。
+func _wait_free(max_wait := 6.0) -> void:
+	var t := 0.0
+	while _player.state > 1 and t < max_wait:
+		await get_tree().physics_frame
+		t += get_physics_process_delta_time()
 
 
 func _shot(name: String) -> void:

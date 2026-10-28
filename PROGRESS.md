@@ -11,7 +11,7 @@
 
 | 模块 | 文件 | 核心能力 |
 |---|---|---|
-| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / 青笠·顾沧洲 c012，默认 c021）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用） |
+| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / 青笠·顾沧洲 c012，默认 c021）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位 |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel`/`brake`/`turn_accel` 均 `@export`）、lunge 惯性（`brake*0.5`）、hit_at × 0.9 提前判定、预警泛红闪 0.2s；攻击后 30% 可取消窗口（`atk["cancel"]` 可调） |
 | 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at |
 | 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 2 种：c037_elite 大剑骑士 / c018_elite 双镰。**主角形态不设同名敌人版本**（原 c023_elite 落梅弓手已删，与梅剑共用美术） |
@@ -89,7 +89,9 @@
 | 技能 `hits[].at` 不能超过动画时长 | 中 | `skulls.gd` | 命中按计时器 `t >= at` 触发，而 t 最大只到动画时长；at 填超了整段命中永远不结算、且零报错（力僧定山 at=3.12 > 时长 3.05 曾把 U 的伤害整个丢掉，只剩站桩）。`player.gd` `_skill_tick` 退出帧已加"剩余命中段补结算"兜底，但新填数值仍应保证 `at <= 时长` |
 | 力僧 U「定山」定位 | 低 | `skulls.gd` c013 | 蓄力 3.05s 期间**自身无敌 + 按实际伤害反弹**（`reflect` 字段：挨多少原样弹回攻击者，自身 0 掉血；`hurt` 第三参 `attacker` 传入）；砸地**不造成伤害**，只回 2 血（`heal` 字段，与是否命中无关），9s 冷却——站着吃招、惩罚近战的坦克循环 |
 | push 报连接重置的排查顺序 | 中 | 全局 | 症状 `Recv failure: Connection was reset` / `Connection timed out`。按序查：①`git config --get http.proxy` 看是否写死代理 ②`curl.exe -x <代理> -I https://github.com` 测代理能否到目标站 ③代理通但 git 不通 → 换代理协议（HTTP ↔ SOCKS5，本项目实测 `socks5h` 可用、`http` 被重置）④协议通了仍失败 → `http.version=HTTP/1.1`（git 默认 HTTP/2 在该代理下被重置）。本仓库已固化 `socks5h://127.0.0.1:33210` + `HTTP/1.1`；**梯子关掉时 GitHub 直连完全不通（443 超时），必须开着梯子** |
-| 骨架动画数 ≠ 可做技能数 | 中 | `skulls.gd` | 梅剑 c023 共 17 个动画，去掉受击/倒地/起身/移动后，真正能挥的只有 `animation`、`skill01`、`skill02`——所以只能 2 个技能。`"2"`（1.683s）名字像攻击，实测是**持剑站姿**（四帧几乎不动），当技能会变成站着发呆。新增技能前先跑 `anim_viewer.tscn` 看动作本身，别只看名字和时长 |
+| 骨架动画数 ≠ 可做技能数 | 中 | `skulls.gd` | 梅剑 c023 共 17 个动画，去掉受击/倒地/起身/移动后，真正能挥的只有 `skill01`、`skill02`；`animation` 只有 0.383s 撑不起招式、`"2"`（1.683s）名字像攻击实测是**持剑站姿**（四帧几乎不动）。**最终定版（2026-10-28）**：不硬凑技能位，梅剑改"数值怪"——普攻借 `skill01` 做两段（鞭击拉回 + 前刺，lock 锁满 1.883s、cancel=0，普攻间隔就是动画时长），唯一技能 `skill02` 从 U 位改到 K 位。新增技能前先跑 `anim_viewer.tscn` 看动作本身，别只看名字和时长 |
+| 技能只能在 IDLE/RUN 起手 | 中 | `player.gd` `_try_skill` | `_try_skill()` 只在 `_ground_move`（IDLE/RUN）里调用，判定期间按技能键会被静默吞掉。回归脚本硬编码等待（如按完普攻等 1.0s 再按技能）一旦落在上一招锁定里，整个技能就测不到，表现为"数据对但 state 不动"。`player_test.gd` 已加 `_wait_free()`：每次按键前等 `_player.state <= 1`，新测试照抄 |
+| spine 加载打印 "Resource file not found: 目录" | 低 | 全局 | 每次 `_setup_spine` 都会打 3 条 ERROR（`res://art/characters/player` / `res:///art/characters/player/` / `Can't load texture`），全部形态与敌人都有——路径是**目录**不是 .tres，属 spine-godot 附件贴图的既有噪音。已核实 `*_data.tres`、`skeleton.atlas`、`.import`、`.godot/imported` 产物齐全且截图贴图正常。**别误判成资源损坏去修** |
 | `bin/windows/~` 前缀 DLL 残留 | 低 | 全局 | `~xxx.dll` / `~RF*.TMP` 是 Windows 替换 GDExtension DLL 被占用中断留下的备份，编辑器正常关闭后可删；编辑器在跑时别删（正在用） |
 | 特效锚点分两派 | 低 | `scripts/systems/fx.gd` LIB | `pivot` 字段：bottom（pillar/tiger/fire_pillar/crack/gather/vanish，pos=脚底）vs center（ink_hit/ink_claw/slash/thunder/speedline/fire_hit，pos=中心）。受击爪痕在**来袭侧**、冲锋拖尾 `off_y` 按体型抬到躯干、撞墙 crack 炸在墙根 |
 
@@ -224,6 +226,32 @@ tests/out/           # 回归截图 + 日志
 - **化身光柱修复两连**：第一版补偿式下沉 55px 治标；根因是 pillar.png 帧内容没画到画布底（主体期留白 ~73px），根源修 = **裁掉贴条底部 65px**（8192x396→8192x331）+ 撤销代码补偿，bottom 锚点即脚底。**教训：bottom 锚点特效先用 PIL 查帧内容包围盒，留白从素材侧裁掉，别在代码里补偿**
 - **随机树池撤销**：红枫/随机位置导致树飘空+画面缺块，用户判定不合格整体撤销，恢复固定 4 棵（松/樱/柳）定死坐标版；红枫素材已删。**教训：素材库 spine 整图裁帧的树不带"画布底=树根"保证，别拿来进随机池**
 - **武车转身动画归位**：zhuanshen 双马调头原被当 P2 阶段变身演出播（用户：转向动画不该当技能）——P2 改直切提速；zhuanshen 改为**绕后转身演出**（boss_types `turn` 配置 + boss.gd S_TURN 状态）：玩家穿裆到背后时播调头动画 1.4s，播完才翻转朝向；转身期不还手（穿裆奖励窗口），4s 冷却防反复穿裆锁死。**冷却期内也绝不瞬转**——车身太重原地减速等冷却（父类 `_chase_tick` 会无条件翻朝向，必须在 boss.gd 提前 return 拦住）
+
+### 2026-10-28 傍晚 · 梅剑改「数值怪」
+
+#### 为什么
+用户看完梅剑（c023）17 个动画后判定：没有能撑起普攻的好动作，与其硬找不如把她做成**数值怪**——招式少、数值高、节奏笨重但收益明确。
+
+#### 定版方案（`skulls.gd` c023）
+- **普攻 = `skill01`（1.883s，第 13 个动画）两段**：0.75s 鞭梢甩到 372px，伤害 **2**，命中后把敌人**拉回到身前 80px**（多目标依次错开 34px）；1.68s 前刺 145px，伤害 **3**。`lock=1.883`、`cancel=0`——普攻间隔锁满整段动画，播完才能接招或移动。
+- **唯一技能 = `skill02`（4.167s，第 14 个动画）**，从 U 位（`skill_ult`）改到 **K 位**（`action: "skill"`），`hud_skills` 只剩它 → HUD 自动变 2 槽。
+  - `poise: true`：起手即霸体，挨打掉血但不断招。
+  - `tick`：0.15~3.0s 每 **0.5s** 对前后方 130px、上下 140px 内所有敌人各打 **1** 点（转鞭阶段）。
+  - 末段：3.6s 超远甩鞭 500px，伤害 **2**。
+  - `ranged_guard: true`：技能期间免疫敌方投射物并原路弹回"第一个遇到的敌人"。
+
+#### 引擎侧改动（`player.gd`）
+- 普攻 `hits` 从"纯秒数数组"扩为**字典段** `{at, damage, range, pull, sfx}`，`_hit_time()` 统一取时刻，旧格式（纯秒数）保持兼容；`_deal_hit(h)` 按段读数值并支持 `pull` 拉回。
+- 新增 `_skill_tick_acc` + `_deal_skill_tick()`：技能持续伤害段，不顿帧不震屏，只轻播命中音。
+- 新增 `try_reflect_ranged(damage, from_x, attacker) -> bool`：**预埋接口**。工程内目前**没有任何敌方投射物**（敌人全是近战 range 判定），所以本轮只做框架；以后敌方弹幕命中玩家前先调它，返回 true 就表示已免疫并原路弹回。Boss 原地火区走的是直接 `hurt()`，天然不进这个分支——正好符合用户要的"火焰不能免疫也不能反弹"。
+
+#### 回归结果
+- `player_test`：`c023 靶子起点距玩家 300px` → `鞭击后 80px` → `普攻总伤害=5（2+3）`；`12_skill_c023 state=6`；`技能中转鞭 ranged_guard=true`。`reflect_test c013` 与 `ult_after` 仍绿。
+- `room_test`：`[R] ALL DONE`。
+
+#### 教训
+- **测试时序会吞键**：`_try_skill()` 只在 IDLE/RUN 调用，硬编码等待落在上一招锁定里时按键被静默吞掉（第一轮梅剑技能压根没测到，且同时把 c013 反伤测试带红）。已加 `_wait_free()` 兜底，见遗留坑「技能只能在 IDLE/RUN 起手」。
+- spine 每次初始化打 3 条 `Resource file not found: 目录` ERROR 是既有噪音，别当资源损坏处理（见遗留坑）。
 
 ### 2026-10-28 文档同步
 

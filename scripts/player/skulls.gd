@@ -70,30 +70,35 @@ const SKULLS := {
 			"dead": "dead",
 			"getup": "getup",
 		},
-		# C023 没有 atk01~03，用 animation 当快速挥击
-		# 骨架共 17 个动画，出去受击/倒地/起身/移动，真正能挥的只有 animation、skill01、skill02：
-		# "2"（1.683s）是持剑站姿不是攻击，已实测确认，不能拿来凑技能位
+		# 骨架 17 个动画里能实战的只有 skill01（第 13 个）和 skill02（第 14 个）；
+		# "2" 是持剑站姿、animation 只有 0.383s，都撑不起招式。定位改为"数值怪"：
+		# 普攻 = skill01 两段（鞭击拉回 + 前刺），唯一技能 = skill02 放 K 位。
+		# skill01（1.883s）探针实测 ×0.474：0.75s 鞭梢甩到 786px -> 372px；
+		# 1.68s 前刺 R297~306 -> 约 145px。两段伤害分开算（鞭 2 / 刺 3）。
+		# lock 锁满整段动画且 cancel=0：普攻间隔就是动画时长，播完才能接招或移动。
 		"attacks": [
-			{"anim": "animation", "lock": 0.42, "hits": [0.22], "damage": 1, "range": 125.0, "lunge": 110.0},
-		],
-		"skills": {
-			# 鞭技按探针实测标定（scale=1 骨架峰值 ×0.474）：
-			# skill01 鞭子甩到 786px@0.76s -> 372px，判定贴着鞭梢给
-			"skill01": {
-				"action": "skill", "cooldown": 4.0,
-				"hits": [{"at": 0.76, "range": 370.0, "height": 130.0, "damage": 2, "sfx": "hit_heavy"}],
-			},
-			# skill02 长连段，最后一鞭甩满 1051px@3.53s -> 498px；前两段是近身连斩，范围递进
-			"skill02": {
-				"action": "skill_ult", "cooldown": 9.0,
+			{
+				"anim": "skill01", "lock": 1.883, "cancel": 0.0, "lunge": 110.0,
 				"hits": [
-					{"at": 1.30, "range": 260.0, "height": 120.0, "damage": 1, "sfx": "skill_blade"},
-					{"at": 2.30, "range": 340.0, "height": 120.0, "damage": 1, "sfx": "skill_blade"},
-					{"at": 3.45, "range": 480.0, "height": 140.0, "damage": 1, "sfx": "skill_blade"},
+					{"at": 0.75, "damage": 2, "range": 372.0, "pull": 80.0, "sfx": "hit_heavy"},
+					{"at": 1.68, "damage": 3, "range": 145.0},
 				],
 			},
+		],
+		"skills": {
+			# 唯一技能（K 位）：转鞭，skill02 4.167s。
+			# 起手即霸体；0.15~3.0s 每 0.5s 对前后方 130px 内所有敌人各打 1 点（both=前后都转）；
+			# 3.6s 最后一记超远甩鞭 R1051 -> 500px，伤害 2。
+			# ranged_guard：转鞭期间免疫敌方投射物并原路弹回（工程暂无敌方投射物，接口已预埋）
+			"skill02": {
+				"action": "skill", "cooldown": 9.0,
+				"poise": true,
+				"ranged_guard": true,
+				"tick": {"from": 0.15, "to": 3.0, "interval": 0.5, "range": 130.0, "height": 140.0, "damage": 1, "both": true},
+				"hits": [{"at": 3.6, "range": 500.0, "height": 150.0, "damage": 2, "sfx": "skill_blade"}],
+			},
 		},
-		"hud_skills": ["skill01", "skill02"],
+		"hud_skills": ["skill02"],
 	},
 	# ---------- 力僧：C013，长柄狼牙棒，动作全是挥砸，出手重、收招慢 ----------
 	"c013": {

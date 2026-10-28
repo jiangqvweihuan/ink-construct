@@ -1,4 +1,4 @@
-[PT] player created, sprite=@SpineSprite@8:<SpineSprite#35970352665>
+[PT] player created, sprite=@SpineSprite@8:<SpineSprite#36171679257>
 [PT] state -> 0 pos=(300.0, 560.0)
 [PT] state -> 3 pos=(300.0, 560.5555)
 [PT] state -> 0 pos=(300.0, 599.9999)
@@ -21,56 +21,68 @@
 [PT] ALL DONE, final state=5 pos=(846.8892, 599.9337)
 [PT] saved 09_before_swap err=0 state=5 pos=(846.8892, 599.9337)
 [PT] state -> 0 pos=(846.8892, 599.9337)
-[PT] swap -> skull=c023 hud=["skill01", "skill02"] attacks=1 skills=["skill01", "skill02"] bones=52
+[PT] swap -> skull=c023 hud=["skill02"] attacks=1 skills=["skill02"] bones=52
 [PT] saved 10_swap_c023 err=0 state=0 pos=(846.8892, 599.9337)
+[PT] c023 靶子起点距玩家 300px（期望被拉到约 80）
 [PT] state -> 5 pos=(848.7223, 599.9326)
 [PT] saved 11_atk_c023 err=0 state=5 pos=(850.2226, 599.9339)
+[PT] c023 鞭击后靶子距玩家 80px（期望约 80）
+[PT] c023 普攻总伤害=5（期望 2+3=5）
 [PT] state -> 0 pos=(850.2226, 599.9339)
-[PT] saved 12_skill_c023 err=0 state=0 pos=(850.2226, 599.9339)
-[PT] saved 12b_sweep_c023 err=0 state=0 pos=(850.2226, 599.9339)
 [PT] state -> 6 pos=(851.3226, 599.9337)
-[PT] saved 13_ult_c023 err=0 state=6 pos=(851.8115, 599.9337)
-[PT] ult_after skull=c023 hp=8/8
-[PT] saved 14_ult_after_c023 err=0 state=6 pos=(851.8115, 599.9337)
+[PT] saved 12_skill_c023 err=0 state=6 pos=(851.8115, 599.9337)
+[PT] c023 技能中转鞭 ranged_guard=true（期望 true，无敌人时只免疫）
 [PT] state -> 0 pos=(851.8115, 599.9337)
+[PT] saved 12b_sweep_c023 err=0 state=0 pos=(851.8115, 599.9337)
+[PT] saved 13_ult_c023 err=0 state=0 pos=(851.8115, 599.9337)
+[PT] ult_after skull=c023 hp=8/8
+[PT] saved 14_ult_after_c023 err=0 state=0 pos=(851.8115, 599.9337)
 [PT] swap -> skull=z000 hud=["skill01", "skill02", "skill04"] attacks=3 skills=["skill01", "skill02", "skill04"] bones=52
 [PT] saved 10_swap_z000 err=0 state=0 pos=(851.8115, 599.9337)
 [PT] state -> 5 pos=(853.8115, 599.9337)
 [PT] saved 11_atk_z000 err=0 state=5 pos=(855.6448, 599.9337)
 [PT] state -> 0 pos=(855.6448, 599.9337)
-[PT] saved 12_skill_z000 err=0 state=0 pos=(855.6448, 599.9337)
 [PT] state -> 6 pos=(856.8448, 599.9337)
-[PT] saved 12b_sweep_z000 err=0 state=6 pos=(857.4337, 599.9337)
 [PT] state -> 0 pos=(857.4337, 599.9337)
-[PT] saved 13_ult_z000 err=0 state=0 pos=(857.4337, 599.9337)
+[PT] saved 12_skill_z000 err=0 state=0 pos=(857.4337, 599.9337)
+[PT] state -> 6 pos=(858.6337, 599.9337)
+[PT] saved 12b_sweep_z000 err=0 state=6 pos=(859.2225, 599.9337)
+[PT] state -> 0 pos=(859.2225, 599.9337)
+[PT] state -> 6 pos=(860.4222, 599.933)
+[PT] state -> 0 pos=(861.0112, 599.9337)
+[PT] saved 13_ult_z000 err=0 state=0 pos=(861.0112, 599.9337)
 [PT] ult_after skull=z000 hp=8/8
-[PT] saved 14_ult_after_z000 err=0 state=0 pos=(857.4337, 599.9337)
+[PT] saved 14_ult_after_z000 err=0 state=0 pos=(861.0112, 599.9337)
 [PT] swap -> skull=c013 hud=["skill01", "skill03", "skill02"] attacks=3 skills=["skill01", "skill03", "skill02"] bones=44
 [PT] c013 压血 -> hp=5，准备验证定山回血
-[PT] saved 10_swap_c013 err=0 state=0 pos=(857.4337, 599.9337)
-[PT] state -> 5 pos=(859.2667, 599.9326)
-[PT] saved 11_atk_c013 err=0 state=5 pos=(860.767, 599.9339)
-[PT] state -> 0 pos=(860.767, 599.9339)
-[PT] saved 12_skill_c013 err=0 state=0 pos=(860.767, 599.9339)
-[PT] state -> 6 pos=(861.8673, 599.9343)
-[PT] saved 12b_sweep_c013 err=0 state=6 pos=(862.3562, 599.9337)
-[PT] state -> 0 pos=(862.3562, 599.9337)
-[PT] state -> 7 pos=(862.3562, 599.9337)
-[PT] reflect_test c013: 挨打前 hp=5 挨打后 hp=2 trainer_taken=0 state=7（期望 hp 不掉、trainer 吃到 3、仍为 SKILL=6）
-[PT] state -> 0 pos=(863.201, 599.9998)
-[PT] saved 13_ult_c013 err=0 state=0 pos=(863.201, 599.9998)
-[PT] ult_after skull=c013 hp=2/8
-[PT] saved 14_ult_after_c013 err=0 state=0 pos=(863.201, 599.9998)
+[PT] saved 10_swap_c013 err=0 state=0 pos=(861.0112, 599.9337)
+[PT] state -> 5 pos=(862.8445, 599.9337)
+[PT] saved 11_atk_c013 err=0 state=5 pos=(864.3445, 599.9337)
+[PT] state -> 0 pos=(864.3445, 599.9337)
+[PT] state -> 6 pos=(865.4445, 599.9337)
+[PT] saved 12_skill_c013 err=0 state=6 pos=(865.9334, 599.9337)
+[PT] state -> 0 pos=(865.9334, 599.9337)
+[PT] state -> 6 pos=(867.0334, 599.9337)
+[PT] saved 12b_sweep_c013 err=0 state=6 pos=(867.5223, 599.9337)
+[PT] state -> 0 pos=(867.5223, 599.9337)
+[PT] state -> 6 pos=(868.6223, 599.9337)
+[PT] reflect_test c013: 挨打前 hp=5 挨打后 hp=5 trainer_taken=3 state=6（期望 hp 不掉、trainer 吃到 3、仍为 SKILL=6）
+[PT] saved 13_ult_c013 err=0 state=6 pos=(869.1111, 599.9337)
+[PT] state -> 0 pos=(869.1111, 599.9337)
+[PT] ult_after skull=c013 hp=7/8
+[PT] saved 14_ult_after_c013 err=0 state=0 pos=(869.1111, 599.9337)
 [PT] swap -> skull=c012 hud=["skill01", "skill02"] attacks=1 skills=["skill01", "skill02"] bones=36
-[PT] saved 10_swap_c012 err=0 state=0 pos=(863.201, 599.9998)
-[PT] state -> 5 pos=(866.0344, 599.9337)
-[PT] saved 11_atk_c012 err=0 state=5 pos=(870.2007, 599.9337)
-[PT] state -> 0 pos=(870.2007, 599.9337)
-[PT] saved 12_skill_c012 err=0 state=0 pos=(870.2007, 599.9337)
-[PT] saved 12b_sweep_c012 err=0 state=0 pos=(870.2007, 599.9337)
-[PT] state -> 6 pos=(871.9003, 599.9327)
-[PT] saved 13_ult_c012 err=0 state=6 pos=(873.467, 599.9337)
-[PT] state -> 0 pos=(873.467, 599.9337)
-[PT] ult_after skull=c012 hp=2/8
-[PT] saved 14_ult_after_c012 err=0 state=0 pos=(873.467, 599.9337)
+[PT] saved 10_swap_c012 err=0 state=0 pos=(869.1111, 599.9337)
+[PT] state -> 5 pos=(871.9445, 599.9337)
+[PT] saved 11_atk_c012 err=0 state=5 pos=(876.1111, 599.9337)
+[PT] state -> 0 pos=(876.1111, 599.9337)
+[PT] state -> 6 pos=(877.8111, 599.9337)
+[PT] saved 12_skill_c012 err=0 state=6 pos=(879.3778, 599.9337)
+[PT] state -> 0 pos=(879.3778, 599.9337)
+[PT] saved 12b_sweep_c012 err=0 state=0 pos=(879.3778, 599.9337)
+[PT] state -> 6 pos=(881.0781, 599.9346)
+[PT] saved 13_ult_c012 err=0 state=6 pos=(882.6448, 599.9337)
+[PT] state -> 0 pos=(882.6448, 599.9337)
+[PT] ult_after skull=c012 hp=7/8
+[PT] saved 14_ult_after_c012 err=0 state=0 pos=(882.6448, 599.9337)
 [PT] SWAP DONE skull=c012
