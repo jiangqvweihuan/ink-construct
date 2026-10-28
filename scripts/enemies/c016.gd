@@ -367,7 +367,7 @@ func _deal_hit() -> void:
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_current_anim, false))
 	if side_ok and absf(dx) <= rng and dy <= attack_hit_height:
-		_target.call("hurt", 1, Vector2(facing * 220.0, -80.0))
+		_target.call("hurt", 1, Vector2(facing * 220.0, -80.0), self)
 
 
 func take_damage(amount: int, source_x: float) -> void:

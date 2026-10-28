@@ -2,6 +2,13 @@ extends Node2D
 
 ## 玩家控制器冒烟测试：模拟输入走一遍 idle/run/jump/dash/三连击，截图+日志。
 
+## 反伤测试替身：只记账不参与战斗，验证定山把伤害弹回攻击者
+class Trainer extends Node2D:
+	var damage_taken := 0
+
+	func take_damage(amount: int, _source_x: float) -> void:
+		damage_taken += amount
+
 const OUT_DIR := "res://tests/out/"
 const PlayerClass := preload("res://scripts/player/player.gd")
 
@@ -114,7 +121,18 @@ func _ready() -> void:
 		await get_tree().create_timer(1.3).timeout
 		await _shot("12_skill_" + str(_player.skull_id))
 		_tap("skill_ult")
-		await get_tree().create_timer(1.6).timeout
+		await get_tree().create_timer(1.0).timeout
+		# 定山反伤验证：蓄力中（reflect=1）挨打一下，应把伤害弹回攻击者且不断招
+		if _player.skull_id == "c013":
+			var trainer := Trainer.new()
+			add_child(trainer)
+			trainer.global_position = _player.global_position + Vector2(150, 0)
+			var hp_before := _player.hp
+			_player.hurt(1, Vector2(80.0, -60.0), trainer)
+			await get_tree().create_timer(0.2).timeout
+			p("reflect_test c013: 挨打前 hp=%d 挨打后 hp=%d trainer_taken=%d state=%d（期望 trainer 吃到 1、仍为 SKILL=6）" % [
+				hp_before, _player.hp, trainer.damage_taken, _player.state])
+		await get_tree().create_timer(0.4).timeout
 		await _shot("13_ult_" + str(_player.skull_id))
 		# 定山蓄力 3.05s 才砸下，等它结算完再看血量：5 -> 7 才说明回血真的生效
 		await get_tree().create_timer(1.9).timeout

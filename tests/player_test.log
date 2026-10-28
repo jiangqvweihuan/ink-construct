@@ -1,4 +1,4 @@
-[PT] player created, sprite=@SpineSprite@8:<SpineSprite#35802580504>
+[PT] player created, sprite=@SpineSprite@8:<SpineSprite#35970352665>
 [PT] state -> 0 pos=(300.0, 560.0)
 [PT] state -> 3 pos=(300.0, 560.5555)
 [PT] state -> 0 pos=(300.0, 599.9999)
@@ -51,9 +51,10 @@
 [PT] state -> 0 pos=(860.767, 599.9339)
 [PT] saved 12_skill_c013 err=0 state=0 pos=(860.767, 599.9339)
 [PT] state -> 6 pos=(861.8673, 599.9343)
+[PT] reflect_test c013: 挨打前 hp=5 挨打后 hp=4 trainer_taken=1 state=6（期望 trainer 吃到 1、仍为 SKILL=6）
 [PT] saved 13_ult_c013 err=0 state=6 pos=(862.3562, 599.9337)
 [PT] state -> 0 pos=(862.3562, 599.9337)
-[PT] ult_after skull=c013 hp=7/8
+[PT] ult_after skull=c013 hp=6/8
 [PT] saved 14_ult_after_c013 err=0 state=0 pos=(862.3562, 599.9337)
 [PT] swap -> skull=c012 hud=["skill01", "skill02"] attacks=1 skills=["skill01", "skill02"] bones=36
 [PT] saved 10_swap_c012 err=0 state=0 pos=(862.3562, 599.9337)
@@ -64,6 +65,6 @@
 [PT] state -> 6 pos=(871.0562, 599.9337)
 [PT] saved 13_ult_c012 err=0 state=6 pos=(872.6232, 599.9339)
 [PT] state -> 0 pos=(872.6232, 599.9339)
-[PT] ult_after skull=c012 hp=7/8
+[PT] ult_after skull=c012 hp=6/8
 [PT] saved 14_ult_after_c012 err=0 state=0 pos=(872.6232, 599.9339)
 [PT] SWAP DONE skull=c012
