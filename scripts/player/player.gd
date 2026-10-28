@@ -92,7 +92,7 @@ var proj_pierce := false # 投射物穿透（穿云剑气）
 var skill_lifesteal := false # 技能命中回血（饮血）
 var poise := false # 技能期间霸体（定山）
 var _skill_poise := false # 当前技能自带的霸体（力僧定山：蓄力期间自身霸体，不依赖强化）
-var _skill_reflect := 0 # 当前技能自带的反伤点数（力僧定山：蓄力期间受击把伤害弹回攻击者）
+var _skill_reflect := false # 当前技能自带的反伤（力僧定山：技能期间无敌，伤害原样弹回攻击者）
 var blink_scale := 1.0 # 闪现突进距离倍率（疾影）
 var _lifesteal_cd := 0.0 # 饮血内置冷却
 var _skill_name := ""
@@ -391,7 +391,7 @@ func _skill_tick(delta: float) -> void:
 			_deal_skill_hit(_skill_hits.pop_front())
 		_invincible = false
 		_skill_poise = false
-		_skill_reflect = 0
+		_skill_reflect = false
 		_set_blink(false)
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
 
@@ -562,7 +562,7 @@ func _start_skill(n: String) -> void:
 	_skill_hits = skill_config[n]["hits"].duplicate(true)
 	_skill_start_x = global_position.x
 	_skill_poise = bool(skill_config[n].get("poise", false))
-	_skill_reflect = int(skill_config[n].get("reflect", 0))
+	_skill_reflect = bool(skill_config[n].get("reflect", false))
 	_skill_cds[n] = float(skill_config[n]["cooldown"]) * cooldown_scale * _mastery_cd
 	_invincible = false
 	velocity.x = facing * float(attacks[0]["lunge"]) * 0.6 # 起手小前冲
@@ -597,7 +597,7 @@ func swap_skull(id: String) -> void:
 	_skill_name = ""
 	_skill_timer = 0.0
 	_skill_poise = false
-	_skill_reflect = 0
+	_skill_reflect = false
 	_apply_profile(id)
 	_setup_spine()
 	Run.skull_id = id # 局外养成的击杀/通关记账按当前形态归属，换头后立刻同步
@@ -614,7 +614,24 @@ func swap_skull(id: String) -> void:
 
 
 func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null) -> void:
-	if state == State.DEAD or state == State.DASH or _invincible or _hurt_invincible > 0.0:
+	if state == State.DEAD or state == State.DASH or _invincible:
+		return
+	# 定山·反伤：技能期间自身无敌，挨多少就原样弹回攻击者多少
+	# 放在 _hurt_invincible 之前——刚受过伤的 0.8s 无敌期内照样反弹
+	if _skill_reflect and attacker != null and is_instance_valid(attacker) \
+			and attacker.has_method("take_damage"):
+		attacker.call("take_damage", amount, global_position.x)
+		var ap := attacker as Node2D
+		if ap != null:
+			FX.spawn(get_tree().current_scene, "ink_hit", ap.global_position + Vector2(0, -60), {"scale": 0.4})
+			var dn := DAMAGE_NUMBER.new()
+			dn.setup(str(amount), Color(0.72, 0.45, 0.3)) # 赭石：反伤数字挂在攻击者头上
+			dn.global_position = ap.global_position + Vector2(0, -140)
+			get_tree().current_scene.add_child(dn)
+		_play_sfx("voice_fan_hit")
+		Feel.shake(3.0, 0.1)
+		return
+	if _hurt_invincible > 0.0:
 		return
 	_hurt_invincible = 0.8
 	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
@@ -626,15 +643,6 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45, "flip": knockback.x > 0.0})
 	Feel.hitstop(0.05) # 挨打也要"一僵"：受击反馈和打人一样重要
 	Feel.shake(8.0, 0.24)
-	# 反伤（力僧·定山）：蓄力期间挨打，把伤害弹回攻击者；配合霸体，摆明"你敢打我就吃一记"
-	if _skill_reflect > 0 and attacker != null and is_instance_valid(attacker) \
-			and attacker.has_method("take_damage"):
-		attacker.call("take_damage", _skill_reflect, global_position.x)
-		var ap := attacker as Node2D
-		if ap != null:
-			FX.spawn(get_tree().current_scene, "ink_hit", ap.global_position + Vector2(0, -60), {"scale": 0.4})
-		_spawn_number(_skill_reflect, Color(0.72, 0.45, 0.3), 110.0) # 赭石：反伤数字
-		Feel.shake(4.0, 0.12)
 	if hp <= 0:
 		# 残墨续命赐福：一局一次，以 4 点生命原地爬起
 		if Run.blessing == "revive" and not Run.blessing_used:

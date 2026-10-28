@@ -128,9 +128,10 @@ func _ready() -> void:
 			add_child(trainer)
 			trainer.global_position = _player.global_position + Vector2(150, 0)
 			var hp_before := _player.hp
-			_player.hurt(1, Vector2(80.0, -60.0), trainer)
+			# 用 3 点伤害验证"按实际伤害反弹"，不是固定值
+			_player.hurt(3, Vector2(80.0, -60.0), trainer)
 			await get_tree().create_timer(0.2).timeout
-			p("reflect_test c013: 挨打前 hp=%d 挨打后 hp=%d trainer_taken=%d state=%d（期望 trainer 吃到 1、仍为 SKILL=6）" % [
+			p("reflect_test c013: 挨打前 hp=%d 挨打后 hp=%d trainer_taken=%d state=%d（期望 hp 不掉、trainer 吃到 3、仍为 SKILL=6）" % [
 				hp_before, _player.hp, trainer.damage_taken, _player.state])
 		await get_tree().create_timer(0.4).timeout
 		await _shot("13_ult_" + str(_player.skull_id))

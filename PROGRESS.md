@@ -11,7 +11,7 @@
 
 | 模块 | 文件 | 核心能力 |
 |---|---|---|
-| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / 青笠·顾沧洲 c012，默认 c021）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（受击反弹伤害）/ `heal`（砸地回血，力僧 U 用） |
+| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / 青笠·顾沧洲 c012，默认 c021）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用） |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel`/`brake`/`turn_accel` 均 `@export`）、lunge 惯性（`brake*0.5`）、hit_at × 0.9 提前判定、预警泛红闪 0.2s；攻击后 30% 可取消窗口（`atk["cancel"]` 可调） |
 | 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at |
 | 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 3 种：c023_elite 落梅弓手 / c037_elite 大剑骑士 / c018_elite 双镰 |
@@ -87,7 +87,7 @@
 | 跑测试前必须先查 Godot 进程 | 高 | 全局 | **标准前置动作**：任何 `--path` 跑场景之前，先 `Get-Process | Where-Object { $_.ProcessName -like "*Godot*" }`。有进程且命令行是 `--editor` = 用户在本机测试，**立刻停手等用户关**，不要硬跑（硬跑必报 `sandbox backend failed`，且会白烧排查时间）。用户开着编辑器玩耍不受我们影响，避让责任在 agent |
 | 编辑器开着玩时不要跑回归 | 中 | 全局 | 编辑器重扫/重导会让运行中实例骨架加载失败，玩家死亡 → 结算暂停 → 测试挂死。**重跑一次即恢复**；回归前最好让用户关编辑器。**新表现（2026-10-28 实测）：编辑器开着时命令行跑场景直接报 `sandbox backend failed`（IDE 沙箱中间层被项目文件锁搞崩），不是权限拒绝、也不是项目代码问题。判别三步：①`echo` 正常 ②`Godot --version` 正常 ③`Godot --path 项目 --quit` 必崩 → 查进程里有没有 `--editor` 的 Godot 在跑，有就是它占着项目，关掉即可，**别再怀疑沙箱基础设施或引擎版本** |
 | 技能 `hits[].at` 不能超过动画时长 | 中 | `skulls.gd` | 命中按计时器 `t >= at` 触发，而 t 最大只到动画时长；at 填超了整段命中永远不结算、且零报错（力僧定山 at=3.12 > 时长 3.05 曾把 U 的伤害整个丢掉，只剩站桩）。`player.gd` `_skill_tick` 退出帧已加"剩余命中段补结算"兜底，但新填数值仍应保证 `at <= 时长` |
-| 力僧 U「定山」定位 | 低 | `skulls.gd` c013 | 蓄力 3.05s 期间**自身霸体 + 反伤 1**（`reflect` 字段：受击把伤害弹回攻击者，`hurt` 第三参 `attacker` 传入）；砸地**不再造成伤害**，只回 2 血（`heal` 字段，与是否命中无关），9s 冷却——站桩挨打换血的坦克循环 |
+| 力僧 U「定山」定位 | 低 | `skulls.gd` c013 | 蓄力 3.05s 期间**自身无敌 + 按实际伤害反弹**（`reflect` 字段：挨多少原样弹回攻击者，自身 0 掉血；`hurt` 第三参 `attacker` 传入）；砸地**不造成伤害**，只回 2 血（`heal` 字段，与是否命中无关），9s 冷却——站着吃招、惩罚近战的坦克循环 |
 | push 报连接重置的排查顺序 | 中 | 全局 | 症状 `Recv failure: Connection was reset` / `Connection timed out`。按序查：①`git config --get http.proxy` 看是否写死代理 ②`curl.exe -x <代理> -I https://github.com` 测代理能否到目标站 ③代理通但 git 不通 → 换代理协议（HTTP ↔ SOCKS5，本项目实测 `socks5h` 可用、`http` 被重置）④协议通了仍失败 → `http.version=HTTP/1.1`（git 默认 HTTP/2 在该代理下被重置）。本仓库已固化 `socks5h://127.0.0.1:33210` + `HTTP/1.1`；**梯子关掉时 GitHub 直连完全不通（443 超时），必须开着梯子** |
 | `bin/windows/~` 前缀 DLL 残留 | 低 | 全局 | `~xxx.dll` / `~RF*.TMP` 是 Windows 替换 GDExtension DLL 被占用中断留下的备份，编辑器正常关闭后可删；编辑器在跑时别删（正在用） |
 | 特效锚点分两派 | 低 | `scripts/systems/fx.gd` LIB | `pivot` 字段：bottom（pillar/tiger/fire_pillar/crack/gather/vanish，pos=脚底）vs center（ink_hit/ink_claw/slash/thunder/speedline/fire_hit，pos=中心）。受击爪痕在**来袭侧**、冲锋拖尾 `off_y` 按体型抬到躯干、撞墙 crack 炸在墙根 |

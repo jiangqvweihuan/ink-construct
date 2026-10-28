@@ -129,7 +129,7 @@ const SKULLS := {
 			"skill02": {
 				"action": "skill_ult", "cooldown": 9.0,
 				"poise": true,
-				"reflect": 1,
+				"reflect": true,
 				"hits": [
 					{"at": 3.12, "heal": 2, "sfx": "skill_blade"},
 				],
