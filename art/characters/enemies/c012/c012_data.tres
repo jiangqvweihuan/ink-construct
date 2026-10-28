@@ -1,7 +1,7 @@
 [gd_resource type="SpineSkeletonDataResource" load_steps=3 format=3]
 
-[ext_resource type="SpineAtlasResource" path="res://art/characters/player/skulls/c012/skeleton.atlas" id="1"]
-[ext_resource type="SpineSkeletonFileResource" path="res://art/characters/player/skulls/c012/skeleton.skel" id="2"]
+[ext_resource type="SpineAtlasResource" path="res://art/characters/enemies/c012/skeleton.atlas" id="1"]
+[ext_resource type="SpineSkeletonFileResource" path="res://art/characters/enemies/c012/skeleton.skel" id="2"]
 
 [resource]
 atlas_res = ExtResource("1")
