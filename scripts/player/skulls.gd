@@ -184,44 +184,8 @@ const SKULLS := {
 		},
 		"hud_skills": ["skill01", "skill02", "skill04"],
 	},
-	# ---------- 青笠：C012，青灰袍斗笠游侠，双剑近身刺击，出手快、突进远 ----------
-	"c012": {
-		"label": "青笠",
-		"name": "顾沧洲",
-		"data": "res://art/characters/player/skulls/c012/c012_data.tres",
-		"scale": 0.487, # 骨架 262.9px -> 128px
-		"anim": {
-			"idle": "stand",
-			"run": "run",
-			"dash": "speed_run",
-			"air": "floated",
-			"hurt": "atked",
-			"dead": "dead",
-			"getup": "getup",
-		},
-		# 细剑只有一段"animation"（1.08s：下蹲蓄力 -> 前刺 -> 收剑）。
-		# 探针逐帧看：0.78s 前身体还在蓄力，剑真正刺出最远在 0.95s（前伸 237px -> 115px），
-		# 所以 lock 必须放到 1.05 让突刺播完，命中定在 0.95s
-		"attacks": [
-			{"anim": "animation", "lock": 1.05, "hits": [0.95], "damage": 1, "range": 120.0, "lunge": 170.0},
-		],
-		"skills": {
-			# 突刺：原地刺出，判定比普攻更远
-			"skill01": {
-				"action": "skill", "cooldown": 3.0,
-				"hits": [{"at": 0.80, "range": 150.0, "height": 110.0, "damage": 2, "sfx": "hit_heavy"}],
-			},
-			# 连突：跃起后两段穿刺（0.53s 前伸 271px -> 132px；1.41s 回刺 246px -> 120px）
-			"skill02": {
-				"action": "skill_ult", "cooldown": 8.0,
-				"hits": [
-					{"at": 0.55, "range": 132.0, "height": 120.0, "damage": 2, "sfx": "skill_blade"},
-					{"at": 1.41, "range": 120.0, "height": 120.0, "damage": 1, "sfx": "skill_blade"},
-				],
-			},
-		},
-		"hud_skills": ["skill01", "skill02"],
-	},
+	# 青笠 c012 已下掉玩家形态（动画撑不起招式，强度垫底），转生为精英怪——
+	# 见 scripts/enemies/enemy_types.gd c012；第 5 席等新素材填补
 }
 
 

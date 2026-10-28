@@ -95,7 +95,6 @@ var _skill_poise := false # 当前技能自带的霸体（力僧定山：蓄力�
 var _skill_reflect := false # 当前技能自带的反伤（力僧定山：技能期间无敌，伤害原样弹回攻击者）
 var _skill_ranged_guard := false # 当前技能的远程格挡（梅剑转鞭：技能期间免疫并反弹敌方投射物）
 var _skill_tick_acc := 0.0 # 技能持续伤害段的计时累计（每 interval 秒结算一次）
-var blink_scale := 1.0 # 闪现突进距离倍率（疾影）
 var _lifesteal_cd := 0.0 # 饮血内置冷却
 var _skill_name := ""
 var _skill_timer := 0.0
@@ -154,7 +153,6 @@ func set_upgrades(up: Dictionary) -> void:
 	proj_pierce = false
 	skill_lifesteal = false
 	poise = false
-	blink_scale = 1.0
 	for k in up:
 		match str(k):
 			"form_drink_blood": skill_lifesteal = true # 双刺·饮血
@@ -165,8 +163,6 @@ func set_upgrades(up: Dictionary) -> void:
 			"form_quake": range_scale *= 1.4 # 力僧·裂地
 			"form_pierce": proj_pierce = true # 剑仙·穿云
 			"form_twin": proj_extra += 1 # 剑仙·双剑气
-			"form_swift": blink_scale = 1.35 # 青笠·疾影
-			"form_flurry": range_scale *= 1.25 # 青笠·连突
 
 
 func _setup_sfx() -> void:
@@ -393,7 +389,7 @@ func _skill_tick(delta: float) -> void:
 	if cfg.has("blink_from") and t >= cfg["blink_from"] and t <= cfg["blink_to"]:
 		_invincible = true
 		_set_blink(true)
-		velocity.x = facing * cfg["blink_speed"] * blink_scale # 疾影（青笠形态专属）：突进距离加长
+		velocity.x = facing * cfg["blink_speed"] # 闪现突进
 	else:
 		_invincible = false
 		_set_blink(false)

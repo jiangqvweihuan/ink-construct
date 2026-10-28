@@ -99,7 +99,7 @@ func _ready() -> void:
 	Score.add_bones(60)
 	Meta.debug_unlock_all() # 测试环境直接拉满解锁条件，别让存档挡住换头验证
 	await _shot("09_before_swap")
-	for id in ["c023", "z000", "c013", "c012"]:
+	for id in ["c023", "z000", "c013"]:
 		var panel = load("res://scenes/ui/swap_panel.tscn").instantiate()
 		panel.setup(_player) # 必须在 add_child 前：面板 _ready 要读当前形态
 		add_child(panel)
@@ -131,7 +131,8 @@ func _ready() -> void:
 			await get_tree().create_timer(0.6).timeout # 0.9s：鞭击已结算
 			p("c023 鞭击后靶子距玩家 %.0fpx（期望约 80）" % absf(dummy.global_position.x - _player.global_position.x))
 			await get_tree().create_timer(1.0).timeout # 1.9s：突刺已结算
-			p("c023 普攻总伤害=%d（期望 2+3=5）" % dummy.damage_taken)
+			p("c023 普攻总伤害=%d（基础 2+3=5，伤害加成 %+d/段 = 契合/局内强化）" % [
+				dummy.damage_taken, _player.damage_bonus + _player._mastery_dmg])
 			dummy.queue_free()
 			dummy = null
 		await _wait_free() # 各形态招式时长不同，等回到可出招状态再按下一个键

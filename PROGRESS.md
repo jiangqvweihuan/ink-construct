@@ -11,10 +11,10 @@
 
 | 模块 | 文件 | 核心能力 |
 |---|---|---|
-| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / 青笠·顾沧洲 c012，默认 c021）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位 |
+| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **4 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000，默认 c021；青笠 c012 已下架转精英怪，**第 5 席待新素材**）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位 |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel`/`brake`/`turn_accel` 均 `@export`）、lunge 惯性（`brake*0.5`）、hit_at × 0.9 提前判定、预警泛红闪 0.2s；攻击后 30% 可取消窗口（`atk["cancel"]` 可调） |
-| 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at |
-| 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 2 种：c037_elite 大剑骑士 / c018_elite 双镰。**主角形态不设同名敌人版本**（原 c023_elite 落梅弓手已删，与梅剑共用美术） |
+| 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at；**多段命中**（`hit_at`/`ranges` 支持数组按段结算）、`damage` 每招伤害、`poise_atk` 出手霸体（挨打掉血不断招）、`lunge_mul` 前冲倍率、`hop` 起手跃起、`enrage` 半血狂暴（冷却×cd、追速×speed，触发一次） |
+| 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 3 种：c037_elite 大剑骑士 / c018_elite 双镰 / **c012_elite 青笠剑客（前玩家形态转生）**。**除青笠外主角形态不设同名敌人版本**（原 c023_elite 落梅弓手已删，与梅剑共用美术） |
 | 波次刷怪 | `scripts/systems/wave_spawner.gd` | 每房 3 波（5/7/9 只，血量速度递增 + 精英混入），同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared` |
 | Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技 + **绕后转身演出**（配 `turn` 动画的 Boss 被穿裆时播调头动画再翻转朝向，不瞬转，转身期不还手是奖励窗口，带冷却防锁死）；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底 |
 | 特效系统 | `scripts/systems/fx.gd` | GIF 精灵条逐帧播放器，12 条特效；Boss fx 配置表驱动 + 焚鼎 P3 封锁火区（聚气预警 → 火柱喷发 → 范围灼烧）；预警用程序化墨环（`tools/gen_telegraph.py`） |
@@ -27,7 +27,7 @@
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | 局内计数 | `scripts/systems/score.gd`（autoload Score） | 连击（窗口清零）/ 最高连击 / 击杀 / 墨骨；墨骨跨房间保留，开新局才清空；花墨骨 = 局内强化 + 换头 |
-| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；解锁条件：c021/c023 初始开放，力僧杀 25 → 青笠通关 1 → 剑仙杀 60（强度梯度，剑仙实测最强放最后）；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
+| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；解锁条件：c021/c023 初始开放，力僧杀 25 → 剑仙杀 60（强度梯度，剑仙实测最强放最后；青笠通关 1 的解锁项随形态下架一并删除）；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
 | 墨锭商栈 | `meta.gd` `INK_SHOP` + `forms_panel.gd` | 结算时本局剩余墨骨沉淀为局外货币**墨锭**；化身谱面板内消费：买断解锁（绕过条件）+ 永久开局加成（初始墨骨/生命上限，可升级） |
 
 ### UI / 流程
@@ -35,13 +35,13 @@
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：水墨远山底 + 书法标题 + 开始/化身谱/设置/退出；启动时 `Settings.apply_all()` |
-| 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：5 形态解锁条件/契合进度/各级加成一览 + 墨锭商栈 |
+| 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：4 形态解锁条件/契合进度/各级加成一览 + 墨锭商栈 |
 | 暂停菜单 | `scripts/ui/pause_menu.gd` | Esc 呼出：继续 / 设置 / 回主菜单 |
 | 设置 | `scripts/ui/settings.gd` + `settings_panel.gd` | 音乐/音效音量（Music/SFX 总线）、全屏、分辨率（1280×720 / 1600×900 / 1920×1080）；`user://settings.cfg` 持久化，改动立即生效 |
 | HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 |
 | 结算 | `scripts/ui/settlement_panel.gd` | 通关/阵亡结算 + 战绩行（最高连击/击杀/墨骨）+ 朱砂「讨伐 · Boss 名」+ 契合经验条动画 + 墨锭沉淀 |
 | 换头面板 | `scripts/ui/swap_panel.gd` | Q 键呼出，暂停时间选形态 |
-| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一（cost = 8 + 4×已拥有等级）；强化池 = 通用 5 项 + **形态专属 10 项**（`FORM_UPGRADES` 按当前 skull 过滤：饮血/横扫/清心/阔剑/不动如山/裂地/穿云/双剑气/疾影/连突，player.set_upgrades 消费，投射物支持穿透+双发）；卡牌带 36px 水墨图标（`art/ui/icons/`） |
+| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一（cost = 8 + 4×已拥有等级）；强化池 = 通用 5 项 + **形态专属 8 项**（`FORM_UPGRADES` 按当前 skull 过滤：饮血/横扫/清心/阔剑/不动如山/裂地/穿云/双剑气，青笠下架时删掉疾影/连突；player.set_upgrades 消费，投射物支持穿透+双发）；卡牌带 36px 水墨图标（`art/ui/icons/`） |
 | 伤害数字 | `scripts/ui/damage_number.gd` | 飘字 |
 | 字体 | `art/ui/fonts/main_theme.tres` + `hud.gd` | 全局庞门正道粗书体；Boss 落款/大血条名 = 演示佛系体（ASCII 文件名：slidefu_regular / pangmen） |
 
@@ -108,8 +108,8 @@
 
 ### P2 · 新内容（看素材库）
 
-- [ ] **额外化身**：素材库玩家骨架多的话，加第 6 个形态（SKULLS 加一项 + spine 三件套即可）
-- [ ] **精英怪独立 AI 行为**：现在精英只是参数放大；可以加"蓄力重击"预警 1.5s 然后冲过来砸地（需要新骨架动画）
+- [ ] **补第 5 席化身**：青笠 c012 已下架（动画撑不起招式、强度垫底，用户判定），骨架已转生为精英怪；用户从素材库自选新角色填补（SKULLS 加一项 + spine 三件套即可，参考交接笔记 2026-10-28 夜）
+- [ ] **精英怪独立 AI 行为**：精英已有参数放大 + 青笠的出手霸体/跃起/狂暴；可以再加"蓄力重击"预警 1.5s 然后冲过来砸地（需要新骨架动画）
 
 ### P3 · 系统层
 
@@ -159,7 +159,7 @@ $env:BOSS_ID = "c009"  # 或 c015a1 / c001 / c008 / c032 / _debug
 
 ```
 scripts/
-├── player/          # 玩家控制器 + 化身形态表（5 形态）
+├── player/          # 玩家控制器 + 化身形态表（4 形态）
 ├── enemies/         # 通用小怪 AI c016.gd + 形态表 + Boss boss.gd + Boss 形态表
 ├── systems/         # fx 特效 + run_state + combat_feel + meta + score + wave_spawner + bone_pickup + projectile
 ├── audio/           # bgm.gd（autoload，双轨交叉淡化）
@@ -169,7 +169,7 @@ scripts/
 
 scenes/
 ├── ui/              # main_menu / forms_panel / pause_menu / settings_panel / hud / settlement / swap / blessing / upgrade
-├── enemies/         # c016 / z002 / c017 / c035 + c037_elite / c018_elite + bosses/boss
+├── enemies/         # c016 / z002 / c017 / c035 + c037_elite / c018_elite / c012_elite + bosses/boss
 ├── player/          # player.tscn
 ├── world/           # room_01.tscn
 └── tests/           # 测试场景（见上表）
@@ -181,7 +181,7 @@ audio/
 
 art/
 ├── characters/
-│   ├── player/      # 5 形态骨架（skulls/<id>/ 三件套）
+│   ├── player/      # 4 形态骨架（skulls/<id>/ 三件套；c012 已搬到 enemies/）
 │   ├── enemies/     # 小怪骨架 + atlas
 │   └── bosses/      # c009 / c015a1 / c001 / c008 / c032 骨架 + atlas
 ├── fx/              # 12 条精灵条特效（.png + .json）+ telegraph 墨环
@@ -207,6 +207,35 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-28 夜 · 青笠下架：玩家形态 5→4，c012 转生精英怪
+
+#### 为什么
+用户判定青笠·顾沧洲（c012）是五形态里最弱的（动画撑不起招式，整理质量差），决定**删掉玩家形态**，第 5 席由用户从素材库自选新角色填补；骨架不浪费，**转生为精英怪**——普攻 = 第 13 个动画 `skill01`（1.317s）两连击，技能 = 第 14 个动画 `skill02`（1.617s）跳斩伤害翻倍，并授权自由补强机制。
+
+#### 精英青笠配置（`enemy_types.gd` c012）
+- scale 0.563（骨架 262.9px → 约 148px 精英身高），hp 10，掉 3 墨骨，预警泛红 + 出手霸体档 armor=1
+- **两连击 skill01**：`hit_at`/`ranges` 数组按段结算（0.80s 172px / 1.21s 138px，探针峰值 ×0.563）；两段间隔 0.41s < 玩家受击无敌 0.8s，站定玩家实际吃 1 段——两连击 = 两次独立命中机会，这是设计预期
+- **跳斩 skill02**：伤害 2（翻倍）+ `poise_atk` 出手期间挨打不断招 + `lunge_mul` 2.0 跨步 + `hop` 260 腾空 + 0.89s 劈落 163px
+- **半血狂暴 `enrage`**：hp ≤ 50% 触发一次，冷却 ×0.65（1.70→1.11）、追速 ×1.2——越残越凶
+- `pick: "random"`：两招范围接近（172 vs 163），nearest 会让跳斩永远压过两连击
+- 死亡动画 `dead` 是 0 秒空姿态，倒地用 `atked_fall_end`（z002 同款处理）；受击 = `atked`（0.333s）
+
+#### c016.gd 框架扩展（支撑以上机制，全怪通用）
+- `_attack_hits` 单值 → `_attack_hits_left` 命中段队列（{t=倒计时阈值, i=段序号} 降序弹出），`_range_of(anim, seg)` 支持 ranges 数组
+- 新形态字段：`damage`（每招伤害）/ `poise_atk` / `lunge_mul` / `hop` / `enrage{below,cd,speed}`
+- **坑**：ranges 支持数组后，挑招 pool 里 `float(_ranges.get(...))` 对数组会崩，三处全部改 `_range_of(n, 0)`
+
+#### 玩家侧删除面
+skulls.gd 整段移除 c012；meta.gd 删解锁项（通关1）+ INK_SHOP 删 buyout_c012；run_state.gd FORM_UPGRADES 删疾影/连突（10→8）；player.gd 删 blink_scale（form_swift 唯一消费点，死代码）；player_test 换头循环删 c012。面板数据驱动无需改。素材 `git mv` 到 `art/characters/enemies/c012/`，.tres 与三个 .import 的 source_file 路径同步改写 + `--import` 重导。旧 meta 存档里残留的 c012 契合/解锁键无害。
+
+#### 回归结果
+- `enemy_test` 新增第 5 段：强制锁招验证两连击 hits_left=2、净掉 1 血（第二段被 0.8s 受击无敌吞）；跳斩 hits_left=1 命中掉 2；半血狂暴 cooldown 1.70→1.11；死亡正常。截图 ai_07_c012_leap.png 渲染正常
+- `player_test` / `room_test` 全绿；化身谱截图确认 4 形态排版正常
+- **坑：测试期望值受局外存档影响**——`c023 普攻总伤害=7` 一度疑似回归，实为本地 meta.json 里 c023 契合 Lv2（95≥80）普攻 +1/段（7=3+4）。player_test 日志已改为打印加成值（`伤害加成 %+d/段`），别再写死绝对值
+
+#### 环境备注
+本轮 IDE 沙箱对 `Start-Process` 持续报 `sandbox backend failed`（无 Godot 进程、--import 却正常），直接 `&` 调 mono Godot 静默不跑场景——**用 `mcp_godot_run_project` MCP 工具跑回归可绕过**
 
 ### 2026-10-28 下午 · 关卡互动装饰 + 形态专属强化
 

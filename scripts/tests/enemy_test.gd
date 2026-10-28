@@ -89,6 +89,38 @@ func _ready() -> void:
 	await get_tree().create_timer(1.0).timeout
 	await _shot("05_corpse")
 
+	# 5. 精英青笠：两连击 / 跳斩霸体 / 半血狂暴
+	var elite = load("res://scenes/enemies/c012_elite.tscn").instantiate()
+	elite.position = Vector2(_player.global_position.x + 300.0, 560)
+	add_child(elite)
+	p("elite c012 spawned hp=%d scale=%.3f" % [elite.hp, elite._scale])
+	# 先强制出两连击，验证多段命中队列
+	elite._attack_anims = ["skill01"]
+	if await _wait_state(elite, 3, 6.0): # ATTACK
+		p("elite attack anim=" + str(elite._current_anim) + " hits_left=" + str(elite._attack_hits_left.size()) + "（两连击应为 2）")
+		var hp_before := _player.hp
+		await get_tree().create_timer(1.4).timeout # 两段 0.80/1.21 都已结算
+		await _shot("06_c012_attack")
+		p("elite 两连击后 player_hp=%d（前 %d；第二段落在 0.8s 受击无敌内应被吞，净掉 1）" % [_player.hp, hp_before])
+	# 恢复招式池，等跳斩（skill02：伤害 2 + 出手霸体 + 跃起）
+	elite._attack_anims = ["skill02"]
+	if await _wait_state(elite, 3, 6.0):
+		p("elite attack2 anim=" + str(elite._current_anim) + " hits_left=" + str(elite._attack_hits_left.size()) + "（跳斩应为 1）")
+		await get_tree().create_timer(1.0).timeout # 0.89s 劈落已结算
+		await _shot("07_c012_leap")
+		p("elite 跳斩后 player_hp=%d" % _player.hp)
+	# 打到半血以下验证狂暴（hp 10 -> 5 触发）
+	while elite.hp > 5 and elite.state != 5:
+		elite.take_damage(1, _player.global_position.x)
+		await get_tree().create_timer(0.15).timeout
+	await get_tree().create_timer(0.2).timeout
+	p("elite enrage hp=%d/%d cooldown=%.2f（基础 1.70，狂暴后应约 1.11）" % [elite.hp, elite.max_hp, elite.attack_cooldown])
+	# 打死收尾
+	while elite.state != 5:
+		elite.take_damage(2, _player.global_position.x)
+		await get_tree().create_timer(0.15).timeout
+	await _shot("08_c012_dead")
+
 	p("ALL DONE, enemy state=" + str(_enemy.state) + " hp=" + str(_enemy.hp)
 		+ " player state=" + str(_player.state))
 	get_tree().quit()

@@ -13,7 +13,7 @@ const SETS := [
 	{"id": "pc023", "data": "res://art/characters/player/skulls/c023/c023_data.tres", "h": 262.9},
 	{"id": "c016", "data": "res://art/characters/enemies/c016/c016_data.tres", "h": 308.6},
 	{"id": "c017", "data": "res://art/characters/enemies/c017/c017_data.tres", "h": 502.9},
-	{"id": "c012", "data": "res://art/characters/player/skulls/c012/c012_data.tres", "h": 262.9},
+	{"id": "c012", "data": "res://art/characters/enemies/c012/c012_data.tres", "h": 262.9},
 	{"id": "c013", "data": "res://art/characters/player/skulls/c013/c013_data.tres", "h": 262.9},
 	{"id": "z000", "data": "res://art/characters/player/skulls/z000/z000_data.tres", "h": 285.7},
 	{"id": "c035", "data": "res://art/characters/enemies/c035/c035_data.tres", "h": 262.9},

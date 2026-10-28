@@ -214,6 +214,48 @@ const TYPES := {
 		"bar_y": -175.0,
 		"number_y": -185.0,
 	},
+	# ---------- 精英 · 青笠剑客：C012，前玩家形态下放进敌人池；快剑游侠，两连击 + 跳斩 ----------
+	"c012": {
+		"label": "青笠剑客",
+		"data": "res://art/characters/enemies/c012/c012_data.tres",
+		"scale": 0.563, # 骨架 262.9px -> 约 148px（精英身高）
+		"elite": true,
+		# dead 是 0 秒空姿态，倒地用 atked_fall_end（与 z002 同款处理）
+		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "atked_fall_end"},
+		# skill01（1.317s）= 普攻两连击：0.80s 前刺 306px、1.21s 回刺 246px（探针 scale=1 峰值）
+		# skill02（1.617s）= 跳斩：腾空跃起劈落，0.89s 峰值 289px，伤害翻倍
+		"attacks": ["skill01", "skill02"],
+		"hit_at": {"skill01": [0.80, 1.21], "skill02": 0.89},
+		# ×0.563：两连击 172 / 138，跳斩 163；ranges 与 hit_at 按段一一对应
+		"ranges": {"skill01": [172.0, 138.0], "skill02": 163.0},
+		"damage": {"skill02": 2}, # 跳斩伤害翻倍
+		"poise_atk": {"skill02": true}, # 跳斩出手即霸体：腾空后必须让他劈下来
+		"lunge_mul": {"skill02": 2.0}, # 跳斩跨步前冲更远
+		"hop": {"skill02": 260.0}, # 跳斩腾空（视觉配合动画，重力自然落地）
+		# 背水：血量跌破一半狂暴——出手更密、追得更紧，弥补他底子偏弱
+		"enrage": {"below": 0.5, "cd": 0.65, "speed": 1.2},
+		"hp": 10,
+		"patrol_speed": 65.0,
+		"chase_speed": 170.0, # 快剑游侠，比别的精英追得紧
+		"patrol_range": 150.0,
+		"idle_time": 0.8,
+		"detect_range": 460.0,
+		"lose_range": 620.0,
+		"attack_range": 175.0,
+		"keep_dist": 90.0,
+		"attack_cooldown": 1.7,
+		"attack_lunge": 300.0,
+		"hit_height": 100.0,
+		"hurt_time": 0.3,
+		"armor": 1, # 轻击不打断
+		"telegraph": true,
+		"pick": "random", # 两招范围接近，nearest 会让跳斩永远压过两连击；随机各出一半
+		"bones": 3,
+		"dead_min": 0.8,
+		"bar_w": 64.0,
+		"bar_y": -175.0,
+		"number_y": -185.0,
+	},
 }
 
 

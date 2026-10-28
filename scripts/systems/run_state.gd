@@ -55,8 +55,6 @@ const FORM_UPGRADES := {
 	"form_quake": {"label": "裂地", "desc": "力僧攻击范围 +40%", "max": 1, "icon": "icon_medal", "forms": ["c013"]},
 	"form_pierce": {"label": "穿云", "desc": "剑气穿透敌人，不再命中即消", "max": 1, "icon": "icon_medal", "forms": ["z000"]},
 	"form_twin": {"label": "双剑气", "desc": "剑气齐发两道", "max": 1, "icon": "icon_medal", "forms": ["z000"]},
-	"form_swift": {"label": "疾影", "desc": "青笠突进距离 +35%", "max": 1, "icon": "icon_medal", "forms": ["c012"]},
-	"form_flurry": {"label": "连突", "desc": "青笠攻击范围 +25%", "max": 1, "icon": "icon_medal", "forms": ["c012"]},
 }
 
 ## 开局赐福：每局出发前三选一（blessing_panel 弹出），效果只在本局生效

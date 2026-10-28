@@ -2,7 +2,7 @@ extends CharacterBody2D
 
 ## 小怪通用 AI：巡逻 / 追击 / 攻击 / 受击 / 死亡
 ## 长什么样、出什么招、判定多长，全部来自 scripts/enemies/enemy_types.gd 的形态表。
-## 主角形态不设同名敌人版本（梅剑 c023 的精英怪已删）。
+## 主角形态不设同名敌人版本（梅剑 c023 精英已删；青笠 c012 已从玩家形态下掉，转生为精英怪）。
 
 const Types := preload("res://scripts/enemies/enemy_types.gd")
 const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")
@@ -59,6 +59,15 @@ var _ranges: Dictionary = {}
 var _hit_at_map: Dictionary = {}
 # both：该招是回身横扫，动画把武器甩到身后，判定不分前后（否则"动画打到却判不上"）
 var _both_anims: Dictionary = {}
+var _damage_map: Dictionary = {} # 每招伤害（默认 1；精英重招可写 2）
+var _poise_anims: Dictionary = {} # 出手霸体：该招出手期间挨打只掉血、不断招（青笠跳斩）
+var _lunge_map: Dictionary = {} # 该招前冲倍率（跳斩跨步更大）
+var _hop_map: Dictionary = {} # 该招起手向上跃起的速度（跳斩腾空的视觉配合）
+# 半血狂暴：血量跌破 below 比例时触发一次——出手冷却 ×cd、追击速度 ×speed
+var _enrage_below := 0.0
+var _enrage_cd := 0.65
+var _enrage_speed := 1.2
+var _enraged := false
 var _bar_w := 44.0
 var _bar_y := -120.0
 var _number_y := -105.0
@@ -69,8 +78,9 @@ var _idle_timer := 0.0
 var _attack_cd := 0.0
 var _attack_timer := 0.0
 var _attack_dur := 0.0 # 本次出手动画的真实时长
-var _attack_hit_at := 0.9 # 本次出手的命中时刻（按动画查表）
-var _attack_hit_done := false
+# 本次出手尚未结算的命中段：{t=倒计时阈值, i=段序号}，按阈值从大到小弹出。
+# hit_at 标定的是"动画开始后多少秒"，倒计时阈值 = 时长 - hit_at；支持单段（float）与多段（Array）
+var _attack_hits_left: Array = []
 var _anim_durations := {} # 动画名 -> 时长，setup 时缓存
 var _idle_queued := false # stand 已排队在技能后面，切 IDLE 时别重复 set
 var _chase_block := 0.0 # 收招后的收势时间：这期间不许起跑，等 stand 队列接续完
@@ -109,6 +119,14 @@ func _apply_type() -> void:
 	_ranges = t["ranges"]
 	_hit_at_map = t["hit_at"]
 	_both_anims = t.get("both", {})
+	_damage_map = t.get("damage", {})
+	_poise_anims = t.get("poise_atk", {})
+	_lunge_map = t.get("lunge_mul", {})
+	_hop_map = t.get("hop", {})
+	var en: Dictionary = t.get("enrage", {})
+	_enrage_below = float(en.get("below", 0.0))
+	_enrage_cd = float(en.get("cd", 0.65))
+	_enrage_speed = float(en.get("speed", 1.2))
 	max_hp = int(t["hp"])
 	patrol_speed = float(t["patrol_speed"])
 	chase_speed = float(t["chase_speed"])
@@ -276,9 +294,10 @@ func _attack_tick(delta: float) -> void:
 	_attack_timer -= delta
 	# lunge 用半速制动带惯性（对齐玩家 brake*0.5 的思路）：原来 1500 秒刹，前冲位移几乎为零
 	velocity.x = move_toward(velocity.x, 0.0, brake * 0.5 * delta)
-	if not _attack_hit_done and _attack_timer <= _attack_dur - _attack_hit_at:
-		_attack_hit_done = true
-		_deal_hit()
+	# 多段命中：到一段弹一段（倒计时阈值大的先弹，即动画里先打出去的那段）
+	while not _attack_hits_left.is_empty() and _attack_timer <= float(_attack_hits_left[0]["t"]):
+		var seg: Dictionary = _attack_hits_left.pop_front()
+		_deal_hit(int(seg["i"]))
 	# 收招按纯时长驱动：_attack_dur 就是动画真实时长，到点的同一帧排队的 stand 恰好自动
 	# 接续，时序严丝合缝。不能看 get_current(0).is_complete——stand 一旦接续，current 就
 	# 变成 loop 的 stand，skill 的完成信号永远观测不到，之前只能靠 -0.3s 超时兜底退出，
@@ -308,14 +327,14 @@ func _start_attack() -> void:
 		dist = absf(_target.global_position.x - global_position.x)
 	var pool: Array = []
 	for n in _attack_anims:
-		if float(_ranges.get(n, attack_range)) >= dist - 10.0:
+		if _range_of(n, 0) >= dist - 10.0:
 			pool.append(n)
 	var anim := ""
 	if pool.is_empty():
 		# 所有招都够不着：用最远那招（至少方向对、范围最大）
 		var far_r := -1.0
 		for n in _attack_anims:
-			var fr := float(_ranges.get(n, attack_range))
+			var fr := _range_of(n, 0)
 			if fr > far_r:
 				far_r = fr
 				anim = str(n)
@@ -323,7 +342,7 @@ func _start_attack() -> void:
 		# 精英：挑"刚好够得着"的最近一招，近身不会甩 580px 的大招
 		var best_r := INF
 		for n in pool:
-			var br := float(_ranges.get(n, attack_range))
+			var br := _range_of(n, 0)
 			if br < best_r:
 				best_r = br
 				anim = str(n)
@@ -332,10 +351,18 @@ func _start_attack() -> void:
 	_attack_dur = _anim_durations.get(anim, 1.5)
 	_attack_timer = _attack_dur
 	# hit_at 由 range_probe 标定的是骨架伸展峰值时刻（武器最远端 = 动画打到人的那一帧），
-	# 直接用该时刻结算：早一帧是"未打到先判定"，晚一帧是"打到却没判定"，都不贴动画
-	_attack_hit_at = float(_hit_at_map.get(anim, 0.9))
-	_attack_hit_done = false
-	velocity.x = facing * attack_lunge # 出手带一段前冲
+	# 直接用该时刻结算：早一帧是"未打到先判定"，晚一帧是"打到却没判定"，都不贴动画。
+	# 值可以是单段（float）或多段（Array，如青笠两连击）；统一转成倒计时阈值队列
+	_attack_hits_left.clear()
+	var ha = _hit_at_map.get(anim, 0.9)
+	var ha_list: Array = ha if ha is Array else [ha]
+	for i in ha_list.size():
+		_attack_hits_left.append({"t": _attack_dur - float(ha_list[i]), "i": i})
+	_attack_hits_left.sort_custom(func(a, b): return float(a["t"]) > float(b["t"]))
+	velocity.x = facing * attack_lunge * float(_lunge_map.get(anim, 1.0)) # 出手带一段前冲
+	var hop := float(_hop_map.get(anim, 0.0))
+	if hop > 0.0:
+		velocity.y = -hop # 跳斩腾空：配合动画的跃起视觉，重力会自然把他带回地面
 	_play(anim, false) # _play 内部会设好 _current_anim
 	# 关键：排队 stand 紧跟技能之后。否则非循环动画播完的瞬间轨道空窗，
 	# 骨架会闪回一帧 setup pose 再被 set_animation 接走 = 收招时"闪现一下"。
@@ -358,16 +385,25 @@ func _telegraph() -> void:
 	FX.spawn(get_tree().current_scene, "telegraph", global_position, {"scale": _scale * 1.1, "mod": Color(1.0, 0.55, 0.5, 0.9)})
 
 
-func _deal_hit() -> void:
+func _deal_hit(seg := 0) -> void:
 	if _target == null:
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
-	var rng: float = float(_ranges.get(_current_anim, attack_range))
+	var rng := _range_of(_current_anim, seg)
+	var dmg := int(_damage_map.get(_current_anim, 1))
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_current_anim, false))
 	if side_ok and absf(dx) <= rng and dy <= attack_hit_height:
-		_target.call("hurt", 1, Vector2(facing * 220.0, -80.0), self)
+		_target.call("hurt", dmg, Vector2(facing * 220.0, -80.0), self)
+
+
+## 该招第 seg 段的判定范围：ranges 值可以是单段（float）或多段（Array，与 hit_at 一一对应）
+func _range_of(anim: String, seg: int) -> float:
+	var r = _ranges.get(anim, attack_range)
+	if r is Array:
+		return float(r[mini(seg, (r as Array).size() - 1)])
+	return float(r)
 
 
 func take_damage(amount: int, source_x: float) -> void:
@@ -385,8 +421,14 @@ func take_damage(amount: int, source_x: float) -> void:
 	if hp <= 0:
 		die()
 		return
-	# 受击硬直分层：普通怪轻击就断招；精英霸体，只有重击（damage >= armor）才打断
-	if amount < _armor:
+	# 半血狂暴（青笠）：跌破阈值触发一次，出手更密、追得更紧——越残越凶
+	if _enrage_below > 0.0 and not _enraged and float(hp) / float(max_hp) <= _enrage_below:
+		_enraged = true
+		attack_cooldown *= _enrage_cd
+		chase_speed *= _enrage_speed
+	# 受击硬直分层：普通怪轻击就断招；精英霸体，只有重击（damage >= armor）才打断；
+	# 出手霸体的招（青笠跳斩）出手期间挨多重都不断，只掉血
+	if amount < _armor or (state == State.ATTACK and bool(_poise_anims.get(_current_anim, false))):
 		_flash()
 		return
 	_release_token() # 被打断的出手要交还令牌，否则其他怪永远等不到出手机会

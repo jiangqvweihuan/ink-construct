@@ -16,7 +16,7 @@ const SETS := [
 		"anims": ["atk01", "atk02", "atk03", "skill01", "skill02", "skill04"]},
 	{"id": "c013", "data": "res://art/characters/player/skulls/c013/c013_data.tres",
 		"anims": ["skill04", "skill02_01", "skill02_03", "skill01", "skill02", "skill03"]},
-	{"id": "c012", "data": "res://art/characters/player/skulls/c012/c012_data.tres",
+	{"id": "c012", "data": "res://art/characters/enemies/c012/c012_data.tres",
 		"anims": ["animation", "skill01", "skill02"]},
 	{"id": "z002", "data": "res://art/characters/enemies/z002/z002_data.tres",
 		"anims": ["atk01", "atk02", "atk03", "skill01"]},

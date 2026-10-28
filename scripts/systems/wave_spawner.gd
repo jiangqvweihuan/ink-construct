@@ -18,6 +18,7 @@ const NORMAL_SCENES := [
 const ELITE_SCENES := [
 	"res://scenes/enemies/c037_elite.tscn", # 大剑骑士
 	"res://scenes/enemies/c018_elite.tscn", # 双镰
+	"res://scenes/enemies/c012_elite.tscn", # 青笠剑客（前玩家形态，两连击 + 跳斩）
 ]
 const SPAWN_INTERVAL := 0.9 # 同一波内两只之间的补怪间隔（秒）
 const WAVE_GAP := 1.6 # 波次之间的喘息时间（秒）
