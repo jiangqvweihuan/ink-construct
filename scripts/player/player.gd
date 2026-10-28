@@ -15,7 +15,7 @@ const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
 const SWAP_COST := 8
 
 ## 技能 action -> HUD 按键字母
-const KEY_LABELS := {"skill": "K", "skill_sweep": "L", "skill_ult": "U"}
+const KEY_LABELS := {"skill": "K", "skill_sweep": "L", "skill_ult": "U", "skill_i": "I", "skill_o": "O"}
 
 ## 技能配置里 hits.at 是动画开始后多少秒判定命中，按逐帧截图标定：
 ## skill01：0.75s 前冲突刺后起跳隐身（0.75~1.28s 闪现位移+无敌），1.30s 现身一刀，path=沿闪现路径全判。
@@ -96,6 +96,17 @@ var _skill_poise := false # 当前技能自带的霸体（力僧定山：蓄力�
 var _skill_reflect := false # 当前技能自带的反伤（力僧定山：技能期间无敌，伤害原样弹回攻击者）
 var _skill_ranged_guard := false # 当前技能的远程格挡（梅剑转鞭：技能期间免疫并反弹敌方投射物）
 var _skill_tick_acc := 0.0 # 技能持续伤害段的计时累计（每 interval 秒结算一次）
+# ---------- 银夜·将去未还专属机制（形态表注入，其他形态全为默认值=关闭） ----------
+var _qg_jump_mul := 1.0 # 轻功：跳跃初速倍率（明显跳得更高）
+var _qg_hover := 0.0 # 轻功：跃过顶点后空中滞留时长
+var _hover_left := 0.0 # 本次跳跃剩余悬停时间
+var _buff_damage := 0 # 觉醒（I）：限时内全伤害 +N
+var _buff_timer := 0.0 # 觉醒剩余时间
+var _attack_anim := "" # 本段普攻实际抽中的动画（随机池段用）
+var _attack_lock := 0.0 # 本段普攻的锁定时长（随机池段 = 抽中动画的真实时长）
+var _attack_durations := {} # 普攻动画名 -> 真实时长（随机池段的 lock = 抽中动画的时长）
+var _skill_anim := "" # 本次技能实际播放的动画（随机池技能用）
+var _stop_done := false # 时停（U）本场已触发
 var _lifesteal_cd := 0.0 # 饮血内置冷却
 var _skill_name := ""
 var _skill_timer := 0.0
@@ -137,6 +148,10 @@ func _apply_profile(id: String) -> void:
 	hud_skills = profile["hud_skills"]
 	base_scale = float(profile["scale"])
 	body_radius = float(profile.get("body_radius", 30.0)) # 形态表可按体型覆盖（未来大型化身）
+	# 轻功（银夜）：没有该配置的形态倍率 1.0、不悬停，手感不受影响
+	var qg: Dictionary = profile.get("qinggong", {})
+	_qg_jump_mul = float(qg.get("jump_mul", 1.0))
+	_qg_hover = float(qg.get("hover", 0.0))
 
 
 ## 局内强化注入：伤害/移速/冷却/生命上限/换头费用。换房间时由 Run.apply_to 重新调用
@@ -204,15 +219,30 @@ func _setup_spine() -> void:
 	sprite.scale = Vector2(base_scale * facing, base_scale)
 	_anim_state = sprite.call("get_animation_state")
 	# 缓存技能动画真实时长，技能锁定必须按实际时长走（C016 的教训：手填时长收招会抽搐）
+	# 随机池技能（银夜 I/O）：池里每个动画都要缓存，时长按抽中的那个走
 	_skill_durations.clear()
 	_skill_cds.clear()
 	for n in skill_config:
-		var a = data.call("find_animation", n)
-		if a != null:
-			_skill_durations[n] = a.call("get_duration")
-		else:
-			push_error("Player: 技能动画不存在 " + n)
+		var names: Array = skill_config[n].get("pool", [n])
+		for an in names:
+			var a = data.call("find_animation", str(an))
+			if a != null:
+				_skill_durations[str(an)] = a.call("get_duration")
+			else:
+				push_error("Player: 技能动画不存在 " + str(an))
 		_skill_cds[n] = 0.0
+	# 普攻随机池（银夜三段）：抽中哪段动画，锁定时长就是哪段的真实时长
+	_attack_durations.clear()
+	for atk in attacks:
+		for an in atk.get("pool", [atk.get("anim", "")]):
+			var an_str := str(an)
+			if an_str == "" or _attack_durations.has(an_str):
+				continue
+			var aa = data.call("find_animation", an_str)
+			if aa != null:
+				_attack_durations[an_str] = aa.call("get_duration")
+			else:
+				push_error("Player: 普攻动画不存在 " + an_str)
 	_current_anim = ""
 	_play(anim_map["idle"], true)
 
@@ -223,6 +253,7 @@ func _physics_process(delta: float) -> void:
 	_dash_cd = maxf(0.0, _dash_cd - delta)
 	_hurt_invincible = maxf(0.0, _hurt_invincible - delta)
 	_lifesteal_cd = maxf(0.0, _lifesteal_cd - delta) # 饮血内置冷却
+	_buff_timer = maxf(0.0, _buff_timer - delta) # 觉醒 buff 倒计时
 	for n in _skill_cds:
 		_skill_cds[n] = maxf(0.0, _skill_cds[n] - delta)
 	if is_on_floor():
@@ -249,7 +280,12 @@ func _physics_process(delta: float) -> void:
 			velocity.x = 0.0
 
 	if state != State.DASH:
-		velocity.y = minf(velocity.y + gravity * delta, max_fall_speed)
+		# 轻功悬停（银夜）：跃过顶点后滞留一小段，期间不落——velocity.y 快归零时触发
+		if _hover_left > 0.0 and (state == State.JUMP or state == State.FALL) and velocity.y > -60.0:
+			_hover_left -= delta
+			velocity.y = 0.0
+		else:
+			velocity.y = minf(velocity.y + gravity * delta, max_fall_speed)
 	move_and_slide()
 	_post_move()
 
@@ -307,7 +343,7 @@ func _attack_tick(delta: float) -> void:
 	if Input.is_action_just_pressed("attack"):
 		_attack_queued = true
 	# 到点结算命中（支持一段动画多次命中，如 atk03 双刺）
-	var lock: float = float(attacks[_attack_idx]["lock"])
+	var lock: float = _attack_lock # 随机池段没有配置 lock，用起手时解析好的时长
 	var t: float = lock - _attack_timer # 动画已进行时间
 	while not _attack_hits.is_empty() and t >= _hit_time(_attack_hits[0]):
 		_deal_hit(_attack_hits.pop_front())
@@ -342,12 +378,12 @@ func _deal_hit(h = null) -> void:
 	if atk.has("projectile"):
 		# 双剑气（剑仙形态专属）：额外投射物纵向错开齐发
 		for i in proj_extra + 1:
-			_spawn_projectile(atk["projectile"], int(atk["damage"]) + damage_bonus + _mastery_dmg, "voice_sword_hit", i * 26.0)
+			_spawn_projectile(atk["projectile"], int(atk["damage"]) + damage_bonus + _mastery_dmg + _buff_now(), "voice_sword_hit", i * 26.0)
 		return
 	# 命中段：旧格式是纯秒数（沿用本段统一 damage/range），
 	# 新格式是字典（一段动画里多段不同伤害/范围，如梅剑鞭击后接突刺）
 	var spec: Dictionary = h if h is Dictionary else atk
-	var dmg := int(spec.get("damage", atk.get("damage", 1))) + damage_bonus + _mastery_dmg
+	var dmg := int(spec.get("damage", atk.get("damage", 1))) + damage_bonus + _mastery_dmg + _buff_now()
 	var reach := float(spec.get("range", atk.get("range", 100.0))) * range_scale
 	var side_any := bool(spec.get("both", atk.get("both", false)))
 	var pull := float(spec.get("pull", 0.0)) # 鞭击拉回：命中后把敌人拽到身前这个距离
@@ -371,6 +407,14 @@ func _deal_hit(h = null) -> void:
 		var mx := (global_position.x + p.global_position.x) * 0.5
 		p.call("take_damage", dmg, global_position.x)
 		Score.add_hit() # 命中一只算一次连击
+		# 击飞（银夜段2）：敌人往空中挑起，落地硬直；打死的尸体不再挑
+		var lc: Dictionary = spec.get("launch", {})
+		if not lc.is_empty() and int(e.get("hp")) > 0:
+			p.call("launch", facing, float(lc.get("vx", 150.0)), float(lc.get("vy", 520.0)))
+		# 击退（银夜 L）：往攻击方向轰飞，撞同伴/墙壁产生组合伤害
+		var kb: Dictionary = spec.get("knockback", {})
+		if not kb.is_empty() and int(e.get("hp")) > 0:
+			p.call("knock_back", facing, float(kb.get("force", 620.0)), int(kb.get("impact", 1)))
 		if pull > 0.0:
 			# 只朝玩家方向收，已经贴脸的敌人不往前推
 			var want_x := global_position.x + float(facing) * (pull + pulled * 34.0)
@@ -388,6 +432,11 @@ func _deal_hit(h = null) -> void:
 func _radius_of(e) -> float:
 	var r = e.get("body_radius")
 	return float(r) if r != null else 30.0
+
+
+## 觉醒（银夜 I）：buff 生效期间全部伤害 +N
+func _buff_now() -> int:
+	return _buff_damage if _buff_timer > 0.0 else 0
 
 
 func _skill_tick(delta: float) -> void:
@@ -415,6 +464,15 @@ func _skill_tick(delta: float) -> void:
 		while _skill_tick_acc >= iv:
 			_skill_tick_acc -= iv
 			_deal_skill_tick(tick)
+	# 时间暂停（银夜 U）：到点定住全场敌人，杂兵/精英/Boss 分档时长，无视霸体打断前摇
+	var stop: Dictionary = cfg.get("stop", {})
+	if not stop.is_empty() and not _stop_done and t >= float(stop.get("at", 0.5)):
+		_stop_done = true
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if int(e.get("hp")) <= 0:
+				continue
+			var tier := str(e.call("stop_tier")) if e.has_method("stop_tier") else "mob"
+			e.call("time_stop", float(stop.get(tier, 2.0)))
 	# 纯时长驱动退出：到点的同一帧排队的 stand 恰好接续，别看 is_complete（会被 loop 污染）
 	if _skill_timer <= 0.0:
 		# 收招兜底：命中段 at 略晚于动画时长时（力僧定山 at=3.12 > 3.05），
@@ -445,7 +503,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 	# 远程技能：发投射物，命中由投射物自己结算
 	if h.has("projectile"):
 		for i in proj_extra + 1: # 双剑气齐发
-			_spawn_projectile(h["projectile"], int(h["damage"]) + damage_bonus, str(h.get("sfx", "")), i * 26.0)
+			_spawn_projectile(h["projectile"], int(h["damage"]) + damage_bonus + _buff_now(), str(h.get("sfx", "")), i * 26.0)
 		return
 	# 纯回血段（力僧定山砸地）：不打伤害，只结算回血与砸地音
 	if not h.has("damage"):
@@ -470,7 +528,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			var in_path: bool = p.global_position.x >= x0 and p.global_position.x <= x1
 			var ahead := dx == 0.0 or (dx > 0.0) == (facing > 0)
 			if in_path or (ahead and absf(dx) <= h["range"] * range_scale + _radius_of(p)):
-				p.call("take_damage", int(h["damage"]) + damage_bonus, global_position.x)
+				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now(), global_position.x)
 				Score.add_hit()
 				var mx := (global_position.x + p.global_position.x) * 0.5
 				FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
@@ -479,7 +537,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 			# both = 回身横扫（力僧狼牙棒、双刺回身刺）：动画扫到身后也照样判定
 			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"] * range_scale + _radius_of(p):
-				p.call("take_damage", int(h["damage"]) + damage_bonus, global_position.x)
+				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now(), global_position.x)
 				Score.add_hit()
 				var mx := (global_position.x + p.global_position.x) * 0.5
 				FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
@@ -529,7 +587,7 @@ func _deal_skill_tick(tick: Dictionary) -> void:
 		# both = 转鞭：鞭子一直在转，前后方都扫得到
 		if not (in_front or bool(tick.get("both", false))) or absf(dx) > float(tick["range"]) * range_scale + _radius_of(p):
 			continue
-		p.call("take_damage", int(tick["damage"]) + damage_bonus, global_position.x)
+		p.call("take_damage", int(tick["damage"]) + damage_bonus + _buff_now(), global_position.x)
 		Score.add_hit()
 		did_hit = true
 	if did_hit:
@@ -607,7 +665,8 @@ func _try_jump() -> void:
 	if _jump_buf > 0.0 and _coyote > 0.0:
 		_jump_buf = 0.0
 		_coyote = 0.0
-		velocity.y = jump_velocity
+		velocity.y = jump_velocity * _qg_jump_mul # 轻功：明显更高的起跳
+		_hover_left = _qg_hover # 本次跳跃带一段顶点悬停
 		_set_state(State.JUMP)
 
 
@@ -625,11 +684,33 @@ func _start_attack(idx: int) -> void:
 	var atk: Dictionary = attacks[idx]
 	state = State.ATTACK
 	_attack_idx = idx
-	_attack_timer = float(atk["lock"])
 	_attack_queued = false
-	_attack_hits = (atk["hits"] as Array).duplicate() # 待弹出的命中时刻列表
+	# 随机池段（银夜三段普攻）：每段从 pool 抽一种动画，锁定时长 = 抽中动画的真实时长，
+	# 命中时刻/判定范围也按抽中的动画查表（pool 段用 hit_at/range 字典逐动画标定）
+	var anim := str(atk.get("anim", ""))
+	if atk.has("pool"):
+		var pool: Array = atk["pool"]
+		anim = str(pool[randi() % pool.size()])
+		var hit_map: Dictionary = atk.get("hit_at", {})
+		var range_map: Dictionary = atk.get("range", {})
+		var h := {
+			"at": float(hit_map.get(anim, 0.3)),
+			"range": float(range_map.get(anim, 100.0)),
+			"damage": int(atk.get("damage", 1)),
+		}
+		if atk.has("launch"):
+			h["launch"] = atk["launch"] # 击飞（段2）：敌人挑空
+		if atk.has("knockback"):
+			h["knockback"] = atk["knockback"]
+		_attack_hits = [h]
+		_attack_timer = float(_attack_durations.get(anim, 0.6))
+	else:
+		_attack_hits = (atk["hits"] as Array).duplicate() # 待弹出的命中时刻列表
+		_attack_timer = float(atk["lock"])
+	_attack_lock = _attack_timer
+	_attack_anim = anim
 	velocity.x = facing * float(atk["lunge"])
-	_play(str(atk["anim"]), false)
+	_play(anim, false)
 	_play_sfx("weapon_sword") # 起手嗖一声
 	_queue(anim_map["idle"], true) # 打完自动回 idle，防止卡在收招帧
 	_idle_queued = true # 与 _start_skill 一致：idle 已在队列里，收招超时别再 _play 重开淡化
@@ -646,18 +727,31 @@ func _try_skill() -> void:
 func _start_skill(n: String) -> void:
 	state = State.SKILL
 	_skill_name = n
-	_skill_dur = _skill_durations.get(n, 2.0)
+	var cfg: Dictionary = skill_config[n]
+	# 随机池技能（银夜 I/O）：每次从池里抽一种动画，时长按抽中的走；冷却/命中段全技能统一
+	_skill_anim = n
+	if cfg.has("pool"):
+		var pool: Array = cfg["pool"]
+		_skill_anim = str(pool[randi() % pool.size()])
+	_skill_dur = float(_skill_durations.get(_skill_anim, 2.0))
 	_skill_timer = _skill_dur
-	_skill_hits = skill_config[n]["hits"].duplicate(true)
+	_skill_hits = cfg.get("hits", []).duplicate(true)
 	_skill_start_x = global_position.x
-	_skill_poise = bool(skill_config[n].get("poise", false))
-	_skill_reflect = bool(skill_config[n].get("reflect", false))
-	_skill_ranged_guard = bool(skill_config[n].get("ranged_guard", false))
+	_skill_poise = bool(cfg.get("poise", false))
+	_skill_reflect = bool(cfg.get("reflect", false))
+	_skill_ranged_guard = bool(cfg.get("ranged_guard", false))
 	_skill_tick_acc = 0.0
-	_skill_cds[n] = float(skill_config[n]["cooldown"]) * cooldown_scale * _mastery_cd
+	_stop_done = false
+	_skill_cds[n] = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd
 	_invincible = false
+	# 觉醒（银夜 I）：起手即回血 + 限时加伤
+	if cfg.has("heal"):
+		_apply_skill_heal({"heal": cfg["heal"]})
+	if cfg.has("buff_damage"):
+		_buff_damage = int(cfg["buff_damage"])
+		_buff_timer = float(cfg.get("buff_time", 8.0))
 	velocity.x = facing * float(attacks[0]["lunge"]) * 0.6 # 起手小前冲
-	_play(n, false)
+	_play(_skill_anim, false)
 	_play_sfx("voice_skill_cast") # 技能起手嗡一声
 	# 排队 stand 紧跟技能之后：非循环动画播完瞬间轨道空窗会闪回 setup pose
 	_queue(anim_map["idle"], true)
@@ -691,6 +785,8 @@ func swap_skull(id: String) -> void:
 	_skill_reflect = false
 	_skill_ranged_guard = false
 	_skill_tick_acc = 0.0
+	_buff_timer = 0.0 # 觉醒属于银夜，换头即散
+	_hover_left = 0.0
 	_apply_profile(id)
 	_setup_spine()
 	Run.skull_id = id # 局外养成的击杀/通关记账按当前形态归属，换头后立刻同步
@@ -776,7 +872,12 @@ func die() -> void:
 	velocity = Vector2.ZERO
 	_idle_queued = false
 	_invincible = false
+	_buff_timer = 0.0 # 死亡收掉觉醒
 	_play(anim_map["dead"], false)
+	# 银夜：倒地动画播完接躺尸定格循环（dead 只有 0.083s，不循环会闪回 setup pose）
+	var hold := str(anim_map.get("dead_hold", ""))
+	if hold != "":
+		_queue(hold, true)
 	died.emit()
 
 
@@ -792,6 +893,7 @@ func _post_move() -> void:
 				_set_state(State.FALL)
 		State.FALL:
 			if is_on_floor():
+				_hover_left = 0.0 # 落地收掉残余悬停
 				_set_state(State.RUN if absf(velocity.x) > 10.0 else State.IDLE)
 
 

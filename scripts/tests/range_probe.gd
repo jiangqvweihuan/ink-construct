@@ -34,6 +34,10 @@ const SETS := [
 		"anims": ["skill01", "skill02", "skill3", "skill04", "skill4", "skill05", "skill03-01", "skill03-02", "def_break"]},
 	{"id": "c001", "data": "res://art/characters/enemies/bosses/c001/c001_data.tres",
 		"anims": ["skill01", "skill02", "skill03", "skill01-", "zhuanshen", "speed_run", "stop"]},
+	{"id": "z003", "data": "res://art/characters/player/skulls/z003/z003_data.tres",
+		"anims": ["skill02", "skill03", "skill04", "skill05", "skill06", "skill07", "skill08",
+			"skill08-cankao", "skill09", "skill10", "skill11", "skill11-cankao", "skill14_02",
+			"skill18_02", "skill23_03", "skill24_03", "skill17_02", "jump"]},
 ]
 
 const PROBE_SCALE := 0.35 # 缩小才能在 1280x720 里量到最长伸展；结果再除回来

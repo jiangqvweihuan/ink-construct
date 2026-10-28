@@ -15,6 +15,7 @@ const LV_EXP := [30, 80, 150]
 const UNLOCKS := {
 	"c013": {"kills": 25, "hint": "累计击杀 25 解锁"},
 	"z000": {"kills": 60, "hint": "累计击杀 60 解锁"},
+	"z003": {"clears": 1, "hint": "通关 1 次解锁"}, # 银夜强度超标，压轴解锁
 }
 
 ## 墨锭商店（化身谱面板消费）：买断解锁绕过条件，按强度梯度定价；开局加成为永久被动。
@@ -22,6 +23,7 @@ const UNLOCKS := {
 const INK_SHOP := {
 	"buyout_c013": {"label": "买断 · 力僧", "cost": 40, "form": "c013"},
 	"buyout_z000": {"label": "买断 · 剑仙", "cost": 120, "form": "z000"},
+	"buyout_z003": {"label": "买断 · 银夜", "cost": 200, "form": "z003"},
 	"start_bones": {"label": "墨囊", "desc": "每局开局墨骨 +5", "costs": [30, 50, 80]},
 	"start_hp": {"label": "固元", "desc": "每局开局生命上限 +1", "costs": [80]},
 }

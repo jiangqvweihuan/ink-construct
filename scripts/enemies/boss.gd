@@ -178,6 +178,12 @@ func entrance() -> void:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	# 时间暂停（银夜 U）：Boss 也照定——规则级控制，连变身/冲锋计时都冻结
+	if _stop_timer > 0.0:
+		_stop_timer -= delta
+		if _stop_timer <= 0.0:
+			_end_stop()
+		return
 	_charge_cd = maxf(0.0, _charge_cd - delta)
 	_turn_cd = maxf(0.0, _turn_cd - delta)
 	if state >= S_ENTER:
@@ -396,6 +402,39 @@ func take_damage(amount: int, source_x: float) -> void:
 	var off_x := signf(source_x - global_position.x) * 60.0 # 朝向攻击者那侧
 	_fx_play(_fx.get("hit", {}), Vector2(off_x, _number_y * 0.55))
 	_check_stage()
+
+
+# ---------- 银夜机制接口 ----------
+
+## 时停分档：Boss 最短（银夜 U：杂兵 3s / 精英 2s / Boss 1s）
+func stop_tier() -> String:
+	return "boss"
+
+
+## 时间暂停（银夜 U）：无视霸体与变身无敌——冲锋蓄力/冲锋/转身/出手中被定直接打断，
+## 变身演出不取消但计时冻结（定身结束接着变）
+func time_stop(dur: float) -> void:
+	if state == State.DEAD:
+		return
+	if state == S_CHARGE_TELE or state == S_CHARGING or state == S_TURN or state == State.ATTACK:
+		_attack_hits_left.clear()
+		_release_token()
+		_charge_cd = float(_charge.get("cooldown", 6.0)) # 冲锋被打断就进冷却，别起身立刻再冲
+		state = State.IDLE
+		velocity = Vector2.ZERO
+		_play(str(_anim_map["idle"]), true)
+	_stop_timer = dur
+	if sprite != null:
+		sprite.process_mode = Node.PROCESS_MODE_DISABLED
+
+
+## Boss 全程霸体：免疫击飞/击退（只有时停这种规则级控制能管他）
+func launch(_dir: int, _vx: float, _vy: float) -> void:
+	pass
+
+
+func knock_back(_dir: int, _force: float, _impact: int) -> void:
+	pass
 
 
 ## Boss 不需要全局出手令牌：战场上只有它一个攻击者

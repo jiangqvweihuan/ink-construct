@@ -99,7 +99,7 @@ func _ready() -> void:
 	Score.add_bones(60)
 	Meta.debug_unlock_all() # 测试环境直接拉满解锁条件，别让存档挡住换头验证
 	await _shot("09_before_swap")
-	for id in ["c023", "z000", "c013"]:
+	for id in ["c023", "z000", "c013", "z003"]:
 		var panel = load("res://scenes/ui/swap_panel.tscn").instantiate()
 		panel.setup(_player) # 必须在 add_child 前：面板 _ready 要读当前形态
 		add_child(panel)

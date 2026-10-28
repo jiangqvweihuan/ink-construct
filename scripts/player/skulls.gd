@@ -185,7 +185,92 @@ const SKULLS := {
 		"hud_skills": ["skill01", "skill02", "skill04"],
 	},
 	# 青笠 c012 已下掉玩家形态（动画撑不起招式，强度垫底），转生为精英怪——
-	# 见 scripts/enemies/enemy_types.gd c012；第 5 席等新素材填补
+	# 见 scripts/enemies/enemy_types.gd c012；第 5 席由银夜 z003 填补（见下）
+	# ---------- 银夜：Z003，轻功剑客。普攻三段随机池 + 五技能（K/L/U/I/O） ----------
+	"z003": {
+		"label": "银夜",
+		"name": "将去未还",
+		"data": "res://art/characters/player/skulls/z003/z003_data.tres",
+		"scale": 0.431, # 骨架 297.1px -> 128px
+		"anim": {
+			"idle": "stand",
+			"run": "run",
+			"dash": "autorush", # 0.083s 冲刺姿态帧，dash 时间短正好一闪而过
+			"air": "jump", # 轻功跳跃动画兼滞空姿态
+			"hurt": "atked",
+			"dead": "atked_fall_end", # 先播一遍倒地（0.833s）
+			"dead_hold": "dead", # 再循环躺尸定格（dead 只有 0.083s，不循环会闪回 setup pose）
+			"getup": "getup",
+		},
+		"body_radius": 30.0, # 标准体型
+		# 轻功：跳得明显更高 + 跃过顶点后空中滞留一小会（独门机制，其他形态没有）
+		"qinggong": {"jump_mul": 1.32, "hover": 0.32},
+		# 普攻三段连击，每段从随机池抽一种动画（段段时间内再按 J 接下一段）：
+		# pool=动画池，hit_at/range 按抽中的动画逐帧标定（探针 ×0.431），lock=该动画真实时长
+		# 段2 带击飞（launch）：敌人往空中飞起+硬直；段3 伤害最高
+		"attacks": [
+			{
+				"pool": ["skill03", "skill09"], "damage": 1, "lunge": 130.0,
+				"hit_at": {"skill03": 0.16, "skill09": 0.50},
+				"range": {"skill03": 125.0, "skill09": 135.0},
+			},
+			{
+				"pool": ["skill04", "skill08", "skill08-cankao"], "damage": 2, "lunge": 120.0,
+				"hit_at": {"skill04": 0.26, "skill08": 0.45, "skill08-cankao": 0.74},
+				"range": {"skill04": 100.0, "skill08": 105.0, "skill08-cankao": 145.0},
+				"launch": {"vx": 150.0, "vy": 520.0}, # 击飞：往空中挑起，落地硬直
+			},
+			{
+				"pool": ["skill05", "skill07"], "damage": 3, "lunge": 140.0,
+				"hit_at": {"skill05": 0.15, "skill07": 0.16},
+				"range": {"skill05": 135.0, "skill07": 128.0},
+			},
+		],
+		"skills": {
+			# K 蓄力斩（skill14_02 1.083s）：蓄力期间霸体；探针 L294 持续段是蓄力横剑，
+			# 0.59s 挥出，前后都扫到判 both。
+			# sword_qi：预留的远程剑气接口——以后这里填 {speed, range, damage} 就会在
+			# 挥剑时刻发射剑气（走 projectile 管线），现在为 null 只发近战判定
+			"skill14_02": {
+				"action": "skill", "cooldown": 8.0, "poise": true,
+				"sword_qi": null, # 接口预留：剑气配置（未实装）
+				"hits": [{"at": 0.59, "range": 130.0, "height": 100.0, "damage": 3, "both": true, "sfx": "skill_blade"}],
+			},
+			# L 冲拳（skill02 0.883s）：不动剑的武德拳，伤害低冷却短；
+			# 击退机制：命中把敌人往攻击方向轰飞，撞到同伴双方吃组合伤害、撞墙自己再吃一下
+			"skill02": {
+				"action": "skill_sweep", "cooldown": 3.0,
+				"hits": [{"at": 0.71, "range": 95.0, "height": 90.0, "damage": 1, "sfx": "skill_fist",
+					"knockback": {"force": 620.0, "impact": 1}}],
+			},
+			# U 拍地时停（skill06 1.567s）：0.5s 掌落大地，定住当前场景所有敌人——
+			# 杂兵 3s / 精英 2s / Boss 1s；无视霸体，连 Boss 技能前摇都打断（规则级控制）
+			"skill06": {
+				"action": "skill_ult", "cooldown": 14.0,
+				"stop": {"at": 0.5, "mob": 3.0, "elite": 2.0, "boss": 1.0},
+				"hits": [],
+			},
+			# I 觉醒（skill10/skill18_02/skill24_03 随机）：爆气强化——立刻回血 + 限时全伤害提升
+			"skill10": {
+				"action": "skill_i", "cooldown": 20.0,
+				"pool": ["skill10", "skill18_02", "skill24_03"],
+				"heal": 2, "buff_damage": 2, "buff_time": 8.0,
+				"hits": [],
+			},
+			# O 位移斩杀（skill11/skill11-cankao/skill23_03 随机）：向前突进一整段，
+			# 路径上所有敌人吃高伤。位移距离三动画统一（以 skill11-cankao 动画自带位移
+			# 约 600px 为准）：blink 0.15~1.35s × 500px/s = 600px
+			"skill11": {
+				"action": "skill_o", "cooldown": 12.0,
+				"pool": ["skill11", "skill11-cankao", "skill23_03"],
+				"blink_from": 0.15, "blink_to": 1.35, "blink_speed": 500.0,
+				"hits": [{"at": 1.35, "range": 90.0, "height": 110.0, "damage": 6, "path": true, "sfx": "hit_heavy"}],
+			},
+		},
+		"hud_skills": ["skill14_02", "skill02", "skill06", "skill10", "skill11"],
+		# 通关结算演出：从这三个里挑一个播一遍，之后保持待机（其他形态留空=只待机，接口预留）
+		"victory": ["skill17_02", "skill17_02-", "skill17_02-cankao"],
+	},
 }
 
 

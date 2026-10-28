@@ -14,7 +14,7 @@ const SFX_TELEGRAPH := preload("res://audio/sfx/telegraph.wav")
 
 @export var type_id := "c016"
 
-enum State { IDLE, PATROL, CHASE, ATTACK, HURT, DEAD }
+enum State { IDLE, PATROL, CHASE, ATTACK, HURT, DEAD, FLY } # FLY=被击飞/击退的浮空状态
 
 signal died
 
@@ -69,6 +69,10 @@ var _enrage_below := 0.0
 var _enrage_cd := 0.65
 var _enrage_speed := 1.2
 var _enraged := false
+var _elite := false # 精英标记（时停分档用：杂兵 3s / 精英 2s / Boss 1s）
+var _stop_timer := 0.0 # 时间暂停（银夜 U）剩余
+var _fly_impact := 0 # 击退（银夜 L）撞人/撞墙的组合伤害，0=纯击飞无碰撞伤害
+var _fly_hit := {} # 本次击退已撞过的同伴（一只只撞一次）
 var _bar_w := 44.0
 var _bar_y := -120.0
 var _number_y := -105.0
@@ -142,6 +146,7 @@ func _apply_type() -> void:
 	attack_hit_height = float(t["hit_height"])
 	hurt_time = float(t["hurt_time"])
 	_armor = int(t["armor"])
+	_elite = bool(t.get("elite", false))
 	body_radius = float(t.get("body_radius", 30.0))
 	_telegraph_on = bool(t["telegraph"])
 	_pick_nearest = str(t["pick"]) == "nearest"
@@ -220,6 +225,12 @@ func _setup_spine() -> void:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	# 时间暂停（银夜 U）：彻底定住——不走 AI、不吃重力、动画冻结，到点恢复
+	if _stop_timer > 0.0:
+		_stop_timer -= delta
+		if _stop_timer <= 0.0:
+			_end_stop()
+		return
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_chase_block = maxf(0.0, _chase_block - delta)
 	_find_target()
@@ -235,9 +246,11 @@ func _physics_process(delta: float) -> void:
 			_attack_tick(delta)
 		State.HURT:
 			_hurt_tick(delta)
+		State.FLY:
+			_fly_tick(delta)
 
 	# 同伴分离力：同一水平线上靠太近就互相推开，避免几只怪叠成一团互相卡位
-	if state != State.ATTACK:
+	if state != State.ATTACK and state != State.FLY:
 		velocity.x += _separation_push() * 900.0 * delta
 
 	_update_peer_ghosts()
@@ -414,8 +427,106 @@ func _range_of(anim: String, seg: int) -> float:
 	return float(r)
 
 
+# ---------- 银夜机制接口：击飞 / 击退 / 时间暂停 ----------
+
+## 时间暂停分档：杂兵 mob / 精英 elite；Boss 在 boss.gd 覆盖为 boss
+func stop_tier() -> String:
+	return "elite" if _elite else "mob"
+
+
+## 时间暂停（银夜 U）：定住 dur 秒。无视霸体与出手霸体——前摇一律打断，
+## 动画整只冻结（停掉 SpineSprite 的逐帧推进，视觉上就是定格），期间挨打照掉血但不断定身
+func time_stop(dur: float) -> void:
+	if state == State.DEAD:
+		return
+	_release_token() # 令牌必须交还，否则定身结束后别的怪永远等不到出手
+	if state == State.ATTACK or state == State.FLY:
+		# 打断前摇/浮空：定身结束从站立重新组织进攻
+		_attack_hits_left.clear()
+		state = State.IDLE
+		velocity = Vector2.ZERO
+		_play(str(_anim_map["idle"]), true)
+	_stop_timer = dur
+	if sprite != null:
+		sprite.process_mode = Node.PROCESS_MODE_DISABLED # 冻结动画推进
+
+
+func _end_stop() -> void:
+	_stop_timer = 0.0
+	if sprite != null and is_instance_valid(sprite):
+		sprite.process_mode = Node.PROCESS_MODE_INHERIT
+
+
+## 击飞（银夜普攻二段）：向上挑起，落地短暂硬直。无视出手霸体（跳劈也照挑）
+func launch(dir: int, vx: float, vy: float) -> void:
+	if state == State.DEAD:
+		return
+	_enter_fly(Vector2(dir * vx, -vy), 0)
+
+
+## 击退（银夜 L）：横向轰飞，途中撞到同伴双方各吃 impact 组合伤害，撞墙自己再吃一下
+func knock_back(dir: int, force: float, impact: int) -> void:
+	if state == State.DEAD:
+		return
+	_enter_fly(Vector2(dir * force, -120.0), impact)
+
+
+func _enter_fly(v: Vector2, impact: int) -> void:
+	_release_token()
+	if _stop_timer > 0.0:
+		_end_stop() # 定身中被打飞：解除定身让抛物线成立（时停不挡位移类控制）
+	state = State.FLY
+	_fly_impact = impact
+	_fly_hit.clear()
+	velocity = v
+	_idle_queued = false
+	_play(str(_anim_map["hurt"]), false) # 没有挑飞专用动画，重击受击帧顶上
+
+
+func _fly_tick(delta: float) -> void:
+	# 横向轰飞才结算碰撞伤害（纯击飞 _fly_impact=0 不撞）
+	if _fly_impact > 0 and absf(velocity.x) > 130.0:
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if e == self or not is_instance_valid(e) or _fly_hit.has(e):
+				continue
+			if int(e.get("state")) == State.DEAD or int(e.get("hp")) <= 0:
+				continue
+			var dx: float = e.global_position.x - global_position.x
+			var dy: float = absf(e.global_position.y - global_position.y)
+			if absf(dx) <= body_radius + _radius_of(e) and dy <= 100.0:
+				_fly_hit[e] = true
+				e.call("take_damage", _fly_impact, global_position.x)
+				Feel.shake(4.0, 0.12)
+				var self_dmg := _fly_impact
+				_fly_impact = 0 # 撞到第一只就卸力，自己吃组合伤害并坠地
+				take_damage(self_dmg, e.global_position.x)
+				return # 自己可能被撞死（state 已变 DEAD），直接收
+		if is_on_wall():
+			var wall_dmg := _fly_impact
+			var wall_dir := -signf(velocity.x) # 伤害来源算墙那一侧
+			_fly_impact = 0
+			velocity.x = 0.0
+			Feel.shake(5.0, 0.15)
+			take_damage(wall_dmg, global_position.x + wall_dir * 10.0)
+			return
+	velocity.x = move_toward(velocity.x, 0.0, 400.0 * delta)
+	# 落地：短暂硬直再起身（重力与 move_and_slide 在主循环末尾统一走）
+	if is_on_floor() and velocity.y >= 0.0:
+		state = State.HURT
+		_hurt_timer = 0.3
+
+
 func take_damage(amount: int, source_x: float) -> void:
 	if state == State.DEAD:
+		return
+	# 时停中挨打：伤害/数字/白闪照给，但不进硬直、不解定身；打死则先解冻再走死亡流程
+	if _stop_timer > 0.0:
+		hp -= amount
+		_spawn_number(amount)
+		_update_hp_bar()
+		if hp <= 0:
+			_end_stop()
+			die()
 		return
 	hp -= amount
 	_sfx_player.stream = SFX_HIT_QI
@@ -466,6 +577,7 @@ func _spawn_number(amount: int) -> void:
 
 
 func die() -> void:
+	_end_stop() # 时停中被打死：先解冻，死亡动画才播得出来
 	state = State.DEAD
 	_release_token()
 	velocity = Vector2.ZERO

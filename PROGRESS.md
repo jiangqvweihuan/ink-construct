@@ -11,12 +11,12 @@
 
 | 模块 | 文件 | 核心能力 |
 |---|---|---|
-| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **4 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000，默认 c021；青笠 c012 已下架转精英怪，**第 5 席待新素材**）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位 |
+| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / **银夜·将去未还 z003**，默认 c021；青笠 c012 已下架转精英怪）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）/ `pool`（随机抽动画池，普攻段与技能均支持，锁定 = 抽中动画真实时长）/ `launch`（普攻段击飞）/ `knockback`（命中击退 + 碰撞组合伤害）/ `stop`（时间暂停分档 mob/elite/boss，无视霸体）/ `buff_damage`+`buff_time`（觉醒加伤 buff，全伤害路径生效）/ `sword_qi`（剑气远程接口预留，未实装）/ `qinggong`（轻功：jump_mul 跳高倍率 + hover 顶点悬停，银夜专属）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位。**银夜定位机制怪**：三段普攻随机池（段2 击飞）、K 蓄力霸体、L 击退组合伤害、U 时停、I 觉醒回血加伤、O 位移斩杀 600px |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel`/`brake`/`turn_accel` 均 `@export`）、lunge 惯性（`brake*0.5`）、hit_at × 0.9 提前判定、预警泛红闪 0.2s；攻击后 30% 可取消窗口（`atk["cancel"]` 可调） |
-| 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at；**多段命中**（`hit_at`/`ranges` 支持数组按段结算）、`damage` 每招伤害、`poise_atk` 出手霸体（挨打掉血不断招）、`lunge_mul` 前冲倍率、`hop` 起手跃起、`enrage` 半血狂暴（冷却×cd、追速×speed，触发一次） |
+| 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at；**多段命中**（`hit_at`/`ranges` 支持数组按段结算）、`damage` 每招伤害、`poise_atk` 出手霸体（挨打掉血不断招）、`lunge_mul` 前冲倍率、`hop` 起手跃起、`enrage` 半血狂暴（冷却×cd、追速×speed，触发一次）；**FLY 状态**（击飞/击退共用：重力抛物线，击退撞同伴手动距离判定双方各吃 impact、撞墙自己吃，落地回硬直）；**`time_stop` 时停**（sprite.process_mode=DISABLED 冻结动画 + 主循环早退，时长按 mob/elite 分档，时停中伤害照算、打死先解冻再 die） |
 | 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 3 种：c037_elite 大剑骑士 / c018_elite 双镰 / **c012_elite 青笠剑客（前玩家形态转生）**。**除青笠外主角形态不设同名敌人版本**（原 c023_elite 落梅弓手已删，与梅剑共用美术） |
 | 波次刷怪 | `scripts/systems/wave_spawner.gd` | 每房 3 波（5/7/9 只，血量速度递增 + 精英混入），同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared` |
-| Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技 + **绕后转身演出**（配 `turn` 动画的 Boss 被穿裆时播调头动画再翻转朝向，不瞬转，转身期不还手是奖励窗口，带冷却防锁死）；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底 |
+| Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技 + **绕后转身演出**（配 `turn` 动画的 Boss 被穿裆时播调头动画再翻转朝向，不瞬转，转身期不还手是奖励窗口，带冷却防锁死）；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底；**时停可打断冲锋/技能前摇**（boss 档 1s，变身演出冻结不取消）；**霸体免疫击退/击飞**（`launch`/`knock_back` 覆盖为空） |
 | 特效系统 | `scripts/systems/fx.gd` | GIF 精灵条逐帧播放器，12 条特效；Boss fx 配置表驱动 + 焚鼎 P3 封锁火区（聚气预警 → 火柱喷发 → 范围灼烧）；预警用程序化墨环（`tools/gen_telegraph.py`） |
 | 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | **3 普通房（波次清怪）→ Boss 房**；每清一房花墨骨强化三选一；首房出发前排赐福三选一；Boss 房按形态换主题背景（`BOSS_BG` 表）；普通房固定 4 棵远景树点缀 |
 | 墨骨掉落 | `scripts/systems/bone_pickup.gd` | 敌人死亡掉墨骨：上抛落地 → 玩家靠近 95px 自动吸附 → 收下；14s 无人拾取消失；纯 `_draw` 墨点不依赖素材 |
@@ -27,7 +27,7 @@
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | 局内计数 | `scripts/systems/score.gd`（autoload Score） | 连击（窗口清零）/ 最高连击 / 击杀 / 墨骨；墨骨跨房间保留，开新局才清空；花墨骨 = 局内强化 + 换头 |
-| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；解锁条件：c021/c023 初始开放，力僧杀 25 → 剑仙杀 60（强度梯度，剑仙实测最强放最后；青笠通关 1 的解锁项随形态下架一并删除）；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
+| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；解锁条件：c021/c023 初始开放，力僧杀 25 → 剑仙杀 60（强度梯度，剑仙实测最强放最后）→ 银夜通关 1 次；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
 | 墨锭商栈 | `meta.gd` `INK_SHOP` + `forms_panel.gd` | 结算时本局剩余墨骨沉淀为局外货币**墨锭**；化身谱面板内消费：买断解锁（绕过条件）+ 永久开局加成（初始墨骨/生命上限，可升级） |
 
 ### UI / 流程
@@ -35,11 +35,11 @@
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：水墨远山底 + 书法标题 + 开始/化身谱/设置/退出；启动时 `Settings.apply_all()` |
-| 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：4 形态解锁条件/契合进度/各级加成一览 + 墨锭商栈 |
+| 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：5 形态解锁条件/契合进度/各级加成一览 + 墨锭商栈 |
 | 暂停菜单 | `scripts/ui/pause_menu.gd` | Esc 呼出：继续 / 设置 / 回主菜单 |
 | 设置 | `scripts/ui/settings.gd` + `settings_panel.gd` | 音乐/音效音量（Music/SFX 总线）、全屏、分辨率（1280×720 / 1600×900 / 1920×1080）；`user://settings.cfg` 持久化，改动立即生效 |
 | HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 |
-| 结算 | `scripts/ui/settlement_panel.gd` | 通关/阵亡结算 + 战绩行（最高连击/击杀/墨骨）+ 朱砂「讨伐 · Boss 名」+ 契合经验条动画 + 墨锭沉淀 |
+| 结算 | `scripts/ui/settlement_panel.gd` | 通关/阵亡结算 + 战绩行（最高连击/击杀/墨骨）+ 朱砂「讨伐 · Boss 名」+ 契合经验条动画 + 墨锭沉淀；**结算栏旁挂当前形态化身**（通关从 profile `victory` 池随机播一遍转待机 / 阵亡播 dead 接 dead_hold 循环躺尸，SpineSprite `process_mode=ALWAYS` 对抗暂停，无 victory 配置的形态 = 接口 fallback 只待机） |
 | 换头面板 | `scripts/ui/swap_panel.gd` | Q 键呼出，暂停时间选形态 |
 | 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一（cost = 8 + 4×已拥有等级）；强化池 = 通用 5 项 + **形态专属 8 项**（`FORM_UPGRADES` 按当前 skull 过滤：饮血/横扫/清心/阔剑/不动如山/裂地/穿云/双剑气，青笠下架时删掉疾影/连突；player.set_upgrades 消费，投射物支持穿透+双发）；卡牌带 36px 水墨图标（`art/ui/icons/`） |
 | 伤害数字 | `scripts/ui/damage_number.gd` | 飘字 |
@@ -182,7 +182,7 @@ audio/
 
 art/
 ├── characters/
-│   ├── player/      # 4 形态骨架（skulls/<id>/ 三件套；c012 已搬到 enemies/）
+│   ├── player/      # 5 形态骨架（skulls/<id>/ 三件套；c012 已搬到 enemies/）
 │   ├── enemies/     # 小怪骨架 + atlas
 │   └── bosses/      # c009 / c015a1 / c001 / c008 / c032 骨架 + atlas
 ├── fx/              # 12 条精灵条特效（.png + .json）+ telegraph 墨环
@@ -201,6 +201,10 @@ tests/out/           # 回归截图 + 日志
 - **⚠️ 受击体积跟体型走（用户强调，一律这样处理）**：所有角色挨打判定 = **攻击方射程 + 目标 `body_radius`**（边缘到边缘），体型越大挨打面越大——主角/小怪/精英/Boss 全部适用。`body_radius` 是角色字段（c016.gd / player.gd 基座声明，形态表 enemy_types.gd / boss_types.gd / skulls.gd 按体型逐个配，缺省 30）：小怪 28~40，精英 36~40，Boss 55~300（武车 711px 宽配 300，瘦高鸣钟只给 75）。判定共 7 处全走这条规则：玩家普攻 `_deal_hit` / 技能 `_deal_skill_hit`（path 与普通两分支）/ 持续段 `_deal_skill_tick` / 投射物 `projectile.gd` / 小怪 `_deal_hit` / Boss 冲锋 `_charge_hit_check`。**新角色/敌人/Boss 实装时必须按体型配 `body_radius`，不许出现"模型巨大但受击判定只有一点"**；物理碰撞胶囊不动（绕后穿裆机制依赖小胶囊）
 - **⚠️ 效果验收走用户肉眼（用户强调：别反复自测烧积分）**：需要确认"动画行不行 / 机制对不对 / 效果好不好"时，**直接告诉用户开哪个场景、按哪些键、看哪个点**（例："开 sandbox.tscn，,/. 切到武车，J 砍马屁股看能否命中"），用户看完直接给结果——不许自己一遍遍跑场景截图来回试。能自己一次跑完的（日志断言类回归：player/enemy/room/boss_test）照旧自测；**肉眼验收类才走用户**
 - **投射物特效用户不自理**：空闲就修改 `projectile.gd` 的 `_draw` 视觉
+- **随机池段锁定 = 抽中动画真实时长**：普攻段/技能配了 `pool` 时，出招先抽动画、再按动画名查各自的 `hit_at`/`range` 字典；攻击锁定走 `_attack_lock`（抽中动画的真实时长）——**pool 段没有 `lock` 键，直接读段配置会崩**
+- **控制效果分两档（用户定调）**：时停 = 规则级控制，**无视霸体**（连 Boss 冲锋/技能前摇都打断回 IDLE，变身演出只冻结不取消）；击退/击飞 = 物理级，Boss 霸体免疫。新控制效果实装前先定档
+- **击退/击飞的撞人判定走手动距离检测**：同伴 ghost 机制会关掉敌人之间的物理碰撞，"击退撞其他敌人触发组合伤害"必须手动算距离（撞墙仍用 `is_on_wall`）
+- **暂停里要动的 SpineSprite 必须 `process_mode=ALWAYS`**：`get_tree().paused` 期间默认全冻结，结算面板化身、换头面板预览这类"暂停中仍要播动画"的节点都得显式设 ALWAYS
 - **中文注释**：全项目中文注释
 - **WTE 规范**：preload 不用 `class_name`、函数内不能声明 `const`
 - **GIF → 精灵条**：spine-godot 4.2 不兼容老 Spine 3.8 GIF，统一走 `tools/gif2strip.py` + `key_alpha.py`
@@ -211,6 +215,32 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-28 深夜 · 银夜·将去未还（z003）实装，玩家形态回 5 席
+
+#### 编号 → 动画名确认流程（有坑）
+用户按 anim_viewer ↑↓ 的 **1 基序号** 给动画编号，先用 anim_list.tscn 跑全表（z003 共 128 个动画）再逐个对号。**坑：编号 = log 中 ANIM 行的 1 基序号，不是文件行号**（第一版按行号误读——把 28 当成 floated、71 当成 skill01，被用户纠正"28 有 0.083 秒"才对上 autorush）。确认结果：22=atked（受伤）、26=atked_fall_end + 53=dead 循环（死亡全过程：先播一次倒地再循环躺尸，anim 表拆 `dead` + `dead_hold` 两键）、28=autorush 0.083s（闪避）、56=jump、68=run、71=skill02、普攻段池 72/78=skill03/skill09 → 73/77/84=skill04/skill08/skill08-cankao → 74/76=skill05/skill07、75=skill06、79/95/101=skill10/skill18_02/skill24_03、80/87/100=skill11/skill11-cankao/skill23_03、89=skill14_02、胜利池 92/93/94=skill17_02 三变体、124=stand。
+
+#### 形态配置（`skulls.gd` z003）
+- scale 0.431（range_probe 实测 297.1px@scale1 → 128px 主角标准身高），body_radius 30
+- **轻功** `qinggong: {jump_mul: 1.32, hover: 0.32}`：跳高 ×1.32 明显压过其他形态；起跳后 `velocity.y > -60` 的近顶点区间悬停 0.32s（velocity.y 锁 0），落地清零、换头清零
+- **普攻三段随机池**：段1 pool=[skill03, skill09] dmg1；段2 pool=[skill04, skill08, skill08-cankao] dmg2 + `launch {vx:150, vy:520}` **击飞**（敌人活着才挑，尸体不挑）；段3 pool=[skill05, skill07] dmg3。hit_at/range 按动画名逐个字典查（探针标定 ×0.431）
+- **K `skill14_02`**（cd 8）：蓄力 + `poise` 霸体，hit 0.59s range 130 dmg 3；`"sword_qi": null` **剑气远程接口预留**（只留桩不实装，用户明确）
+- **L `skill02`**（cd 3）：快速出拳不动剑，hit 0.71s range 95 dmg 1 + `knockback {force: 620, impact: 1}`——敌人往攻击方向击退，撞到其他敌人（双方各吃 1）或撞墙（自己吃 1）触发组合伤害
+- **U `skill06`**（cd 14）：拍击大地 = **时间暂停** `stop {at: 0.5, mob: 3.0, elite: 2.0, boss: 1.0}`，无伤害段不加特效；定住当前场景所有敌人，无视霸体打断一切准备动作（含 Boss 冲锋/技能前摇）
+- **I 觉醒爆气**（cd 20）pool=[skill10, skill18_02, skill24_03]：`heal 2` + `buff_damage 2` / `buff_time 8.0s`——回血加伤全都要，`_buff_now()` 挂进全部伤害路径（普攻/投射物/技能 hit/path/tick）
+- **O 位移斩杀**（cd 12）pool=[skill11, skill11-cankao, skill23_03]：伤害 6（用户批准超标），`path: true` 打位移区间内所有敌人；**三随机动画位移统一 600px**——以 #87=skill11-cankao 探针位移（R1780@scale1 ≈ 600px 游戏内）为标准，blink 0.15~1.35s × 500px/s，落点 hit at=1.35 range 90
+- 胜利池 `victory = [skill17_02, skill17_02-, skill17_02-cankao]`
+
+#### 引擎侧改动
+- **player.gd**：KEY_LABELS 加 skill_i→I / skill_o→O；`_setup_spine` 预缓存全部 pool 动画时长（`_attack_durations`）；新增 `_attack_lock`（pool 段锁定 = 抽中动画真实时长，修掉"读不存在的 lock 键会崩"）；`_deal_hit` 支持 launch/knockback 段；`_start_skill` 抽 `_skill_anim`、hits 深拷贝；`_skill_tick` 加 stop 触发块（档位由敌人 `stop_tier()` 提供）；`die()` 播 dead 后 `_queue(dead_hold, true)` 循环躺尸；`_buff_timer` 倒计时，换头清 buff/hover
+- **c016.gd**：新增 `State.FLY`（击飞/击退共用：重力抛物线 + 播 hurt 动画；击退带 `_fly_impact`，|vx|>130 时撞同伴**手动距离判定**（`_fly_hit` 去重，双方各吃 impact，自伤后 return）/ 撞墙 is_on_wall 自己吃；落地回 HURT 0.3s）；`time_stop(dur)` = sprite.process_mode=DISABLED + 主循环早退，到点 `_end_stop()`；时停中挨打伤害照算但不进硬直，打死先解冻再 die；`stop_tier()` 由 `elite` 字段分档
+- **boss.gd**：同款时停块（变身/冲锋计时一并冻结）；`time_stop` 打断冲锋/转身/出手回 IDLE（冲锋进冷却），变身演出不取消；`launch`/`knock_back` 覆盖为空（Boss 霸体免疫）
+- **settlement_panel.gd**：`_make_avatar()` 挂当前形态 SpineSprite（`process_mode=ALWAYS` 对抗 get_tree().paused，scale ×1.6，position (240,590)）；通关 victory 池随机播一遍接 idle，阵亡 dead 接 dead_hold 循环；无 victory 配置的形态 fallback 只待机（其他形态接口就此留好）
+- **meta.gd**：UNLOCKS 加 `z003 {clears: 1}` + INK_SHOP `buyout_z003`（200 墨锭）；**project.godot**：新增输入 action `skill_i`(I) / `skill_o`(O)
+
+#### 回归结果
+7 项全绿：player_test（含 z003 换头，日志 `swap -> skull=z003 hud=["skill14_02",...] attacks=3 skills=[...]`，SWAP DONE）、enemy_test、room_test、boss_test、enemy_hit_test、settlement_clear_test、settlement_dead_test；range_probe 补 z003 十八个动画标定。**肉眼验收点已交用户**：sandbox.tscn [/] 切银夜——轻功跳跃悬浮、三段普攻随机动画、段2 击飞、L 击退撞人、U 时停、I 觉醒、O 位移斩杀；结算化身通关/阵亡各看一次。
 
 ### 2026-10-28 夜 · 青笠下架：玩家形态 5→4，c012 转生精英怪
 

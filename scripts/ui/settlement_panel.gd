@@ -103,6 +103,38 @@ func _ready() -> void:
 
 	_make_button("再来一局", 490, _restart)
 	_make_button("回主菜单", 565, _to_menu)
+	_make_avatar()
+
+
+## 结算化身：当前操作的形态显示在结算栏旁边——通关播一遍胜利动作转待机，阵亡倒地后一直躺着。
+## 胜利动作读形态表 "victory" 池（目前只有银夜配了）；其他形态留接口：通关先站待机。
+func _make_avatar() -> void:
+	var profile: Dictionary = Skulls.get_profile(Run.skull_id)
+	var data = load(str(profile["data"]))
+	if data == null or not data.call("is_skeleton_data_loaded"):
+		return
+	var sprite = ClassDB.instantiate("SpineSprite")
+	sprite.process_mode = Node.PROCESS_MODE_ALWAYS # 结算时全树暂停，化身要照常播
+	add_child(sprite)
+	sprite.set("skeleton_data_res", data)
+	data.call("set_default_mix", 0.2)
+	var sc: float = float(profile["scale"]) * 1.6 # 放大一点，结算画面看得清
+	sprite.scale = Vector2(sc, sc)
+	sprite.position = Vector2(240, 590) # 结算栏左侧，脚下贴底
+	var st = sprite.call("get_animation_state")
+	var anim_map: Dictionary = profile["anim"]
+	if _cleared:
+		var pool: Array = profile.get("victory", [])
+		if pool.is_empty():
+			st.call("set_animation", str(anim_map["idle"]), true, 0) # 接口：其他形态先站着
+		else:
+			st.call("set_animation", str(pool[randi() % pool.size()]), false, 0)
+			st.call("add_animation", str(anim_map["idle"]), 0.0, true, 0) # 播完一遍转待机
+	else:
+		st.call("set_animation", str(anim_map["dead"]), false, 0)
+		var hold := str(anim_map.get("dead_hold", ""))
+		if hold != "":
+			st.call("add_animation", hold, 0.0, true, 0) # 倒地后一直躺着
 
 
 ## 居中文本行
