@@ -17,15 +17,18 @@ var _sfx := ""
 var _sfx_stream
 var _travel := 0.0
 var _sfx_player: AudioStreamPlayer
+var _pierce := false # 穿云剑气（剑仙形态专属）：命中后不消失继续飞
+var _hit_list: Array = [] # 穿透模式下已结算过的敌人，防止同一目标反复掉血
 
 
-## dir: 1 朝右 -1 朝左；damage 已含局内强化/契合加成；sfx 命中音效名（空则不播）
-func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "") -> void:
+## dir: 1 朝右 -1 朝左；damage 已含局内强化/契合加成；sfx 命中音效名（空则不播）；pierce 命中不毁
+func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "", p_pierce := false) -> void:
 	_dir = p_dir
 	_speed = p_speed
 	_range = p_range
 	_damage = p_damage
 	_sfx = p_sfx
+	_pierce = p_pierce
 
 
 func _ready() -> void:
@@ -62,11 +65,19 @@ func _physics_process(delta: float) -> void:
 			continue
 		if int(e.get("hp")) <= 0: # 尸体不吃投射物，与近战判定一致
 			continue
+		if _hit_list.has(e.get_instance_id()): # 穿透模式下已结算过的目标直接掠过
+			continue
 		if absf(p.global_position.x - global_position.x) <= 30.0 and absf(p.global_position.y - global_position.y) <= 80.0:
 			p.call("take_damage", _damage, global_position.x)
 			Score.add_hit()
 			Feel.hitstop(0.04)
 			Feel.shake(3.0, 0.1)
+			if _pierce: # 穿云：记下这个目标继续飞，命中音照播
+				_hit_list.append(e.get_instance_id())
+				if _sfx_stream != null and not _sfx_player.playing:
+					_sfx_player.stream = _sfx_stream
+					_sfx_player.play()
+				continue
 			if _sfx_stream != null:
 				_sfx_player.stream = _sfx_stream
 				_sfx_player.play()

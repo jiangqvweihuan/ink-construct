@@ -84,6 +84,14 @@ var _hurt_timer := 0.0
 var _hurt_invincible := 0.0 # 受伤后的短暂无敌：被围殴时不会一帧连掉好几血
 var _mastery_cd := 1.0 # 契合 Lv1：该形态技能冷却倍率
 var _mastery_dmg := 0 # 契合 Lv2：该形态普攻加伤
+# ---------- 形态专属强化（Run.upgrades 的 form_* 键注入，换房间随 set_upgrades 重算） ----------
+var range_scale := 1.0 # 攻击范围倍率（横扫/阔剑/裂地/连突）
+var proj_extra := 0 # 投射物额外齐发数（双剑气）
+var proj_pierce := false # 投射物穿透（穿云剑气）
+var skill_lifesteal := false # 技能命中回血（饮血）
+var poise := false # 技能期间霸体（定山）
+var blink_scale := 1.0 # 闪现突进距离倍率（疾影）
+var _lifesteal_cd := 0.0 # 饮血内置冷却
 var _skill_name := ""
 var _skill_timer := 0.0
 var _skill_dur := 0.0 # 本次技能动画真实时长
@@ -135,6 +143,25 @@ func set_upgrades(up: Dictionary) -> void:
 	cooldown_scale = maxf(0.55, 1.0 - 0.15 * cd)
 	swap_cost = maxi(2, SWAP_COST - 3 * sw)
 	max_hp = 8 + int(up.get("hp", 0))
+	# 形态专属强化消费：先归零再按已购键逐个装上（换房间重注入，表外键直接忽略）
+	range_scale = 1.0
+	proj_extra = 0
+	proj_pierce = false
+	skill_lifesteal = false
+	poise = false
+	blink_scale = 1.0
+	for k in up:
+		match str(k):
+			"form_drink_blood": skill_lifesteal = true # 双刺·饮血
+			"form_wide_sweep": range_scale *= 1.35 # 双刺·横扫
+			"form_calm": cooldown_scale *= 0.8 # 梅剑·清心
+			"form_broad_sword": range_scale *= 1.3 # 梅剑·阔剑
+			"form_poise": poise = true # 力僧·霸体
+			"form_quake": range_scale *= 1.4 # 力僧·裂地
+			"form_pierce": proj_pierce = true # 剑仙·穿云
+			"form_twin": proj_extra += 1 # 剑仙·双剑气
+			"form_swift": blink_scale = 1.35 # 青笠·疾影
+			"form_flurry": range_scale *= 1.25 # 青笠·连突
 
 
 func _setup_sfx() -> void:
@@ -192,6 +219,7 @@ func _physics_process(delta: float) -> void:
 	_jump_buf = maxf(0.0, _jump_buf - delta)
 	_dash_cd = maxf(0.0, _dash_cd - delta)
 	_hurt_invincible = maxf(0.0, _hurt_invincible - delta)
+	_lifesteal_cd = maxf(0.0, _lifesteal_cd - delta) # 饮血内置冷却
 	for n in _skill_cds:
 		_skill_cds[n] = maxf(0.0, _skill_cds[n] - delta)
 	if is_on_floor():
@@ -305,7 +333,9 @@ func _deal_hit() -> void:
 	var atk: Dictionary = attacks[_attack_idx]
 	# 远程形态：发投射物，命中由投射物自己结算（伤害带上局内强化与契合加伤）
 	if atk.has("projectile"):
-		_spawn_projectile(atk["projectile"], int(atk["damage"]) + damage_bonus + _mastery_dmg, "voice_sword_hit")
+		# 双剑气（剑仙形态专属）：额外投射物纵向错开齐发
+		for i in proj_extra + 1:
+			_spawn_projectile(atk["projectile"], int(atk["damage"]) + damage_bonus + _mastery_dmg, "voice_sword_hit", i * 26.0)
 		return
 	var did_hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -320,7 +350,7 @@ func _deal_hit() -> void:
 		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 		# both = 回身横扫：动画把武器甩到身后，前后两侧都算命中，否则"动画打到却没判上"
 		var side_ok: bool = in_front or bool(atk.get("both", false))
-		if side_ok and absf(dx) <= float(atk["range"]) and dy <= 70.0:
+		if side_ok and absf(dx) <= float(atk["range"]) * range_scale and dy <= 70.0:
 			p.call("take_damage", int(atk["damage"]) + damage_bonus + _mastery_dmg, global_position.x)
 			Score.add_hit() # 命中一只算一次连击
 			# 朱砂斩击打在攻击者与被击者的中点胸口高度：视觉上像"从玩家挥出"
@@ -341,7 +371,7 @@ func _skill_tick(delta: float) -> void:
 	if cfg.has("blink_from") and t >= cfg["blink_from"] and t <= cfg["blink_to"]:
 		_invincible = true
 		_set_blink(true)
-		velocity.x = facing * cfg["blink_speed"]
+		velocity.x = facing * cfg["blink_speed"] * blink_scale # 疾影（青笠形态专属）：突进距离加长
 	else:
 		_invincible = false
 		_set_blink(false)
@@ -371,7 +401,8 @@ func _set_blink(on: bool) -> void:
 func _deal_skill_hit(h: Dictionary) -> void:
 	# 远程技能：发投射物，命中由投射物自己结算
 	if h.has("projectile"):
-		_spawn_projectile(h["projectile"], int(h["damage"]) + damage_bonus, str(h.get("sfx", "")))
+		for i in proj_extra + 1: # 双剑气齐发
+			_spawn_projectile(h["projectile"], int(h["damage"]) + damage_bonus, str(h.get("sfx", "")), i * 26.0)
 		return
 	var did_hit := false
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -391,7 +422,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			var x1: float = maxf(_skill_start_x, global_position.x) + 20.0
 			var in_path: bool = p.global_position.x >= x0 and p.global_position.x <= x1
 			var ahead := dx == 0.0 or (dx > 0.0) == (facing > 0)
-			if in_path or (ahead and absf(dx) <= h["range"]):
+			if in_path or (ahead and absf(dx) <= h["range"] * range_scale):
 				p.call("take_damage", int(h["damage"]) + damage_bonus, global_position.x)
 				Score.add_hit()
 				var mx := (global_position.x + p.global_position.x) * 0.5
@@ -400,7 +431,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		else:
 			var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 			# both = 回身横扫（力僧狼牙棒、双刺回身刺）：动画扫到身后也照样判定
-			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"]:
+			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"] * range_scale:
 				p.call("take_damage", int(h["damage"]) + damage_bonus, global_position.x)
 				Score.add_hit()
 				var mx := (global_position.x + p.global_position.x) * 0.5
@@ -409,15 +440,21 @@ func _deal_skill_hit(h: Dictionary) -> void:
 	if did_hit:
 		if h.has("sfx"):
 			_play_sfx(h["sfx"])
+		# 饮血（双刺形态专属）：技能命中回 1 血，内置冷却防一波吸满
+		if skill_lifesteal and _lifesteal_cd <= 0.0:
+			_lifesteal_cd = 6.0
+			hp = mini(hp + 1, max_hp)
+			hp_changed.emit(hp, max_hp)
+			_spawn_number(1, Color(0.45, 0.75, 0.5), 130.0) # 绿字提示回了口血
 		Feel.hitstop(0.06) # 技能命中：比普攻更重的顿帧与震屏
 		Feel.shake(7.0, 0.2)
 
 
 ## 发一颗投射物：从胸口高度出手，沿朝向直线飞
-func _spawn_projectile(spec: Dictionary, damage: int, sfx: String) -> void:
+func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0) -> void:
 	var pr = PROJECTILE.new()
-	pr.setup(facing, float(spec.get("speed", 520.0)), float(spec.get("range", 420.0)), damage, sfx)
-	pr.global_position = global_position + Vector2(facing * 36.0, -52.0)
+	pr.setup(facing, float(spec.get("speed", 520.0)), float(spec.get("range", 420.0)), damage, sfx, proj_pierce)
+	pr.global_position = global_position + Vector2(facing * 36.0, -52.0 + y_off)
 	get_tree().current_scene.add_child(pr)
 
 
@@ -570,6 +607,9 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO) -> void:
 			_idle_queued = true
 			return
 		die()
+		return
+	# 霸体（力僧形态专属）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
+	if poise and state == State.SKILL:
 		return
 	state = State.HURT
 	_hurt_timer = hurt_time

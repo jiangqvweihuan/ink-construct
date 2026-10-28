@@ -18,8 +18,9 @@
 | 波次刷怪 | `scripts/systems/wave_spawner.gd` | 每房 3 波（5/7/9 只，血量速度递增 + 精英混入），同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared` |
 | Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底 |
 | 特效系统 | `scripts/systems/fx.gd` | GIF 精灵条逐帧播放器，12 条特效；Boss fx 配置表驱动 + 焚鼎 P3 封锁火区（聚气预警 → 火柱喷发 → 范围灼烧）；预警用程序化墨环（`tools/gen_telegraph.py`） |
-| 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | **3 普通房（波次清怪）→ Boss 房**；每清一房花墨骨强化三选一；首房出发前排赐福三选一；Boss 房按形态换主题背景（`BOSS_BG` 表） |
+| 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | **3 普通房（波次清怪）→ Boss 房**；每清一房花墨骨强化三选一；首房出发前排赐福三选一；Boss 房按形态换主题背景（`BOSS_BG` 表）；普通房随机摆 2-3 棵场景树（松/樱/柳/红枫池） |
 | 墨骨掉落 | `scripts/systems/bone_pickup.gd` | 敌人死亡掉墨骨：上抛落地 → 玩家靠近 95px 自动吸附 → 收下；14s 无人拾取消失；纯 `_draw` 墨点不依赖素材 |
+| 关卡互动装饰 | `scripts/world/decor_interactive.gd` | 普通房随机刷 2-3 个可互动物件：卷轴回血 +1 / 香炉 +5 墨骨 / 石碑本房临时 buff（伤害 +2 或移速 ×1.25，换房自动失效）；本体程序化水墨 `_draw`，走近 90px 自动触发 → decor_burst 爆开特效 + 飘字 + 音效（decor_pickup / decor_stele）→ 消失；香炉待机挂 decor_idle_fire 白焰 loop |
 
 ### 经济 / 养成
 
@@ -40,7 +41,7 @@
 | HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 |
 | 结算 | `scripts/ui/settlement_panel.gd` | 通关/阵亡结算 + 战绩行（最高连击/击杀/墨骨）+ 朱砂「讨伐 · Boss 名」+ 契合经验条动画 + 墨锭沉淀 |
 | 换头面板 | `scripts/ui/swap_panel.gd` | Q 键呼出，暂停时间选形态 |
-| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一（cost = 8 + 4×已拥有等级） |
+| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一（cost = 8 + 4×已拥有等级）；强化池 = 通用 5 项 + **形态专属 10 项**（`FORM_UPGRADES` 按当前 skull 过滤：饮血/横扫/清心/阔剑/不动如山/裂地/穿云/双剑气/疾影/连突，player.set_upgrades 消费，投射物支持穿透+双发）；卡牌带 36px 水墨图标（`art/ui/icons/`） |
 | 伤害数字 | `scripts/ui/damage_number.gd` | 飘字 |
 | 字体 | `art/ui/fonts/main_theme.tres` + `hud.gd` | 全局庞门正道粗书体；Boss 落款/大血条名 = 演示佛系体（ASCII 文件名：slidefu_regular / pangmen） |
 
@@ -59,6 +60,7 @@
 | `tools/key_alpha.py` | 按背景色距离重建 alpha |
 | `tools/contact_sheet.py` | 精灵条重排网格接触表供人工预览 |
 | `tools/gen_telegraph.py` | 程序化生成预警墨环（根治 gather 贴图脏底） |
+| `tools/png2strip.py` | PNG 序列 → 水平精灵条通用管线（按文件名数字排序，`--align bottom/center`） |
 
 ### 测试场景（`scenes/tests/`）
 
@@ -83,6 +85,7 @@
 | re-import 后 Godot 偶发 "No loader found" | 低 | 全局 | 删除 png 后没清 .import，`--import` 能自动修；改完素材记得先 `--import` 或删 `.godot/imported` 对应 ctex 再开编辑器重导 |
 | project.godot 注释只认 `;` 不认 `#` | 中 | `project.godot` | `#` 注释行会让整个 section 静默解析失败（设置项丢失、引擎零报错）。曾因 `[gui]` 段 `#` 注释导致全局字体主题丢失；排障用 `scripts/tests/font_probe.gd` 探针断言 |
 | 编辑器开着玩时不要跑回归 | 中 | 全局 | 编辑器重扫/重导会让运行中实例骨架加载失败，玩家死亡 → 结算暂停 → 测试挂死。**重跑一次即恢复**；回归前最好让用户关编辑器 |
+| mono 引擎静默秒退 | 中 | 全局 | 2026-10-28 下午起命令行跑场景秒退（stdout 只打引擎头一行，零错误零日志）；空项目 + `[dotnet]` 节即可复现，疑似 mono 版引擎的 C# 构建路径在本机环境异常（dotnet SDK 10.0.201 在、引擎 bin/ 完好、无残留进程）。**与业务代码无关**（同批代码当天上午回归全绿）；发作时勿排查项目代码，换时间重试或换标准版引擎 |
 | 特效锚点分两派 | 低 | `scripts/systems/fx.gd` LIB | `pivot` 字段：bottom（pillar/tiger/fire_pillar/crack/gather/vanish，pos=脚底）vs center（ink_hit/ink_claw/slash/thunder/speedline/fire_hit，pos=中心）。受击爪痕在**来袭侧**、冲锋拖尾 `off_y` 按体型抬到躯干、撞墙 crack 炸在墙根 |
 
 ---
@@ -99,7 +102,6 @@
 
 - [ ] **额外化身**：素材库玩家骨架多的话，加第 6 个形态（SKULLS 加一项 + spine 三件套即可）
 - [ ] **精英怪独立 AI 行为**：现在精英只是参数放大；可以加"蓄力重击"预警 1.5s 然后冲过来砸地（需要新骨架动画）
-- [ ] **关卡装饰系统**：随机生成 3-5 个可互动场景（卷轴回血、香炉加墨骨、石碑加临时 buff）
 
 ### P3 · 系统层
 
@@ -129,7 +131,20 @@ $env:BOSS_ID = "c009"  # 或 c015a1 / c001 / c008 / c032 / _debug
 & "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" "res://scenes/tests/range_probe.tscn"
 ```
 
-> 拷素材只认 `E:\素材\墨构素材库\暗黑武侠水墨风人物Spine...\Character\<ID>`（4.2.11，可直接导入）；
+## 素材库地图（`E:\素材\墨构素材库\`，新增素材也放这里）
+
+| 目录 | 内容 | 用途 |
+|---|---|---|
+| `暗黑武侠水墨风人物Spine…167套…\Character\<ID>` | 人物骨架三件套（**spine 4.2.11，可直接导入**） | 化身 / 小怪 / 精英 / Boss |
+| `Y700手绘水墨风格UI界面设计素材\` | Icons / HUD / 按钮 / 窗口等手绘水墨 UI 切图 | UI、互动装饰小件图标 |
+| `国风修仙技能特效…\国风修仙技能特效CG美术素材\` | UI特效 / 场景特效 / 战斗特效（spine） | 技能特效、场景光效、弹道素材候选 |
+| `音效\` | ~110 条 wav：Skill_* / Hit_* / Voice_* / Battle_* / Common_* / BGM | 音效补缺全在这拿（见下） |
+| `map\` | 横版场景图（7 张水墨风已用于背景；Battle*Map 为欧美风暂不适用） | 房间背景 |
+| 两个字体目录 | 庞门正道粗书体 / 演示佛系体 | 已接入 |
+
+> 音效补缺对应素材：dash → `Voice_jiaobu.wav`（脚步）；火区爆炸 → `Skill_baozha.wav`；Boss 技能命中 → `Hit_zhong.wav` 或按武器选 `Skill_wuqi_*`；互动装饰拾取 → `Common_huode.wav`；石碑/卷轴触发 → `Voice_tupo.wav` / `Common_jiesuo.wav`。
+
+> 拷人物骨架只认 `E:\素材\墨构素材库\暗黑武侠水墨风人物Spine...\Character\<ID>`（4.2.11，可直接导入）；
 > `E:\素材\暗黑武侠水墨风人物Spine...`（不带"墨构素材库"前缀）是 **3.6.53 原版**，拷进来会导入失败、`.skel.import` 显示 `valid=false`。
 
 ## 五、目录速查
@@ -184,6 +199,20 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-28 下午 · 关卡互动装饰 + 形态专属强化
+
+#### 本轮干了什么
+1. **关卡互动装饰**（P2 路线图勾掉）：普通房随机 2-3 个可互动物件（卷轴/香炉/石碑），程序化水墨 `_draw` 本体 + 走近 90px 自动触发 + 爆开特效/飘字/音效；触发逻辑参考 bone_pickup 吸附模式
+2. **形态专属强化 ×10**：`run_state.gd` 新增 `FORM_UPGRADES`（按当前 skull 过滤），`player.set_upgrades` 统一消费（范围倍率/冷却/穿透/双发/霸体/饮血/突进距离），`projectile.gd` 支持穿透+多发；upgrade_panel 卡牌加图标（Y700 Icons → `art/ui/icons/` 6 枚 64px）
+3. **随机树池**：普通房 2-3 棵场景树，新增红枫（素材库场景特效 E100167 整图裁帧）
+4. **新工具** `tools/png2strip.py`：PNG 序列拼水平精灵条通用管线
+5. 素材选型教训：spine 特效目录多为 additive 叠加层（单独看很淡不可用）、场景特效整图预览多为零件图——选中素材先用 contact_sheet 肉眼确认再拼条
+
+#### ⚠️ 失误记录（用户要求写明，继任者警戒）
+- **任务完成后没及时收工**：本轮回归 11:42 已全绿、截图已验收。之后因一张 **10/26 旧时间戳截图**（room_08_upgrade.png 无图标）误判要补验升级面板图标——新一轮 demo 流程根本不含面板环节，旧截图不作数
+- **引擎环境问题没止损**：Godot 秒退后连续几十次命令排查（管道崩溃/沙箱/mono/[dotnet] 逐节二分），最终结论"mono 引擎环境问题、与业务代码零关系"——对项目零价值，白白烧掉大量积分
+- **教训（务必遵守）**：① 截图验收先看文件时间戳，旧图一律不采信 ② 引擎/环境起不来最多试 2 种方式就停手报告用户，不自己深挖 ③ 一旦确认"与项目代码无关"立即收工汇报 ④ 排障产生的临时探针文件当场清理，别留到提交前
 
 ### 2026-10-28 文档同步
 

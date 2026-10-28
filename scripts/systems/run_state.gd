@@ -38,11 +38,25 @@ const BOSS_ROOM := {"label": "残卷山谷 · 墨堂深处", "waves": []}
 
 ## 局内强化：花墨骨三选一。cost = 8 + 4 * 已拥有等级
 const UPGRADES := {
-	"damage": {"label": "锋锐", "desc": "全部伤害 +1", "max": 5},
-	"speed": {"label": "疾行", "desc": "移动速度 +12%", "max": 4},
-	"cooldown": {"label": "静心", "desc": "技能冷却 -15%", "max": 3},
-	"hp": {"label": "铁骨", "desc": "生命上限 +1，并回满", "max": 3},
-	"swap": {"label": "轻骨", "desc": "换头消耗 -3 墨骨", "max": 2},
+	"damage": {"label": "锋锐", "desc": "全部伤害 +1", "max": 5, "icon": "icon_sword"},
+	"speed": {"label": "疾行", "desc": "移动速度 +12%", "max": 4, "icon": "icon_arrow_up"},
+	"cooldown": {"label": "静心", "desc": "技能冷却 -15%", "max": 3, "icon": "icon_undo"},
+	"hp": {"label": "铁骨", "desc": "生命上限 +1，并回满", "max": 3, "icon": "icon_potion"},
+	"swap": {"label": "轻骨", "desc": "换头消耗 -3 墨骨", "max": 2, "icon": "icon_currency"},
+}
+
+## 形态专属强化：按当前 skull 过滤入池（forms 命中当前形态才可抽中），效果由 player.set_upgrades 消费
+const FORM_UPGRADES := {
+	"form_drink_blood": {"label": "饮血", "desc": "技能命中回 1 生命（6 秒冷却）", "max": 1, "icon": "icon_medal", "forms": ["c021"]},
+	"form_wide_sweep": {"label": "横扫", "desc": "双刺攻击范围 +35%", "max": 1, "icon": "icon_medal", "forms": ["c021"]},
+	"form_calm": {"label": "清心", "desc": "梅剑技能冷却额外 -20%", "max": 1, "icon": "icon_medal", "forms": ["c023"]},
+	"form_broad_sword": {"label": "阔剑", "desc": "梅剑攻击范围 +30%", "max": 1, "icon": "icon_medal", "forms": ["c023"]},
+	"form_poise": {"label": "不动如山", "desc": "力僧技能期间霸体，挨打不掉硬直", "max": 1, "icon": "icon_medal", "forms": ["c013"]},
+	"form_quake": {"label": "裂地", "desc": "力僧攻击范围 +40%", "max": 1, "icon": "icon_medal", "forms": ["c013"]},
+	"form_pierce": {"label": "穿云", "desc": "剑气穿透敌人，不再命中即消", "max": 1, "icon": "icon_medal", "forms": ["z000"]},
+	"form_twin": {"label": "双剑气", "desc": "剑气齐发两道", "max": 1, "icon": "icon_medal", "forms": ["z000"]},
+	"form_swift": {"label": "疾影", "desc": "青笠突进距离 +35%", "max": 1, "icon": "icon_medal", "forms": ["c012"]},
+	"form_flurry": {"label": "连突", "desc": "青笠攻击范围 +25%", "max": 1, "icon": "icon_medal", "forms": ["c012"]},
 }
 
 ## 开局赐福：每局出发前三选一（blessing_panel 弹出），效果只在本局生效
@@ -119,11 +133,22 @@ func upgrade_cost(key: String) -> int:
 	return 8 + 4 * level(key)
 
 
-## 随机 3 个还没满级的强化（不够 3 个就给几个）
+## 卡牌信息查询：通用与形态专属两表合并（面板/购买统一走这里）
+func card_info(key: String) -> Dictionary:
+	if UPGRADES.has(key):
+		return UPGRADES[key]
+	return FORM_UPGRADES.get(key, {})
+
+
+## 随机 3 个还没满级的强化（通用池 + 当前形态专属池合并；不够 3 个就给几个）
 func roll_cards(count: int = 3) -> Array:
 	var pool: Array = []
 	for k in UPGRADES:
 		if level(k) < int(UPGRADES[k]["max"]):
+			pool.append(k)
+	for k in FORM_UPGRADES:
+		var info: Dictionary = FORM_UPGRADES[k]
+		if (info["forms"] as Array).has(skull_id) and level(k) < int(info["max"]):
 			pool.append(k)
 	pool.shuffle()
 	if pool.size() > count:
@@ -133,7 +158,7 @@ func roll_cards(count: int = 3) -> Array:
 
 ## 花墨骨买一个强化。成功会立刻影响本房间的玩家（room 负责调用 apply_to）
 func buy(key: String) -> bool:
-	var info: Dictionary = UPGRADES.get(key, {})
+	var info: Dictionary = card_info(key)
 	if info.is_empty():
 		return false
 	if level(key) >= int(info["max"]):

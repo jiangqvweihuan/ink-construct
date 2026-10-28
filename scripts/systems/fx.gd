@@ -18,6 +18,8 @@ const LIB := {
 	"telegraph": {"tex": "res://art/fx/telegraph.png", "frames": 12, "fps": 14.0, "pivot": "bottom"}, # 预警墨环：程序化生成，出手/火区预警
 	"vanish": {"tex": "res://art/fx/vanish.png", "frames": 9, "fps": 14.0, "pivot": "bottom"}, # 墨散：小怪尸体消散
 	"fire_hit": {"tex": "res://art/fx/fire_hit.png", "frames": 10, "fps": 14.0, "pivot": "center"}, # 火焰受击：焚鼎命中
+	"decor_burst": {"tex": "res://art/fx/decor_burst.png", "frames": 20, "fps": 18.0, "pivot": "center"}, # 金色爆开：互动物件触发
+	"decor_idle_fire": {"tex": "res://art/fx/decor_idle_fire.png", "frames": 8, "fps": 10.0, "pivot": "bottom"}, # 白焰循环：香炉待机（loop 使用）
 }
 
 static var _self_script: GDScript

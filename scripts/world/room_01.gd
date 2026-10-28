@@ -10,6 +10,7 @@ const ROOM_W := 1920.0
 const GROUND_Y := 640.0 # 地面碰撞顶面 = 石板带顶缘下 20px，对齐石板的视觉平面
 const OUT_DIR := "res://tests/out/"
 const WAVE_SPAWNER := preload("res://scripts/systems/wave_spawner.gd")
+const DECOR_INTERACTIVE := preload("res://scripts/world/decor_interactive.gd")
 
 var _player
 var _spawner
@@ -96,22 +97,25 @@ func _build_background() -> void:
 	add_child(tree_r)
 
 
-## 普通房点缀：松柏/樱树/柳树立在远处地面线，天上掠过一队墨鸟
+## 普通房点缀：树池随机抽 2-3 棵立在远处地面线（松/樱/柳/红枫），每局房间景致不同
 ## 全部压在角色层后面（同 z 先加先绘），只用微量透明融入宣纸底，不做任何调色
 func _build_decor() -> void:
-	var defs := [
-		{"tex": "res://art/environment/decor/tree_pine.png", "x": 170.0, "scale": 1.15, "sink": 18.0},
-		{"tex": "res://art/environment/decor/tree_cherry.png", "x": 660.0, "scale": 1.35, "sink": 10.0},
-		{"tex": "res://art/environment/decor/tree_willow.png", "x": 1540.0, "scale": 1.3, "sink": 12.0},
-		{"tex": "res://art/environment/decor/tree_pine.png", "x": 1790.0, "scale": 0.95, "sink": 14.0},
+	var pool := [
+		"res://art/environment/decor/tree_pine.png",
+		"res://art/environment/decor/tree_cherry.png",
+		"res://art/environment/decor/tree_willow.png",
+		"res://art/environment/decor/tree_maple_red.png",
 	]
-	for d in defs:
+	pool.shuffle()
+	var count := randi_range(2, 3)
+	for i in count:
 		var s := Sprite2D.new()
-		s.texture = _load_tex(str(d["tex"]))
-		var sc := float(d["scale"])
+		s.texture = _load_tex(pool[i])
+		var sc := randf_range(0.95, 1.35)
 		s.scale = Vector2(sc, sc)
+		var x := randf_range(140.0, ROOM_W - 140.0)
 		# 底部落在地面线、稍微下沉吃进石板带，免得像漂着
-		s.position = Vector2(float(d["x"]), GROUND_Y + float(d["sink"]) - s.texture.get_height() * sc * 0.5)
+		s.position = Vector2(x, GROUND_Y + 12.0 - s.texture.get_height() * sc * 0.5)
 		s.modulate.a = 0.92 # 只留一点透明融入宣纸底，不调色（原图画质就是最好画质）
 		add_child(s)
 
@@ -202,6 +206,7 @@ func _build_actors() -> void:
 	if Run.is_boss_room():
 		_spawn_boss()
 	else:
+		_spawn_decors() # 普通房随机摆 2-3 个互动物件（卷轴/香炉/石碑）
 		_spawner = WAVE_SPAWNER.new()
 		_spawner.waves = Run.room_config()["waves"]
 		_spawner.spawn_y = 560.0
@@ -224,6 +229,19 @@ func _spawn_boss() -> void:
 	_boss.died.connect(_on_boss_died)
 	add_child(_boss)
 	_boss.entrance()
+
+
+## 普通房互动物件：随机 2-3 个卷轴（回血）/ 香炉（墨骨）/ 石碑（本房 buff），站在地面线上
+func _spawn_decors() -> void:
+	var kinds := ["scroll", "censer", "stele"]
+	kinds.shuffle()
+	var count := randi_range(2, 3)
+	for i in count:
+		var d := DECOR_INTERACTIVE.new()
+		d.setup(kinds[i % kinds.size()])
+		d.position = Vector2(randf_range(420.0, ROOM_W - 220.0), GROUND_Y)
+		add_child(d)
+		p("decor 生成: %s @ x=%d" % [kinds[i % kinds.size()], int(d.position.x)])
 
 
 # ---------- 通关 / 阵亡结算 ----------
@@ -366,6 +384,12 @@ func _run_demo() -> void:
 	await get_tree().process_frame
 	await _shot("08_codex")
 	codex.queue_free()
+	# 互动物件验收：demo 走完一趟后还剩几个没触发（被踩过的已 queue_free）
+	var alive := 0
+	for c in get_children():
+		if c is Node2D and c.get_script() == DECOR_INTERACTIVE:
+			alive += 1
+	p("decor 剩余未触发: %d" % alive)
 	p("ALL DONE player=" + str(_player.global_position))
 	get_tree().quit()
 

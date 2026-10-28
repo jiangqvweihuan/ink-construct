@@ -79,7 +79,7 @@ func _build_cards() -> void:
 		c.queue_free()
 	for i in _cards.size():
 		var key := str(_cards[i])
-		var info: Dictionary = Run.UPGRADES[key]
+		var info: Dictionary = Run.card_info(key)
 		var cost := Run.upgrade_cost(key)
 		var b := TextureButton.new()
 		b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
@@ -99,10 +99,20 @@ func _build_cards() -> void:
 				s.play()
 				_on_card(key))
 
+		# 卡牌图标：水墨 UI 素材（art/ui/icons/），形态专属统一用勋章区分
+		var icon := TextureRect.new()
+		icon.texture = InkTex.load("res://art/ui/icons/" + str(info.get("icon", "icon_medal")) + ".png")
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.size = Vector2(36, 36)
+		icon.position = Vector2(97, 12)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(icon)
+
 		var title := Label.new()
 		title.text = str(info["label"])
 		title.size = Vector2(230, 40)
-		title.position = Vector2(0, 26)
+		title.position = Vector2(0, 50)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		title.add_theme_color_override("font_color", PAPER)
 		title.add_theme_font_size_override("font_size", 30)
@@ -112,7 +122,7 @@ func _build_cards() -> void:
 		var desc := Label.new()
 		desc.text = str(info["desc"])
 		desc.size = Vector2(210, 40)
-		desc.position = Vector2(10, 74)
+		desc.position = Vector2(10, 88)
 		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc.add_theme_color_override("font_color", Color(0.82, 0.79, 0.72))
@@ -123,7 +133,7 @@ func _build_cards() -> void:
 		var price := Label.new()
 		price.text = "%d 墨骨" % cost
 		price.size = Vector2(230, 30)
-		price.position = Vector2(0, 128)
+		price.position = Vector2(0, 134)
 		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		price.add_theme_color_override("font_color", Color(0.66, 0.2, 0.16))
 		price.add_theme_font_size_override("font_size", 20)
