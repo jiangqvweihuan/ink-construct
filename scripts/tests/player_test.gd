@@ -101,6 +101,11 @@ func _ready() -> void:
 		p("swap -> skull=%s hud=%s attacks=%d skills=%s bones=%d" % [
 			_player.skull_id, str(_player.hud_skills), _player.attacks.size(),
 			str(_player.skill_config.keys()), Score.bones])
+		# 力僧 U（定山）是回血技：先压血到 5，砸下后应回到 7，否则满血时回血分支不进等于没测
+		if _player.skull_id == "c013":
+			_player.hp = 5
+			_player.hp_changed.emit(5, _player.max_hp)
+			p("c013 压血 -> hp=5，准备验证定山回血")
 		await _shot("10_swap_" + str(_player.skull_id))
 		_tap("attack")
 		await get_tree().create_timer(0.3).timeout
@@ -111,6 +116,10 @@ func _ready() -> void:
 		_tap("skill_ult")
 		await get_tree().create_timer(1.6).timeout
 		await _shot("13_ult_" + str(_player.skull_id))
+		# 定山蓄力 3.05s 才砸下，等它结算完再看血量：5 -> 7 才说明回血真的生效
+		await get_tree().create_timer(1.9).timeout
+		p("ult_after skull=%s hp=%d/%d" % [_player.skull_id, _player.hp, _player.max_hp])
+		await _shot("14_ult_after_" + str(_player.skull_id))
 
 	p("SWAP DONE skull=" + str(_player.skull_id))
 	get_tree().quit()

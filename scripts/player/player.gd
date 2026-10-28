@@ -91,6 +91,7 @@ var proj_extra := 0 # 投射物额外齐发数（双剑气）
 var proj_pierce := false # 投射物穿透（穿云剑气）
 var skill_lifesteal := false # 技能命中回血（饮血）
 var poise := false # 技能期间霸体（定山）
+var _skill_poise := false # 当前技能自带的霸体（力僧定山：蓄力期间自身霸体，不依赖强化）
 var blink_scale := 1.0 # 闪现突进距离倍率（疾影）
 var _lifesteal_cd := 0.0 # 饮血内置冷却
 var _skill_name := ""
@@ -383,7 +384,12 @@ func _skill_tick(delta: float) -> void:
 		_deal_skill_hit(h)
 	# 纯时长驱动退出：到点的同一帧排队的 stand 恰好接续，别看 is_complete（会被 loop 污染）
 	if _skill_timer <= 0.0:
+		# 收招兜底：命中段 at 略晚于动画时长时（力僧定山 at=3.12 > 3.05），
+		# 靠计时器驱动永远触发不到 t>=at，整段伤害会凭空丢失——退出这一帧补结算
+		while not _skill_hits.is_empty():
+			_deal_skill_hit(_skill_hits.pop_front())
 		_invincible = false
+		_skill_poise = false
 		_set_blink(false)
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
 
@@ -449,6 +455,15 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			_spawn_number(1, Color(0.45, 0.75, 0.5), 130.0) # 绿字提示回了口血
 		Feel.hitstop(0.06) # 技能命中：比普攻更重的顿帧与震屏
 		Feel.shake(7.0, 0.2)
+	# 技能自带回血（力僧·定山）：与是否命中无关，砸地这一下就是"定"住自己回血
+	if h.has("heal") and hp < max_hp:
+		var heal := mini(int(h["heal"]), max_hp - hp)
+		hp += heal
+		hp_changed.emit(hp, max_hp)
+		var dn := DAMAGE_NUMBER.new()
+		dn.setup("定山 +%d" % heal, Color(0.45, 0.75, 0.5))
+		dn.global_position = global_position + Vector2(0, -130)
+		get_tree().current_scene.add_child(dn)
 
 
 ## 发一颗投射物：从胸口高度出手，沿朝向直线飞
@@ -533,6 +548,7 @@ func _start_skill(n: String) -> void:
 	_skill_timer = _skill_dur
 	_skill_hits = skill_config[n]["hits"].duplicate(true)
 	_skill_start_x = global_position.x
+	_skill_poise = bool(skill_config[n].get("poise", false))
 	_skill_cds[n] = float(skill_config[n]["cooldown"]) * cooldown_scale * _mastery_cd
 	_invincible = false
 	velocity.x = facing * float(attacks[0]["lunge"]) * 0.6 # 起手小前冲
@@ -566,6 +582,7 @@ func swap_skull(id: String) -> void:
 	_attack_idx = -1
 	_skill_name = ""
 	_skill_timer = 0.0
+	_skill_poise = false
 	_apply_profile(id)
 	_setup_spine()
 	Run.skull_id = id # 局外养成的击杀/通关记账按当前形态归属，换头后立刻同步
@@ -610,8 +627,8 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO) -> void:
 			return
 		die()
 		return
-	# 霸体（力僧形态专属）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
-	if poise and state == State.SKILL:
+	# 霸体（力僧形态专属 + 定山技能自带）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
+	if (poise or _skill_poise) and state == State.SKILL:
 		return
 	state = State.HURT
 	_hurt_timer = hurt_time

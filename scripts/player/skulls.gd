@@ -125,10 +125,12 @@ const SKULLS := {
 				"hits": [{"at": 0.87, "range": 191.0, "height": 110.0, "damage": 1, "sfx": "voice_fan_hit"}],
 			},
 			# 全程举棒蓄力，3.05s 才砸下来：只在这一下结算，避免蓄力期间"空气伤害"
+			# 定山：蓄力期间自身霸体（挨打不断招），砸地回 2 血——站桩换血的坦克循环
 			"skill02": {
 				"action": "skill_ult", "cooldown": 9.0,
+				"poise": true,
 				"hits": [
-					{"at": 3.12, "range": 190.0, "height": 110.0, "damage": 2, "sfx": "skill_blade", "both": true},
+					{"at": 3.12, "range": 190.0, "height": 110.0, "damage": 2, "sfx": "skill_blade", "both": true, "heal": 2},
 				],
 			},
 		},
