@@ -13,6 +13,8 @@ const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 
 # Boss 专属音效（继承 c016 的 SFX_HIT_QI / SFX_TELEGRAPH）
 const SFX_BOSS_ENTER := preload("res://audio/sfx/boss_entrance.wav")
+const SFX_FIRE_BURST := preload("res://audio/sfx/fire_burst.wav") # 火区喷发爆炸
+const SFX_BOSS_SKILL_HIT := preload("res://audio/sfx/boss_skill_hit.wav") # 冲锋碾压命中
 
 # 自定义状态（父类 enum 不可扩展，用大数值避开）
 const S_ENTER := 100 # 登场：锁行动
@@ -347,6 +349,8 @@ func _charge_hit_check() -> void:
 	var dy: float = absf(_target.global_position.y - global_position.y)
 	if absf(dx) <= float(_charge.get("hit_w", 130.0)) and dy <= float(_charge.get("hit_h", 150.0)):
 		_charge_hit_done = true
+		_sfx_player.stream = SFX_BOSS_SKILL_HIT # 碾压撞实了，闷响
+		_sfx_player.play()
 		_target.call("hurt", int(_charge.get("damage", 2)), Vector2(_charge_dir * 420.0, -120.0))
 
 
@@ -445,6 +449,9 @@ func _fire_zone_burst(pos: Vector2) -> void:
 	if state == State.DEAD or not is_inside_tree():
 		return
 	FX.spawn(get_tree().current_scene, "fire_pillar", pos, {"scale": 0.6})
+	# 多团火柱几乎同帧喷发，共用单个播放器：后一个打断前一个，听感上就是一声爆炸
+	_sfx_player.stream = SFX_FIRE_BURST
+	_sfx_player.play()
 	Feel.shake(3.0, 0.12)
 	if _target == null or not is_instance_valid(_target):
 		return

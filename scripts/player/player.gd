@@ -33,6 +33,7 @@ const SFX_PRECACHE := [
 	"voice_fan_hit",  # skill03 第二段横扫
 	"skill_blade",    # skill04 长连段（落叶镖）
 	"hit_fist",       # 玩家受伤
+	"dash_step",      # 冲刺脚步（踏地）
 ]
 
 @export var run_speed := 240.0
@@ -498,6 +499,7 @@ func _try_dash() -> void:
 		state = State.DASH
 		_dash_timer = dash_time
 		_play(anim_map["dash"], false)
+		_play_sfx("dash_step") # 冲刺踏地声，补上原本只有画面没有声音的空档
 
 
 func _start_attack(idx: int) -> void:

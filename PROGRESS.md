@@ -50,7 +50,7 @@
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | BGM | `scripts/audio/bgm.gd`（autoload BGM） | 双 AudioStreamPlayer 交叉淡化（0.9s）；menu = 御风引（home.wav）/ battle = 破阵（battle.wav）；Music 总线；同名曲目不重播，暂停不中断；WAV 循环靠导入参数 loop_mode=2 |
-| 音效 | `audio/sfx/` ~25 条 wav | 玩家：普攻起手 weapon_sword、命中 voice_sword_hit、技能起手 voice_skill_cast、各技能命中按 skulls 表 `sfx` 字段（hit_heavy / skill_fist / voice_fan_hit / skill_blade 等）、受伤 hit_fist；敌人：telegraph 预警、hit_qi 受击；Boss：boss_entrance 登场；UI：click 全覆盖、swap_draw、level_up、settle/win/lose；拾取 pickup/gold。**仍缺**：dash、Boss 技能命中专属、火区爆炸 |
+| 音效 | `audio/sfx/` ~28 条 wav | 玩家：普攻起手 weapon_sword、命中 voice_sword_hit、技能起手 voice_skill_cast、各技能命中按 skulls 表 `sfx` 字段（hit_heavy / skill_fist / voice_fan_hit / skill_blade 等）、受伤 hit_fist、**冲刺 dash_step**；敌人：telegraph 预警、hit_qi 受击；Boss：boss_entrance 登场、**冲锋碾压 boss_skill_hit、火区喷发 fire_burst**；UI：click 全覆盖、swap_draw、level_up、settle/win/lose；拾取 pickup/gold |
 
 ### 素材管线
 
@@ -97,7 +97,7 @@
 - [ ] **互动物件本体换素材**（用户标记）：卷轴/香炉/石碑现在是程序化 `_draw` 临时绘制，太简陋；用户找到好素材后整件替换（结构不动，只换 `decor_interactive.gd` 的 `_draw` 为贴图渲染）
 - [ ] **焚鼎 P3 火区灼烧视觉**：fire_hit 打完玩家身上那一下现在只是一个橙色炸开——应该加持续 0.4s 灼烧 DOT 视觉（不做真实 DOT 伤害，只视觉）
 - [ ] **投射物特效**：`projectile.gd` 用 `_draw` 硬编码圆形轨迹；改为从精灵条生成弹道（墨弹 / 火球 / 雷矢）——用户明确点名过，剑仙剑气已在用投射物
-- [ ] **音效补缺**：dash / Boss 技能命中专属 / 火区爆炸（框架已全通，只缺素材）
+- [x] **音效补缺**：dash → `dash_step`（Voice_jiaobu）、Boss 冲锋碾压命中 → `boss_skill_hit`（Hit_zhong）、火区喷发 → `fire_burst`（Skill_baozha），均已接入并回归通过
 
 ### P2 · 新内容（看素材库）
 
@@ -170,7 +170,7 @@ scenes/
 audio/
 ├── music/           # home.wav（御风引·菜单）/ battle.wav（破阵·战斗）+ plot_01/02
 ├── bgm/             # bgm_menu.ogg / bgm_battle.ogg（备用）
-└── sfx/             # ~25 条音效 wav
+└── sfx/             # ~28 条音效 wav
 
 art/
 ├── characters/
