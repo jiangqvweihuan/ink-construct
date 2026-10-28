@@ -286,11 +286,16 @@ func _apply_stage(st: Dictionary) -> void:
 
 func _chase_tick(delta: float) -> void:
 	# 绕后转身演出：有转身动画的 Boss 被穿裆时先播调头动画再翻转朝向，不瞬转
-	if _turn_anim != "" and _valid.get(_turn_anim, false) and _turn_cd <= 0.0 \
+	if _turn_anim != "" and _valid.get(_turn_anim, false) \
 			and _target != null and is_instance_valid(_target):
 		var want := 1 if _target.global_position.x > global_position.x else -1
 		if want != facing:
-			_start_turn(want)
+			if _turn_cd <= 0.0:
+				_start_turn(want)
+				return
+			# 转身冷却中：车身太重转不过来，保持朝向原地减速，绝不瞬转
+			# （父类的 _chase_tick 会无条件翻朝向，所以必须在这里提前 return 拦住）
+			velocity.x = move_toward(velocity.x, 0.0, 1500.0 * delta)
 			return
 	if not _charge.is_empty() and _charge_cd <= 0.0 and _target != null:
 		var dx: float = absf(_target.global_position.x - global_position.x)
