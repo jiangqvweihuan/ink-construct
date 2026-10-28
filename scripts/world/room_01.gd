@@ -97,25 +97,22 @@ func _build_background() -> void:
 	add_child(tree_r)
 
 
-## 普通房点缀：树池随机抽 2-3 棵立在远处地面线（松/樱/柳/红枫），每局房间景致不同
+## 普通房点缀：固定 4 棵远景树立在地面线（松/樱/柳），位置与下沉量逐棵调过，别改随机
 ## 全部压在角色层后面（同 z 先加先绘），只用微量透明融入宣纸底，不做任何调色
 func _build_decor() -> void:
-	var pool := [
-		"res://art/environment/decor/tree_pine.png",
-		"res://art/environment/decor/tree_cherry.png",
-		"res://art/environment/decor/tree_willow.png",
-		"res://art/environment/decor/tree_maple_red.png",
+	var defs := [
+		{"tex": "res://art/environment/decor/tree_pine.png", "x": 170.0, "scale": 1.15, "sink": 18.0},
+		{"tex": "res://art/environment/decor/tree_cherry.png", "x": 660.0, "scale": 1.35, "sink": 10.0},
+		{"tex": "res://art/environment/decor/tree_willow.png", "x": 1540.0, "scale": 1.3, "sink": 12.0},
+		{"tex": "res://art/environment/decor/tree_pine.png", "x": 1790.0, "scale": 0.95, "sink": 14.0},
 	]
-	pool.shuffle()
-	var count := randi_range(2, 3)
-	for i in count:
+	for d in defs:
 		var s := Sprite2D.new()
-		s.texture = _load_tex(pool[i])
-		var sc := randf_range(0.95, 1.35)
+		s.texture = _load_tex(str(d["tex"]))
+		var sc := float(d["scale"])
 		s.scale = Vector2(sc, sc)
-		var x := randf_range(140.0, ROOM_W - 140.0)
 		# 底部落在地面线、稍微下沉吃进石板带，免得像漂着
-		s.position = Vector2(x, GROUND_Y + 12.0 - s.texture.get_height() * sc * 0.5)
+		s.position = Vector2(float(d["x"]), GROUND_Y + float(d["sink"]) - s.texture.get_height() * sc * 0.5)
 		s.modulate.a = 0.92 # 只留一点透明融入宣纸底，不调色（原图画质就是最好画质）
 		add_child(s)
 

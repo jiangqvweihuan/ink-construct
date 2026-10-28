@@ -569,7 +569,8 @@ func swap_skull(id: String) -> void:
 	Run.skull_id = id # 局外养成的击杀/通关记账按当前形态归属，换头后立刻同步
 	_play_sfx("voice_skill_cast")
 	# 化身光柱从脚下冲天而起，盖住拆骨换形的一瞬间
-	FX.spawn(get_tree().current_scene, "pillar", global_position, {"scale": 0.75, "z": 30})
+	# pillar 贴条主体期底部留白 ~73px（帧内容没画到画布底），×0.75 缩放补偿 55px 下沉，否则光柱根飘在上半身
+	FX.spawn(get_tree().current_scene, "pillar", global_position + Vector2(0, 55.0), {"scale": 0.75, "z": 30})
 	if is_on_floor():
 		state = State.IDLE
 		_play(anim_map["idle"], true)
