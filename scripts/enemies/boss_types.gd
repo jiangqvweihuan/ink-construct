@@ -182,10 +182,13 @@ const BOSSES := {
 		"stage_at": [0.6],
 		"stages": [
 			{"attacks": ["skill03", "skill01"], "attack_cooldown": 2.6, "chase_speed": 110.0},
-			# zhuanshen（1.4s 双马转身）当二阶段演出：战车调头，节奏全面提速
-			# transform_flip：演出是掉头，播完引擎朝向跟着翻转，否则 idle 会把车瞬间翻回去
-			{"attacks": ["skill01", "skill01-", "skill03"], "attack_cooldown": 1.9, "chase_speed": 135.0, "transform": "zhuanshen", "transform_flip": true, "stagger": 0.5},
+			# P2 直切提速（stagger 僵直窗口照给）：zhuanshen 双马转身已改为绕后转身演出，不再当阶段变身播
+			{"attacks": ["skill01", "skill01-", "skill03"], "attack_cooldown": 1.9, "chase_speed": 135.0, "stagger": 0.5},
 		],
+		# 绕后转身演出：玩家穿裆到背后时播 zhuanshen 双马调头（1.4s），播完才翻转朝向，不瞬转；
+		# 转身期不还手，是穿裆的奖励窗口；4s 冷却防止反复穿裆把 Boss 锁死在转身里
+		"turn": "zhuanshen",
+		"turn_cooldown": 4.0,
 		# 探针实测 @scale1：skill01/skill01- 1154@1.97（长枪横扫）、skill03 峰值在 0 帧（车体本身 817 宽），
 		# 取挥击中段 1.0s 结算，range 按车体实测宽度 817 × 0.5 = 409
 		"ranges": {"skill01": 577.0, "skill01-": 577.0, "skill03": 409.0},

@@ -20,6 +20,7 @@ const S_TRANSFORM := 101 # 变身：无敌
 const S_STAGGER := 102 # 僵直窗口：可被打但不还手（变身奖励 / 撞墙惩罚）
 const S_CHARGE_TELE := 103 # 冲锋蓄力
 const S_CHARGING := 104 # 冲锋进行中
+const S_TURN := 105 # 转身演出：被绕后时播调头动画，播完才翻转朝向（不瞬转）
 
 const ARENA_L := 80.0 # 房间围墙内沿
 const ARENA_R := 1840.0
@@ -41,6 +42,10 @@ var _trail_timer := 0.0 # 冲锋拖尾特效的喷溅间隔
 var _fz: Dictionary = {} # 当前阶段的封锁火区配置（空 = 无此机制）
 var _fz_cd := 0.0 # 火区冷却
 var _transform_flip := false # 掉头演出（transform_flip）：播完把 facing 翻转，跟演出保持一致
+var _turn_anim := "" # 绕后转身动画（boss_types "turn" 配置，空 = 瞬转）
+var _turn_cd := 0.0 # 转身冷却剩余
+var _turn_cd_max := 4.0 # 转身冷却：防止玩家反复穿裆把 Boss 锁死在转身里
+var _turn_dir := 1 # 本次转身目标朝向
 
 
 # ---------- 形态注入 ----------
@@ -78,6 +83,8 @@ func _apply_type() -> void:
 	_stages = t["stages"]
 	_charge = t.get("charge", {})
 	_fx = t.get("fx", {})
+	_turn_anim = str(t.get("turn", ""))
+	_turn_cd_max = float(t.get("turn_cooldown", 4.0))
 	_attack_anims = _stages[0]["attacks"] # 阶段 1 招式池
 	attack_cooldown = float(_stages[0].get("attack_cooldown", attack_cooldown))
 	chase_speed = float(_stages[0].get("chase_speed", chase_speed))
@@ -98,6 +105,8 @@ func _all_anim_names() -> Array:
 		var n := str(_charge.get(k, ""))
 		if n != "":
 			names.append(n)
+	if _turn_anim != "":
+		names.append(_turn_anim)
 	names.append("chuchang") # 部分素材自带登场动画
 	return names
 
@@ -167,6 +176,7 @@ func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
 	_charge_cd = maxf(0.0, _charge_cd - delta)
+	_turn_cd = maxf(0.0, _turn_cd - delta)
 	if state >= S_ENTER:
 		_find_target()
 		_custom_tick(delta)
@@ -195,6 +205,12 @@ func _custom_tick(delta: float) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, 1500.0 * delta)
 			if _state_timer <= 0.0:
 				_begin_charge_run()
+		S_TURN:
+			velocity.x = move_toward(velocity.x, 0.0, 1500.0 * delta)
+			if _state_timer <= 0.0:
+				facing = _turn_dir
+				_apply_facing()
+				_set_state(State.CHASE)
 		S_CHARGING:
 			velocity.x = _charge_dir * float(_charge.get("speed", 640.0))
 			# 冲锋拖尾：按间隔在身后甩速度线
@@ -269,12 +285,29 @@ func _apply_stage(st: Dictionary) -> void:
 # ---------- 冲锋技 ----------
 
 func _chase_tick(delta: float) -> void:
+	# 绕后转身演出：有转身动画的 Boss 被穿裆时先播调头动画再翻转朝向，不瞬转
+	if _turn_anim != "" and _valid.get(_turn_anim, false) and _turn_cd <= 0.0 \
+			and _target != null and is_instance_valid(_target):
+		var want := 1 if _target.global_position.x > global_position.x else -1
+		if want != facing:
+			_start_turn(want)
+			return
 	if not _charge.is_empty() and _charge_cd <= 0.0 and _target != null:
 		var dx: float = absf(_target.global_position.x - global_position.x)
 		if dx >= float(_charge.get("min_dist", 420.0)):
 			_start_charge()
 			return
 	super(delta)
+
+
+func _start_turn(dir: int) -> void:
+	_turn_dir = dir
+	_turn_cd = _turn_cd_max
+	state = S_TURN
+	velocity.x = 0.0
+	_state_timer = float(_anim_durations.get(_turn_anim, 1.0))
+	_play(_turn_anim, false)
+	_fx_play(_fx.get("transform", {})) # 转身借变身同款速度线，烘托调头声势
 
 
 func _start_charge() -> void:
