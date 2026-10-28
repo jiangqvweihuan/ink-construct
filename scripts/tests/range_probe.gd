@@ -37,7 +37,8 @@ const SETS := [
 	{"id": "z003", "data": "res://art/characters/player/skulls/z003/z003_data.tres",
 		"anims": ["skill02", "skill03", "skill04", "skill05", "skill06", "skill07", "skill08",
 			"skill08-cankao", "skill09", "skill10", "skill11", "skill11-cankao", "skill14_02",
-			"skill18_02", "skill23_03", "skill24_03", "skill17_02", "jump"]},
+			"skill18_02", "skill23_03", "skill24_03", "skill17_02", "jump",
+			"atk03_03", "atk04_02", "skill01"]}, # K 新随机池（#15/#17/#70）
 ]
 
 const PROBE_SCALE := 0.35 # 缩小才能在 1280x720 里量到最长伸展；结果再除回来

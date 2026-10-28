@@ -204,6 +204,8 @@ tests/out/           # 回归截图 + 日志
 - **随机池段锁定 = 抽中动画真实时长**：普攻段/技能配了 `pool` 时，出招先抽动画、再按动画名查各自的 `hit_at`/`range` 字典；攻击锁定走 `_attack_lock`（抽中动画的真实时长）——**pool 段没有 `lock` 键，直接读段配置会崩**
 - **控制效果分两档（用户定调）**：时停 = 规则级控制，**无视霸体**（连 Boss 冲锋/技能前摇都打断回 IDLE，变身演出只冻结不取消）；击退/击飞 = 物理级，Boss 霸体免疫。新控制效果实装前先定档
 - **击退/击飞的撞人判定走手动距离检测**：同伴 ghost 机制会关掉敌人之间的物理碰撞，"击退撞其他敌人触发组合伤害"必须手动算距离（撞墙仍用 `is_on_wall`）
+- **技能 hits 同样支持 launch/knockback**：位移效果统一走 `_skill_kinetic`（`_deal_skill_hit` path/普通两分支都调用），与普攻 `_deal_hit` 同规则（尸体不动）——新技能直接配键即可
+- **技能通用配置键（player.gd 已支持）**：`speed`（轨道级变速，`_play` 的 time_scale 只作用本条动画；时刻表不用缩放，`_skill_tick` 用动画时间 `(_skill_dur-_skill_timer)*_skill_speed` 对齐）、`hit_at`/`range` 字典（池技能按抽中动画逐段标定）、`align_max`（池内短动画慢放撑满最长时长）、`teleport_anims`（自带位移动画原地播放、收招帧瞬移整段距离再补结算）、`invincible`（整技无敌）；dash 短动画用形态级 `dash_anim_speed` 慢放填满冲刺窗口
 - **暂停里要动的 SpineSprite 必须 `process_mode=ALWAYS`**：`get_tree().paused` 期间默认全冻结，结算面板化身、换头面板预览这类"暂停中仍要播动画"的节点都得显式设 ALWAYS
 - **中文注释**：全项目中文注释
 - **WTE 规范**：preload 不用 `class_name`、函数内不能声明 `const`
@@ -215,6 +217,23 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-28 深夜二 · 银夜微调：K 换三随机池 / 技能击退修复 / I 时长对齐 / O 双模式
+
+#### 四点修改（全部用户拍板）
+- **K 换池**：原 #89 skill14_02 单动画 → **atk03_03 / atk04_02 / skill01 三随机池**（编号 #15/#17/#70）。hit_at/range 逐动画标定（探针 ×0.431：0.41s/165px、0.58s/165px、0.85s/161px），speed 0.8 慢放后实长 1.21/1.44/1.98s；霸体、sword_qi 接口保留。配置从 hits 数组改 `hit_at`/`range` 字典（引擎新增支持）
+- **L 击退失效根因**：`_deal_skill_hit` 只结算伤害，launch/knockback 原本只有普攻 `_deal_hit` 处理 → 抽 `_skill_kinetic` 两分支共用，技能 hits 从此支持击退/击飞
+- **I 觉醒时长对齐**：`align_max: true`——抽中短动画时 `_skill_speed *= base/max`（池内最长 skill18_02 2.3s，skill10 慢放到 ~0.23 倍），三种动画统一撑满 2.3s
+- **O 双模式位移**：#87 skill11-cankao 动画自带位移 → `teleport_anims` 名单内**原地播放、收招帧先瞬移 600px 再补结算**（其 hit_at=99 走收招兜底，path 从终点回扫整段位移路径）；另两动画照旧 blink 闪现。O 加 `invincible: true` 全程无敌
+- **银夜五技能全霸体**：L/U/I/O 补 `poise: true`（K 原本就有）
+
+#### 随本轮一起提交的上轮微调
+- K skill14_02 speed 0.8；银夜 dash 动画 `dash_anim_speed: 0.4`（autorush 0.083s→0.21s）；O blink 改 0.15~0.90s × 800px/s（距离仍 600px）；sandbox 双方无限血 + 技能零 CD（`cooldown_scale=0`、`dash_cooldown=0`）
+
+#### 引擎侧改动（player.gd）
+- `_play(anim, loop, spd)`：set_animation 返回本条轨道，time_scale 只作用于它（探针实证 set/get 生效）
+- `_start_skill`：`align_max` 算速、`hit_at`/`range` 字典按抽中动画构造单段 hits（旧 hits 数组写法兼容）、`teleport_anims` 初始化 `_skill_teleport`；`_skill_tick` 位移三分支（原地等瞬移/闪现/减速）+ `_invincible = _blink_active or cfg.invincible`；收招帧先瞬移再补结算；`swap_skull` 清 `_skill_teleport`
+- 回归：player_test 全绿（spine 加载 ERROR 仍是已知噪音）。**肉眼验收点**：sandbox 连按 K 看三种随机蓄力斩、L 看击退撞人、I 看觉醒时长恒定、O 反复按直到抽中 #87 看原地播放+收尾瞬移
 
 ### 2026-10-28 深夜 · 银夜·将去未还（z003）实装，玩家形态回 5 席
 

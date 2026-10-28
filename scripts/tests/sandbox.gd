@@ -1,7 +1,7 @@
 extends Node2D
 
 ## 试炼场：一块空地 + 任选敌人单挑，专门调技能机制 / 动画 / 判定 bug。
-## 双方无限血（生成时血量顶到 999999，打不死，专心看动作与命中）。
+## 双方无限血（生成时血量顶到 999999，打不死，专心看动作与命中）+ 技能零 CD（cooldown_scale 归零）。
 ## 操作：[ / ] 换玩家形态    , / . 轮换敌人（小怪 + 精英 + Boss 全在表里）    R 重刷当前敌人
 ## 敌人轮换表直接读 enemy_types / boss_types 两张形态表——以后新增怪/Boss 自动进表，不用改这里。
 ## 启动 1s 后自动存 tests/out/sandbox_boot.png 供回归验收；命令行加 `-- --shot` 再跑完整自动流程并退出。
@@ -53,6 +53,8 @@ func _ready() -> void:
 	add_child(_player)
 	_player.max_hp = GOD_HP
 	_player.hp = GOD_HP
+	_player.cooldown_scale = 0.0 # 技能零冷却：专心试招不用等 CD（冷却 = 表配 × 本倍率 × 契合）
+	_player.dash_cooldown = 0.0 # 冲刺也不卡手
 	_skull_ids = Skulls.ids()
 
 	# 轮换表 = 小怪/精英形态表 + Boss 形态表（过滤 _debug 占位与 DEFAULT_ID 重复项）
@@ -127,7 +129,7 @@ func _spawn_enemy() -> void:
 func _update_info() -> void:
 	var skull: Dictionary = Skulls.get_profile(_player.skull_id)
 	var info: Dictionary = _roster[_ri]
-	_info.text = "形态 %d/%d  %s（%s）    敌人 %d/%d  %s（%s）\n[ ] 换形态    , . 换敌人    R 重刷敌人    双方无限血" % [
+	_info.text = "形态 %d/%d  %s（%s）    敌人 %d/%d  %s（%s）\n[ ] 换形态    , . 换敌人    R 重刷敌人    双方无限血 + 技能零CD" % [
 		_skull_ids.find(_player.skull_id) + 1, _skull_ids.size(),
 		str(skull["label"]), _player.skull_id,
 		_ri + 1, _roster.size(), str(info["label"]), str(info["id"])]
