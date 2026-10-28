@@ -88,6 +88,7 @@
 | 编辑器开着玩时不要跑回归 | 中 | 全局 | 编辑器重扫/重导会让运行中实例骨架加载失败，玩家死亡 → 结算暂停 → 测试挂死。**重跑一次即恢复**；回归前最好让用户关编辑器。**新表现（2026-10-28 实测）：编辑器开着时命令行跑场景直接报 `sandbox backend failed`（IDE 沙箱中间层被项目文件锁搞崩），不是权限拒绝、也不是项目代码问题。判别三步：①`echo` 正常 ②`Godot --version` 正常 ③`Godot --path 项目 --quit` 必崩 → 查进程里有没有 `--editor` 的 Godot 在跑，有就是它占着项目，关掉即可，**别再怀疑沙箱基础设施或引擎版本** |
 | 技能 `hits[].at` 不能超过动画时长 | 中 | `skulls.gd` | 命中按计时器 `t >= at` 触发，而 t 最大只到动画时长；at 填超了整段命中永远不结算、且零报错（力僧定山 at=3.12 > 时长 3.05 曾把 U 的伤害整个丢掉，只剩站桩）。`player.gd` `_skill_tick` 退出帧已加"剩余命中段补结算"兜底，但新填数值仍应保证 `at <= 时长` |
 | 力僧 U「定山」定位 | 低 | `skulls.gd` c013 | 蓄力 3.05s 期间**自身霸体**（挨打不断招），砸地造成 2 伤并**回 2 血**（`heal` 字段，与是否命中无关），9s 冷却——站桩换血的坦克循环，不再是纯自控 |
+| push 报连接重置的排查顺序 | 中 | 全局 | 症状 `Recv failure: Connection was reset` / `Connection timed out`。按序查：①`git config --get http.proxy` 看是否写死代理 ②`curl.exe -x <代理> -I https://github.com` 测代理能否到目标站 ③代理通但 git 不通 → 换代理协议（HTTP ↔ SOCKS5，本项目实测 `socks5h` 可用、`http` 被重置）④协议通了仍失败 → `http.version=HTTP/1.1`（git 默认 HTTP/2 在该代理下被重置）。本仓库已固化 `socks5h://127.0.0.1:33210` + `HTTP/1.1`；**梯子关掉时 GitHub 直连完全不通（443 超时），必须开着梯子** |
 | `bin/windows/~` 前缀 DLL 残留 | 低 | 全局 | `~xxx.dll` / `~RF*.TMP` 是 Windows 替换 GDExtension DLL 被占用中断留下的备份，编辑器正常关闭后可删；编辑器在跑时别删（正在用） |
 | 特效锚点分两派 | 低 | `scripts/systems/fx.gd` LIB | `pivot` 字段：bottom（pillar/tiger/fire_pillar/crack/gather/vanish，pos=脚底）vs center（ink_hit/ink_claw/slash/thunder/speedline/fire_hit，pos=中心）。受击爪痕在**来袭侧**、冲锋拖尾 `off_y` 按体型抬到躯干、撞墙 crack 炸在墙根 |
 
