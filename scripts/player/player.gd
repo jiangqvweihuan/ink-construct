@@ -109,6 +109,7 @@ var _skill_anim := "" # 本次技能实际播放的动画（随机池技能用�
 var _skill_speed := 1.0 # 本次技能的动画播放速度倍率（<1 慢放，时刻表按动画时间对齐）
 var _dash_anim_speed := 1.0 # dash 动画播放速度倍率（形态表 dash_anim_speed，短动画慢放填满冲刺窗口）
 var _skill_teleport := 0.0 # 技能抽到自带位移动画（银夜 O 的 #87）：原地播放，收招瞬间瞬移这段距离
+var _mix_restore := false # 瞬移切换时把默认混合压到 0，渲染侧应用完后下一帧恢复 0.2
 var _stop_done := false # 时停（U）本场已触发
 var _lifesteal_cd := 0.0 # 饮血内置冷却
 var _skill_name := ""
@@ -445,6 +446,10 @@ func _buff_now() -> int:
 
 func _skill_tick(delta: float) -> void:
 	_skill_timer -= delta
+	if _mix_restore:
+		# 上一帧的瞬移切换已经随渲染应用完毕，恢复默认混合（下一帧物理 tick 时渲染侧必然已跑过）
+		_mix_restore = false
+		sprite.get("skeleton_data_res").call("set_default_mix", 0.2)
 	var cfg: Dictionary = skill_config[_skill_name]
 	var t: float = (_skill_dur - _skill_timer) * _skill_speed # 动画时间：慢放技能的时刻表按动画帧标定，与 cfg 的 at/blink 对齐
 	# 自带位移动画（#87）尾声提前 0.12s 收尾：瞬移到终点 + 清轨道瞬时切 stand。
@@ -454,8 +459,13 @@ func _skill_tick(delta: float) -> void:
 		global_position.x += facing * _skill_teleport
 		_skill_teleport = 0.0
 		if _anim_state != null:
+			# 全程零混合做手术：clear_track 自身也会按默认混合把旧轨道淡出（旧姿势带 600px
+			# 位移量，淡出去就是残余虚影）——压到 0 再切，渲染侧应用后由 _mix_restore 恢复
+			var data = sprite.get("skeleton_data_res")
+			data.call("set_default_mix", 0.0)
 			_anim_state.call("clear_track", 0) # 连队列里排的 stand 一起清，防止它在旧位置自动接续
 			_anim_state.call("set_animation", anim_map["idle"], true, 0)
+			_mix_restore = true
 			_current_anim = anim_map["idle"]
 			_idle_queued = true # _set_state 走"stand 已就位"分支，别再重开淡化
 	# 位移三分支：自带位移动画（#87）原地播放等收招瞬移；普通闪现段高速前冲+穿身；其余减速

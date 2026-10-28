@@ -224,7 +224,7 @@ tests/out/           # 回归截图 + 日志
 - **K 换池**：原 #89 skill14_02 单动画 → **atk03_03 / atk04_02 / skill01 三随机池**（编号 #15/#17/#70）。speed 0.8 慢放后实长 1.21/1.44/1.98s；霸体、sword_qi 接口保留。配置从 hits 数组改 `hit_at`/`range` 字典（引擎新增支持）。**hit_at 三轮标定**（0.34/0.53/0.25）：首版按满伸展峰值（0.41/0.58/0.85）伤害慢半拍；二版改扫出中段，但 skill01 是**起手早挥**（0.23s 左挥峰值 L320≈138px，之后长收势，0.85 才是终斩）——用户实测"很早就出刀但伤害很迟"，三版把 skill01 标到起手斩出点 0.25s，与短动画手感一致
 - **L 击退失效根因**：`_deal_skill_hit` 只结算伤害，launch/knockback 原本只有普攻 `_deal_hit` 处理 → 抽 `_skill_kinetic` 两分支共用，技能 hits 从此支持击退/击飞
 - **I 觉醒时长对齐**：`align_max: true`——抽中短动画时 `_skill_speed *= base/max`（池内最长 skill18_02 2.3s，skill10 慢放到 ~0.23 倍），三种动画统一撑满 2.3s
-- **O 双模式位移**：#87 skill11-cankao 动画自带位移 → `teleport_anims` 名单内**原地播放、收招帧先瞬移 600px 再补结算**（其 hit_at=99 走收招兜底，path 从终点回扫整段位移路径）；另两动画照旧 blink 闪现。O 加 `invincible: true` 全程无敌。**残影修复（三轮才除根）**：根因不是混合本身，而是 `_start_skill` 给每个技能 `_queue(stand)`——动画在渲染侧播完时 stand 在**旧位置**抢先起播，物理帧的瞬移慢一拍 → 旧位置闪出 stand 虚影。修法：自带位移动画在**尾声提前 0.12s**（`_skill_dur*_skill_speed - 0.12`）瞬移 + `clear_track(0)`（连队列里的 stand 一起清）+ 瞬时 `set_animation(stand)`，缝在动画还在播时合上；收招帧只剩命中补结算兜底
+- **O 双模式位移**：#87 skill11-cankao 动画自带位移 → `teleport_anims` 名单内**原地播放、收招帧先瞬移 600px 再补结算**（其 hit_at=99 走收招兜底，path 从终点回扫整段位移路径）；另两动画照旧 blink 闪现。O 加 `invincible: true` 全程无敌。**残影修复（三轮才除根，四轮加固）**：根因不是混合本身，而是 `_start_skill` 给每个技能 `_queue(stand)`——动画在渲染侧播完时 stand 在**旧位置**抢先起播，物理帧的瞬移慢一拍 → 旧位置闪出 stand 虚影。修法：自带位移动画在**尾声提前 0.12s**（`_skill_dur*_skill_speed - 0.12`）瞬移 + `clear_track(0)`（连队列里的 stand 一起清）+ 瞬时 `set_animation(stand)`，缝在动画还在播时合上；收招帧只剩命中补结算兜底。四轮加固：`clear_track` 自身也会按默认混合把旧轨道淡出 → 手术全程把 `set_default_mix` 压 0，下一物理 tick（渲染已应用）由 `_mix_restore` 恢复 0.2
 - **银夜五技能全霸体**：L/U/I/O 补 `poise: true`（K 原本就有）
 
 #### 随本轮一起提交的上轮微调
