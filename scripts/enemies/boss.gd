@@ -75,6 +75,7 @@ func _apply_type() -> void:
 	attack_hit_height = float(t["hit_height"])
 	hurt_time = float(t["hurt_time"])
 	_armor = int(t["armor"])
+	body_radius = float(t.get("body_radius", 30.0)) # 受击半径：巨型 Boss 必须按体型配大（武车 711px 宽）
 	_telegraph_on = bool(t["telegraph"])
 	_pick_nearest = str(t["pick"]) == "nearest"
 	_bones = int(t["bones"])
@@ -347,7 +348,7 @@ func _charge_hit_check() -> void:
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
-	if absf(dx) <= float(_charge.get("hit_w", 130.0)) and dy <= float(_charge.get("hit_h", 150.0)):
+	if absf(dx) <= float(_charge.get("hit_w", 130.0)) + _radius_of(_target) and dy <= float(_charge.get("hit_h", 150.0)):
 		_charge_hit_done = true
 		_sfx_player.stream = SFX_BOSS_SKILL_HIT # 碾压撞实了，闷响
 		_sfx_player.play()

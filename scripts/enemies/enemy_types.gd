@@ -12,6 +12,7 @@ const TYPES := {
 		"label": "刀客",
 		"data": "res://art/characters/enemies/c016/c016_data.tres",
 		"scale": 0.32, # 骨架 348px -> 约 111px
+		"body_radius": 30.0,
 		"elite": false,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "dead"},
 		"attacks": ["skill01", "skill02", "skill03", "skill04", "skill05"],
@@ -46,6 +47,7 @@ const TYPES := {
 		"label": "黑袍剑客",
 		"data": "res://art/characters/enemies/z002/z002_data.tres",
 		"scale": 0.36, # 骨架 308.6px -> 约 111px
+		"body_radius": 30.0,
 		"elite": false,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "atked_fall_end"},
 		"attacks": ["atk01", "atk02", "atk03"],
@@ -81,6 +83,7 @@ const TYPES := {
 		"label": "蛮兵",
 		"data": "res://art/characters/enemies/c017/c017_data.tres",
 		"scale": 0.221, # 骨架 502.9px -> 约 111px
+		"body_radius": 36.0, # 蛮兵块头大，挨打面宽一档
 		"elite": false,
 		"anim": {"idle": "stand", "patrol": "walk2", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
 		"attacks": ["skill01", "skill03_1", "skill03_2"],
@@ -116,6 +119,7 @@ const TYPES := {
 		"label": "刺客",
 		"data": "res://art/characters/enemies/c035/c035_data.tres",
 		"scale": 0.422, # 骨架 262.9px -> 约 111px
+		"body_radius": 28.0, # 刺客精瘦，挨打面窄一档
 		"elite": false,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "atked_fall_end"},
 		"attacks": ["skill01", "skill02"],
@@ -149,6 +153,7 @@ const TYPES := {
 		"label": "大剑骑士",
 		"data": "res://art/characters/enemies/c037/c037_data.tres",
 		"scale": 0.405, # 骨架 365.7px -> 约 148px
+		"body_radius": 40.0,
 		"elite": true,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
 		"attacks": ["skill01", "skill03", "skill05", "skill06"],
@@ -184,6 +189,7 @@ const TYPES := {
 		"label": "双镰",
 		"data": "res://art/characters/enemies/c018/c018_data.tres",
 		"scale": 0.575, # 骨架 274.3px -> 约 148px（实测 0.54 时只有 134px，略补）
+		"body_radius": 36.0,
 		"elite": true,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
 		"attacks": ["skill01", "skill02", "skill03"],
@@ -219,6 +225,7 @@ const TYPES := {
 		"label": "青笠剑客",
 		"data": "res://art/characters/enemies/c012/c012_data.tres",
 		"scale": 0.563, # 骨架 262.9px -> 约 148px（精英身高）
+		"body_radius": 36.0,
 		"elite": true,
 		# dead 是 0 秒空姿态，倒地用 atked_fall_end（与 z002 同款处理）
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "atked_fall_end"},

@@ -1,10 +1,10 @@
-[B] boss=焚鼎 hp=34/34 stage=0
+[B] boss=墨堂守将 hp=26/26 stage=0
 [B] saved 00_entrance err=0
-[B] stage2 entered, hp=22
+[B] stage2 entered, hp=16
 [B] saved 01_stage2 err=0
-[B] final stage entered, stage=2 hp=12
+[B] final stage entered, stage=2 hp=8
 [B] saved 02_stage3 err=0
-[B] charge seen=false
+[B] charge seen=true
 [B] saved 03_charge err=0
 [B] boss dead, settlement visible=true
 [B] saved 04_clear err=0

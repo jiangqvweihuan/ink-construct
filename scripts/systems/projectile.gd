@@ -67,7 +67,10 @@ func _physics_process(delta: float) -> void:
 			continue
 		if _hit_list.has(e.get_instance_id()): # 穿透模式下已结算过的目标直接掠过
 			continue
-		if absf(p.global_position.x - global_position.x) <= 30.0 and absf(p.global_position.y - global_position.y) <= 80.0:
+		# 命中窗口 = 剑气自身 30px + 目标受击半径：大体型 Boss 边缘就能截住剑气
+		var r = e.get("body_radius")
+		var br := float(r) if r != null else 30.0
+		if absf(p.global_position.x - global_position.x) <= 30.0 + br and absf(p.global_position.y - global_position.y) <= 80.0:
 			p.call("take_damage", _damage, global_position.x)
 			Score.add_hit()
 			Feel.hitstop(0.04)

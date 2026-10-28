@@ -121,7 +121,13 @@ func _ready() -> void:
 		await get_tree().create_timer(0.15).timeout
 	await _shot("08_c012_dead")
 
-	p("ALL DONE, enemy state=" + str(_enemy.state) + " hp=" + str(_enemy.hp)
+	# 第一只小怪尸体死后 ~1.7s 就 queue_free，精英段跑完它早没了，访问前必须判活
+	var e_state := "freed"
+	var e_hp := "-"
+	if is_instance_valid(_enemy):
+		e_state = str(_enemy.state)
+		e_hp = str(_enemy.hp)
+	p("ALL DONE, enemy state=" + e_state + " hp=" + e_hp
 		+ " player state=" + str(_player.state))
 	get_tree().quit()
 

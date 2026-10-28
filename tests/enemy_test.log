@@ -18,39 +18,25 @@
 [ET] enemy state -> 0 x=957.097412109375
 [ET] player state -> 5
 [ET] enemy state -> 2 x=957.097412109375
-[ET] enemy state -> 4 x=931.349243164063
+[ET] enemy state -> 4 x=952.377319335938
 [ET] enemy hp -> 1
-[ET] enemy state -> 2 x=938.626953125
-[ET] enemy state -> 3 x=933.626953125
-[ET] player state -> 0
-[ET] player state -> 7
-[ET] player state -> 0
-[ET] enemy state -> 0 x=883.168823242188
+[ET] enemy state -> 2 x=959.655029296875
+[ET] enemy state -> 5 x=922.183410644531
+[ET] enemy hp -> -1
 [ET] saved 04_enemy_dead err=0
-[ET] enemy state -> 2 x=883.168823242188
+[ET] player state -> 0
 [ET] saved 05_corpse err=0
 [ET] elite c012 spawned hp=10 scale=0.563
-[ET] enemy state -> 3 x=917.110473632813
-[ET] player state -> 7
-[ET] player state -> 0
 [ET] elite attack anim=skill01 hits_left=2（两连击应为 2）
-[ET] enemy state -> 0 x=866.847839355469
-[ET] enemy state -> 2 x=870.9541015625
 [ET] player state -> 7
 [ET] player state -> 0
 [ET] saved 06_c012_attack err=0
-[ET] elite 两连击后 player_hp=4（前 5；第二段落在 0.8s 受击无敌内应被吞，净掉 1）
-[ET] enemy state -> 3 x=898.3115234375
-[ET] player state -> 7
-[ET] player state -> 0
+[ET] elite 两连击后 player_hp=6（前 7；第二段落在 0.8s 受击无敌内应被吞，净掉 1）
 [ET] elite attack2 anim=skill02 hits_left=1（跳斩应为 1）
-[ET] enemy state -> 0 x=848.050659179688
-[ET] enemy state -> 2 x=852.183166503906
 [ET] player state -> 7
 [ET] saved 07_c012_leap err=0
-[ET] elite 跳斩后 player_hp=1
+[ET] elite 跳斩后 player_hp=4
 [ET] player state -> 0
-[ET] enemy state -> 3 x=879.126831054688
 [ET] elite enrage hp=5/10 cooldown=1.11（基础 1.70，狂暴后应约 1.11）
 [ET] saved 08_c012_dead err=0
-[ET] ALL DONE, enemy state=3 hp=1 player state=0
+[ET] ALL DONE, enemy state=freed hp=- player state=0

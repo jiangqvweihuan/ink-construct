@@ -47,6 +47,7 @@ var brake := 1700.0 # 制动
 var turn_accel := 2100.0 # 反向转向
 
 var _armor := 0 # 伤害低于此值不打断出手（精英霸体）
+var body_radius := 30.0 # 受击半径：挨打按"攻击方射程 + 本半径"判定，体型越大越容易被够到（永久规则，见 PROGRESS 项目约束）
 var _bones := 1 # 死亡掉落墨骨数
 var _dead_min := 1.2 # 尸体最少停留时间（补死动画过短的形态）
 var _telegraph_on := false
@@ -141,6 +142,7 @@ func _apply_type() -> void:
 	attack_hit_height = float(t["hit_height"])
 	hurt_time = float(t["hurt_time"])
 	_armor = int(t["armor"])
+	body_radius = float(t.get("body_radius", 30.0))
 	_telegraph_on = bool(t["telegraph"])
 	_pick_nearest = str(t["pick"]) == "nearest"
 	_bones = int(t["bones"])
@@ -394,8 +396,14 @@ func _deal_hit(seg := 0) -> void:
 	var dmg := int(_damage_map.get(_current_anim, 1))
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_current_anim, false))
-	if side_ok and absf(dx) <= rng and dy <= attack_hit_height:
+	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height:
 		_target.call("hurt", dmg, Vector2(facing * 220.0, -80.0), self)
+
+
+## 目标的受击半径：体型越大挨打面越大；没有该属性的测试替身按 30 兜底
+func _radius_of(t) -> float:
+	var r = t.get("body_radius")
+	return float(r) if r != null else 30.0
 
 
 ## 该招第 seg 段的判定范围：ranges 值可以是单段（float）或多段（Array，与 hit_at 一一对应）

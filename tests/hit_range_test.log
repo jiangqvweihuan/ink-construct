@@ -1,11 +1,11 @@
-[H] dist=100 -> hp 5->4  HIT
-[H] dist=180 -> hp 4->3  HIT
-[H] dist=235 -> hp 3->2  HIT
-[H] dist=245 -> hp 2->1  HIT
-[H] dist=300 -> hp 1->1  MISS
-[H] dy 设定=80 实际dx=111.7 实际dy=91.1
-[H] dist=120 dy=80 -> MISS
-[H] dy 设定=95 实际dx=111.3 实际dy=110.0
+[H] dist=100 -> hp 8->7  HIT
+[H] dist=180 -> hp 7->6  HIT
+[H] dist=205 -> hp 6->5  HIT
+[H] dist=215 -> hp 5->5  MISS
+[H] dist=300 -> hp 5->5  MISS
+[H] dy 设定=80 实际dx=120.0 实际dy=80.0
+[H] dist=120 dy=80 -> HIT
+[H] dy 设定=95 实际dx=120.0 实际dy=95.0
 [H] dist=120 dy=95 -> MISS
-[H] params: attack_range=110 hit_range=240 hit_height=90
+[H] params: attack_range=180 hit_height=90 生效边界=210（射程+玩家 body_radius）
 [H] ALL DONE

@@ -16,6 +16,7 @@ const BOSSES := {
 		"label": "墨堂守将",
 		"data": "res://art/characters/enemies/c037/c037_data.tres",
 		"scale": 0.62, # 骨架 365.7px -> 约 227px，比精英大一半
+		"body_radius": 55.0,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
 		"hp": 26,
 		"patrol_speed": 50.0,
@@ -62,6 +63,7 @@ const BOSSES := {
 		"label": "墨霆",
 		"data": "res://art/characters/enemies/bosses/c009/c009_data.tres",
 		"scale": 0.55, # 628.6px -> 约 345px，近两倍玩家身高
+		"body_radius": 100.0, # 骑手 + 巨兽，宽体
 		# 骨架无 hurt/dead 实动画（stun/dead 均为 0 帧）：倒地用 atked_fall_end，受击位借 def_break
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
 		"hp": 30,
@@ -113,6 +115,7 @@ const BOSSES := {
 		"label": "焚鼎",
 		"data": "res://art/characters/enemies/bosses/c015a1/c015a1_data.tres",
 		"scale": 0.5, # 765.7px -> 约 383px，三 Boss 里最高
+		"body_radius": 90.0,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
 		"hp": 34,
 		"patrol_speed": 40.0,
@@ -159,6 +162,7 @@ const BOSSES := {
 		"label": "武车",
 		"data": "res://art/characters/enemies/bosses/c001/c001_data.tres",
 		"scale": 0.5, # 742.9px -> 约 371px 高、711px 宽，小半个房间的钢铁巨物
+		"body_radius": 300.0, # 车体超宽：站在马屁股后面也该能砍到
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "dead"},
 		"hp": 32,
 		"patrol_speed": 50.0,
@@ -211,6 +215,7 @@ const BOSSES := {
 		"label": "碎岳",
 		"data": "res://art/characters/enemies/bosses/c008/c008_data.tres",
 		"scale": 0.55, # 674.3px -> 约 371px，与墨霆同级的墨甲巨汉
+		"body_radius": 95.0,
 		# 骨架 dead/stun 为 0 帧空动画：倒地借 atked_fall_end，受击/变身借 def_break
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
 		"hp": 32,
@@ -261,6 +266,7 @@ const BOSSES := {
 		"label": "鸣钟",
 		"data": "res://art/characters/enemies/bosses/c032/c032_data.tres",
 		"scale": 1.15, # 388.6px（含枪尖）-> 约 447px，身形比碎岳瘦但落差不再弱一档
+		"body_radius": 75.0, # 瘦高个，半径别给过头
 		# 骨架 dead/stun 为空动画（0.083 / 0 帧）：倒地借 atked_fall_end，受击借 atked_heavy
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
 		"hp": 34,

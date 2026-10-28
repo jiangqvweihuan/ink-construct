@@ -85,6 +85,7 @@ var _hurt_timer := 0.0
 var _hurt_invincible := 0.0 # 受伤后的短暂无敌：被围殴时不会一帧连掉好几血
 var _mastery_cd := 1.0 # 契合 Lv1：该形态技能冷却倍率
 var _mastery_dmg := 0 # 契合 Lv2：该形态普攻加伤
+var body_radius := 30.0 # 受击半径：挨打按"攻击方射程 + 本半径"判定（与小怪/Boss 同一规则）
 # ---------- 形态专属强化（Run.upgrades 的 form_* 键注入，换房间随 set_upgrades 重算） ----------
 var range_scale := 1.0 # 攻击范围倍率（横扫/阔剑/裂地/连突）
 var proj_extra := 0 # 投射物额外齐发数（双剑气）
@@ -135,6 +136,7 @@ func _apply_profile(id: String) -> void:
 	skill_config = profile["skills"]
 	hud_skills = profile["hud_skills"]
 	base_scale = float(profile["scale"])
+	body_radius = float(profile.get("body_radius", 30.0)) # 形态表可按体型覆盖（未来大型化身）
 
 
 ## 局内强化注入：伤害/移速/冷却/生命上限/换头费用。换房间时由 Run.apply_to 重新调用
@@ -362,7 +364,8 @@ func _deal_hit(h = null) -> void:
 		var dy: float = absf(p.global_position.y - global_position.y)
 		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 		# both = 回身横扫：动画把武器甩到身后，前后两侧都算命中，否则"动画打到却没判上"
-		if not (in_front or side_any) or absf(dx) > reach or dy > 70.0:
+		# 射程 + 目标受击半径：体型大的 Boss 在身体边缘就能被够到，不用贴到原点
+		if not (in_front or side_any) or absf(dx) > reach + _radius_of(p) or dy > 70.0:
 			continue
 		# 朱砂斩击打在攻击者与被击者的中点胸口高度：视觉上像"从玩家挥出"（拉回前先取位置）
 		var mx := (global_position.x + p.global_position.x) * 0.5
@@ -379,6 +382,12 @@ func _deal_hit(h = null) -> void:
 		_play_sfx(str(spec.get("sfx", "voice_sword_hit")))
 		Feel.hitstop(0.045) # 命中一僵，普攻比技能轻
 		Feel.shake(4.0, 0.13)
+
+
+## 目标的受击半径：体型越大挨打面越大；没有该属性的测试替身按 30 兜底
+func _radius_of(e) -> float:
+	var r = e.get("body_radius")
+	return float(r) if r != null else 30.0
 
 
 func _skill_tick(delta: float) -> void:
@@ -460,7 +469,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			var x1: float = maxf(_skill_start_x, global_position.x) + 20.0
 			var in_path: bool = p.global_position.x >= x0 and p.global_position.x <= x1
 			var ahead := dx == 0.0 or (dx > 0.0) == (facing > 0)
-			if in_path or (ahead and absf(dx) <= h["range"] * range_scale):
+			if in_path or (ahead and absf(dx) <= h["range"] * range_scale + _radius_of(p)):
 				p.call("take_damage", int(h["damage"]) + damage_bonus, global_position.x)
 				Score.add_hit()
 				var mx := (global_position.x + p.global_position.x) * 0.5
@@ -469,7 +478,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		else:
 			var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 			# both = 回身横扫（力僧狼牙棒、双刺回身刺）：动画扫到身后也照样判定
-			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"] * range_scale:
+			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"] * range_scale + _radius_of(p):
 				p.call("take_damage", int(h["damage"]) + damage_bonus, global_position.x)
 				Score.add_hit()
 				var mx := (global_position.x + p.global_position.x) * 0.5
@@ -518,7 +527,7 @@ func _deal_skill_tick(tick: Dictionary) -> void:
 			continue
 		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 		# both = 转鞭：鞭子一直在转，前后方都扫得到
-		if not (in_front or bool(tick.get("both", false))) or absf(dx) > float(tick["range"]) * range_scale:
+		if not (in_front or bool(tick.get("both", false))) or absf(dx) > float(tick["range"]) * range_scale + _radius_of(p):
 			continue
 		p.call("take_damage", int(tick["damage"]) + damage_bonus, global_position.x)
 		Score.add_hit()
