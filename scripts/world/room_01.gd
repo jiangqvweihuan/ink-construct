@@ -97,7 +97,7 @@ func _build_background() -> void:
 
 
 ## 普通房点缀：松柏/樱树/柳树立在远处地面线，天上掠过一队墨鸟
-## 全部压在角色层后面（同 z 先加先绘），稍微压灰融入宣纸底
+## 全部压在角色层后面（同 z 先加先绘），只用微量透明融入宣纸底，不做任何调色
 func _build_decor() -> void:
 	var defs := [
 		{"tex": "res://art/environment/decor/tree_pine.png", "x": 170.0, "scale": 1.15, "sink": 18.0},
@@ -112,7 +112,7 @@ func _build_decor() -> void:
 		s.scale = Vector2(sc, sc)
 		# 底部落在地面线、稍微下沉吃进石板带，免得像漂着
 		s.position = Vector2(float(d["x"]), GROUND_Y + float(d["sink"]) - s.texture.get_height() * sc * 0.5)
-		s.modulate = Color(0.72, 0.78, 0.76, 0.92) # 压灰压绿，退到远景
+		s.modulate.a = 0.92 # 只留一点透明融入宣纸底，不调色（原图画质就是最好画质）
 		add_child(s)
 
 
