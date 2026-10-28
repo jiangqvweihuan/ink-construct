@@ -84,7 +84,8 @@
 | spine_probe 标定命中位置未对齐玩家 hitbox | 低 | 全局 | ranges 是"骨架伸展像素 × scale"，hit_at 是"峰值时刻"；但玩家 hitbox 只有 70px 高、120-130px 范围——boss 277-580px 的 range 实际只打半个房间，数值大但合理（Boss 要远程威慑） |
 | re-import 后 Godot 偶发 "No loader found" | 低 | 全局 | 删除 png 后没清 .import，`--import` 能自动修；改完素材记得先 `--import` 或删 `.godot/imported` 对应 ctex 再开编辑器重导 |
 | project.godot 注释只认 `;` 不认 `#` | 中 | `project.godot` | `#` 注释行会让整个 section 静默解析失败（设置项丢失、引擎零报错）。曾因 `[gui]` 段 `#` 注释导致全局字体主题丢失；排障用 `scripts/tests/font_probe.gd` 探针断言 |
-| 编辑器开着玩时不要跑回归 | 中 | 全局 | 编辑器重扫/重导会让运行中实例骨架加载失败，玩家死亡 → 结算暂停 → 测试挂死。**重跑一次即恢复**；回归前最好让用户关编辑器。**新表现（2026-10-28 实测）：编辑器开着时命令行跑场景直接报 `sandbox backend failed`（IDE 沙箱中间层被项目文件锁搞崩），不是权限拒绝、也不是项目代码问题。判别三步：①`echo` 正常 ②`Godot --version` 正常 ③`Godot --path 项目 --quit` 必崩 → 立刻 `Get-CimInstance Win32_Process` 查有没有 `--editor` 的 Godot 进程在跑，有就是它占着项目，关掉即可，**别再怀疑沙箱基础设施或引擎版本** |
+| 跑测试前必须先查 Godot 进程 | 高 | 全局 | **标准前置动作**：任何 `--path` 跑场景之前，先 `Get-Process | Where-Object { $_.ProcessName -like "*Godot*" }`。有进程且命令行是 `--editor` = 用户在本机测试，**立刻停手等用户关**，不要硬跑（硬跑必报 `sandbox backend failed`，且会白烧排查时间）。用户开着编辑器玩耍不受我们影响，避让责任在 agent |
+| 编辑器开着玩时不要跑回归 | 中 | 全局 | 编辑器重扫/重导会让运行中实例骨架加载失败，玩家死亡 → 结算暂停 → 测试挂死。**重跑一次即恢复**；回归前最好让用户关编辑器。**新表现（2026-10-28 实测）：编辑器开着时命令行跑场景直接报 `sandbox backend failed`（IDE 沙箱中间层被项目文件锁搞崩），不是权限拒绝、也不是项目代码问题。判别三步：①`echo` 正常 ②`Godot --version` 正常 ③`Godot --path 项目 --quit` 必崩 → 查进程里有没有 `--editor` 的 Godot 在跑，有就是它占着项目，关掉即可，**别再怀疑沙箱基础设施或引擎版本** |
 | `bin/windows/~` 前缀 DLL 残留 | 低 | 全局 | `~xxx.dll` / `~RF*.TMP` 是 Windows 替换 GDExtension DLL 被占用中断留下的备份，编辑器正常关闭后可删；编辑器在跑时别删（正在用） |
 | 特效锚点分两派 | 低 | `scripts/systems/fx.gd` LIB | `pivot` 字段：bottom（pillar/tiger/fire_pillar/crack/gather/vanish，pos=脚底）vs center（ink_hit/ink_claw/slash/thunder/speedline/fire_hit，pos=中心）。受击爪痕在**来袭侧**、冲锋拖尾 `off_y` 按体型抬到躯干、撞墙 crack 炸在墙根 |
 
