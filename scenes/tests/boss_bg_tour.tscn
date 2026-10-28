@@ -1,6 +1,6 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://nvpkxsg4amti"]
 
-[ext_resource type="Script" path="res://scripts/tests/boss_bg_tour.gd" id="1"]
+[ext_resource type="Script" uid="uid://cvqsd80kgcds4" path="res://scripts/tests/boss_bg_tour.gd" id="1"]
 
-[node name="BossBgTour" type="Node"]
+[node name="BossBgTour" type="Node" unique_id=11083148]
 script = ExtResource("1")
