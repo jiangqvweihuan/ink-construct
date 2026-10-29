@@ -69,10 +69,10 @@
 |---|---|
 | 主循环冒烟 | `room_test.tscn` |
 | Boss | `boss_test.tscn`（`BOSS_ID=c009\|c015a1\|c001\|c008\|c032\|_debug`）、`boss_bg_tour.tscn`（五房背景巡游）、`boss_cand_probe.tscn` |
-| 结算 | `settlement_clear_test.tscn` / `settlement_dead_test.tscn` |
+| 结算 | `settlement_clear_test.tscn` / `settlement_dead_test.tscn`（阵亡分支会先换成银夜再死，断言 `Run.skull_id` 保留 = 「再来一局」不会掉回双刺） |
 | 特效/音效 | `fx_test.tscn`、`sfx_preview.tscn` |
 | 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`（自动扫描全部骨架 → `tests/anim_list.log`）、`anim_viewer.tscn`（可视化查看器：←→ 切骨架、↑↓ 切动画、空格重播、L 循环）、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
-| 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`、`settings_test.tscn`、`font_probe.tscn` |
+| 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`（主菜单 → 设置 → 化身谱截图 → 模拟购买重建后再用真鼠标点「返回」）、`settings_test.tscn`、`font_probe.tscn` |
 | 开局流程（真鼠标） | `start_flow_test.tscn`：把主菜单挂进来，用 `push_input(ev, true)` 发真实鼠标/键盘事件点一遍「开始游戏 → 模式卡 → 上一步 → 返回 → 连点 → Esc」。**`pressed.emit()` 不走 BaseButton 输入路径，模拟不出真实点击的崩溃，UI 回归优先用这个** |
 | **试炼场（调试单挑）** | **`sandbox.tscn`**：一块空地 + 任选敌人单挑，调技能机制/动画/判定专用。[/] 换玩家形态、,/. 轮换敌人（小怪+精英+Boss，直接读两张形态表，新增怪自动进表）、R 重刷敌人；双方无限血（999999）；启动 1s 自动存 `tests/out/sandbox_boot.png` 供回归验收，`-- --shot` 跑完整自动巡游 |
 
@@ -220,6 +220,24 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-29 · 「再来一局」沿用角色 / 化身谱商栈重排 / 回血飘字去「定山」
+
+#### 三个用户报的问题
+1. **阵亡后来一局变回双刺**：`settlement_panel._restart()` 只 `reload_current_scene()`，房间 `_ready` 见 `Run.active == false` 就走无参 `Run.start()` = 冒险 + c021。
+2. **墨锭商栈排版挤**：商栈 6 个条目原来和 5 张形态卡同一套单行布局（210 宽、步距 228），第 6 个 x=1210 直接溢出窗口右沿，且和底部「返回」按钮纵向打架。
+3. **回血飘字写死「定山」**：`player._apply_skill_heal()` 里 `dn.setup("定山 +%d")`——凡带 `heal` 字段的技能（银夜 I 觉醒等）都会飘出定山的名字。
+
+#### 修法
+- **`settlement_panel.gd`**：`_restart()` 改成 `Run.start(Run.mode, Run.skull_id)` 后再 `reload_current_scene()`；`room_01._on_player_died()` 先 `Run.snapshot(_player)` 把当前形态写进 Run（原来只有清完房间/Boss 才 snapshot，阵亡时会话里换过的头就丢了）。
+- **`forms_panel.gd`**：形态卡整行改常量（`CARD_Y/CARD_W/CARD_STEP`）；商栈改 **3 列 × 2 行**网格（条目 330×88、列距 355、行距 96、整块水平居中，6 个条目全在 x 120..1160 内）；「返 回」缩成 130×44 挪到窗口左上角（右上角有墨点装饰会压花纹）；两行条目把说明句下移居中。顺手把点击音改成常驻 `_sfx`（`_ready` 建一次、`_click_sfx()` 播）、`_refresh()` 改 `remove_child + queue_free` 并跳过 `_sfx`——和 start_panel 那两处崩溃同源，提前堵住。
+- **`player.gd`**：回血飘字改通用文案「回血 +N」，和具体形态/招式解耦。
+
+#### 回归
+- `ui_test`：新增化身谱段落——打开截图 → 调一次 `_refresh()` 模拟购买重建 → 真鼠标点「返回」，日志 `重建后点返回 -> 面板=false`，无 SCRIPT ERROR；截图 `tests/out/ui_03_codex.png`（排版）、`ui_04_codex_refresh.png`
+- `settlement_dead_test`：阵亡前换成银夜，日志 `阵亡后 Run.skull_id=z003`、`再来一局 -> skull=z003 mode=adventure depth=1 active=true`
+- `player_test`：力僧 U 回血断言（5 → 7）照旧全绿
+
 
 ### 2026-10-29 · 修开始面板两处「访问已释放对象」崩溃
 

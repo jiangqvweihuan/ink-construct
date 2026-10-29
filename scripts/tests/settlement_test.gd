@@ -43,12 +43,19 @@ func _ready() -> void:
 		await get_tree().create_timer(1.0).timeout
 		await _shot("clear")
 	else:
+		# 阵亡路径：先换成银夜再死，验证「再来一局」沿用当前形态（不能掉回默认双刺）
+		room._player.swap_skull("z003")
+		p("换形态 -> " + str(room._player.skull_id))
 		# 受伤无敌 0.8s 会让连打大部分落空，直接压到 1 血再补一刀走阵亡路径
 		room._player.hp = 1
 		room._player.hurt(1, Vector2(80, -60))
 		p("killed player, hp=" + str(room._player.hp))
 		await get_tree().create_timer(1.8).timeout
 		await _shot("dead")
+		p("阵亡后 Run.skull_id=%s mode=%s（期望 z003 / adventure）" % [Run.skull_id, Run.mode])
+		# 结算面板「再来一局」就是这两步：先按本局模式+当前形态重开，再重载场景
+		Run.start(Run.mode, Run.skull_id)
+		p("再来一局 -> skull=%s mode=%s depth=%d active=%s（期望 z003 / adventure / 1 / true）" % [Run.skull_id, Run.mode, Run.depth, Run.active])
 
 	p("settlement visible=" + str(room.get_node_or_null("Settlement") != null))
 	p("ALL DONE")

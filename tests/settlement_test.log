@@ -1,4 +1,7 @@
+[S] 换形态 -> z003
 [S] killed player, hp=0
 [S] saved dead err=0
+[S] 阵亡后 Run.skull_id=z003 mode=adventure（期望 z003 / adventure）
+[S] 再来一局 -> skull=z003 mode=adventure depth=1 active=true（期望 z003 / adventure / 1 / true）
 [S] settlement visible=true
 [S] ALL DONE

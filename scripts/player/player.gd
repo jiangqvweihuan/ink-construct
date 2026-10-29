@@ -782,17 +782,18 @@ func _skill_kinetic(p: Node2D, h: Dictionary) -> void:
 		p.call("knock_back", facing, float(kb.get("force", 620.0)), int(kb.get("impact", 1)))
 
 
-## 技能自带回血段（力僧·定山）：与是否命中无关，砸地这一下就是"定"住自己回血
+## 技能自带回血段：与是否命中无关，带 "heal" 字段的技能（力僧砸地、银夜觉醒等）走这里
 func _apply_skill_heal(h: Dictionary) -> void:
 	# 纯回血段没有命中判定，命中音得在这里补一声砸地闷响
 	if h.has("sfx") and not h.has("damage"):
 		_play_sfx(h["sfx"])
 	if h.has("heal") and hp < max_hp:
-		var heal := mini(int(h["heal"]) + _heal_bonus, max_hp - hp) # 金刚·续：定山回血 +2
+		var heal := mini(int(h["heal"]) + _heal_bonus, max_hp - hp) # 金刚·续：回血量 +2
 		hp += heal
 		hp_changed.emit(hp, max_hp)
 		var dn := DAMAGE_NUMBER.new()
-		dn.setup("定山 +%d" % heal, Color(0.45, 0.75, 0.5))
+		# 飘字用通用文案：技能回血跟具体形态/招式无关，不能写死某个技能名
+		dn.setup("回血 +%d" % heal, Color(0.45, 0.75, 0.5))
 		dn.global_position = global_position + Vector2(0, -130)
 		get_tree().current_scene.add_child(dn)
 

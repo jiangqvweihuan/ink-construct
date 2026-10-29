@@ -27,8 +27,8 @@
 [PT] state -> 5 pos=(848.7223, 599.9326)
 [PT] saved 11_atk_c023 err=0 state=5 pos=(850.2226, 599.9339)
 [PT] c023 鞭击后靶子距玩家 80px（期望约 80）
-[PT] c023 普攻总伤害=7（基础 2+3=5，伤害加成 +1/段 = 契合/局内强化）
 [PT] state -> 0 pos=(850.2226, 599.9339)
+[PT] c023 普攻总伤害=7（基础 2+3=5，伤害加成 +1/段 = 契合/局内强化）
 [PT] state -> 6 pos=(851.3226, 599.9337)
 [PT] saved 12_skill_c023 err=0 state=6 pos=(851.8115, 599.9337)
 [PT] c023 技能中转鞭 ranged_guard=true（期望 true，无敌人时只免疫）
@@ -77,8 +77,8 @@
 [PT] saved 11_atk_z003 err=0 state=5 pos=(873.4445, 599.9337)
 [PT] state -> 0 pos=(873.4445, 599.9337)
 [PT] state -> 6 pos=(874.7441, 599.9329)
+[PT] saved 12_skill_z003 err=0 state=6 pos=(875.5107, 599.9337)
 [PT] state -> 0 pos=(875.5107, 599.9337)
-[PT] saved 12_skill_z003 err=0 state=0 pos=(875.5107, 599.9337)
 [PT] state -> 6 pos=(876.8108, 599.9337)
 [PT] saved 12b_sweep_z003 err=0 state=6 pos=(877.5778, 599.9337)
 [PT] state -> 0 pos=(877.5778, 599.9337)
@@ -88,12 +88,12 @@
 [PT] ult_after skull=z003 hp=7/8
 [PT] saved 14_ult_after_z003 err=0 state=0 pos=(879.644, 599.9337)
 [PT] SWAP DONE skull=z003
-[PT] roll0 银夜三选一：["damage[通用]", "swap[通用]", "z003_stop_1[流派1]"]
+[PT] roll0 银夜三选一：["hp[通用]", "dodge[通用]", "z003_kill_1[流派1]"]
 [PT] buy z003_stop_1 cost=8 ok=true bones=407
-[PT] roll1（已拿时停·初）含时停·续=true → ["z003_stop_2", "z003_qinggong_1", "swap"]
+[PT] roll1（已拿时停·初）含时停·续=true → ["z003_stop_2", "z003_qinggong_1", "cooldown"]
 [PT] buy z003_stop_2 cost=14 ok=true bones=393
 [PT] buy z003_stop_3 cost=20 ok=true bones=373
-[PT] roll2 跨形态泄漏=[]（期望 []） → ["dodge", "hp", "z003_qinggong_1"]
+[PT] roll2 跨形态泄漏=[]（期望 []） → ["z003_qinggong_1", "dodge", "hp"]
 [PT] build 生效：_stop_bonus=1.0 _stop_buff_damage=2 skill06_cd=0.70 dash_time=1.20 dash_cd=0.90（期望 1.0 / 2 / 0.70 / 1.20 / 0.90）
 [PT] 换到 c021：_stop_bonus=0.0（期望 0.0 休眠）
 [PT] 切回 z003：_stop_bonus=1.0（期望恢复 1.0）

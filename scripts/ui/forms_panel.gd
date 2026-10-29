@@ -16,9 +16,28 @@ const RED := Color(0.66, 0.2, 0.16)
 ## 契合各级加成说明（与 meta.gd mods() 一一对应）
 const BONUS_LINES := ["Lv1  技能冷却 -10%", "Lv2  普攻伤害 +1", "Lv3  化身免费"]
 
+## 形态卡：5 张一行，宽 210 / 间距 22，整行水平居中
+const CARD_Y := 180.0
+const CARD_W := 210.0
+const CARD_STEP := 232.0
+
+## 商栈：6 个条目排成 3 列 × 2 行，条目加宽到 330，读起来不挤
+const SHOP_COLS := 3
+const SHOP_W := 330.0
+const SHOP_H := 88.0
+const SHOP_STEP_X := 355.0
+const SHOP_STEP_Y := 96.0
+const SHOP_Y := 474.0
+
+var _sfx: AudioStreamPlayer
+
 
 func _ready() -> void:
 	layer = 9
+	# 点击音常驻一份：_refresh 重建界面时不能连它一起清掉（否则下次点击会命中已释放实例）
+	_sfx = AudioStreamPlayer.new()
+	add_child(_sfx)
+	_sfx.stream = SFX_CLICK
 	_build()
 
 
@@ -37,27 +56,30 @@ func _build() -> void:
 	win.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(win)
 
-	_make_label("化 身 谱", 62, 40, PAPER, Vector2(40, 0), Vector2(1200, 60))
-	_make_label("墨锭 %d" % Meta.ink, 124, 26, RED, Vector2(40, 0), Vector2(1200, 40))
-	_make_label("累计击杀 %d ｜ 通关 %d" % [Meta.kills, Meta.clears], 164, 15, DIM, Vector2(40, 0), Vector2(1200, 30))
+	_make_label("化 身 谱", 56, 40, PAPER, Vector2(40, 0), Vector2(1200, 56))
+	_make_label("墨锭 %d" % Meta.ink, 108, 24, RED, Vector2(40, 0), Vector2(1200, 40))
+	_make_label("累计击杀 %d ｜ 通关 %d" % [Meta.kills, Meta.clears], 144, 15, DIM, Vector2(40, 0), Vector2(1200, 30))
 
 	var ids := Skulls.ids()
 	for i in ids.size():
 		_make_card(str(ids[i]), i)
 
-	_make_label("墨 锭 商 栈", 462, 22, PAPER, Vector2(40, 0), Vector2(1200, 36))
+	_make_label("墨 锭 商 栈", 436, 22, PAPER, Vector2(40, 0), Vector2(1200, 30))
 	var keys := Meta.INK_SHOP.keys()
 	for i in keys.size():
 		_make_shop_entry(str(keys[i]), i)
 
-	_make_button("返  回", 618, _close)
+	# 返回放左上角（窗口右上角有墨点装饰，按钮会压住花纹）：商栈两行占满底部，这里正好空
+	_make_button("返  回", Vector2(70, 58), Vector2(130, 44), _close)
 
 
 ## 购买后整体重建（延迟到输入处理完，按钮不能在自身信号里销毁自己）
 func _refresh() -> void:
 	for c in get_children():
+		if c == _sfx:
+			continue # 点击音节点常驻，不参与重建
 		remove_child(c)
-		c.free()
+		c.queue_free()
 	_build()
 
 
@@ -91,8 +113,8 @@ func _make_card(id: String, i: int) -> void:
 	card.texture = InkTex.load("res://art/ui/menu/btn_normal.png")
 	card.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	card.stretch_mode = TextureRect.STRETCH_SCALE
-	card.size = Vector2(210, 250)
-	card.position = Vector2(70 + i * 228, 195)
+	card.size = Vector2(CARD_W, 250)
+	card.position = Vector2(70 + i * CARD_STEP, CARD_Y)
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if not unlocked:
 		card.modulate = Color(1, 1, 1, 0.55)
@@ -141,20 +163,19 @@ func _make_shop_entry(key: String, i: int) -> void:
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = Vector2(210, 96)
-	b.position = Vector2(70 + i * 228, 506)
+	b.size = Vector2(SHOP_W, SHOP_H)
+	# 3 列 × 2 行：(i % 3) 定列、(i / 3) 定行，整块水平居中、不溢出窗口
+	b.position = Vector2(120 + (i % SHOP_COLS) * SHOP_STEP_X, SHOP_Y + int(i / SHOP_COLS) * SHOP_STEP_Y)
 	b.disabled = not Meta.can_buy(key)
 	if b.disabled:
 		b.modulate = Color(1, 1, 1, 0.55)
-	_entry_label(b, line1, 8, 18, PAPER)
-	_entry_label(b, line2, 38, 14, DIM)
+	_entry_label(b, line1, 6, 18, PAPER)
+	# 只有两行（买断且已解锁）时把说明句往中间放，别让卡片下半截空着
+	_entry_label(b, line2, 32 if line3 != "" else 46, 14, DIM)
 	if line3 != "":
-		_entry_label(b, line3, 62, 16, RED if not b.disabled else DIM)
+		_entry_label(b, line3, 58, 16, RED if not b.disabled else DIM)
 	b.pressed.connect(func():
-		var s := AudioStreamPlayer.new()
-		add_child(s)
-		s.stream = SFX_CLICK
-		s.play()
+		_click_sfx()
 		_on_shop_pressed(key))
 	add_child(b)
 
@@ -163,7 +184,7 @@ func _entry_label(b: TextureButton, text: String, y: float, font_size: int, colo
 	var l := Label.new()
 	l.text = text
 	l.position = Vector2(0, y)
-	l.size = Vector2(210, 28)
+	l.size = Vector2(b.size.x, 24) # 跟条目同宽，加宽后文字仍居中
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_font_size_override("font_size", font_size)
@@ -176,27 +197,30 @@ func _on_shop_pressed(key: String) -> void:
 		call_deferred("_refresh")
 
 
-func _make_button(text: String, y: float, cb: Callable) -> void:
+## 点击音：复用常驻播放器（_refresh 不清它），不每次点击都新建节点
+func _click_sfx() -> void:
+	if is_instance_valid(_sfx):
+		_sfx.play()
+
+
+func _make_button(text: String, pos: Vector2, size: Vector2, cb: Callable) -> void:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = Vector2(220, 56)
-	b.position = Vector2(530, y)
+	b.size = size
+	b.position = pos
 	var l := Label.new()
 	l.text = text
-	l.size = b.size
+	l.size = size
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.add_theme_color_override("font_color", INK)
-	l.add_theme_font_size_override("font_size", 24)
+	l.add_theme_font_size_override("font_size", 20 if size.y < 50 else 24)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(l)
 	b.pressed.connect(func():
-		var s := AudioStreamPlayer.new()
-		add_child(s)
-		s.stream = SFX_CLICK
-		s.play()
+		_click_sfx()
 		cb.call())
 	add_child(b)

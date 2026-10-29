@@ -200,8 +200,11 @@ func _frac_of(exp: int) -> float:
 	return 1.0
 
 
+## 再来一局：沿用本局选定的模式与当前形态（阵亡时 room 已把玩家形态写进 Run），
+## 不能直接 reload 让房间 _ready 走默认的 Run.start()——那样会掉回冒险 + 双刺。
 func _restart() -> void:
 	get_tree().paused = false
+	Run.start(Run.mode, Run.skull_id)
 	get_tree().reload_current_scene()
 
 

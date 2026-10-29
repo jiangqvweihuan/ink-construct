@@ -1,3 +1,7 @@
 [UI] saved 01_main_menu err=0
 [UI] saved 02_settings err=0
+[UI] 化身谱打开=true（期望 true）
+[UI] saved 03_codex err=0
+[UI] saved 04_codex_refresh err=0
+[UI] 重建后点返回 -> 面板=false（期望 false）
 [UI] ALL DONE

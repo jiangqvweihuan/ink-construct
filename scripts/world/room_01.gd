@@ -280,6 +280,9 @@ func _on_player_died() -> void:
 	if _ended:
 		return
 	_ended = true
+	# 先把玩家当前形态记进 Run：结算面板「再来一局」要沿用同一化身重开
+	if is_instance_valid(_player):
+		Run.snapshot(_player)
 	Run.active = false # 这一局到此为止，再来一局从第一层重开
 	await get_tree().create_timer(1.2).timeout # 等阵亡动画
 	# 无尽模式：结算标题直接写死在第几层，方便对照自己的最好成绩
