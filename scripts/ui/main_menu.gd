@@ -41,10 +41,11 @@ func _ready() -> void:
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(sub)
 
-	_make_button("开始游戏", 380, _open_start)
-	_make_button("化 身 谱", 465, _open_codex) # 局外养成一览：解锁进度 / 契合等级 / 加成
-	_make_button("设    置", 550, _open_settings)
-	_make_button("退    出", 635, func(): get_tree().quit())
+	_make_button("开始游戏", 330, _open_start)
+	_make_button("化 身 谱", 402, _open_forms) # 局外养成一览：解锁进度 / 契合等级 / 加成
+	_make_button("图    鉴", 474, _open_codex) # 收录：击败过的敌人 + 已解锁化身的背景/招式演示
+	_make_button("设    置", 546, _open_settings)
+	_make_button("退    出", 618, func(): get_tree().quit())
 
 
 func _make_button(text: String, y: float, cb: Callable) -> void:
@@ -53,7 +54,7 @@ func _make_button(text: String, y: float, cb: Callable) -> void:
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = Vector2(260, 64)
+	b.size = Vector2(260, 56)
 	b.position = Vector2(510, y)
 	var l := Label.new()
 	l.text = text
@@ -86,5 +87,9 @@ func _open_start() -> void:
 	add_child(_start_panel)
 
 
-func _open_codex() -> void:
+func _open_forms() -> void:
 	add_child(load("res://scenes/ui/forms_panel.tscn").instantiate())
+
+
+func _open_codex() -> void:
+	add_child(load("res://scenes/ui/codex_panel.tscn").instantiate())

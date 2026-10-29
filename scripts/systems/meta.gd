@@ -35,6 +35,7 @@ var clears := 0 # 累计通关整局次数
 var mastery := {} # 形态 id -> 契合经验
 var ink := 0 # 局外货币·墨锭：结算时由本局剩余墨骨沉淀而来
 var purchases := {} # 墨锭消费记录：买断 buyout_* -> true；开局加成 start_* -> 等级
+var seen := {} # 图鉴收录：敌人 / Boss id -> 已击败次数（>0 即收录，图鉴里才不是 ？？？）
 var persist := true # 测试场景里关掉，别把 debug 数据写进玩家存档
 
 
@@ -212,6 +213,17 @@ func add_kill(form_id: String) -> void:
 	_save()
 
 
+## 击败一只敌人 / Boss：图鉴收录计数 +1（同一只被击败多次会一直累加）
+func add_enemy_kill(id: String) -> void:
+	seen[id] = enemy_kills(id) + 1
+	_save()
+
+
+## 图鉴收录次数：0 = 还没击败过，图鉴里显示 ？？？
+func enemy_kills(id: String) -> int:
+	return int(seen.get(id, 0))
+
+
 ## 通关整局：通关计数 +1，当前形态契合 +20
 func add_clear(form_id: String) -> void:
 	clears += 1
@@ -235,7 +247,7 @@ func _save() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
 		return
-	f.store_string(JSON.stringify({"kills": kills, "clears": clears, "mastery": mastery, "ink": ink, "purchases": purchases}))
+	f.store_string(JSON.stringify({"kills": kills, "clears": clears, "mastery": mastery, "ink": ink, "purchases": purchases, "seen": seen}))
 
 
 func _load() -> void:
@@ -256,3 +268,6 @@ func _load() -> void:
 	var p = data.get("purchases", {})
 	if typeof(p) == TYPE_DICTIONARY:
 		purchases = p
+	var s = data.get("seen", {})
+	if typeof(s) == TYPE_DICTIONARY:
+		seen = s

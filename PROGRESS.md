@@ -27,16 +27,17 @@
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | 局内计数 | `scripts/systems/score.gd`（autoload Score） | 连击（窗口清零）/ 最高连击 / 击杀 / 墨骨；墨骨跨房间保留，开新局才清空；花墨骨 = 局内强化 + 换头 |
-| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；**解锁按强度梯度（双刺 < 力僧 < 梅剑 < 剑仙 < 银夜）**：双刺初始开放 → 力僧累计击杀 20 → 梅剑累计击杀 60 → 剑仙通关冒险 1 次 → **银夜通关冒险 3 次 + 累计击杀 150**（压轴）。通关计数只记冒险模式（无尽不计通关，击杀照常累计）；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
+| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；**敌人 / Boss 击杀收录 `seen` 表**（`add_enemy_kill(id)` / `enemy_kills(id)`，`c016.die()` 统一记账，Boss 走 `super()` 继承）；**解锁按强度梯度（双刺 < 力僧 < 梅剑 < 剑仙 < 银夜）**：双刺初始开放 → 力僧累计击杀 20 → 梅剑累计击杀 60 → 剑仙通关冒险 1 次 → **银夜通关冒险 3 次 + 累计击杀 150**（压轴）。通关计数只记冒险模式（无尽不计通关，击杀照常累计）；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
 | 墨锭商栈 | `meta.gd` `INK_SHOP` + `forms_panel.gd` | 结算时本局剩余墨骨沉淀为局外货币**墨锭**；化身谱面板内消费：买断解锁（绕过条件）+ 永久开局加成（初始墨骨/生命上限，可升级） |
 
 ### UI / 流程
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
-| 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：水墨远山底 + 书法标题 + 开始/化身谱/设置/退出；启动时 `Settings.apply_all()`。「开始游戏」不再直接进房间，改为弹开始面板 |
+| 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：水墨远山底 + 书法标题 + 开始/化身谱/图鉴/设置/退出（5 键，y 330/402/474/546/618，260×56）；启动时 `Settings.apply_all()`。「开始游戏」不再直接进房间，改为弹开始面板 |
 | 开始面板 | `scripts/ui/start_panel.gd` + `scenes/ui/start_panel.tscn` | **两步开局**：① 选模式（冒险 / 无尽卡片）② 选角色（`Skulls.ids()` 强度顺序 5 张，未解锁整卡压暗 + 显示解锁条件与实时进度，已解锁显示契合等级）。选中即 `Run.start(模式, 形态)` → 切 `room_01.tscn`；Esc / 上一步可回退 |
 | 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：5 形态解锁条件/契合进度/各级加成一览 + 墨锭商栈 |
+| 图鉴 | `scripts/ui/codex_panel.gd` + `scenes/ui/codex_panel.tscn` | 主菜单入口：左栏收录卡（2 列 × 6 行）分**敌人 / 化身**两页——敌人只收击败过的（未打过压暗 ？？？，Boss 追加在杂兵精英之后）；右栏预览台 + 名称/分类/生命/击败次数 + **背景故事**（`LORE` 表，现为占位文案）+ 动作条（4 列网格）。**鼠标悬停任一条 → SpineSprite 循环播该动画**（普攻 / 招式 / 技能 K-L-U-I-O / 待机奔跑冲刺滞空受击倒地；Boss 含三阶段招式并集 + 变身），说明行同步显示机制标签与紧凑数值（`1.33s ｜ 144px ｜ 1伤`）；数值全部由形态表 / 敌人表自动生成 |
 | 暂停菜单 | `scripts/ui/pause_menu.gd` | Esc 呼出：继续 / 设置 / 回主菜单 |
 | 设置 | `scripts/ui/settings.gd` + `settings_panel.gd` | 音乐/音效音量（Music/SFX 总线）、全屏、分辨率（1280×720 / 1600×900 / 1920×1080）；`user://settings.cfg` 持久化，改动立即生效 |
 | HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 + **顶部中央模式标签**（`冒险 · 1/3` / `无尽 · 第 2 层 · 2/3` / Boss 房写 `Boss`） |
@@ -72,7 +73,7 @@
 | 结算 | `settlement_clear_test.tscn` / `settlement_dead_test.tscn`（阵亡分支会先换成银夜再死，断言 `Run.skull_id` 保留 = 「再来一局」不会掉回双刺） |
 | 特效/音效 | `fx_test.tscn`、`sfx_preview.tscn` |
 | 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`（自动扫描全部骨架 → `tests/anim_list.log`）、`anim_viewer.tscn`（可视化查看器：←→ 切骨架、↑↓ 切动画、空格重播、L 循环）、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
-| 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`（主菜单 → 设置 → 化身谱截图 → 模拟购买重建后再用真鼠标点「返回」）、`settings_test.tscn`、`font_probe.tscn` |
+| 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`（主菜单 → 设置 → 化身谱截图 → 模拟购买重建后再用真鼠标点「返回」→ 图鉴两页：造 `Meta.add_enemy_kill` 记录后开面板、悬停断言 `_current_anim` 变化、Boss 详情、切化身页、真鼠标返回）、`settings_test.tscn`、`font_probe.tscn` |
 | 开局流程（真鼠标） | `start_flow_test.tscn`：把主菜单挂进来，用 `push_input(ev, true)` 发真实鼠标/键盘事件点一遍「开始游戏 → 模式卡 → 上一步 → 返回 → 连点 → Esc」。**`pressed.emit()` 不走 BaseButton 输入路径，模拟不出真实点击的崩溃，UI 回归优先用这个** |
 | **试炼场（调试单挑）** | **`sandbox.tscn`**：一块空地 + 任选敌人单挑，调技能机制/动画/判定专用。[/] 换玩家形态、,/. 轮换敌人（小怪+精英+Boss，直接读两张形态表，新增怪自动进表）、R 重刷敌人；双方无限血（999999）；启动 1s 自动存 `tests/out/sandbox_boot.png` 供回归验收，`-- --shot` 跑完整自动巡游 |
 
@@ -166,12 +167,12 @@ scripts/
 ├── enemies/         # 通用小怪 AI c016.gd + 形态表 + Boss boss.gd + Boss 形态表
 ├── systems/         # fx 特效 + run_state + combat_feel + meta + score + wave_spawner + bone_pickup + projectile
 ├── audio/           # bgm.gd（autoload，双轨交叉淡化）
-├── ui/              # main_menu / forms_panel / pause_menu / settings(+panel) / hud / settlement / swap / blessing / upgrade / damage_number / ink_tex
+├── ui/              # main_menu / forms_panel / codex_panel / pause_menu / settings(+panel) / hud / settlement / swap / blessing / upgrade / damage_number / ink_tex
 ├── world/           # room_01
 └── tests/           # 测试场景脚本
 
 scenes/
-├── ui/              # main_menu / forms_panel / pause_menu / settings_panel / hud / settlement / swap / blessing / upgrade
+├── ui/              # main_menu / forms_panel / codex_panel / pause_menu / settings_panel / hud / settlement / swap / blessing / upgrade
 ├── enemies/         # c016 / z002 / c017 / c035 + c037_elite / c018_elite / c012_elite + bosses/boss
 ├── player/          # player.tscn
 ├── world/           # room_01.tscn
@@ -220,6 +221,26 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-29 · 图鉴（敌人收录 + 化身档案 + 悬停演示动画）
+
+#### 需求
+主菜单加「图鉴」：能查**自己击败过的敌人**和**已解锁的主角化身**——背景故事、技能机制介绍、数值；招式 / 任何动作都要有演示动画，**鼠标悬停即播**。背景故事先占位，之后用户逐条给正式文案再替换。
+
+#### 做法
+- **收录数据**：`meta.gd` 新增 `seen` 表（id → 击败次数）+ `add_enemy_kill()` / `enemy_kills()`，写进 `user://meta.json`；`c016.gd` 的 `die()` 在 `Meta.add_kill(...)` 之后记账，Boss 靠 `super()` 自动继承，不用逐个改。
+- **`codex_panel.gd`（新建）**：1200×640 窗口，Tab 两页（敌人 / 化身）。左栏 2 列 × 6 行收录卡（`TextureButton` + 选中朱砂细条，未收录整卡压暗显示 ？？？）；右栏预览台（390×268 半透明墨底）+ 标题/分类/生命/击败次数 + 背景故事 + 动作条 4 列网格。
+- **演示动画**：`ClassDB.instantiate("SpineSprite")` + `skeleton_data_res` + `get_animation_state().set_animation(anim, true, 0)` 循环；每个条目 `mouse_entered` → `_play(anim)`、`mouse_exited` → 回待机，说明行同步写成「名字 ｜ 数值 ｜ 机制标签」。数值全部从形态表 / 敌人表读，不手写。
+- **条目来源**：化身页读 `Skulls.ids()`（未解锁显示解锁条件）；敌人页 = `ENEMY_ORDER` 7 个杂兵/精英 + `BossTypes.ROSTER` 追加在末尾；Boss 招式取三阶段并集 + 变身条目。
+- **两处坑**：① Label 装中文长句会被最小宽度顶开、不换行 → 背景故事改 `RichTextLabel` + `AUTOWRAP_ARBITRARY` + `StyleBoxEmpty` 去默认内边距；② 招式刀光会甩出预览台盖住文字 → `_build()` 先搭详情（先画 SpineSprite）再铺条目卡，卡片后画自然遮住溢出部分。
+- **主菜单**：按钮 4 → 5（加「图  鉴」），高度 64→56、步距 72 排开；原化身谱入口改名 `_open_forms()`，新增 `_open_codex()`。
+
+#### 回归
+- `ui_test`：设置 → 化身谱（重建 + 真鼠标返回）→ `Meta.persist = false` 后造 3 条击杀 → 开图鉴；日志 `图鉴打开=true`、`悬停招式 -> 预览动画 skill01（悬停前 stand）`、`切到化身页 -> 选中=c021`、`化身页悬停 -> 预览动画=atk01`、`图鉴点返回 -> 面板=false`，无 SCRIPT ERROR。
+- 截图：`tests/out/ui_05_codex_enemy.png`（刀客详情）、`ui_06_codex_hover.png`（悬停高亮）、`ui_07_codex_boss.png`（鸣钟三阶段）、`ui_08_codex_form.png`（双刺 3 普攻 + K/L/U + 6 动作）。
+
+#### 待办（用户后续给文案）
+`codex_panel.gd` 顶部 `LORE` 表是**占位文案**（键 = 形态 / 敌人 id），用户给正式背景故事后逐条替换即可；机制标签在 `_skill_desc()`，动作排序在 `ACT_ORDER` / `ENEMY_ACT_ORDER`。
 
 ### 2026-10-29 · 「再来一局」沿用角色 / 化身谱商栈重排 / 回血飘字去「定山」
 
