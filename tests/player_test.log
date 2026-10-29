@@ -1,4 +1,4 @@
-[PT] player created, sprite=@SpineSprite@8:<SpineSprite#39896221216>
+[PT] player created, sprite=@SpineSprite@8:<SpineSprite#40097547808>
 [PT] state -> 0 pos=(300.0, 560.0)
 [PT] state -> 3 pos=(300.0, 560.5555)
 [PT] state -> 0 pos=(300.0, 599.9999)
@@ -27,8 +27,8 @@
 [PT] state -> 5 pos=(934.7245, 599.9337)
 [PT] saved 11_atk_c023 err=0 state=5 pos=(936.2248, 599.9339)
 [PT] c023 鞭击后靶子距玩家 80px（期望约 80）
-[PT] state -> 0 pos=(936.2248, 599.9339)
 [PT] c023 普攻总伤害=7（基础 2+3=5，伤害加成 +1/段 = 契合/局内强化）
+[PT] state -> 0 pos=(936.2248, 599.9339)
 [PT] state -> 6 pos=(937.3251, 599.9343)
 [PT] saved 12_skill_c023 err=0 state=6 pos=(937.814, 599.9337)
 [PT] c023 技能中转鞭 ranged_guard=true（期望 true，无敌人时只免疫）
@@ -53,16 +53,65 @@
 [PT] saved 13_ult_z000 err=0 state=0 pos=(947.015, 599.9337)
 [PT] ult_after skull=z000 hp=8/8
 [PT] saved 14_ult_after_z000 err=0 state=0 pos=(947.015, 599.9337)
-[PT] swap -> skull=c013 hud=["skill01", "skill03", "skill02"] attacks=3 skills=["skill01", "skill03", "skill02"] bones=52
+[PT] swap -> skull=c013 hud=["skill01", "skill03", "skill02"] attacks=2 skills=["skill01", "skill03", "skill02"] bones=52
 [PT] c013 压血 -> hp=5，准备验证定山回血
 [PT] saved 10_swap_c013 err=0 state=0 pos=(947.015, 599.9337)
-[PT] state -> 5 pos=(948.848, 599.9326)
-[PT] saved 11_atk_c013 err=0 state=5 pos=(950.3483, 599.9339)
-[PT] state -> 0 pos=(950.3483, 599.9339)
-[PT] state -> 6 pos=(951.4486, 599.9343)
-[PT] saved 12_skill_c013 err=0 state=6 pos=(951.9375, 599.9337)
-[PT] state -> 0 pos=(951.9375, 599.9337)
-[PT] state -> 6 pos=(953.0375, 599.9337)
-[PT] saved 12b_sweep_c013 err=0 state=6 pos=(953.5264, 599.9337)
-[PT] state -> 0 pos=(953.5264, 599.9337)
-[PT] state -> 6 pos=(954.6263, 599.9337)
+[PT] state -> 5 pos=(949.015, 599.9337)
+[PT] saved 11_atk_c013 err=0 state=5 pos=(950.8483, 599.9337)
+[PT] state -> 0 pos=(950.8483, 599.9337)
+[PT] state -> 6 pos=(952.0483, 599.9337)
+[PT] saved 12_skill_c013 err=0 state=6 pos=(952.6371, 599.9337)
+[PT] state -> 0 pos=(952.6371, 599.9337)
+[PT] state -> 6 pos=(953.8372, 599.9337)
+[PT] saved 12b_sweep_c013 err=0 state=6 pos=(954.426, 599.9337)
+[PT] state -> 0 pos=(954.426, 599.9337)
+[PT] state -> 6 pos=(955.6263, 599.9343)
+[PT] reflect_test c013: 挨打前 hp=5 挨打后 hp=5 trainer_taken=3 state=6（期望 hp 不掉、trainer 吃到 3、仍为 SKILL=6）
+[PT] saved 13_ult_c013 err=0 state=6 pos=(956.215, 599.9333)
+[PT] state -> 0 pos=(956.215, 599.9333)
+[PT] ult_after skull=c013 hp=7/8
+[PT] saved 14_ult_after_c013 err=0 state=0 pos=(956.215, 599.9333)
+[PT] swap -> skull=z003 hud=["skill14_02", "skill02", "skill06", "skill10", "skill11"] attacks=3 skills=["skill14_02", "skill02", "skill06", "skill10", "skill11"] bones=44
+[PT] saved 10_swap_z003 err=0 state=0 pos=(956.215, 599.9333)
+[PT] state -> 5 pos=(958.3817, 599.9337)
+[PT] saved 11_atk_z003 err=0 state=5 pos=(960.5483, 599.9337)
+[PT] state -> 0 pos=(960.5483, 599.9337)
+[PT] state -> 6 pos=(961.8484, 599.9337)
+[PT] state -> 0 pos=(962.6151, 599.9337)
+[PT] saved 12_skill_z003 err=0 state=0 pos=(962.6151, 599.9337)
+[PT] state -> 6 pos=(963.9151, 599.9337)
+[PT] saved 12b_sweep_z003 err=0 state=6 pos=(964.6818, 599.9337)
+[PT] state -> 0 pos=(964.6818, 599.9337)
+[PT] state -> 6 pos=(965.9818, 599.9337)
+[PT] saved 13_ult_z003 err=0 state=6 pos=(966.7485, 599.9337)
+[PT] state -> 0 pos=(966.7485, 599.9337)
+[PT] ult_after skull=z003 hp=7/8
+[PT] saved 14_ult_after_z003 err=0 state=0 pos=(966.7485, 599.9337)
+[PT] SWAP DONE skull=z003
+[PT] roll0 银夜三选一：["hp[通用]", "cooldown[通用]", "z003_qinggong_1[流派1]"]
+[PT] buy z003_stop_1 cost=8 ok=true bones=407
+[PT] roll1（已拿时停·初）含时停·续=true → ["z003_stop_2", "cooldown", "z003_qinggong_1"]
+[PT] buy z003_stop_2 cost=14 ok=true bones=393
+[PT] buy z003_stop_3 cost=20 ok=true bones=373
+[PT] roll2 跨形态泄漏=[]（期望 []） → ["dodge", "cooldown", "z003_kill_1"]
+[PT] build 生效：_stop_bonus=1.0 _stop_buff_damage=2 skill06_cd=0.70 dash_time=1.20 dash_cd=0.90（期望 1.0 / 2 / 0.70 / 1.20 / 0.90）
+[PT] 换到 c021：_stop_bonus=0.0（期望 0.0 休眠）
+[PT] 切回 z003：_stop_bonus=1.0（期望恢复 1.0）
+[PT] saved 16_upgrade_panel err=0 state=0 pos=(966.7485, 599.9337)
+[PT] upgrade_panel cards=3
+[PT] 新档解锁顺序 ["c021开", "c013锁", "c023锁", "z000锁", "z003锁"]（期望 c021 开、其余全锁）
+[PT] saved 17_start_mode err=0 state=0 pos=(966.7485, 599.9337)
+[PT] 开始面板点「无尽」-> step=1 模式卡=2（期望 1 / 2）
+[PT] 点未解锁银夜 -> step=1（期望 1，停在选角页）
+[PT] saved 18_start_char_locked err=0 state=0 pos=(966.7485, 599.9337)
+[PT] 击杀20 / 通关1 -> 力僧=true 梅剑=false 剑仙=true 银夜=false（期望 开/锁/开/锁）
+[PT] 银夜进度 击杀 20/150 · 通关 1/3（期望 击杀 20/150 · 通关 1/3）
+[PT] 击杀150 / 通关3 -> 银夜=true（期望 开）
+[PT] saved 19_start_char_all err=0 state=0 pos=(966.7485, 599.9337)
+[PT] 点「上一步」-> step=0（期望 0）
+[PT] saved 20_start_back err=0 state=0 pos=(966.7485, 599.9337)
+[PT] 点「返回」-> 面板已释放=true（期望 true）
+[PT] 二次打开后点「返回」-> 已释放=true（期望 true）
+[PT] 无尽第1层 怪血=2 精英倍率=1.00 Boss血倍率=1.00 冷却倍率=1.00（期望 原数值）
+[PT] 无尽第6层 怪血=7 精英倍率=2.50 Boss血倍率=3.00 冷却倍率=0.70（期望全部更狠）
+[PT] HUD 模式文本（第6层第1间）：无尽 · 第 6 层 · 1/3

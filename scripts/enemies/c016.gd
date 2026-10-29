@@ -73,6 +73,7 @@ var _elite := false # 精英标记（时停分档用：杂兵 3s / 精英 2s / B
 var _stop_timer := 0.0 # 时间暂停（银夜 U）剩余
 # ---------- 定身 / 流血（双刺 L/U 的机制接口，Boss 继承后按体型覆盖） ----------
 var _root_timer := 0.0 # 定身剩余：不能移动，但可以照常出手
+var _stun_timer := 0.0 # 晕眩剩余：不能移动、也不能出手（力僧 L）
 var _bleed_stacks := 0 # 流血层数：每层每秒扣 1 血
 var _bleed_time := 0.0 # 流血剩余时间（再次命中会刷新）
 var _bleed_acc := 0.0 # 流血的计时累计
@@ -245,6 +246,14 @@ func _physics_process(delta: float) -> void:
 	_chase_block = maxf(0.0, _chase_block - delta)
 	_find_target()
 	_bleed_tick(delta) # 流血照常跳（时停里不动，所以放在 stop 分支之后）
+
+	# 晕眩（力僧 L）：比定身更强——站桩发愣，不出手也不移动（放在定身之前结算）
+	if _stun_timer > 0.0:
+		_stun_tick(delta)
+		_update_peer_ghosts()
+		velocity.y = minf(velocity.y + gravity * delta, 900.0)
+		move_and_slide()
+		return
 
 	# 定身（双刺 U）：只锁移动，不锁出手——站桩期间贴脸照样能挥刀
 	if _root_timer > 0.0:
@@ -489,6 +498,43 @@ func root(dur: float) -> void:
 	dn.setup("定身", Color(0.9, 0.75, 0.3)) # 金：和完美闪避同色系的"控制生效"提示
 	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
 	get_tree().current_scene.add_child(dn)
+
+
+## 晕眩（力僧 L）：dur 秒内不能移动、也不能出手——比定身更强。
+## 立即打断正在起的招（前摇直接掐掉，交还出手令牌），站桩发愣到时间结束；
+## 被打飞/受击照样推进各自状态，落地后仍保持晕眩。
+func stun(dur: float) -> void:
+	if state == State.DEAD or dur <= 0.0:
+		return
+	_stun_timer = maxf(_stun_timer, dur)
+	_root_timer = 0.0 # 晕眩覆盖定身：更强的控制接管
+	_release_token()
+	_attack_hits_left.clear()
+	if state == State.ATTACK:
+		state = State.IDLE
+		velocity = Vector2.ZERO
+		_play(str(_anim_map["idle"]), true)
+	_flash()
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("晕眩", Color(0.62, 0.78, 0.95)) # 淡蓝：和定身的金色区分开
+	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
+	get_tree().current_scene.add_child(dn)
+
+
+func _stun_tick(delta: float) -> void:
+	_stun_timer = maxf(0.0, _stun_timer - delta)
+	velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+	match state:
+		State.FLY:
+			_fly_tick(delta)
+			return
+		State.HURT:
+			_hurt_tick(delta)
+			return
+		State.DEAD:
+			return
+	state = State.IDLE
+	_play(str(_anim_map["idle"]), true)
 
 
 ## 定身期间的替身循环：站桩待机 + 射程内可起手；被打飞/硬直/出手中照常推进各自状态

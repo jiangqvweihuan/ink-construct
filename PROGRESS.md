@@ -11,9 +11,9 @@
 
 | 模块 | 文件 | 核心能力 |
 |---|---|---|
-| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / **银夜·将去未还 z003**，默认 c021；青笠 c012 已下架转精英怪）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）/ `pool`（随机抽动画池，普攻段与技能均支持，锁定 = 抽中动画真实时长）/ `launch`（普攻段击飞）/ `knockback`（命中击退 + 碰撞组合伤害）/ `stop`（时间暂停分档 mob/elite/boss，无视霸体）/ `buff_damage`+`buff_time`（觉醒加伤 buff，全伤害路径生效）/ `sword_qi`（剑气远程接口预留，未实装）/ `qinggong`（轻功：jump_mul 跳高倍率 + hover 顶点悬停，银夜专属）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位。**银夜定位机制怪**：三段普攻随机池（段2 击飞）、K 蓄力霸体、L 击退组合伤害、U 时停、I 觉醒回血加伤、O 位移斩杀 600px |
+| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / **银夜·将去未还 z003**，默认 c021；青笠 c012 已下架转精英怪）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）/ `pool`（随机抽动画池，普攻段与技能均支持，锁定 = 抽中动画真实时长）/ `launch`（普攻段击飞）/ `knockback`（命中击退 + 碰撞组合伤害）/ `stop`（时间暂停分档 mob/elite/boss，无视霸体）/ `buff_damage`+`buff_time`（觉醒加伤 buff，全伤害路径生效）/ `sword_qi`（剑气远程接口预留，未实装）/ `qinggong`（轻功：jump_mul 跳高倍率 + hover 顶点悬停，银夜专属）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。技能命中控制通用字段：`root`（定身：只锁移动）/ `stun`（晕眩：锁移动 + 锁出手 + 立即打断正在起的招）/ `self_shield`（自身金钟罩：免一次攻击或限时自动消失）/ 形态表 `knock_chain`（重受击倒地链，段间按动画真实时长无缝接续，最后一段起身整段无敌）。**力僧定位站桩重击**：普攻 = `skill02_01`（第 16 号，2 伤）+ `skill02_03`（第 18 号，3 伤）两段；K = `skill01` 两段（横扫 3 伤 + 击退 620/撞人 1 伤 + 落点定身 2s；第二段不造成伤害、改给自己金钟罩免一次/8s）；L = `skill03`（3 伤 + 晕眩 2s）；U = 定山（反伤 + 回血）；奔跑第 19 号、闪避第 15 号（0.583s 整段完美闪避）；受击 1→第 1 号 / 2→第 6 号 / ≥3→第 6→3→5→9 号整链起身；武僧无残血待机。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位。**银夜定位机制怪**：三段普攻随机池（段2 击飞）、K 蓄力霸体、L 击退组合伤害、U 时停、I 觉醒回血加伤、O 位移斩杀 600px |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel`/`brake`/`turn_accel` 均 `@export`）、lunge 惯性（`brake*0.5`）、hit_at × 0.9 提前判定、预警泛红闪 0.2s；攻击后 30% 可取消窗口（`atk["cancel"]` 可调） |
-| 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at；**多段命中**（`hit_at`/`ranges` 支持数组按段结算）、`damage` 每招伤害、`poise_atk` 出手霸体（挨打掉血不断招）、`lunge_mul` 前冲倍率、`hop` 起手跃起、`enrage` 半血狂暴（冷却×cd、追速×speed，触发一次）；**FLY 状态**（击飞/击退共用：重力抛物线，击退撞同伴手动距离判定双方各吃 impact、撞墙自己吃，落地回硬直）；**`time_stop` 时停**（sprite.process_mode=DISABLED 冻结动画 + 主循环早退，时长按 mob/elite 分档，时停中伤害照算、打死先解冻再 die） |
+| 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at；**多段命中**（`hit_at`/`ranges` 支持数组按段结算）、`damage` 每招伤害、`poise_atk` 出手霸体（挨打掉血不断招）、`lunge_mul` 前冲倍率、`hop` 起手跃起、`enrage` 半血狂暴（冷却×cd、追速×speed，触发一次）；**FLY 状态**（击飞/击退共用：重力抛物线，击退撞同伴手动距离判定双方各吃 impact、撞墙自己吃，落地回硬直）；**`time_stop` 时停**（sprite.process_mode=DISABLED 冻结动画 + 主循环早退，时长按 mob/elite 分档，时停中伤害照算、打死先解冻再 die）；**控制接口 `root(dur)` 定身**（只锁移动、照常出手）与 **`stun(dur)` 晕眩**（锁移动 + 锁出手 + 立即掐掉前摇并交还出手令牌；Boss 时长减半、自定义状态期间不生效） |
 | 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 3 种：c037_elite 大剑骑士 / c018_elite 双镰 / **c012_elite 青笠剑客（前玩家形态转生）**。**除青笠外主角形态不设同名敌人版本**（原 c023_elite 落梅弓手已删，与梅剑共用美术） |
 | 波次刷怪 | `scripts/systems/wave_spawner.gd` | 波次表由 `Run.room_config()` 提供：**冒险**每房 2 波（5~7 只，血量速度递增 + 精英混入）；**无尽**波数/血量/速度/精英数随层数抬升（`Run.endless_waves`）。同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared`。精英血量走「形态表基础值 × `hp_mul`」`configure({"hp_mul": ...})`，普通怪用绝对 `hp` |
 | Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技 + **绕后转身演出**（配 `turn` 动画的 Boss 被穿裆时播调头动画再翻转朝向，不瞬转，转身期不还手是奖励窗口，带冷却防锁死）；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底；**时停可打断冲锋/技能前摇**（boss 档 1s，变身演出冻结不取消）；**霸体免疫击退/击飞**（`launch`/`knock_back` 覆盖为空） |
@@ -274,6 +274,32 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-29 · 力僧（c013）全动画重置 + 金钟罩 / 晕眩 / 倒地链
+
+#### 需求
+第一段普攻与动画完全不符，整套动画重排：普攻只留两段（第 16、18 号），数值提高一档；K 动画不变、两段攻击，第一段横扫范围内击退 + 击退落点定身，第二段不造成伤害、改为给自己上金钟罩（免一次攻击或 8 秒后消失）；L 动画不变、数值加强、命中晕眩（与定身的区别是：既不能移动也不能出手）；U 不变；奔跑换第 19 号、闪避换第 15 号（完美闪避基础时长由闪避动画时长决定）；受击按伤害分档 1→第 1 号、2→第 6 号、>2→第 6 号→第 3 号→第 5 号→第 9 号（起身）；武僧没有残血待机。
+
+#### 已确认数值（用户拍板）
+普攻 2 / 3；K 第一段 3；L 3；K 击退 620 + 撞人 1 伤 + 定身 2s；L 晕眩 2s 且立即打断敌人正在起的招；金钟罩反馈 = 金字「金钟罩」+ 顿帧 + 音效。
+
+#### 做法
+- **`skulls.gd` c013 整块重写**：`anim.run "speed_run"`（19 号）、`anim.dash "skill04"`（15 号，0.583s）；`dash_time 0.583` / `dash_speed 300`（位移约 175px，整段 0.583s 都是完美闪避窗口）；`hurt_tiers {heavy 2, knockdown 3}`；`knock_chain ["atked_heavy","atked_air_heavy","atked_fall_end","getup"]`；普攻 = `skill02_01`（lock 0.44 / hit 0.13 / range 156 / 2 伤）+ `skill02_03`（lock 0.47 / hit 0.26 / range 185 / 3 伤），两段 `both` + lunge 120/130；K `skill01` 两段 hits——0.60s 横扫 range 198 / 3 伤 / `knockback {force 620, impact 1}` / `root 2.0`，1.66s `self_shield {hits 1, time 8}`；L `skill03`（`skill_sweep`）0.87s range 191 / 3 伤 / `stun 2.0`；U `skill02` 原样（reflect + heal 2，3.12s 砸地）。
+- **`player.gd` 通用化**：形态表 `knock_chain` → `_start_hurt_chain/_start_chain_seg/_end_hurt_chain`，段间按 `_anim_durations` 真实时长无缝接续，最后一段与 `anim_map.getup` 同名时整段无敌；技能 hit 字典新增 `self_shield` → `_apply_self_shield()`（`_shield_hits/_shield_time`，`_physics_process` 倒计时；`hurt()` 在 `_hurt_invincible` 检查**之后**优先挡刀：不掉血、不进硬直、金字 + 顿帧 + `gold` 音效）；新增 `_apply_hit_control()` 统一派发 `stun` / `root`，普通命中与投射物命中都调用。
+- **`c016.gd`**：新增 `_stun_timer` + `stun(dur)`（`_root_timer` 归零、交还出手令牌、清 `_attack_hits_left`、ATTACK 立刻回 IDLE）+ `_stun_tick()`（锁移动锁出手；FLY/HURT 照常推进）；`_physics_process` 里晕眩分支放在定身分支之前。**`boss.gd`** 覆盖 `stun()` 为时长减半（与 root 同规则）。
+- ⚠️ **新坑**：`knock_chain` 最后一段必须与 `anim_map.getup` **同名**才挂起身无敌（按名字比对）；链里的动画名必须真实存在，`_setup_spine` 会 `push_error("Player: 倒地链动画不存在 …")` 报出来。
+
+#### 回归
+- `player_test`：c013 换头 / 普攻 / K / L / U（反伤 + 回血 5→7）全绿，无 SCRIPT ERROR。
+- 临时探针（跑完已删）：`hurt(1)`→`atked`；`hurt(2)`→`atked_heavy`；`hurt(3)`→ `atked_heavy`(0.467s) → `atked_air_heavy`(0.5) → `atked_fall_end`(0.6) → `getup`(0.95，无敌) → 2.75s 回 IDLE；金钟罩挡 3 伤 hp 不掉、不进硬直、超时自动散；`c016.stun(2)` 立即打断 ATTACK，2s 内零位移，到点恢复。
+- 沙盒启动无脚本报错。
+
+#### 待用户肉眼验收
+普攻两段手感与范围；K 横扫击退 + 落点定身的节奏；K 第二段金钟罩反馈；L 晕眩 2s 与被晕目标的手感；闪避 0.583s（完美闪避窗口变大）是否过飘；倒地链 6→3→5→9 是否顺畅无跳帧。
+
+#### 已确认 / 待验收
+- Boss 晕眩策略（用户已拍板）：与定身同规则——时长减半；变身/冲锋/僵直等自定义状态期间不生效。
+- 改动暂未提交，等用户肉眼验收后再 commit + push。
 
 ### 2026-10-29 · 双刺（c021）技能重做 + 通用动作接口（受击分档 / 倒地 / 残血待机 / 闪避）
 

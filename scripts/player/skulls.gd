@@ -134,28 +134,45 @@ const SKULLS := {
 		"scale": 0.487, # 骨架 262.9px -> 128px
 		"anim": {
 			"idle": "stand",
-			"run": "run",
-			"dash": "speed_run", # 没有 dash 动画，疾走当冲刺
+			"run": "speed_run", # 第 19 号：疾跑（替换原来的 run）
+			"dash": "skill04", # 第 15 号：0.583s 闪避动画，整段都是完美闪避判定
 			"air": "floated",
-			"hurt": "atked",
+			"hurt": "atked", # 第 1 号：1 点伤害的轻受击
+			"hurt_heavy": "atked_heavy", # 第 6 号：2 点伤害的重受击
+			"getup": "getup", # 第 9 号：起身
 			"dead": "dead",
-			"getup": "getup",
 		},
-		# 探针实测（已乘 0.487）：skill04 前 115@0.35，skill02_01 后侧 156@0.13，skill02_03 后侧 185@0.26
+		# 闪避：动画 skill04 多长（0.583s），完美闪避窗口就多长；速度配合时长把距离压在 175px 左右
+		"dash_time": 0.583,
+		"dash_speed": 300.0,
+		# 受击分档：1 伤=轻（第 1 号 atked）；2 伤=重（第 6 号 atked_heavy）；≥3 伤走下面的整条链
+		"hurt_tiers": {"heavy": 2, "knockdown": 3},
+		# 倒地链（力僧专用）：6 重受击 → 3 浮空重受击 → 5 倒地 → 9 起身，段与段按动画真实时长无缝接续，
+		# 起身段整段无敌；播放期间全程 State.HURT，结束回 IDLE/FALL
+		"knock_chain": ["atked_heavy", "atked_air_heavy", "atked_fall_end", "getup"],
+		# 探针实测（已乘 0.487）：skill02_01 后侧 156@0.13，skill02_03 后侧 185@0.26
 		# 狼牙棒挥砸的落点在原点后方，所以普攻/挥砸类判 both，动画扫到哪边都能命中
+		# 两段普攻（第 16 号 + 第 18 号）：数值比原来 1/1/2 整体抬一档 -> 2 / 3
 		"attacks": [
-			{"anim": "skill04", "lock": 0.62, "hits": [0.34], "damage": 1, "range": 117.0, "lunge": 110.0},
-			{"anim": "skill02_01", "lock": 0.44, "hits": [0.13], "damage": 1, "range": 156.0, "lunge": 120.0, "both": true},
-			{"anim": "skill02_03", "lock": 0.47, "hits": [0.26], "damage": 2, "range": 185.0, "lunge": 130.0, "both": true},
+			{"anim": "skill02_01", "lock": 0.44, "hits": [0.13], "damage": 2, "range": 156.0, "lunge": 120.0, "both": true},
+			{"anim": "skill02_03", "lock": 0.47, "hits": [0.26], "damage": 3, "range": 185.0, "lunge": 130.0, "both": true},
 		],
 		"skills": {
+			# K 横扫（skill01 1.85s，动画不变）：两段挥棒
+			# 0.60s 第一段：前后 198px 全扫，3 伤 + 击退 620（撞人 1 伤）+ 落点定身 2 秒
+			# 1.66s 第二段：不打伤害，给自己挂金钟罩（免疫 1 次攻击，8 秒没挨打就自己散）
 			"skill01": {
 				"action": "skill", "cooldown": 3.5,
-				"hits": [{"at": 0.60, "range": 198.0, "height": 110.0, "damage": 2, "sfx": "skill_fist", "both": true}],
+				"hits": [
+					{"at": 0.60, "range": 198.0, "height": 110.0, "damage": 3, "sfx": "skill_fist", "both": true,
+						"knockback": {"force": 620.0, "impact": 1}, "root": 2.0},
+					{"at": 1.66, "self_shield": {"hits": 1, "time": 8.0}, "sfx": "skill_boom"},
+				],
 			},
+			# L 横扫（skill03 1.5s，动画不变）：伤害 1→3；命中晕眩 2 秒（不能移动也不能出手，立即打断起手）
 			"skill03": {
 				"action": "skill_sweep", "cooldown": 5.0,
-				"hits": [{"at": 0.87, "range": 191.0, "height": 110.0, "damage": 1, "sfx": "voice_fan_hit"}],
+				"hits": [{"at": 0.87, "range": 191.0, "height": 110.0, "damage": 3, "sfx": "voice_fan_hit", "stun": 2.0}],
 			},
 			# 全程举棒蓄力，3.05s 才砸下来：砸地只回血、不打伤害
 			# 定山：蓄力期间自身霸体 + 反伤（挨打把伤害弹回攻击者），砸地回 2 血——站桩挨打换血的坦克循环

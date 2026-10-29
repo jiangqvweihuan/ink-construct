@@ -38,6 +38,8 @@ const SFX_PRECACHE := [
 	"skill_blade",    # skill04 长连段（落叶镖）
 	"hit_fist",       # 玩家受伤
 	"dash_step",      # 冲刺脚步（踏地）
+	"skill_boom",     # 金钟罩上罩（力僧 K 第二段）
+	"gold",           # 金钟罩挡下攻击（金属清响）
 ]
 
 @export var run_speed := 240.0
@@ -97,8 +99,13 @@ var _hurt_heavy_at := 999 # 伤害 ≥ 此值播重击受击
 var _knock_at := 999 # 伤害 ≥ 此值直接倒地
 var _low_hp_ratio := 0.0 # 血量比例 ≤ 此值切残血待机
 var _anim_durations := {} # 通用动画名 -> 真实时长（受击/倒地/起身用）
-var _hurt_phase := "" # 倒地阶段："" / "fall" / "getup"
+var _hurt_phase := "" # 倒地阶段："" / "fall" / "getup" / "chain"
 var _hurt_getup_dur := 0.0 # 倒地流程里起身段时长（剩余时间跨过它就进入起身无敌）
+var _knock_chain: Array = [] # 倒地链（形态表 knock_chain）：重受击逐段接续，最后一段起身（力僧）
+var _hurt_chain: Array = [] # 倒地链剩余段：[{anim, dur}]
+var _hurt_seg_left := 0.0 # 当前段剩余时间
+var _shield_hits := 0 # 金钟罩剩余免伤次数（力僧 K 第二段）
+var _shield_time := 0.0 # 金钟罩剩余秒数（到点自动消失）
 var _mastery_cd := 1.0 # 契合 Lv1：该形态技能冷却倍率
 var _mastery_dmg := 0 # 契合 Lv2：该形态普攻加伤
 var body_radius := 30.0 # 受击半径：挨打按"攻击方射程 + 本半径"判定（与小怪/Boss 同一规则）
@@ -224,6 +231,12 @@ func _apply_profile(id: String) -> void:
 	_knock_at = int(tiers.get("knockdown", 999))
 	_hurt_phase = ""
 	_hurt_getup_dur = 0.0
+	# 倒地链（力僧）：不配就退回"单段 fall → getup"的老流程
+	_knock_chain = profile.get("knock_chain", []).duplicate()
+	_hurt_chain.clear()
+	_hurt_seg_left = 0.0
+	_shield_hits = 0
+	_shield_time = 0.0
 	# 换头后按新形态重算流派强化：旧形态的卡休眠，新形态的卡生效
 	_apply_form_mods()
 
@@ -428,6 +441,16 @@ func _setup_spine() -> void:
 		var a = data.call("find_animation", an)
 		if a != null:
 			_anim_durations[an] = a.call("get_duration")
+	# 倒地链里的每段也要有真实时长（力僧：重受击 / 浮空重受击 / 倒地 / 起身）
+	for n in _knock_chain:
+		var cn := str(n)
+		if _anim_durations.has(cn):
+			continue
+		var ca = data.call("find_animation", cn)
+		if ca != null:
+			_anim_durations[cn] = ca.call("get_duration")
+		else:
+			push_error("Player: 倒地链动画不存在 " + cn)
 	_current_anim = ""
 	_play(anim_map["idle"], true)
 
@@ -438,6 +461,11 @@ func _physics_process(delta: float) -> void:
 	_dash_cd = maxf(0.0, _dash_cd - delta)
 	_hurt_invincible = maxf(0.0, _hurt_invincible - delta)
 	_lifesteal_cd = maxf(0.0, _lifesteal_cd - delta) # 饮血内置冷却
+	# 金钟罩（力僧 K 第二段）：8 秒内没挨打就自动散
+	if _shield_hits > 0:
+		_shield_time = maxf(0.0, _shield_time - delta)
+		if _shield_time <= 0.0:
+			_shield_hits = 0
 	_buff_timer = maxf(0.0, _buff_timer - delta) # 觉醒 buff 倒计时
 	_stop_buff_timer = maxf(0.0, _stop_buff_timer - delta) # 时停加伤倒计时
 	for n in _skill_cds:
@@ -803,6 +831,9 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		for i in proj_extra + 1: # 双发齐射
 			_spawn_projectile(h["projectile"], int(h["damage"]) + damage_bonus + _proj_damage_bonus + _buff_now(), str(h.get("sfx", "")), i * 26.0)
 		return
+	# 免伤护罩段（力僧 K 第二段）：不打伤害，给自己挂金钟罩
+	if h.has("self_shield"):
+		_apply_self_shield(h["self_shield"])
 	# 纯回血段（力僧定山砸地）：不打伤害，只结算回血与砸地音
 	if not h.has("damage"):
 		_apply_skill_heal(h)
@@ -830,6 +861,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				Score.add_hit()
 				_apply_hit_bleed(p, h)
 				_skill_kinetic(p, h)
+				_apply_hit_control(p, h)
 				var mx := (global_position.x + p.global_position.x) * 0.5
 				FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
 				did_hit = true
@@ -841,6 +873,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				Score.add_hit()
 				_apply_hit_bleed(p, h)
 				_skill_kinetic(p, h)
+				_apply_hit_control(p, h)
 				var mx := (global_position.x + p.global_position.x) * 0.5
 				FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
 				did_hit = true
@@ -876,6 +909,32 @@ func _skill_kinetic(p: Node2D, h: Dictionary) -> void:
 	var kb: Dictionary = h.get("knockback", {})
 	if not kb.is_empty():
 		p.call("knock_back", facing, float(kb.get("force", 620.0)), int(kb.get("impact", 1)))
+
+
+## 技能命中附加控制（敌人侧接口）：
+## root=定身秒数（力僧 K：轰飞后钉在落点，只锁移动、照常出手）
+## stun=晕眩秒数（力僧 L：锁移动也锁出手，立即打断正在起的招）
+func _apply_hit_control(p: Node2D, h: Dictionary) -> void:
+	if int(p.get("hp")) <= 0:
+		return
+	var stun := float(h.get("stun", 0.0))
+	if stun > 0.0 and p.has_method("stun"):
+		p.call("stun", stun)
+	var root := float(h.get("root", 0.0))
+	if root > 0.0 and p.has_method("root"):
+		p.call("root", root)
+
+
+## 金钟罩（力僧 K 第二段）：给自己挂一次免伤，免疫下一次攻击；time 秒内没挨打也自动散
+func _apply_self_shield(spec: Dictionary) -> void:
+	_shield_hits = maxi(_shield_hits, int(spec.get("hits", 1)))
+	_shield_time = maxf(_shield_time, float(spec.get("time", 8.0)))
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("金钟罩", Color(0.9, 0.75, 0.3)) # 金：护体成功提示
+	dn.global_position = global_position + Vector2(0, -150)
+	get_tree().current_scene.add_child(dn)
+	_play_sfx("skill_boom")
+	Feel.hitstop(0.05)
 
 
 ## 技能命中附加流血：双刺 L「裂帛」用，每次命中叠一层（敌人侧 apply_bleed 结算，直扣血不进硬直）
@@ -977,8 +1036,17 @@ func _idle_anim() -> String:
 
 
 func _hurt_tick(delta: float) -> void:
-	_hurt_timer -= delta
 	velocity.x = move_toward(velocity.x, 0.0, accel * delta)
+	# 倒地链（力僧）：逐段按动画真实时长接续，段与段之间无缝，起身段整段无敌
+	if _hurt_phase == "chain":
+		_hurt_seg_left -= delta
+		while _hurt_seg_left <= 0.0:
+			if _hurt_chain.is_empty():
+				_end_hurt_chain()
+				return
+			_start_chain_seg()
+		return
+	_hurt_timer -= delta
 	# 倒地流程分两段：fall 播完进 getup，起身段整段无敌（避免被压在倒地循环里起不来）
 	if _hurt_phase == "fall" and _hurt_timer <= _hurt_getup_dur:
 		_hurt_phase = "getup"
@@ -988,6 +1056,41 @@ func _hurt_tick(delta: float) -> void:
 		_hurt_getup_dur = 0.0
 		_invincible = false
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
+
+
+## 倒地链起手：把形态表 knock_chain 展开成带真实时长的段队列，立刻播第一段
+func _start_hurt_chain(knockback: Vector2) -> void:
+	state = State.HURT
+	_hurt_phase = "chain"
+	_hurt_chain.clear()
+	for n in _knock_chain:
+		var an := str(n)
+		_hurt_chain.append({"anim": an, "dur": float(_anim_durations.get(an, 0.3))})
+	_hurt_seg_left = 0.0
+	velocity = knockback * 0.6
+	_idle_queued = false
+	_invincible = false
+	_start_chain_seg()
+
+
+## 播链里的下一段：起身段一开始就挂无敌（与普通倒地流程同一规则）
+func _start_chain_seg() -> void:
+	if _hurt_chain.is_empty():
+		_end_hurt_chain()
+		return
+	var seg: Dictionary = _hurt_chain.pop_front()
+	_hurt_seg_left = float(seg["dur"])
+	if str(seg["anim"]) == str(anim_map.get("getup", "")):
+		_invincible = true
+	_play(str(seg["anim"]), false)
+
+
+func _end_hurt_chain() -> void:
+	_hurt_phase = ""
+	_hurt_chain.clear()
+	_hurt_seg_left = 0.0
+	_invincible = false
+	_set_state(State.IDLE if is_on_floor() else State.FALL)
 
 
 ## 给 HUD 查技能冷却进度：返回 0（就绪）~ 1（刚放完）。未知技能返回 0。
@@ -1169,6 +1272,8 @@ func swap_skull(id: String) -> void:
 	_skill_tick_acc = 0.0
 	_skill_teleport = 0.0
 	_skill_root_follow = false # 新骨架自带 position 0，这里只清标记，别把旧形态的位移带过来
+	_shield_hits = 0 # 金钟罩属于形态技能，换头即散
+	_shield_time = 0.0
 	_buff_timer = 0.0 # 觉醒属于银夜，换头即散
 	_stop_buff_timer = 0.0 # 时停加伤同理
 	_hover_left = 0.0
@@ -1213,6 +1318,19 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		return
 	if _hurt_invincible > 0.0:
 		return
+	# 金钟罩（力僧 K 第二段）：免疫这一下，挡完即散（8 秒没挨打也会自动消失）
+	if _shield_hits > 0:
+		_shield_hits = 0
+		_shield_time = 0.0
+		var shield_dn := DAMAGE_NUMBER.new()
+		shield_dn.setup("金钟罩", Color(0.9, 0.75, 0.3)) # 金：与完美闪避同色系
+		shield_dn.global_position = global_position + Vector2(0, -150)
+		get_tree().current_scene.add_child(shield_dn)
+		FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.5})
+		_play_sfx("gold")
+		Feel.hitstop(0.06)
+		Feel.shake(3.0, 0.1)
+		return
 	amount = maxi(1, amount - _damage_reduce) # 铁骨/禅定：减伤，但最低仍吃 1 点
 	_hurt_invincible = 0.8
 	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
@@ -1248,10 +1366,15 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	# 霸体（力僧形态专属 + 定山技能自带）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
 	if (poise or _skill_poise) and state == State.SKILL:
 		return
-	# 伤害过阈值直接倒地：播 fall → getup（起身段无敌），重型攻击的惩罚更直观
-	if _knock_at < 999 and _fall_anim != "" and amount >= _knock_at:
-		_start_knockdown(knockback)
-		return
+	# 伤害过阈值直接倒地：播 fall → getup（起身段无敌），重型攻击的惩罚更直观；
+	# 形态表配了 knock_chain（力僧：重受击→浮空重受击→倒地→起身）就走整条链
+	if _knock_at < 999 and amount >= _knock_at:
+		if not _knock_chain.is_empty():
+			_start_hurt_chain(knockback)
+			return
+		if _fall_anim != "":
+			_start_knockdown(knockback)
+			return
 	# 受击分档：轻击 atked / 重击 atked_heavy，状态时长按动画真实长度锁
 	var hurt_anim := str(anim_map["hurt"])
 	if _hurt_heavy_at < 999 and amount >= _hurt_heavy_at:
@@ -1315,6 +1438,8 @@ func die() -> void:
 	state = State.DEAD
 	_set_blink(false) # 尸体也别穿怪
 	_reset_root_follow() # 死亡时收掉根骨补偿，尸体倒在实际站位
+	_shield_hits = 0 # 死了金钟罩也散
+	_shield_time = 0.0
 	velocity = Vector2.ZERO
 	_idle_queued = false
 	_invincible = false
