@@ -22,12 +22,23 @@ const SKULLS := {
 		"anim": {
 			"idle": "stand",
 			"run": "run",
-			"dash": "dash_front",
+			"dash": "dash_front", # 第 14 号：0.5s 闪避动画，整段都是完美闪避判定
 			"air": "floated",
-			"hurt": "atked",
+			"hurt": "atked", # 第 6 号：轻击受击
+			"hurt_heavy": "atked_heavy", # 第 11 号：重击受击
+			"fall": "atked_fall_end", # 第 10 号：倒地（伤害过阈值）
+			"getup": "getup", # 第 17 号：倒地后起身
+			"low_idle": "weak", # 第 32 号：残血待机（< 20% 生命）
 			"dead": "dead",
-			"getup": "getup",
 		},
+		"body_radius": 30.0,
+		# 闪避：整段动画（dash_front 0.5s）都算完美闪避；速度压到 340 保持位移不过分夸张
+		"dash_time": 0.5,
+		"dash_speed": 340.0,
+		# 受击分档：1 伤=轻（atked）、≥2 伤=重（atked_heavy）、≥3 伤=倒地（atked_fall_end → getup）
+		"hurt_tiers": {"heavy": 2, "knockdown": 3},
+		# 残血待机：血量比例 ≤ 20% 时待机切 weak（其他形态可照抄这一组字段）
+		"low_hp_ratio": 0.2,
 		# 每段普攻：lock=锁定总时长，hits=命中时刻（动画秒），range=正前方判定距离，lunge=前冲速度
 		"attacks": [
 			{"anim": "atk01", "lock": 0.55, "hits": [0.34], "damage": 1, "range": 100.0, "lunge": 110.0},
@@ -36,28 +47,39 @@ const SKULLS := {
 			{"anim": "atk03", "lock": 1.30, "hits": [0.26, 0.72], "damage": 1, "range": 95.0, "lunge": 120.0, "both": true},
 		],
 		"skills": {
+			# K 穿影突刺（第 19 号 skill01，1.567s）：0.75~1.28s 隐身前冲穿过敌人，1.30s 现身一刀。
+			# speed 1.4 提速去掉"顿感"，blink_speed 同步 ×1.4 保持原位移距离；invincible 整段无敌
+			# （对齐银夜 O 的位移技规则）。时刻表仍按动画秒标定，提速后自动对齐。
 			"skill01": {
-				"action": "skill", "cooldown": 3.0,
+				"action": "skill", "cooldown": 3.0, "speed": 1.4, "invincible": true,
 				"hits": [{"at": 1.30, "range": 100.0, "height": 90.0, "damage": 2, "path": true, "sfx": "hit_heavy"}],
-				"blink_from": 0.75, "blink_to": 1.28, "blink_speed": 520.0,
+				"blink_from": 0.75, "blink_to": 1.28, "blink_speed": 730.0,
 			},
-			"skill03": {
-				"action": "skill_sweep", "cooldown": 5.0,
+			# L 罗刹旋舞（第 28 号 skill5-，2.583s）：原地无敌的高额多段斩，时长按动画走。
+			# 四段命中时刻来自 range_probe 峰值（0.79/1.33/1.80/2.25s，属双向旋转斩，both）。
+			# 特殊机制·裂帛：每次命中叠一层流血（每层每秒 1 伤，最多 5 层，持续 5 秒）——
+			# 打肉山/Boss 时越砍越疼，符合"双匕割裂"的形象。
+			"skill5-": {
+				"action": "skill_sweep", "cooldown": 10.0, "invincible": true,
 				"hits": [
-					{"at": 1.00, "range": 75.0, "height": 90.0, "damage": 1, "sfx": "skill_fist", "both": true},
-					{"at": 2.05, "range": 88.0, "height": 110.0, "damage": 1, "sfx": "voice_fan_hit", "both": true},
+					{"at": 0.79, "range": 125.0, "height": 110.0, "damage": 2, "both": true, "sfx": "skill_blade", "bleed": 1},
+					{"at": 1.33, "range": 105.0, "height": 110.0, "damage": 2, "both": true, "sfx": "voice_fan_hit", "bleed": 1},
+					{"at": 1.80, "range": 125.0, "height": 110.0, "damage": 2, "both": true, "sfx": "skill_fist", "bleed": 1},
+					{"at": 2.25, "range": 90.0, "height": 110.0, "damage": 2, "both": true, "sfx": "hit_heavy", "bleed": 1},
 				],
 			},
-			"skill04": {
+			# U 掷匕·缚（第 25 号 skill02-cankao，2.05s）：远程投掷一把双刺（1.43s 出手），
+			# 命中后定身 3 秒（期间敌人不能移动但可以出手），并从命中点分裂出第二把继续飞。
+			# 无 blink / teleport：位移只靠起手小前冲，不会出现闪现或残影。
+			"skill02-cankao": {
 				"action": "skill_ult", "cooldown": 9.0,
-				"hits": [
-					{"at": 1.30, "range": 82.0, "height": 100.0, "damage": 1, "sfx": "skill_blade"},
-					{"at": 1.90, "range": 97.0, "height": 100.0, "damage": 1, "sfx": "skill_blade"},
-					{"at": 2.90, "range": 72.0, "height": 110.0, "damage": 1, "sfx": "skill_blade"},
-				],
+				"hits": [{
+					"at": 1.43, "damage": 2, "sfx": "skill_blade",
+					"projectile": {"speed": 900.0, "range": 460.0, "root": 3.0, "split": 1, "style": "dagger"},
+				}],
 			},
 		},
-		"hud_skills": ["skill01", "skill03", "skill04"],
+		"hud_skills": ["skill01", "skill5-", "skill02-cankao"],
 	},
 	"c023": {
 		"label": "梅剑", # 代称：黑袍白发 + 梅花枝长剑

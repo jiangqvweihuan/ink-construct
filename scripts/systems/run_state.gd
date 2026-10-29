@@ -47,8 +47,8 @@ const UPGRADES := {
 	"cooldown": {"label": "静心", "desc": "技能冷却 -15%", "max": 3, "icon": "icon_undo"},
 	"hp": {"label": "铁骨", "desc": "生命上限 +1，并回满", "max": 3, "icon": "icon_potion"},
 	"swap": {"label": "轻骨", "desc": "换头消耗 -3 墨骨", "max": 2, "icon": "icon_currency"},
-	# 疾影：冲刺时长 +20% —— 冲刺距离与"完美闪避"判定窗口同步变长，回收冲刺冷却 -10%
-	"dash": {"label": "疾影", "desc": "冲刺更远，完美闪避窗口更长", "max": 3, "icon": "icon_arrow_up"},
+	# 疾影：闪避时长 +20% —— 闪避距离与"完美闪避"判定窗口同步变长，回收闪避冷却 -10%
+	"dash": {"label": "疾影", "desc": "闪避更远，完美闪避窗口更长", "max": 3, "icon": "icon_arrow_up"},
 	# 掠影：完美闪避的收益直接加档（加伤与垫底无敌一起抬）
 	"dodge": {"label": "掠影", "desc": "完美闪避赏伤 +1、无敌 +0.2 秒", "max": 2, "icon": "icon_medal"},
 }
@@ -58,16 +58,16 @@ const UPGRADES := {
 ## theme 给面板配色用（0 朱砂 / 1 墨青 / 2 赭金）。
 ## 只对当前形态生效：换头后旧形态的卡休眠，换回来再生效（player._apply_form_mods 过滤 forms）。
 const FORM_UPGRADES := {
-	# ---------- 双刺·冷红绫：吸血续航 / 群战范围 / 冲刺输出 ----------
+	# ---------- 双刺·冷红绫：吸血续航 / 群战范围 / 闪避输出 ----------
 	"c021_blood_1": {"label": "血饮 · 初", "desc": "技能命中回 1 生命（6 秒一次）", "max": 1, "icon": "icon_potion", "forms": ["c021"], "path": "血饮", "tier": 1, "theme": 0},
 	"c021_blood_2": {"label": "血饮 · 续", "desc": "回血升到 2，间隔缩到 4 秒", "max": 1, "icon": "icon_potion", "forms": ["c021"], "path": "血饮", "tier": 2, "theme": 0, "req": "c021_blood_1"},
 	"c021_blood_3": {"label": "血饮 · 极", "desc": "回血同时 4 秒内全伤害 +1", "max": 1, "icon": "icon_potion", "forms": ["c021"], "path": "血饮", "tier": 3, "theme": 0, "req": "c021_blood_2"},
 	"c021_sweep_1": {"label": "锋扫 · 初", "desc": "攻击范围 +30%", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "锋扫", "tier": 1, "theme": 1},
 	"c021_sweep_2": {"label": "锋扫 · 续", "desc": "范围再 +25%，普攻伤害 +1", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "锋扫", "tier": 2, "theme": 1, "req": "c021_sweep_1"},
 	"c021_sweep_3": {"label": "锋扫 · 极", "desc": "范围再 +20%，普攻伤害再 +1", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "锋扫", "tier": 3, "theme": 1, "req": "c021_sweep_2"},
-	"c021_dash_1": {"label": "疾刃 · 初", "desc": "冲刺终点斩身前敌人，1 伤", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 1, "theme": 2},
-	"c021_dash_2": {"label": "疾刃 · 续", "desc": "冲刺斩 2 伤，命中即回满冲刺", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 2, "theme": 2, "req": "c021_dash_1"},
-	"c021_dash_3": {"label": "疾刃 · 极", "desc": "冲刺斩 3 伤，命中回 1 墨骨", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 3, "theme": 2, "req": "c021_dash_2"},
+	"c021_dash_1": {"label": "疾刃 · 初", "desc": "闪避终点斩身前敌人，1 伤", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 1, "theme": 2},
+	"c021_dash_2": {"label": "疾刃 · 续", "desc": "闪避斩 2 伤，命中即回满闪避", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 2, "theme": 2, "req": "c021_dash_1"},
+	"c021_dash_3": {"label": "疾刃 · 极", "desc": "闪避斩 3 伤，命中回 1 墨骨", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 3, "theme": 2, "req": "c021_dash_2"},
 	# ---------- 梅剑·白疏影：鞭术范围 / 内劲转鞭 / 铁骨站桩 ----------
 	"c023_whip_1": {"label": "鞭术 · 初", "desc": "攻击范围 +25%", "max": 1, "icon": "icon_sword", "forms": ["c023"], "path": "鞭术", "tier": 1, "theme": 0},
 	"c023_whip_2": {"label": "鞭术 · 续", "desc": "范围再 +25%，普攻伤害 +1", "max": 1, "icon": "icon_sword", "forms": ["c023"], "path": "鞭术", "tier": 2, "theme": 0, "req": "c023_whip_1"},

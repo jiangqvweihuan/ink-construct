@@ -25,12 +25,12 @@ const ENEMY_ORDER := ["c016", "z002", "c017", "c035", "c018", "c012", "c037"]
 ## 技能键位：与形态表 hud_skills 的顺序一一对应
 const KEY_NAMES := ["K", "L", "U", "I", "O"]
 
-## 化身通用动作：图鉴里也能悬停看待机 / 奔跑 / 冲刺 / 滞空 / 受击 / 倒地
+## 化身通用动作：图鉴里也能悬停看待机 / 奔跑 / 闪避 / 滞空 / 受击 / 倒地
 const ACT_ORDER := ["idle", "run", "dash", "air", "hurt", "dead"]
 const ENEMY_ACT_ORDER := ["idle", "patrol", "chase", "hurt", "dead"]
 const ACT_LABEL := {
 	"idle": "待机", "patrol": "巡逻", "chase": "追击", "run": "奔跑",
-	"dash": "冲刺", "air": "滞空", "hurt": "受击", "dead": "倒地",
+	"dash": "闪避", "air": "滞空", "hurt": "受击", "dead": "倒地",
 }
 
 ## 条目卡：左栏 2 列 × 6 行（当前最多 12 条：7 敌人 + 5 Boss）
@@ -490,6 +490,11 @@ func _skill_num(cfg: Dictionary) -> String:
 		parts.append("%d伤%s" % [dmg, ("×%d" % cnt) if cnt > 1 else ""])
 	if cfg.has("stop"):
 		parts.append("时停")
+	# 远程技能：命中段里带 projectile 就是扔东西出去
+	for h in cfg.get("hits", []):
+		if typeof(h) == TYPE_DICTIONARY and (h as Dictionary).has("projectile"):
+			parts.append("远程")
+			break
 	return " ｜ ".join(parts)
 
 
@@ -510,6 +515,21 @@ func _skill_desc(cfg: Dictionary) -> String:
 		tags.append("瞬步位移")
 	if cfg.has("knockback"):
 		tags.append("击退撞墙")
+	# 命中追加效果：叠流血 / 命中定身（都写在 hits 段的可选字段里）
+	var bleed := false
+	var root := false
+	for h in cfg.get("hits", []):
+		if typeof(h) != TYPE_DICTIONARY:
+			continue
+		if int((h as Dictionary).get("bleed", 0)) > 0:
+			bleed = true
+		var proj = (h as Dictionary).get("projectile", null)
+		if typeof(proj) == TYPE_DICTIONARY and float((proj as Dictionary).get("root", 0.0)) > 0.0:
+			root = true
+	if bleed:
+		tags.append("命中叠流血")
+	if root:
+		tags.append("命中定身")
 	return " · ".join(tags)
 
 

@@ -83,6 +83,18 @@ var _attack_queued := false
 var _attack_hits: Array = [] # 本段普攻剩余待结算的命中时刻（动画秒），按升序弹出
 var _hurt_timer := 0.0
 var _hurt_invincible := 0.0 # 受伤后的短暂无敌：被围殴时不会一帧连掉好几血
+# ---------- 通用动作接口（形态表按需开启；未配 = 退回旧行为，新角色照抄这组字段即可） ----------
+var _dash_time_base := 0.0 # 闪避时长 = 闪避动画长度（完美闪避判定窗口）
+var _dash_speed_base := 0.0 # 闪避位移速度（配合时长控制总距离）
+var _hurt_heavy_anim := "" # 重击受击动画（不配 = 用普通 hurt）
+var _fall_anim := "" # 倒地动画（不配 = 没有倒地机制）
+var _low_idle_anim := "" # 残血待机动画（不配 = 始终普通待机）
+var _hurt_heavy_at := 999 # 伤害 ≥ 此值播重击受击
+var _knock_at := 999 # 伤害 ≥ 此值直接倒地
+var _low_hp_ratio := 0.0 # 血量比例 ≤ 此值切残血待机
+var _anim_durations := {} # 通用动画名 -> 真实时长（受击/倒地/起身用）
+var _hurt_phase := "" # 倒地阶段："" / "fall" / "getup"
+var _hurt_getup_dur := 0.0 # 倒地流程里起身段时长（剩余时间跨过它就进入起身无敌）
 var _mastery_cd := 1.0 # 契合 Lv1：该形态技能冷却倍率
 var _mastery_dmg := 0 # 契合 Lv2：该形态普攻加伤
 var body_radius := 30.0 # 受击半径：挨打按"攻击方射程 + 本半径"判定（与小怪/Boss 同一规则）
@@ -192,6 +204,18 @@ func _apply_profile(id: String) -> void:
 	_qg_jump_mul_base = float(qg.get("jump_mul", 1.0))
 	_qg_hover_base = float(qg.get("hover", 0.0))
 	_dash_anim_speed = float(profile.get("dash_anim_speed", 1.0)) # 短冲刺动画可慢放（银夜 autorush 只有 0.083s）
+	# 通用动作接口：闪避时长/速度、受击分档、倒地、残血待机（形态表不配就走默认值）
+	_dash_time_base = float(profile.get("dash_time", dash_time))
+	_dash_speed_base = float(profile.get("dash_speed", dash_speed))
+	_hurt_heavy_anim = str(anim_map.get("hurt_heavy", anim_map["hurt"]))
+	_fall_anim = str(anim_map.get("fall", ""))
+	_low_idle_anim = str(anim_map.get("low_idle", ""))
+	_low_hp_ratio = float(profile.get("low_hp_ratio", 0.0))
+	var tiers: Dictionary = profile.get("hurt_tiers", {})
+	_hurt_heavy_at = int(tiers.get("heavy", 999))
+	_knock_at = int(tiers.get("knockdown", 999))
+	_hurt_phase = ""
+	_hurt_getup_dur = 0.0
 	# 换头后按新形态重算流派强化：旧形态的卡休眠，新形态的卡生效
 	_apply_form_mods()
 
@@ -384,6 +408,16 @@ func _setup_spine() -> void:
 				_attack_durations[an_str] = aa.call("get_duration")
 			else:
 				push_error("Player: 普攻动画不存在 " + an_str)
+	# 通用动作时长（受击分档 / 倒地 / 起身 / 残血待机）：按实际动画长度锁状态，
+	# 手填时长会在短动画上收招早半拍、长动画上卡半拍
+	_anim_durations.clear()
+	for k in anim_map:
+		var an := str(anim_map[k])
+		if an == "" or _anim_durations.has(an):
+			continue
+		var a = data.call("find_animation", an)
+		if a != null:
+			_anim_durations[an] = a.call("get_duration")
 	_current_anim = ""
 	_play(anim_map["idle"], true)
 
@@ -420,6 +454,12 @@ func _physics_process(delta: float) -> void:
 			_hurt_tick(delta)
 		State.DEAD:
 			velocity.x = 0.0
+
+	# 残血待机：待机时按血量比例实时切换（技能/受击/倒地结束后也会自动接管）
+	if state == State.IDLE:
+		var want_idle := _idle_anim()
+		if want_idle != _current_anim:
+			_play(want_idle, true)
 
 	if state != State.DASH:
 		# 轻功悬停（银夜）：跃过顶点后滞留一小段，期间不落——velocity.y 快归零时触发
@@ -469,7 +509,7 @@ func _air_move(delta: float) -> void:
 
 func _dash_tick(delta: float) -> void:
 	_dash_timer -= delta
-	velocity = Vector2(facing * dash_speed, 0.0)
+	velocity = Vector2(facing * _dash_speed_base, 0.0)
 	if _dash_timer <= 0.0:
 		var cut := _dash_attack() # 疾刃：冲刺收尾斩身前一刀
 		_dash_cd = 0.0 if (cut and _dash_attack_refund) else dash_cooldown * _dash_cd_scale
@@ -734,6 +774,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			if in_path or (ahead and absf(dx) <= h["range"] * range_scale + _radius_of(p)):
 				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)), global_position.x)
 				Score.add_hit()
+				_apply_hit_bleed(p, h)
 				_skill_kinetic(p, h)
 				var mx := (global_position.x + p.global_position.x) * 0.5
 				FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
@@ -744,6 +785,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"] * range_scale + _radius_of(p):
 				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)), global_position.x)
 				Score.add_hit()
+				_apply_hit_bleed(p, h)
 				_skill_kinetic(p, h)
 				var mx := (global_position.x + p.global_position.x) * 0.5
 				FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
@@ -780,6 +822,15 @@ func _skill_kinetic(p: Node2D, h: Dictionary) -> void:
 	var kb: Dictionary = h.get("knockback", {})
 	if not kb.is_empty():
 		p.call("knock_back", facing, float(kb.get("force", 620.0)), int(kb.get("impact", 1)))
+
+
+## 技能命中附加流血：双刺 L「裂帛」用，每次命中叠一层（敌人侧 apply_bleed 结算，直扣血不进硬直）
+func _apply_hit_bleed(p: Node2D, h: Dictionary) -> void:
+	var layers := int(h.get("bleed", 0))
+	if layers <= 0 or int(p.get("hp")) <= 0:
+		return
+	if p.has_method("apply_bleed"):
+		p.call("apply_bleed", layers)
 
 
 ## 技能自带回血段：与是否命中无关，带 "heal" 字段的技能（力僧砸地、银夜觉醒等）走这里
@@ -856,15 +907,32 @@ func try_reflect_ranged(damage: int, from_x: float, attacker: Node = null) -> bo
 ## 发一颗投射物：从胸口高度出手，沿朝向直线飞
 func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0) -> void:
 	var pr = PROJECTILE.new()
-	pr.setup(facing, float(spec.get("speed", 520.0)) * _proj_speed_scale, float(spec.get("range", 420.0)) * _proj_range_scale, damage, sfx, proj_pierce)
+	# root=命中定身秒数；split=命中后分裂出的第二把数量；style=dagger 画短匕（默认剑气弧）
+	pr.setup(facing, float(spec.get("speed", 520.0)) * _proj_speed_scale, float(spec.get("range", 420.0)) * _proj_range_scale,
+		damage, sfx, proj_pierce, float(spec.get("root", 0.0)), int(spec.get("split", 0)), str(spec.get("style", "qi")))
 	pr.global_position = global_position + Vector2(facing * 36.0, -52.0 + y_off)
 	get_tree().current_scene.add_child(pr)
+
+
+## 当前该用的待机动画：残血形态（weak 之类）优先，其余回普通 stand
+func _idle_anim() -> String:
+	if _low_idle_anim != "" and _low_hp_ratio > 0.0 \
+			and float(hp) / float(maxi(1, max_hp)) <= _low_hp_ratio:
+		return _low_idle_anim
+	return str(anim_map["idle"])
 
 
 func _hurt_tick(delta: float) -> void:
 	_hurt_timer -= delta
 	velocity.x = move_toward(velocity.x, 0.0, accel * delta)
+	# 倒地流程分两段：fall 播完进 getup，起身段整段无敌（避免被压在倒地循环里起不来）
+	if _hurt_phase == "fall" and _hurt_timer <= _hurt_getup_dur:
+		_hurt_phase = "getup"
+		_invincible = true
 	if _hurt_timer <= 0.0:
+		_hurt_phase = ""
+		_hurt_getup_dur = 0.0
+		_invincible = false
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
 
 
@@ -900,7 +968,7 @@ func _try_jump() -> void:
 func _try_dash() -> void:
 	if Input.is_action_just_pressed("dash") and _dash_cd <= 0.0:
 		state = State.DASH
-		_dash_timer = dash_time * _dash_time_scale # 疾影：冲刺更久 = 更远 + 完美闪避窗口更长
+		_dash_timer = _dash_time_base * _dash_time_scale # 闪避时长 = 形态闪避动画长度（整段都是完美闪避）
 		_play(anim_map["dash"], false, _dash_anim_speed)
 		_play_sfx("dash_step") # 冲刺踏地声，补上原本只有画面没有声音的空档
 
@@ -1106,7 +1174,9 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 			_hurt_invincible = 1.5 # 起身喘口气，别立刻又被围殴
 			hp_changed.emit(hp, max_hp)
 			state = State.HURT
-			_hurt_timer = hurt_time
+			_hurt_phase = ""
+			_hurt_getup_dur = 0.0
+			_hurt_timer = float(_anim_durations.get(str(anim_map["getup"]), hurt_time))
 			velocity = knockback
 			_play(anim_map["getup"], false)
 			_queue(anim_map["idle"], true)
@@ -1117,12 +1187,39 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	# 霸体（力僧形态专属 + 定山技能自带）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
 	if (poise or _skill_poise) and state == State.SKILL:
 		return
+	# 伤害过阈值直接倒地：播 fall → getup（起身段无敌），重型攻击的惩罚更直观
+	if _knock_at < 999 and _fall_anim != "" and amount >= _knock_at:
+		_start_knockdown(knockback)
+		return
+	# 受击分档：轻击 atked / 重击 atked_heavy，状态时长按动画真实长度锁
+	var hurt_anim := str(anim_map["hurt"])
+	if _hurt_heavy_at < 999 and amount >= _hurt_heavy_at:
+		hurt_anim = _hurt_heavy_anim
 	state = State.HURT
-	_hurt_timer = hurt_time
+	_hurt_phase = ""
+	_hurt_getup_dur = 0.0
+	_hurt_timer = maxf(hurt_time, float(_anim_durations.get(hurt_anim, hurt_time)))
 	velocity = knockback
 	_idle_queued = false # set_animation 已清掉队列里的 stand
 	_invincible = false
-	_play(anim_map["hurt"], false)
+	_play(hurt_anim, false)
+
+
+## 倒地：播倒地动画 → 接起身动画（起身段无敌）。hp 已扣完且未死亡时才走这里
+func _start_knockdown(knockback: Vector2) -> void:
+	var getup_anim := str(anim_map.get("getup", anim_map["hurt"]))
+	var fall_dur := float(_anim_durations.get(_fall_anim, 0.5))
+	_hurt_getup_dur = float(_anim_durations.get(getup_anim, 0.5))
+	state = State.HURT
+	_hurt_phase = "fall"
+	_hurt_timer = fall_dur + _hurt_getup_dur
+	velocity = knockback * 0.6
+	_idle_queued = false
+	_invincible = false
+	_play(_fall_anim, false)
+	_queue(getup_anim, false)
+	_queue(anim_map["idle"], true)
+	_idle_queued = true # 起身后 stand 已在队列里，_set_state 只同步不重开
 
 
 func _spawn_number(amount: int, color: Color, height: float) -> void:

@@ -13,16 +13,10 @@ const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.82, 0.79, 0.72)
 const RED := Color(0.66, 0.2, 0.16)
 
-## 两种模式的卡面文案；数值成长写在 run_state.endless_waves，这里只讲"怎么玩"
+## 两种模式的卡面文案（只留名字，别写解释性小作文）；数值成长写在 run_state.endless_waves
 const MODES := {
-	"adventure": {
-		"label": "冒 险 模 式",
-		"desc": "三小关 + 一头 Boss\n\n斩掉 Boss 即通关\n通关计入解锁进度",
-	},
-	"endless": {
-		"label": "无 尽 模 式",
-		"desc": "每层都是三小关 + Boss\n\n层数越高，敌人越厚越快\n不计通关，只比谁走得深",
-	},
+	"adventure": {"label": "冒 险 模 式"},
+	"endless": {"label": "无 尽 模 式"},
 }
 
 var _mode := ""
@@ -66,7 +60,6 @@ func _build() -> void:
 
 	if _step == 0:
 		_label("选 择 模 式", 100, 44, PAPER)
-		_label("冒险通关可攒解锁，无尽比谁走得深", 174, 18, DIM)
 		var modes := MODES.keys()
 		for i in modes.size():
 			_mode_card(str(modes[i]), i)
@@ -159,8 +152,7 @@ func _mode_card(id: String, i: int) -> void:
 	b.position = Vector2(x, 240)
 	b.pressed.connect(_pick_mode.bind(id))
 	add_child(b)
-	_card_text(b, str(info["label"]), Vector2(0, 28), Vector2(320, 44), 28, PAPER)
-	_card_text(b, str(info["desc"]), Vector2(20, 88), Vector2(280, 140), 17, DIM)
+	_card_text(b, str(info["label"]), Vector2(0, 100), Vector2(320, 44), 28, PAPER)
 
 
 func _char_card(id: String, i: int) -> void:

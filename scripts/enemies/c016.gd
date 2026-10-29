@@ -71,6 +71,13 @@ var _enrage_speed := 1.2
 var _enraged := false
 var _elite := false # 精英标记（时停分档用：杂兵 3s / 精英 2s / Boss 1s）
 var _stop_timer := 0.0 # 时间暂停（银夜 U）剩余
+# ---------- 定身 / 流血（双刺 L/U 的机制接口，Boss 继承后按体型覆盖） ----------
+var _root_timer := 0.0 # 定身剩余：不能移动，但可以照常出手
+var _bleed_stacks := 0 # 流血层数：每层每秒扣 1 血
+var _bleed_time := 0.0 # 流血剩余时间（再次命中会刷新）
+var _bleed_acc := 0.0 # 流血的计时累计
+const BLEED_MAX := 5 # 流血最多叠 5 层
+const BLEED_DUR := 5.0 # 每次命中刷新到 5 秒
 var _fly_impact := 0 # 击退（银夜 L）撞人/撞墙的组合伤害，0=纯击飞无碰撞伤害
 var _fly_hit := {} # 本次击退已撞过的同伴（一只只撞一次）
 var _bar_w := 44.0
@@ -237,6 +244,15 @@ func _physics_process(delta: float) -> void:
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_chase_block = maxf(0.0, _chase_block - delta)
 	_find_target()
+	_bleed_tick(delta) # 流血照常跳（时停里不动，所以放在 stop 分支之后）
+
+	# 定身（双刺 U）：只锁移动，不锁出手——站桩期间贴脸照样能挥刀
+	if _root_timer > 0.0:
+		_root_tick(delta)
+		_update_peer_ghosts()
+		velocity.y = minf(velocity.y + gravity * delta, 900.0)
+		move_and_slide()
+		return
 
 	match state:
 		State.IDLE:
@@ -460,6 +476,82 @@ func _end_stop() -> void:
 		sprite.process_mode = Node.PROCESS_MODE_INHERIT
 
 
+# ---------- 双刺机制接口：定身 / 流血 ----------
+
+## 定身（双刺 U 掷匕）：dur 秒内不能移动，但可以照常出手攻击。
+## 打断巡逻/追击移动，已在挥的招照打完（不可以攻击的控制要另开接口，别混用）
+func root(dur: float) -> void:
+	if state == State.DEAD or dur <= 0.0:
+		return
+	_root_timer = maxf(_root_timer, dur)
+	_flash()
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("定身", Color(0.9, 0.75, 0.3)) # 金：和完美闪避同色系的"控制生效"提示
+	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
+	get_tree().current_scene.add_child(dn)
+
+
+## 定身期间的替身循环：站桩待机 + 射程内可起手；被打飞/硬直/出手中照常推进各自状态
+func _root_tick(delta: float) -> void:
+	_root_timer = maxf(0.0, _root_timer - delta)
+	velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+	match state:
+		State.FLY:
+			_fly_tick(delta)
+			return
+		State.ATTACK:
+			_attack_tick(delta) # 已经起手的招可以打完（"可以攻击"）
+			return
+		State.HURT:
+			_hurt_tick(delta)
+			return
+		State.DEAD:
+			return
+	state = State.IDLE
+	_play(str(_anim_map["idle"]), true)
+	if _target != null and _attack_cd <= 0.0 and _can_attack():
+		var dx: float = _target.global_position.x - global_position.x
+		var dy: float = absf(_target.global_position.y - global_position.y)
+		facing = 1 if dx > 0.0 else -1
+		_apply_facing()
+		if absf(dx) <= attack_range and dy <= 60.0:
+			_start_attack()
+
+
+## 流血（双刺 L 裂帛）：叠层后每秒按层数直扣血，不触发硬直/白闪，也不打断出手
+func apply_bleed(layers: int) -> void:
+	if state == State.DEAD or layers <= 0:
+		return
+	_bleed_stacks = mini(_bleed_stacks + layers, BLEED_MAX)
+	_bleed_time = BLEED_DUR
+
+
+func _bleed_tick(delta: float) -> void:
+	if _bleed_stacks <= 0 or state == State.DEAD:
+		return
+	_bleed_time -= delta
+	if _bleed_time <= 0.0:
+		_bleed_stacks = 0
+		_bleed_acc = 0.0
+		return
+	_bleed_acc += delta
+	while _bleed_acc >= 1.0 and _bleed_stacks > 0:
+		_bleed_acc -= 1.0
+		_direct_damage(_bleed_stacks)
+
+
+## 非打击伤害（流血等）：直接扣血，不进硬直，但仍走死亡流程；Boss 覆盖以同步阶段/大血条
+func _direct_damage(amount: int) -> void:
+	if state == State.DEAD or amount <= 0:
+		return
+	hp -= amount
+	_spawn_number(amount)
+	_update_hp_bar()
+	if hp <= 0:
+		_end_stop()
+		die()
+
+
 ## 击飞（银夜普攻二段）：向上挑起，落地短暂硬直。无视出手霸体（跳劈也照挑）
 func launch(dir: int, vx: float, vy: float) -> void:
 	if state == State.DEAD:
@@ -476,6 +568,7 @@ func knock_back(dir: int, force: float, impact: int) -> void:
 
 func _enter_fly(v: Vector2, impact: int) -> void:
 	_release_token()
+	_root_timer = 0.0 # 被轰飞时解除定身：物理级控制在定身之上（同一套规则，和时停一致）
 	if _stop_timer > 0.0:
 		_end_stop() # 定身中被打飞：解除定身让抛物线成立（时停不挡位移类控制）
 	state = State.FLY

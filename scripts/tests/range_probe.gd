@@ -7,7 +7,7 @@ extends Node2D
 
 const SETS := [
 	{"id": "c021", "data": "res://art/characters/player/c021_data.tres",
-		"anims": ["atk01", "atk02", "atk03", "skill01", "skill03", "skill04"]},
+		"anims": ["atk01", "atk02", "atk03", "skill01", "skill03", "skill04", "skill5-", "skill02-cankao"]},
 	{"id": "pc023", "data": "res://art/characters/player/skulls/c023/c023_data.tres",
 		"anims": ["animation", "2", "skill01", "skill02"]},
 	{"id": "c016", "data": "res://art/characters/enemies/c016/c016_data.tres",

@@ -200,8 +200,26 @@ tests/out/           # 回归截图 + 日志
 
 ## 六、项目约束（别忘）
 
+- **⚠️⚠️ 不确定就先问用户，问清再动手（用户强调，最重要）**：需求里任何含糊、有歧义、或需要自行设计/平衡的地方（动画选哪一条、数值给多少、机制怎么设计、文案怎么改），**先向用户确认，得到明确答复再改代码**；不许凭猜测直接实装，也不许"先做了再说"。确认过的结论要在交接笔记里写清楚。
+- **⚠️ 术语统一：玩家位移动作一律叫「闪避」（用户强调）**：图鉴、强化卡描述、面板提示等**一切玩家能看到的文案**里只能写「闪避」，「冲刺」二字不许出现在界面文本中。代码内部字段 / 枚举 / 注释（`State.DASH`、`dash_time`、`dash_speed`、`_perfect_dodge` 等）保持原名不动。
 - **⚠️ 新模型必须可浏览（用户强调）**：任何新人物骨架三件套必须放进 `art/characters/` 下并 `--import` 重导——`anim_viewer.tscn` 递归扫描该目录自动收录，**实装新角色/敌人/精英/Boss 时必须开查看器确认能浏览全部动画**；若素材放到其他目录，必须同步扩大 `anim_viewer.gd` 的 `ROOT` 扫描范围，不许出现"实装了但查看器里看不到"的情况
 - **⚠️ 受击体积跟体型走（用户强调，一律这样处理）**：所有角色挨打判定 = **攻击方射程 + 目标 `body_radius`**（边缘到边缘），体型越大挨打面越大——主角/小怪/精英/Boss 全部适用。`body_radius` 是角色字段（c016.gd / player.gd 基座声明，形态表 enemy_types.gd / boss_types.gd / skulls.gd 按体型逐个配，缺省 30）：小怪 28~40，精英 36~40，Boss 55~300（武车 711px 宽配 300，瘦高鸣钟只给 75）。判定共 7 处全走这条规则：玩家普攻 `_deal_hit` / 技能 `_deal_skill_hit`（path 与普通两分支）/ 持续段 `_deal_skill_tick` / 投射物 `projectile.gd` / 小怪 `_deal_hit` / Boss 冲锋 `_charge_hit_check`。**新角色/敌人/Boss 实装时必须按体型配 `body_radius`，不许出现"模型巨大但受击判定只有一点"**；物理碰撞胶囊不动（绕后穿裆机制依赖小胶囊）
+- **⚠️ 新建可操控角色必须预留这四组接口（用户强调，以后每个新角色都按这个留）**：`skulls.gd` 的形态项一律带上下面这些字段，哪怕动画还没定也要留位置——`player.gd` 已通用读取，**不配就自动退回旧行为**，不会崩：
+  ```gdscript
+  "anim": {
+      # ... idle/run/dash/air/hurt/dead
+      "hurt": "轻受击动画",        # 伤害 < heavy 阈值（第 6 号那类短受击）
+      "hurt_heavy": "重受击动画",  # 伤害 ≥ heavy 阈值（第 11 号那类大受击）
+      "fall": "倒地动画",          # 伤害 ≥ knockdown 阈值：倒地（第 10 号那类）
+      "getup": "起身动画",         # 倒地后立刻接起身（第 17 号那类）
+      "low_idle": "残血待机动画",  # 血量 ≤ low_hp_ratio 时替换普通待机（第 32 号那类）
+  },
+  "dash_time": 0.5,    # 闪避时长 = 闪避动画真实长度（整段都是完美闪避判定窗口）
+  "dash_speed": 340.0, # 闪避位移速度，配合时长控制总距离
+  "hurt_tiers": {"heavy": 2, "knockdown": 3}, # 伤害 ≥2 播重受击；≥3 直接倒地
+  "low_hp_ratio": 0.2, # 血量比例 ≤20% 切残血待机
+  ```
+  细则：① `hurt_heavy` 缺省 = 用 `hurt`；`fall` 为空 = 没有倒地机制；`low_idle` 为空 = 始终普通待机。② 受击 / 倒地 / 起身的状态时长一律按**动画真实长度**（`_anim_durations` 缓存），不许手填秒数。③ 倒地流程 = fall 播完自动接 getup，**起身段整段无敌**，全程 `State.HURT`，结束回 IDLE/FALL。④ 闪避动画多长，完美闪避窗口就多长（`dash_time` 必须等于该动画时长）。⑤ 参考样板就是 c021（双刺，已全量实装）。
 - **⚠️ 效果验收走用户肉眼（用户强调：别反复自测烧积分）**：需要确认"动画行不行 / 机制对不对 / 效果好不好"时，**直接告诉用户开哪个场景、按哪些键、看哪个点**（例："开 sandbox.tscn，,/. 切到武车，J 砍马屁股看能否命中"），用户看完直接给结果——不许自己一遍遍跑场景截图来回试。能自己一次跑完的（日志断言类回归：player/enemy/room/boss_test）照旧自测；**肉眼验收类才走用户**
 - **投射物特效用户不自理**：空闲就修改 `projectile.gd` 的 `_draw` 视觉
 - **随机池段锁定 = 抽中动画真实时长**：普攻段/技能配了 `pool` 时，出招先抽动画、再按动画名查各自的 `hit_at`/`range` 字典；攻击锁定走 `_attack_lock`（抽中动画的真实时长）——**pool 段没有 `lock` 键，直接读段配置会崩**
@@ -214,13 +232,79 @@ tests/out/           # 回归截图 + 日志
 - **中文注释**：全项目中文注释
 - **WTE 规范**：preload 不用 `class_name`、函数内不能声明 `const`
 - **GIF → 精灵条**：spine-godot 4.2 不兼容老 Spine 3.8 GIF，统一走 `tools/gif2strip.py` + `key_alpha.py`
+- **⚠️ 新素材来了走「接入流水线」**：见下一节。它和「开 anim_viewer 看动画」「开 sandbox 无限血单挑」同级别——**每个新素材都要走完这几步才算实装**，不许只在表里登记就完事
+
+### 新素材接入流水线（来素材照这个走）
+
+**第 0 步 · 确认 Spine 版本**：只认 **4.2.11**（`E:\素材\墨构素材库\...` 下那份）；库里**不带「墨构素材库」前缀**的是 3.6.53 原版，直接拷会导入失败（`.skel.import` 的 `valid=false`）——先让用户转 4.2，别硬拷。
+
+**第 1 步 · 落盘 + 重导**：骨架进 `art/characters/` 对应子目录、特效进 `art/fx/`、UI 进 `art/ui/`、背景进 `art/environment/background/`、音效进 `audio/sfx/`；凡是新增/替换图片，一律跑一次 `--import`（命令见「四、命令行速查」）。
+
+**第 2 步 · 登记表**（数据驱动，别把数值写进逻辑）：
+
+| 素材 | 放哪 | 登记位置（一处都不能漏） |
+|---|---|---|
+| 玩家化身骨架 | `art/characters/player/skulls/<id>/` | `skulls.gd`：`SKULLS` 一项（label/name/data/scale/anim/attacks/skills/hud_skills）+ `ORDER`；`meta.gd`：`UNLOCKS` 条件 + `INK_SHOP` 买断；**第 6 个形态还要改排板**——`start_panel.gd` `x=80+i*228`、`forms_panel.gd` `70+i*232` 现在只够 5 张 |
+| 小怪 / 精英 | `art/characters/enemies/<id>/` | `enemy_types.gd` `TYPES` 一项 + `scenes/enemies/<id>.tscn`（只改 `type_id`，碰撞胶囊跟体型）+ `wave_spawner.gd` 的 `NORMAL_SCENES`/`ELITE_SCENES` + `codex_panel.gd` 的 `ENEMY_ORDER`（漏了图鉴左栏就没有它） |
+| Boss | `art/characters/enemies/bosses/<id>/` | `boss_types.gd` `BOSSES` 一项 + `ROSTER`（开局随机池，图鉴自动收录）；`room_01.gd` `BOSS_BG` 一项（背景图 + `ground` 地面线）；Boss 招式按阶段写在 `phases` 里 |
+| 技能 / 场景特效 | `art/fx/`（先 `gif2strip.py` / `png2strip.py` 转水平精灵条） | `fx.gd` `FX` 表一项（tex / frames / fps / pivot），再按名引用到 `skulls.gd` / `boss_types.gd` 的 `fx` 字段 |
+| UI 切图 | `art/ui/...` | 统一 `InkTex.load()`（不要 `Image.load_from_file`，导出后读不到）；面板沿用 `window_large.png` + `btn_normal/btn_clicked.png` |
+| 音效 / BGM | `audio/sfx/`、`audio/music/` | 音效在形态/敌人/Boss 表里配 `sfx` 字段；UI 面板用常驻 `_sfx`（重建时不能一起 free）；BGM 走 `bgm.gd` 双轨交叉淡化 |
+| 背景图 | `art/environment/background/` | Boss 房写 `room_01.gd` `BOSS_BG`（`ground` 要与画中地面线对齐）；普通房间沿用房间背景表；欧美风 `Battle*Map` 不适用 |
+
+**第 3 步 · 标定**（数值必须实测，不许估）：
+- **scale**：像素探针量骨架 `scale=1` 时的墨迹高度；化身形统一按 128px 算（`scale = 128 / 原始高度`），敌人 / 精英 / Boss 按造型大小定，别让换头时体型突变。
+- **`body_radius` 跟体型走**（项目约束已有）：小怪 28~40、精英 36~40、Boss 55~300。
+- **`hit_at` / `ranges`**：开 `range_probe.tscn` 逐帧看武器完全伸到最远端的时刻与真实像素，写进表里（随机池段写 `hit_at`/`range` 字典）。
+
+**第 4 步 · 三级验收**（缺一不可）：
+1. **`anim_viewer.tscn` 能浏览全部动画**——新骨架必须在 `art/characters/` 下被递归扫到；放别处就同步扩大 `anim_viewer.gd` 的 `ROOT`。实装完打不开查看器 = 不算实装（用户明确强调过）。
+2. **`sandbox.tscn` 无限血单挑**——`[` / `]` 换玩家形态（直接读形态表）、`,` / `.` 轮换敌人（小怪 + 精英 + Boss 全自动进表）、`R` 重刷；在这个场里把新角色的普攻、每段技能、受击、倒地都打一遍（无限血随便试）。
+3. **图鉴里能点开并悬停播动画**——新增敌人 / 化身 / Boss 都要在 `codex_panel` 里出现且每个动作悬停播得出来；背景故事先在 `LORE` 表占位，正式文案等用户给。
+
+**第 5 步 · 回归 + 落档**：
+- 能自己跑完的日志类回归一次跑完：`player_test` / `room_test` / `boss_test`（新 Boss 用 `BOSS_ID` 或临时硬编码 `_debug`，跑完还原）、`ui_test`；**肉眼类效果（手感、演出、光效）交给用户看**，按「效果验收走用户肉眼」那条来。
+- 最后同步本文档（形态表 / 素材库地图 / 测试表 / 交接笔记），commit 后 `git push`。
+
 
 ## 最重要
+**任何不确定的地方，先向用户确认、问清楚了再动手**（用户原文强调：有疑问一定要找我确认完再行动）。包括但不限于：用哪条动画、数值给多少、机制怎么设计、文案怎么删改、要不要动其他角色的手感。宁可多问一句，也不许猜着做。
 用户有无限的素材资源，想要查看或者使用啥的直接跟用户说想要看看新素材，我把整个文件给你你自己决断，当然，里面的spine版本可能比较低，你选好你想要的然后告诉我，我帮你转换成spine4.2版本
 
 ---
 
 ## 七、交接笔记
+
+### 2026-10-29 · 双刺（c021）技能重做 + 通用动作接口（受击分档 / 倒地 / 残血待机 / 闪避）
+
+#### 需求
+逐角色细调动画与技能，双刺先做：K 要像银夜位移技一样整段无敌、提速去掉顿感、伤害时刻对齐动画；L 太鸡肋（起手长、没霸体、挨打就断）→ 换第 28 号动画、原地无敌高伤、时长按动画；U → 改成远程投掷手中双刺（第 25 号），不要闪现残影，命中定身；受击按伤害分档（轻/重/倒地+起身）；残血（<20%）换待机；图鉴「冲刺」全改「闪避」，闪避时长 = 闪避动画长度、整段算完美闪避；开始模式页删掉多余文案。**通用接口要给所有角色留好并写进细则**。
+
+#### 做法（双刺）
+- **K `skill01`**：`speed 1.4` + `invincible: true`；`blink_speed 520→730`（提速后真实位移时间变短，同步提速保持原位移距离）；命中仍 `at 1.30`（动画秒，`_skill_tick` 用 `(_skill_dur-_skill_timer)*_skill_speed` 对齐）；实际时长 1.567/1.4 ≈ 1.12s。
+- **L 换键 `skill03` → `skill5-`（第 28 号，2.583s）**：`invincible` 整段、四段命中 0.79/1.33/1.80/2.25（range_probe 峰值，双向旋斩 `both`），每段 2 伤 + `bleed: 1` 叠流血（裂帛）。
+- **U 换键 `skill04` → `skill02-cankao`（第 25 号，2.05s）**：1.43s 出手 `projectile {speed 900, range 460, root 3.0, split 1, style "dagger"}`——一把短匕飞出，命中定身 3 秒并分裂第二把继续飞；无 blink/teleport，只有起手小前冲，不出现闪现/残影。
+- `hud_skills` 同步为 `["skill01", "skill5-", "skill02-cankao"]`（技能键名 = 动画名，换动画必须换键）。
+
+#### 做法（通用接口，`player.gd` 已通用）
+- **受击分档**：`hurt_tiers {"heavy": 2, "knockdown": 3}`——1 伤播 `atked`（6 号）、≥2 播 `atked_heavy`（11 号）、≥3 直接倒地播 `atked_fall_end`（10 号）→ 自动接 `getup`（17 号）；`_hurt_phase`（fall/getup）+ `_anim_durations` 真实时长驱动，起身段整段无敌。状态时长一律按动画真实长度，不手填。
+- **残血待机**：`low_hp_ratio 0.2` + `anim.low_idle "weak"`（32 号）；IDLE 每帧比对 `_idle_anim()`，技能/受击/倒地结束后自动接管。
+- **闪避**：`anim.dash "dash_front"`（14 号）、`dash_time 0.5`（= 动画长度，整段是完美闪避窗口）、`dash_speed 340`。其他形态暂用默认（0.16s），要给它们改就按同一组字段填。
+- **敌人侧**：`c016.gd` 新增 `root(dur)`（只锁移动、可出手，ATTACK/FLY/HURT 照常推进）、`apply_bleed(layers)` / `_bleed_tick`（每秒按层数直扣，最多 5 层 5 秒）、`_direct_damage`（不进硬直）；`_enter_fly` 时解除定身（物理级控制优先）。`boss.gd` 定身时长减半、流血直扣要同步阶段判定与大血条（变身无敌期不吃跳血）。
+- **投射物**：`projectile.gd` 新增 `root / split / style` 参数与 `_draw_dagger()` 短匕视觉；分裂第二把继承 `_hit_list`，不重复结算首目标。
+
+#### 文案
+- 图鉴 `ACT_LABEL` 「冲刺」→「闪避」；`_skill_num` 自动标「远程」，`_skill_desc` 标「命中叠流血 / 命中定身」。
+- `run_state.gd` 疾影 / 双刺疾刃卡描述「冲刺」→「闪避」。
+- `start_panel.gd`：`MODES` 只留 label，删除选模式页副标题「冒险通关可攒解锁，无尽比谁走得深」与模式卡描述行。
+
+#### 回归
+- `player_test`：5 形态换头、普攻、技能、时停、强化卡、开始面板全过，无 SCRIPT ERROR。
+- 临时脚本回归（跑完已删）：K 中段 `invincible=true`、命中后敌 58→正确；L 首段 -2 且流血 1 层，2.5s 后 4 层持续掉血；U 命中后 `root=2.75` 且分裂第二把补伤害（敌 44→38）；完美闪避不掉血 + buff 4s + 冷却清零；3 伤倒地 `phase=fall` → 1.1s 后 `getup` 且无敌 → 结束回 IDLE；残血待机切 `weak`。
+- `tests/player_test.log`、`tests/range_probe.log` 已同步。
+
+#### 待用户肉眼验收
+K 提速手感、L 流血强度、U 投掷定身/分裂视觉、倒地起身节奏、残血待机切换、闪避 0.5s 是否过飘。
 
 ### 2026-10-29 · 图鉴（敌人收录 + 化身档案 + 悬停演示动画）
 

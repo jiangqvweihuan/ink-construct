@@ -386,6 +386,24 @@ func _charge_hit_wall() -> void:
 
 # ---------- 受击 / 死亡 ----------
 
+## 定身（双刺 U）：Boss 体量太大，定身时长减半，同一张卡对 Boss 不至于过界
+func root(dur: float) -> void:
+	super(dur * 0.5)
+
+
+## 流血（双刺 L）等非打击伤害：直扣血，但要同步阶段判定与 HUD 大血条；变身无敌期不吃跳血
+func _direct_damage(amount: int) -> void:
+	if state == State.DEAD or amount <= 0 or _invincible:
+		return
+	hp -= amount
+	_spawn_number(amount)
+	hp_changed.emit(hp, max_hp)
+	if hp <= 0:
+		die()
+		return
+	_check_stage()
+
+
 ## Boss 全程霸体：不掉血打断、不击退、不进 HURT；变身期无敌只闪白
 func take_damage(amount: int, source_x: float) -> void:
 	if state == State.DEAD:
