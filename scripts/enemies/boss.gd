@@ -396,12 +396,12 @@ func stun(dur: float) -> void:
 	super(dur * 0.5)
 
 
-## 流血（双刺 L）等非打击伤害：直扣血，但要同步阶段判定与 HUD 大血条；变身无敌期不吃跳血
-func _direct_damage(amount: int) -> void:
+## 流血 / 中毒等非打击伤害：直扣血，但要同步阶段判定与 HUD 大血条；变身无敌期不吃跳血
+func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 	if state == State.DEAD or amount <= 0 or _invincible:
 		return
 	hp -= amount
-	_spawn_number(amount)
+	_spawn_number(amount, color)
 	hp_changed.emit(hp, max_hp)
 	if hp <= 0:
 		die()

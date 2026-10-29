@@ -860,6 +860,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)), global_position.x)
 				Score.add_hit()
 				_apply_hit_bleed(p, h)
+				_apply_hit_poison(p, h)
 				_skill_kinetic(p, h)
 				_apply_hit_control(p, h)
 				var mx := (global_position.x + p.global_position.x) * 0.5
@@ -872,6 +873,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)), global_position.x)
 				Score.add_hit()
 				_apply_hit_bleed(p, h)
+				_apply_hit_poison(p, h)
 				_skill_kinetic(p, h)
 				_apply_hit_control(p, h)
 				var mx := (global_position.x + p.global_position.x) * 0.5
@@ -946,6 +948,15 @@ func _apply_hit_bleed(p: Node2D, h: Dictionary) -> void:
 		p.call("apply_bleed", layers)
 
 
+## 技能命中附加中毒（梅剑 K 尾端甩鞭）：毒 duration 秒，敌人侧每 0.5 秒直扣 1 点、不叠层只刷新
+func _apply_hit_poison(p: Node2D, h: Dictionary) -> void:
+	var dur := float(h.get("poison", 0.0))
+	if dur <= 0.0 or int(p.get("hp")) <= 0:
+		return
+	if p.has_method("apply_poison"):
+		p.call("apply_poison", dur)
+
+
 ## 技能自带回血段：与是否命中无关，带 "heal" 字段的技能（力僧砸地、银夜觉醒等）走这里
 func _apply_skill_heal(h: Dictionary) -> void:
 	# 纯回血段没有命中判定，命中音得在这里补一声砸地闷响
@@ -980,6 +991,7 @@ func _deal_skill_tick(tick: Dictionary) -> void:
 			continue
 		p.call("take_damage", int(tick["damage"]) + _tick_damage_bonus + damage_bonus + _buff_now(), global_position.x)
 		Score.add_hit()
+		_apply_hit_poison(p, tick) # 转鞭每一跳也挂毒：只要长鞭剑打中就有中毒，不是只认尾端
 		did_hit = true
 	if did_hit:
 		_play_sfx("voice_sword_hit")

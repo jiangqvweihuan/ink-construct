@@ -88,12 +88,12 @@
 [PT] ult_after skull=z003 hp=7/8
 [PT] saved 14_ult_after_z003 err=0 state=0 pos=(966.7485, 599.9337)
 [PT] SWAP DONE skull=z003
-[PT] roll0 银夜三选一：["hp[通用]", "cooldown[通用]", "z003_qinggong_1[流派1]"]
+[PT] roll0 银夜三选一：["z003_kill_1[流派1]", "z003_stop_1[流派1]", "hp[通用]"]
 [PT] buy z003_stop_1 cost=8 ok=true bones=407
-[PT] roll1（已拿时停·初）含时停·续=true → ["z003_stop_2", "cooldown", "z003_qinggong_1"]
+[PT] roll1（已拿时停·初）含时停·续=true → ["dash", "z003_stop_2", "z003_kill_1"]
 [PT] buy z003_stop_2 cost=14 ok=true bones=393
 [PT] buy z003_stop_3 cost=20 ok=true bones=373
-[PT] roll2 跨形态泄漏=[]（期望 []） → ["dodge", "cooldown", "z003_kill_1"]
+[PT] roll2 跨形态泄漏=[]（期望 []） → ["hp", "z003_kill_1", "dodge"]
 [PT] build 生效：_stop_bonus=1.0 _stop_buff_damage=2 skill06_cd=0.70 dash_time=1.20 dash_cd=0.90（期望 1.0 / 2 / 0.70 / 1.20 / 0.90）
 [PT] 换到 c021：_stop_bonus=0.0（期望 0.0 休眠）
 [PT] 切回 z003：_stop_bonus=1.0（期望恢复 1.0）

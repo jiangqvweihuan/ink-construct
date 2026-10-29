@@ -11,9 +11,9 @@
 
 | 模块 | 文件 | 核心能力 |
 |---|---|---|
-| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / **银夜·将去未还 z003**，默认 c021；青笠 c012 已下架转精英怪）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）/ `pool`（随机抽动画池，普攻段与技能均支持，锁定 = 抽中动画真实时长）/ `launch`（普攻段击飞）/ `knockback`（命中击退 + 碰撞组合伤害）/ `stop`（时间暂停分档 mob/elite/boss，无视霸体）/ `buff_damage`+`buff_time`（觉醒加伤 buff，全伤害路径生效）/ `sword_qi`（剑气远程接口预留，未实装）/ `qinggong`（轻功：jump_mul 跳高倍率 + hover 顶点悬停，银夜专属）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。技能命中控制通用字段：`root`（定身：只锁移动）/ `stun`（晕眩：锁移动 + 锁出手 + 立即打断正在起的招）/ `self_shield`（自身金钟罩：免一次攻击或限时自动消失）/ 形态表 `knock_chain`（重受击倒地链，段间按动画真实时长无缝接续，最后一段起身整段无敌）。**力僧定位站桩重击**：普攻 = `skill02_01`（第 16 号，2 伤）+ `skill02_03`（第 18 号，3 伤）两段；K = `skill01` 两段（横扫 3 伤 + 击退 620/撞人 1 伤 + 落点定身 2s；第二段不造成伤害、改给自己金钟罩免一次/8s）；L = `skill03`（3 伤 + 晕眩 2s）；U = 定山（反伤 + 回血）；奔跑第 19 号、闪避第 15 号（0.583s 整段完美闪避）；受击 1→第 1 号 / 2→第 6 号 / ≥3→第 6→3→5→9 号整链起身；武僧无残血待机。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位。**银夜定位机制怪**：三段普攻随机池（段2 击飞）、K 蓄力霸体、L 击退组合伤害、U 时停、I 觉醒回血加伤、O 位移斩杀 600px |
+| 玩家控制器 | `scripts/player/player.gd` + `scripts/player/skulls.gd` | **5 形态换头**（双刺·冷红绫 c021 / 梅剑·白疏影 c023 / 力僧·定山 c013 / 剑仙·洛惊鸿 z000 / **银夜·将去未还 z003**，默认 c021；青笠 c012 已下架转精英怪）：各自独立骨架、普攻段、技能表、HUD 技能栏；普攻连段、多段技能命中、投射物（剑仙剑气）、blink 闪现、dash、jump、coyote、受伤无敌；Q 键呼出化身面板（暂停中选头，墨骨结算，契合 Lv3 免费）。技能支持可选字段：`poise`（自身霸体）/ `reflect`（技能期间无敌，伤害原样反弹给攻击者）/ `heal`（砸地回血，力僧 U 用）/ `ranged_guard`（远程免疫并反弹敌方投射物）/ `tick`（技能持续伤害段：窗口内每 interval 秒对前后方范围结算一次）/ `pool`（随机抽动画池，普攻段与技能均支持，锁定 = 抽中动画真实时长）/ `launch`（普攻段击飞）/ `knockback`（命中击退 + 碰撞组合伤害）/ `stop`（时间暂停分档 mob/elite/boss，无视霸体）/ `buff_damage`+`buff_time`（觉醒加伤 buff，全伤害路径生效）/ `sword_qi`（剑气远程接口预留，未实装）/ `qinggong`（轻功：jump_mul 跳高倍率 + hover 顶点悬停，银夜专属）；普攻 `hits` 支持字典段 `{at, damage, range, pull, sfx}`（旧格式纯秒数仍兼容），`pull` 命中后把敌人拽到身前。技能命中控制通用字段：`root`（定身：只锁移动）/ `stun`（晕眩：锁移动 + 锁出手 + 立即打断正在起的招）/ `bleed`（命中叠流血，每秒按层数直扣）/ `poison`（命中中毒：duration 秒内每 0.5 秒直扣 1，不叠层只刷新）/ `self_shield`（自身金钟罩：免一次攻击或限时自动消失）/ 形态表 `knock_chain`（重受击倒地链，段间按动画真实时长无缝接续，最后一段起身整段无敌）。**力僧定位站桩重击**：普攻 = `skill02_01`（第 16 号，2 伤）+ `skill02_03`（第 18 号，3 伤）两段；K = `skill01` 两段（横扫 3 伤 + 击退 620/撞人 1 伤 + 落点定身 2s；第二段不造成伤害、改给自己金钟罩免一次/8s）；L = `skill03`（3 伤 + 晕眩 2s）；U = 定山（反伤 + 回血）；奔跑第 19 号、闪避第 15 号（0.583s 整段完美闪避）；受击 1→第 1 号 / 2→第 6 号 / ≥3→第 6→3→5→9 号整链起身；武僧无残血待机。**梅剑定位数值怪**：普攻 = `skill01` 两段（鞭击 2 点拉回 80px + 前刺 3 点），唯一技能 = `skill02` 放 K 位（转鞭 6 段各 1 伤 + 3.6s 尾端超远甩鞭 5 伤；长鞭剑任意一段命中即附加中毒：4 秒内每 0.5 秒扣 1，不叠层只刷新）；闪避第 15 号 `speed_run` 加速 1.6 倍压进 0.45s（整段完美闪避，约 120px）；受击 1→第 4 号 / 2→第 5 号 / ≥3→第 5→7→11 号整链起身。**银夜定位机制怪**：三段普攻随机池（段2 击飞）、K 蓄力霸体、L 击退组合伤害、U 时停、I 觉醒回血加伤、O 位移斩杀 600px |
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel`/`brake`/`turn_accel` 均 `@export`）、lunge 惯性（`brake*0.5`）、hit_at × 0.9 提前判定、预警泛红闪 0.2s；攻击后 30% 可取消窗口（`atk["cancel"]` 可调） |
-| 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at；**多段命中**（`hit_at`/`ranges` 支持数组按段结算）、`damage` 每招伤害、`poise_atk` 出手霸体（挨打掉血不断招）、`lunge_mul` 前冲倍率、`hop` 起手跃起、`enrage` 半血狂暴（冷却×cd、追速×speed，触发一次）；**FLY 状态**（击飞/击退共用：重力抛物线，击退撞同伴手动距离判定双方各吃 impact、撞墙自己吃，落地回硬直）；**`time_stop` 时停**（sprite.process_mode=DISABLED 冻结动画 + 主循环早退，时长按 mob/elite 分档，时停中伤害照算、打死先解冻再 die）；**控制接口 `root(dur)` 定身**（只锁移动、照常出手）与 **`stun(dur)` 晕眩**（锁移动 + 锁出手 + 立即掐掉前摇并交还出手令牌；Boss 时长减半、自定义状态期间不生效） |
+| 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at；**多段命中**（`hit_at`/`ranges` 支持数组按段结算）、`damage` 每招伤害、`poise_atk` 出手霸体（挨打掉血不断招）、`lunge_mul` 前冲倍率、`hop` 起手跃起、`enrage` 半血狂暴（冷却×cd、追速×speed，触发一次）；**FLY 状态**（击飞/击退共用：重力抛物线，击退撞同伴手动距离判定双方各吃 impact、撞墙自己吃，落地回硬直）；**`time_stop` 时停**（sprite.process_mode=DISABLED 冻结动画 + 主循环早退，时长按 mob/elite 分档，时停中伤害照算、打死先解冻再 die）；**控制接口 `root(dur)` 定身**（只锁移动、照常出手）与 **`stun(dur)` 晕眩**（锁移动 + 锁出手 + 立即掐掉前摇并交还出手令牌；Boss 时长减半、自定义状态期间不生效）；**持续伤害 `apply_bleed(layers)` 流血**（每秒按层直扣）与 **`apply_poison(dur)` 中毒**（每 0.5 秒直扣 1，不叠层只刷新），都走 `_direct_damage` 通道（Boss 覆盖以同步阶段/大血条，变身无敌期不吃跳血） |
 | 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 3 种：c037_elite 大剑骑士 / c018_elite 双镰 / **c012_elite 青笠剑客（前玩家形态转生）**。**除青笠外主角形态不设同名敌人版本**（原 c023_elite 落梅弓手已删，与梅剑共用美术） |
 | 波次刷怪 | `scripts/systems/wave_spawner.gd` | 波次表由 `Run.room_config()` 提供：**冒险**每房 2 波（5~7 只，血量速度递增 + 精英混入）；**无尽**波数/血量/速度/精英数随层数抬升（`Run.endless_waves`）。同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared`。精英血量走「形态表基础值 × `hp_mul`」`configure({"hp_mul": ...})`，普通怪用绝对 `hp` |
 | Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技 + **绕后转身演出**（配 `turn` 动画的 Boss 被穿裆时播调头动画再翻转朝向，不瞬转，转身期不还手是奖励窗口，带冷却防锁死）；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底；**时停可打断冲锋/技能前摇**（boss 档 1s，变身演出冻结不取消）；**霸体免疫击退/击飞**（`launch`/`knock_back` 覆盖为空） |
@@ -274,6 +274,35 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-29 · 梅剑（c023）受击分档 / 闪避平衡 / K 尾端强化 + 中毒
+
+#### 需求
+受击按伤害分档：1 伤 → 第 4 号（`atked_air`）；2 伤 → 第 5 号（`atked_air_heavy`）；≥3 伤 → 第 5 → 7（`atked_fall_end`）→ 11（`getup`）链接续后回待机，最后起身段要有无敌保护（沿用前两角色的通用接口）。闪避改用第 15 号（`speed_run`）并把完美闪避基础时长"平衡"到不飘。其余技能动画不动；唯一技能 K（`skill02`，转鞭 3.6s 尾端甩出）尾端伤害再增强，并给被命中角色附加中毒 debuff。
+
+#### 已确认数值（用户拍板）
+- K 尾端伤害 2 → **5**（转鞭持续段 0.15~3.0s 每 0.5s 1 伤不动）。
+- 中毒：**持续 4s、每 0.5s 扣 1 点（共 8 点）**，不叠层，重复命中只刷新时长。
+- 中毒**由长鞭剑任意一段命中施加**：转鞭每 0.5s 的 tick 与 3.6s 尾端甩鞭都挂毒（用户二次修正：不是只认尾端）。
+- 闪避：**0.45s / 270 速 / 动画加速 1.6 倍**（位移约 120px；首版 380 速约 171px 被用户判为过远，已收）。
+
+#### 做法
+- **`skulls.gd` c023**：`anim.hurt "atked_air"`（4）、`anim.hurt_heavy "atked_air_heavy"`（5）、`anim.dash "speed_run"`（15）；`dash_time 0.45` / `dash_speed 270` / `dash_anim_speed 1.6`；`hurt_tiers {heavy 2, knockdown 3}`；`knock_chain ["atked_air_heavy","atked_fall_end","getup"]`（末段与 `anim_map.getup` 同名 → 整段起身无敌）。K `tick`（转鞭）与尾端 `hits` 都写 `"poison": 4.0`，尾端 `{"at": 3.6, "damage": 5, ...}`。普攻 `skill01` 未动。
+- **`player.gd`**：新增 `_apply_hit_poison(p, h)`（读 `h.poison` 秒数，`p.apply_poison(dur)`），普通命中与投射物命中双分支都调用，与 `bleed` 同位置；`_deal_skill_tick()` 里每跳也调一次，转鞭命中同样挂毒。
+- **`c016.gd`**：`apply_poison(dur)`（竹青「中毒」飘字 + `maxf` 刷新时长）+ `_poison_tick(delta)`（每 `POISON_TICK 0.5s` 走 `_direct_damage(1, POISON_COLOR)`，不触发硬直/白闪）；`_physics_process` 里排在 `_bleed_tick` 之后、时停分支之后（时停期间不掉毒）。`_direct_damage` / `_spawn_number` 加颜色参数，流血朱砂 / 中毒竹青区分。
+- **`boss.gd`**：`_direct_damage` 同步颜色参数（阶段判定与大血条照旧，变身无敌期不吃跳血）。
+- **`codex_panel.gd`**：`_skill_desc()` 增加「命中中毒」等标签检测，图鉴能显示新机制。
+
+#### 踩坑
+- 毒 tick 若写成 `while _poison_acc >= POISON_TICK and _poison_time > 0.0`，到期那一帧会吞掉最后一下（实测 4.22s 只掉 7）。改成**先结算累计毒伤再判到期**、循环内 `break` 后，4s 毒正好 8 次。
+
+#### 回归
+- `player_test` c023 段全绿（`swap -> skull=c023 hud=["skill02"]`、普攻总伤 7、U 后 `hp=8/8`），无 SCRIPT ERROR；`ui_test`（含图鉴悬停 / 化身页）全绿。
+- 探针（跑完已删）：`hurt(1)`→`atked_air`；`hurt(2)`→`atked_air_heavy`；`hurt(3)` → `atked_air_heavy`(0.667) → `atked_fall_end`(0.75，非无敌) → `getup`(0.933，无敌) → 2.65s 回 IDLE；毒 4.22s 共 8 点后停；真实 K 尾端（400px 外敌人只吃尾端）`掉血=6`（含 1 点转鞭 tick）、`time=3.28`，最终 `总掉血 13 = 5 伤 + 8 毒`。
+
+#### 待用户肉眼验收
+受击链 5→7→11 的接续与起身保护；闪避 0.45s / 约 120px 的位移是否合适；K 长鞭任意一段命中即中毒（竹青飘字 / 掉血节奏 8 点）与尾端 5 伤的辨识度。
+用户二次修正（闪避距离收短、中毒改为长鞭任意段命中）后已直接提交，后续手感如再调整只需改 `skulls.gd` c023 的 `dash_speed` 与 `tick.poison`。
 
 ### 2026-10-29 · 力僧（c013）全动画重置 + 金钟罩 / 晕眩 / 倒地链
 

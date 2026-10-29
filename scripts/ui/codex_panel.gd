@@ -515,21 +515,38 @@ func _skill_desc(cfg: Dictionary) -> String:
 		tags.append("瞬步位移")
 	if cfg.has("knockback"):
 		tags.append("击退撞墙")
-	# 命中追加效果：叠流血 / 命中定身（都写在 hits 段的可选字段里）
+	# 命中追加效果：叠流血 / 命中定身 / 命中晕眩 / 命中中毒 / 自身金钟罩（都写在 hits 段的可选字段里）
 	var bleed := false
 	var root := false
+	var stun := false
+	var poison := false
+	var shield := false
 	for h in cfg.get("hits", []):
 		if typeof(h) != TYPE_DICTIONARY:
 			continue
 		if int((h as Dictionary).get("bleed", 0)) > 0:
 			bleed = true
+		if float((h as Dictionary).get("stun", 0.0)) > 0.0:
+			stun = true
+		if float((h as Dictionary).get("poison", 0.0)) > 0.0:
+			poison = true
+		if (h as Dictionary).has("self_shield"):
+			shield = true
 		var proj = (h as Dictionary).get("projectile", null)
 		if typeof(proj) == TYPE_DICTIONARY and float((proj as Dictionary).get("root", 0.0)) > 0.0:
+			root = true
+		if float((h as Dictionary).get("root", 0.0)) > 0.0:
 			root = true
 	if bleed:
 		tags.append("命中叠流血")
 	if root:
 		tags.append("命中定身")
+	if stun:
+		tags.append("命中晕眩")
+	if poison:
+		tags.append("命中中毒")
+	if shield:
+		tags.append("自身金钟罩")
 	return " · ".join(tags)
 
 

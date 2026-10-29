@@ -79,6 +79,12 @@ var _bleed_time := 0.0 # 流血剩余时间（再次命中会刷新）
 var _bleed_acc := 0.0 # 流血的计时累计
 const BLEED_MAX := 5 # 流血最多叠 5 层
 const BLEED_DUR := 5.0 # 每次命中刷新到 5 秒
+var _poison_time := 0.0 # 中毒剩余时间（梅剑 K 尾端甩鞭）
+var _poison_acc := 0.0 # 中毒的计时累计
+const POISON_TICK := 0.5 # 每 0.5 秒扣一次
+const POISON_DMG := 1 # 每次扣 1 点
+const POISON_COLOR := Color(0.36, 0.6, 0.32) # 竹青：中毒飘字与掉血数字
+const POISON_LABEL_COLOR := Color(0.45, 0.7, 0.4)
 var _fly_impact := 0 # 击退（银夜 L）撞人/撞墙的组合伤害，0=纯击飞无碰撞伤害
 var _fly_hit := {} # 本次击退已撞过的同伴（一只只撞一次）
 var _bar_w := 44.0
@@ -246,6 +252,7 @@ func _physics_process(delta: float) -> void:
 	_chase_block = maxf(0.0, _chase_block - delta)
 	_find_target()
 	_bleed_tick(delta) # 流血照常跳（时停里不动，所以放在 stop 分支之后）
+	_poison_tick(delta) # 中毒同理：时停期间不跳毒
 
 	# 晕眩（力僧 L）：比定身更强——站桩发愣，不出手也不移动（放在定身之前结算）
 	if _stun_timer > 0.0:
@@ -586,12 +593,38 @@ func _bleed_tick(delta: float) -> void:
 		_direct_damage(_bleed_stacks)
 
 
-## 非打击伤害（流血等）：直接扣血，不进硬直，但仍走死亡流程；Boss 覆盖以同步阶段/大血条
-func _direct_damage(amount: int) -> void:
+## 中毒（梅剑 K 尾端甩鞭）：dur 秒内每 0.5 秒直扣 1 点；不叠层，重复命中只刷新时长
+func apply_poison(dur: float) -> void:
+	if state == State.DEAD or dur <= 0.0:
+		return
+	_poison_time = maxf(_poison_time, dur)
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("中毒", POISON_LABEL_COLOR)
+	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
+	get_tree().current_scene.add_child(dn)
+
+
+func _poison_tick(delta: float) -> void:
+	if _poison_time <= 0.0 or state == State.DEAD:
+		return
+	_poison_time = maxf(0.0, _poison_time - delta)
+	_poison_acc += delta
+	# 先结算累计毒伤再判到期：4 秒毒正好是 8 次（0.5/1.0/…/4.0），最后一下不会被到期判断吞掉
+	while _poison_acc >= POISON_TICK:
+		_poison_acc -= POISON_TICK
+		_direct_damage(POISON_DMG, POISON_COLOR)
+		if _poison_time <= 0.0:
+			break
+	if _poison_time <= 0.0:
+		_poison_acc = 0.0
+
+
+## 非打击伤害（流血/中毒等）：直接扣血，不进硬直，但仍走死亡流程；Boss 覆盖以同步阶段/大血条
+func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 	if state == State.DEAD or amount <= 0:
 		return
 	hp -= amount
-	_spawn_number(amount)
+	_spawn_number(amount, color)
 	_update_hp_bar()
 	if hp <= 0:
 		_end_stop()
@@ -711,9 +744,9 @@ func _flash() -> void:
 	tw.tween_property(sprite, "modulate", Color.WHITE, 0.14)
 
 
-func _spawn_number(amount: int) -> void:
+func _spawn_number(amount: int, color: Color = DMG_COLOR) -> void:
 	var dn := DAMAGE_NUMBER.new()
-	dn.setup(str(amount), DMG_COLOR)
+	dn.setup(str(amount), color)
 	dn.global_position = global_position + Vector2(randf_range(-12.0, 12.0), _number_y)
 	get_tree().current_scene.add_child(dn)
 

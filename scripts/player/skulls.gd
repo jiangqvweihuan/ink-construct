@@ -90,12 +90,22 @@ const SKULLS := {
 		"anim": {
 			"idle": "stand",
 			"run": "run",
-			"dash": "speed_run", # 没有 dash 动画，疾走当冲刺
+			"dash": "speed_run", # 第 15 号：疾走当闪避（加速 1.6 倍压进 0.45s）
 			"air": "floated",
-			"hurt": "atked",
+			"hurt": "atked_air", # 第 4 号：1 点伤害的轻受击
+			"hurt_heavy": "atked_air_heavy", # 第 5 号：2 点伤害的重受击
 			"dead": "dead",
-			"getup": "getup",
+			"getup": "getup", # 第 11 号：起身
 		},
+		# 闪避：第 15 号 speed_run（0.717s）加速 1.6 倍压进 0.45s，整段都是完美闪避窗口。
+		# 实测 380 速位移约 171px 太远（用户反馈），压到 270 速 → 约 120px，窗口不变、只收位移
+		"dash_time": 0.45,
+		"dash_speed": 270.0,
+		"dash_anim_speed": 1.6,
+		# 受击分档：1 伤=第 4 号；2 伤=第 5 号；≥3 伤走下面的倒地链
+		"hurt_tiers": {"heavy": 2, "knockdown": 3},
+		# 倒地链：5 重受击 → 7 倒地 → 11 起身（起身段整段无敌），段间按动画真实时长无缝接续
+		"knock_chain": ["atked_air_heavy", "atked_fall_end", "getup"],
 		# 骨架 17 个动画里能实战的只有 skill01（第 13 个）和 skill02（第 14 个）；
 		# "2" 是持剑站姿、animation 只有 0.383s，都撑不起招式。定位改为"数值怪"：
 		# 普攻 = skill01 两段（鞭击拉回 + 前刺），唯一技能 = skill02 放 K 位。
@@ -114,14 +124,16 @@ const SKULLS := {
 		"skills": {
 			# 唯一技能（K 位）：转鞭，skill02 4.167s。
 			# 起手即霸体；0.15~3.0s 每 0.5s 对前后方 130px 内所有敌人各打 1 点（both=前后都转）；
-			# 3.6s 最后一记超远甩鞭 R1051 -> 500px，伤害 2。
+			# 3.6s 最后一记超远甩鞭 R1051 -> 500px，伤害 2→5。
+			# 中毒挂"长鞭剑命中"而非只挂尾端：转鞭每一跳（tick）与尾端甩鞭都带 poison，
+			# 全程任意一下打中都会让目标中毒（4 秒，每 0.5 秒扣 1 点；不叠层，重复命中只刷新时长）
 			# ranged_guard：转鞭期间免疫敌方投射物并原路弹回（工程暂无敌方投射物，接口已预埋）
 			"skill02": {
 				"action": "skill", "cooldown": 9.0,
 				"poise": true,
 				"ranged_guard": true,
-				"tick": {"from": 0.15, "to": 3.0, "interval": 0.5, "range": 130.0, "height": 140.0, "damage": 1, "both": true},
-				"hits": [{"at": 3.6, "range": 500.0, "height": 150.0, "damage": 2, "sfx": "skill_blade"}],
+				"tick": {"from": 0.15, "to": 3.0, "interval": 0.5, "range": 130.0, "height": 140.0, "damage": 1, "both": true, "poison": 4.0},
+				"hits": [{"at": 3.6, "range": 500.0, "height": 150.0, "damage": 5, "sfx": "skill_blade", "poison": 4.0}],
 			},
 		},
 		"hud_skills": ["skill02"],
