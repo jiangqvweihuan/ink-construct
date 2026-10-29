@@ -266,16 +266,16 @@ const SKULLS := {
 				"hits": [],
 			},
 			# O 位移斩杀（skill11/skill11-cankao/skill23_03 随机）：向前突进一整段，
-			# 路径上所有敌人吃高伤。blink 窗口 0.15~0.90s × 800px/s = 600px，全程无敌。
-			# phantom_anims：#87 动画自带位移 → 改为"释放残影"——本体原地不动，残影冲出
-			# 600px 斩杀沿途敌人（hit_at 0.65 残影冲到峰值时结算，path 从原地扫到残影终点），
-			# 尾声零混合瞬时切 stand：残影消散、本体原地现身
+			# 路径上所有敌人吃高伤。位移距离三动画统一 600px（以 skill11-cankao 动画自带位移
+			# 为准）：提速后 blink 0.15~0.90s × 800px/s = 600px——窗口压缩、突进更凌厉，距离不变。
+			# 全程无敌；teleport_anims：#87 动画自带位移，原地播放、收招瞬间瞬移 600px（不突兀），
+			# 其 hit_at=99 收招帧补结算——瞬移后 path 从终点回扫整条位移路径
 			"skill11": {
 				"action": "skill_o", "cooldown": 12.0, "poise": true, "invincible": true,
 				"pool": ["skill11", "skill11-cankao", "skill23_03"],
 				"blink_from": 0.15, "blink_to": 0.90, "blink_speed": 800.0,
-				"phantom_anims": ["skill11-cankao"],
-				"hit_at": {"skill11": 0.95, "skill11-cankao": 0.65, "skill23_03": 0.95},
+				"teleport_anims": ["skill11-cankao"],
+				"hit_at": {"skill11": 0.95, "skill11-cankao": 99.0, "skill23_03": 0.95},
 				"range": {"skill11": 90.0, "skill11-cankao": 90.0, "skill23_03": 90.0},
 				"height": 110.0, "damage": 6, "path": true, "sfx": "hit_heavy",
 			},

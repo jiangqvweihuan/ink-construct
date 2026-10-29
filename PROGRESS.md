@@ -204,6 +204,7 @@ tests/out/           # 回归截图 + 日志
 - **随机池段锁定 = 抽中动画真实时长**：普攻段/技能配了 `pool` 时，出招先抽动画、再按动画名查各自的 `hit_at`/`range` 字典；攻击锁定走 `_attack_lock`（抽中动画的真实时长）——**pool 段没有 `lock` 键，直接读段配置会崩**
 - **控制效果分两档（用户定调）**：时停 = 规则级控制，**无视霸体**（连 Boss 冲锋/技能前摇都打断回 IDLE，变身演出只冻结不取消）；击退/击飞 = 物理级，Boss 霸体免疫。新控制效果实装前先定档
 - **击退/击飞的撞人判定走手动距离检测**：同伴 ghost 机制会关掉敌人之间的物理碰撞，"击退撞其他敌人触发组合伤害"必须手动算距离（撞墙仍用 `is_on_wall`）
+- **hurt() 是玩家唯一受伤入口**：小怪/Boss/Boss 冲刺/投射物全部走 `_target.hurt(...)`——给玩家加"受击侧"机制（闪避/反弹/免伤）只改 player.gd 的 hurt() 一处即可全覆盖。冲刺期碰到伤害=**完美闪避**（全免 + 冲刺冷却清零 + 4s 全伤害 +2 与觉醒共用 buff 槽取高者 + 0.5s 垫底无敌防同轮后续段）
 - **技能 hits 同样支持 launch/knockback**：位移效果统一走 `_skill_kinetic`（`_deal_skill_hit` path/普通两分支都调用），与普攻 `_deal_hit` 同规则（尸体不动）——新技能直接配键即可
 - **技能通用配置键（player.gd 已支持）**：`speed`（轨道级变速，`_play` 的 time_scale 只作用本条动画；时刻表不用缩放，`_skill_tick` 用动画时间 `(_skill_dur-_skill_timer)*_skill_speed` 对齐）、`hit_at`/`range` 字典（池技能按抽中动画逐段标定）、`align_max`（池内短动画慢放撑满最长时长）、`teleport_anims`（自带位移动画原地播放、收招帧瞬移整段距离再补结算）、`invincible`（整技无敌）；dash 短动画用形态级 `dash_anim_speed` 慢放填满冲刺窗口
 - **暂停里要动的 SpineSprite 必须 `process_mode=ALWAYS`**：`get_tree().paused` 期间默认全冻结，结算面板化身、换头面板预览这类"暂停中仍要播动画"的节点都得显式设 ALWAYS
@@ -218,13 +219,18 @@ tests/out/           # 回归截图 + 日志
 
 ## 七、交接笔记
 
+### 2026-10-29 · 完美闪避 + O 的 #87 回退瞬移版
+
+- **完美闪避**：冲刺（Shift）途中碰到任何"本应命中"的伤害 → 全免并给收益：冲刺冷却清零、4s 全伤害 +2（`_buff_damage`/`_buff_timer`，与觉醒共用槽、取高者）、0.5s 垫底无敌（防同轮攻击后段在冲刺结束后命中）。金色"完美闪避"飘字 + weapon_sword 嗖声 + 微顿帧微震屏。实现：player.gd `hurt()` 的 DASH 分支调 `_perfect_dodge()`——hurt 是玩家唯一受伤入口，一处挂钩全覆盖
+- **O 的 #87 回退**：残影方案（196da12，本体不动放残影）用户实测"更难看"，`git checkout 4978714 -- player.gd skulls.gd` 回退到瞬移版（teleport_anims + 尾声零混合收 + 收招帧瞬移补结算）。残影实现留在历史里，别再试
+
 ### 2026-10-28 深夜二 · 银夜微调：K 换三随机池 / 技能击退修复 / I 时长对齐 / O 双模式
 
 #### 四点修改（全部用户拍板）
 - **K 换池**：原 #89 skill14_02 单动画 → **atk03_03 / atk04_02 / skill01 三随机池**（编号 #15/#17/#70）。speed 0.8 慢放后实长 1.21/1.44/1.98s；霸体、sword_qi 接口保留。配置从 hits 数组改 `hit_at`/`range` 字典（引擎新增支持）。**hit_at 三轮标定**（0.34/0.53/0.25）：首版按满伸展峰值（0.41/0.58/0.85）伤害慢半拍；二版改扫出中段，但 skill01 是**起手早挥**（0.23s 左挥峰值 L320≈138px，之后长收势，0.85 才是终斩）——用户实测"很早就出刀但伤害很迟"，三版把 skill01 标到起手斩出点 0.25s，与短动画手感一致
 - **L 击退失效根因**：`_deal_skill_hit` 只结算伤害，launch/knockback 原本只有普攻 `_deal_hit` 处理 → 抽 `_skill_kinetic` 两分支共用，技能 hits 从此支持击退/击飞
 - **I 觉醒时长对齐**：`align_max: true`——抽中短动画时 `_skill_speed *= base/max`（池内最长 skill18_02 2.3s，skill10 慢放到 ~0.23 倍），三种动画统一撑满 2.3s
-- **O 双模式位移**：blink 闪现（skill11/skill23_03）+ **phantom_anims 残影模式**（#87 skill11-cankao，用户拍板第五版方案）：动画自带位移当作"释放残影"——**本体原地不动**，残影冲出 600px 斩杀沿途（`_skill_phantom` 记距离做 path 判定终点，hit_at 0.65 残影到峰值时结算），尾声提前 0.12s 零混合 `clear_track`+瞬时切 stand：残影消散、本体原地现身。瞬移方案彻底废弃（物理帧瞬移永远慢渲染侧半拍，虚影除不干净）；零混合手术保留（`set_default_mix(0)` 手术期 + `_mix_restore` 次帧恢复 0.2，防 clear_track 的旧轨道淡出）。O 加 `invincible: true` 全程无敌
+- **O 双模式位移**：blink 闪现（skill11/skill23_03）+ `teleport_anims` 瞬移（#87 skill11-cankao）：原地播放、尾声提前 0.12s 零混合 `clear_track`+瞬时切 stand（`set_default_mix(0)` 手术期 + `_mix_restore` 次帧恢复 0.2，防 clear_track 的旧轨道淡出），收招帧瞬移 600px + hit_at 99 补结算。O 加 `invincible: true` 全程无敌。**残影方案试过已回滚**（196da12）：把 #87 改成"本体不动、释放残影"，用户实测"更难看"，回退到瞬移版（4978714）
 - **银夜五技能全霸体**：L/U/I/O 补 `poise: true`（K 原本就有）
 
 #### 随本轮一起提交的上轮微调
