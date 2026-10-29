@@ -41,7 +41,7 @@
 | HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 |
 | 结算 | `scripts/ui/settlement_panel.gd` | 通关/阵亡结算 + 战绩行（最高连击/击杀/墨骨）+ 朱砂「讨伐 · Boss 名」+ 契合经验条动画 + 墨锭沉淀；**结算栏旁挂当前形态化身**（通关从 profile `victory` 池随机播一遍转待机 / 阵亡播 dead 接 dead_hold 循环躺尸，SpineSprite `process_mode=ALWAYS` 对抗暂停，无 victory 配置的形态 = 接口 fallback 只待机） |
 | 换头面板 | `scripts/ui/swap_panel.gd` | Q 键呼出，暂停时间选形态 |
-| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一（cost = 8 + 4×已拥有等级）；强化池 = 通用 5 项 + **形态专属 8 项**（`FORM_UPGRADES` 按当前 skull 过滤：饮血/横扫/清心/阔剑/不动如山/裂地/穿云/双剑气，青笠下架时删掉疾影/连突；player.set_upgrades 消费，投射物支持穿透+双发）；卡牌带 36px 水墨图标（`art/ui/icons/`） |
+| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一。**通用池 6 张机制卡**（锋锐/静心/铁骨/轻骨/疾影/掠影，cost = 8+4×等级）+ **形态流派 45 张**（5 形态 × 3 流派 × 初/续/极，T2/T3 需前置 req，价格 8/14/20，一局 3 次强化正好走完一条流派）；`roll_cards` 保证「续卡 + 新流派 + 通用」各一张；流派卡只对当前形态生效（换头休眠，`player._apply_form_mods` 按 forms 过滤）；卡面按流派配色（朱砂/墨青/赭金）+ 右上角层级；卡牌图标 `art/ui/icons/` |
 | 伤害数字 | `scripts/ui/damage_number.gd` | 飘字 |
 | 字体 | `art/ui/fonts/main_theme.tres` + `hud.gd` | 全局庞门正道粗书体；Boss 落款/大血条名 = 演示佛系体（ASCII 文件名：slidefu_regular / pangmen） |
 
@@ -218,6 +218,35 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-29 · 升级系统 Build 化：通用卡机制化 + 每形态 3 流派 × 3 级
+
+#### 为什么
+用户验收后指出两处硬伤：① 通用池里「加移速」这类纯数值没搭配、没手感，应该换成「冲刺更远 / 完美闪避窗口更长」这种能改变玩法的词条；② 每形态专属强化只有 1-2 张，玩起来可玩性提升不大——要求**每个形态分化几条流派**。
+
+#### 设计定版（`run_state.gd`）
+- **通用池 6 张**（删掉 `speed` 疾行）：锋锐（全伤 +1，5 级）/ 静心（技能冷却 -15%，3 级）/ 铁骨（生命上限 +1 并回满，3 级）/ 轻骨（换头 -3 墨骨，2 级）/ **疾影**（冲刺时长 +20% ⇒ 冲得更远、完美闪避窗口同步变长；冷却 -10%，3 级）/ **掠影**（完美闪避赏伤 +1、无敌 +0.2s，2 级）
+- **形态流派 45 张 = 5 形态 × 3 流派 × 3 级**，字段 `path`（流派名）/ `tier`（1 初 / 2 续 / 3 极）/ `theme`（配色）/ `req`（前置卡）。一局 3 次强化正好把一条流派从初推到极：
+  - 双刺 c021：血饮（技能命中回血 → 回 2/4s → 回血时挂 4s 加伤）/ 锋扫（范围 +30/25/20% + 普攻加伤）/ 疾刃（冲刺终点斩 1→3 伤，命中回满冲刺 + 回墨骨）
+  - 梅剑 c023：鞭术（范围+普攻增伤）/ 内劲（转鞭每跳 +1 → 出鞭 0.5→0.35s → 范围 +40% 且冷却 -25%）/ 铁骨（减伤，续段 -20% 冷却）
+  - 力僧 c013：金刚（定山反伤 +2/+2、砸地回血 +2、冷却 -30%）/ 震地（范围 +35/25/25% + 普攻增伤）/ 禅定（减伤，挨打回 1 墨骨）
+  - 剑仙 z000：剑气（伤害 +1/+2、飞行 +30%、穿透）/ 双发（齐发 +1/+2/+3 道）/ 御剑（冷却 -25%、射程 +30%、再 -15% 且 +1 伤）
+  - 银夜 z003：轻功（跳更高悬停更久 + 完美闪避减全技能 CD 2s/4s）/ 时停（时长 +1s、时停期全伤 +2、冷却 -30%）/ 杀阵（O 位移距离 +1/3、伤害 +2、命中返还 3s 冷却）
+- **价格改层级价**：流派卡 8 / 14 / 20（初/续/极），通用卡仍 8 + 4×等级
+- **卡池轮转**：`roll_cards` 分 `cont`（已开张流派的下一层）/ `fresh`（新流派 T1）/ `gen`（通用）三池各取一张，再补足随机——保证「有延续、有新品、有通用」
+- **卡面**：流派卡标题只写流派名并按主题配色（0 朱砂 / 1 墨青 / 2 赭金），右上角层级 `1/3`；通用卡标题带本次购买后的 `LvN`、右上角 `已拥有/上限`
+
+#### 引擎侧（`player.gd`）
+- 新增派生字段层：`_attack_damage_bonus` / `_proj_damage_bonus` / `_proj_speed_scale` / `_proj_range_scale` / `_damage_reduce` / `_hurt_bones` / `_reflect_bonus` / `_heal_bonus` / `_form_cd_scale` / `_skill_cd_mod` / `_skill_damage_mod` / `_skill_hit_refund` / `_tick_damage_bonus` / `_tick_interval_scale` / `_tick_range_scale` / `_stop_bonus` / `_stop_buff_damage` / `_blink_dist_scale` / `_qg_jump_bonus` / `_qg_hover_bonus` / `_dash_attack_*` / `_dodge_*` / `_dash_time_scale` / `_dash_cd_scale`
+- **`_apply_form_mods()`**：整组归零后遍历 `_upgrades`，用 `Run.card_info(k)["forms"]` 过滤当前形态（**换头后旧形态卡休眠、换回来再生效**——旧实现无条件应用 `form_*` 是缺陷）；轻功在原形态表倍率上叠加
+- 新机制：`_dash_attack()` 冲刺终点斩（身前 130 + 半径、dy≤80，命中回满冲刺/回墨骨）；时停加伤独立槽 `_stop_buff_timer`（与觉醒/血饮共用 `_buff_now()` 取最高）；`_skill_hit_refund` 命中返还冷却；`hurt()` 减伤下限 1、挨打回墨骨；`_perfect_dodge()` 收益加档 + 减全部技能 CD
+
+#### 回归结果（`player_test` 新增 Build 段）
+- 三选一含流派卡；`z003_stop_1/2/3` 连买价格 8/14/20，买完初后下一轮必出「时停·续」
+- 生效值：`_stop_bonus=1.0 / _stop_buff_damage=2 / skill06_cd=0.70 / dash_time=1.20 / dash_cd=0.90`
+- 跨形态泄漏 `[]`；切到 c021 时 `_stop_bonus=0.0`（休眠），切回 z003 恢复 1.0
+- `upgrade_panel` 冒烟 `cards=3`，截图 `16_upgrade_panel.png` 排版正常（描述不再压价格）
+- **肉眼验收点（交用户）**：清一房看三选一卡面（流派配色/层级/价格）；各形态连走一条流派体验手感；换头确认旧流派卡失效
 
 ### 2026-10-29 · 完美闪避 + O 的 #87 回退瞬移版
 

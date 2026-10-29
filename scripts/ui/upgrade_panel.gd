@@ -44,7 +44,7 @@ func _ready() -> void:
 	add_child(win)
 
 	_make_label(Run.room_label() + "  " + Run.room_no() + "  已清", 175, 40, PAPER)
-	_make_label("取一样墨骨强化，或者直接前进", 235, 20, Color(0.75, 0.72, 0.66))
+	_make_label("取一样墨骨强化 —— 同一条流派连选三级可推到「极」", 235, 20, Color(0.75, 0.72, 0.66))
 
 	_bones_label = _make_label("", 285, 22, PAPER)
 	_update_bones()
@@ -72,6 +72,14 @@ func _make_label(text: String, y: float, font_size: int, color: Color) -> Label:
 func _update_bones() -> void:
 	if _bones_label:
 		_bones_label.text = "墨骨  %d" % Score.bones
+
+
+## 流派配色：0 朱砂 / 1 墨青 / 2 赭金（与 run_state.FORM_UPGRADES 的 theme 对齐）
+func _theme_color(theme: int) -> Color:
+	match theme:
+		1: return Color(0.42, 0.64, 0.66)
+		2: return Color(0.82, 0.64, 0.32)
+		_: return Color(0.80, 0.34, 0.28)
 
 
 func _build_cards() -> void:
@@ -109,34 +117,51 @@ func _build_cards() -> void:
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(icon)
 
+		# 流派卡：标题只写流派名并按流派配色（0 朱砂 / 1 墨青 / 2 赭金），右上角标当前层级
+		# 通用卡：标题带上「本次购买后的等级」，右上角标 已拥有/上限
+		var is_form := info.has("tier")
 		var title := Label.new()
-		title.text = str(info["label"])
+		if is_form:
+			title.text = str(info.get("path", info["label"]))
+			title.add_theme_color_override("font_color", _theme_color(int(info.get("theme", 0))))
+		else:
+			title.text = "%s  Lv%d" % [str(info["label"]), Run.level(key) + 1]
+			title.add_theme_color_override("font_color", PAPER)
 		title.size = Vector2(230, 40)
 		title.position = Vector2(0, 50)
 		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		title.add_theme_color_override("font_color", PAPER)
 		title.add_theme_font_size_override("font_size", 30)
 		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(title)
 
+		var tag := Label.new()
+		tag.text = ("%d / 3" % int(info.get("tier", 1))) if is_form else ("%d / %d" % [Run.level(key) + 1, int(info.get("max", 1))])
+		tag.size = Vector2(82, 24)
+		tag.position = Vector2(138, 10)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		tag.add_theme_color_override("font_color", _theme_color(int(info.get("theme", 0))).darkened(0.3) if is_form else Color(0.4, 0.38, 0.34))
+		tag.add_theme_font_size_override("font_size", 15)
+		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(tag)
+
 		var desc := Label.new()
 		desc.text = str(info["desc"])
-		desc.size = Vector2(210, 40)
-		desc.position = Vector2(10, 88)
+		desc.size = Vector2(210, 46)
+		desc.position = Vector2(10, 80)
 		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		desc.add_theme_color_override("font_color", Color(0.82, 0.79, 0.72))
-		desc.add_theme_font_size_override("font_size", 17)
+		desc.add_theme_font_size_override("font_size", 16)
 		desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(desc)
 
 		var price := Label.new()
 		price.text = "%d 墨骨" % cost
 		price.size = Vector2(230, 30)
-		price.position = Vector2(0, 134)
+		price.position = Vector2(0, 130)
 		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		price.add_theme_color_override("font_color", Color(0.66, 0.2, 0.16))
-		price.add_theme_font_size_override("font_size", 20)
+		price.add_theme_font_size_override("font_size", 19)
 		price.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(price)
 

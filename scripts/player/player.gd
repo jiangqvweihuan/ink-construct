@@ -86,12 +86,45 @@ var _hurt_invincible := 0.0 # 受伤后的短暂无敌：被围殴时不会一�
 var _mastery_cd := 1.0 # 契合 Lv1：该形态技能冷却倍率
 var _mastery_dmg := 0 # 契合 Lv2：该形态普攻加伤
 var body_radius := 30.0 # 受击半径：挨打按"攻击方射程 + 本半径"判定（与小怪/Boss 同一规则）
-# ---------- 形态专属强化（Run.upgrades 的 form_* 键注入，换房间随 set_upgrades 重算） ----------
-var range_scale := 1.0 # 攻击范围倍率（横扫/阔剑/裂地/连突）
-var proj_extra := 0 # 投射物额外齐发数（双剑气）
-var proj_pierce := false # 投射物穿透（穿云剑气）
-var skill_lifesteal := false # 技能命中回血（饮血）
-var poise := false # 技能期间霸体（定山）
+# ---------- 形态专属强化（Run.upgrades 的卡键注入，换房间随 set_upgrades 重算） ----------
+var range_scale := 1.0 # 攻击范围倍率（锋扫/鞭术/震地）
+var proj_extra := 0 # 投射物额外齐发数（双发）
+var proj_pierce := false # 投射物穿透（剑气·极）
+var skill_lifesteal := false # 技能命中回血（血饮）
+var poise := false # 技能期间霸体
+var _upgrades: Dictionary = {} # 本局已购强化键（换头时按新形态重算流派效果）
+var _attack_damage_bonus := 0 # 仅普攻加伤（锋扫/鞭术/震地）
+var _proj_damage_bonus := 0 # 剑气加伤
+var _proj_speed_scale := 1.0
+var _proj_range_scale := 1.0
+var _lifesteal_heal := 1 # 血饮每次回血量
+var _lifesteal_cd_max := 6.0 # 血饮内置冷却
+var _lifesteal_buff := 0 # 血饮·极：回血同时挂的限时加伤
+var _damage_reduce := 0 # 受到伤害减免（最低仍吃 1）
+var _hurt_bones := 0 # 每次受伤回的墨骨
+var _reflect_bonus := 0 # 定山反弹加伤
+var _heal_bonus := 0 # 技能回血加量
+var _form_cd_scale := 1.0 # 形态卡片提供的技能冷却倍率
+var _skill_cd_mod: Dictionary = {} # 指定技能名 -> 额外冷却倍率
+var _skill_damage_mod: Dictionary = {} # 指定技能名 -> 加伤（杀阵·续）
+var _skill_hit_refund := 0.0 # 指定技能命中后返还的冷却秒数（杀阵·极）
+var _tick_damage_bonus := 0 # 持续段加伤（内劲）
+var _tick_interval_scale := 1.0 # 持续段出伤频率倍率
+var _tick_range_scale := 1.0 # 持续段范围倍率
+var _stop_bonus := 0.0 # 时停时长加成
+var _stop_buff_damage := 0 # 时停期间加伤
+var _stop_buff_timer := 0.0
+var _blink_dist_scale := 1.0 # 位移斩杀距离倍率
+var _qg_jump_bonus := 0.0 # 轻功·初：跳跃额外倍率
+var _qg_hover_bonus := 0.0 # 轻功·初：悬停额外秒数
+var _dash_attack_dmg := 0 # 冲刺终点斩伤害（疾刃）
+var _dash_attack_refund := false # 冲刺斩命中即回满冲刺
+var _dash_attack_bones := 0 # 冲刺斩命中回墨骨
+var _dodge_bonus := 0 # 完美闪避赏伤加成（掠影）
+var _dodge_time_bonus := 0.0 # 完美闪避赏伤时长加成
+var _dodge_cd_refund := 0.0 # 完美闪避减全部技能冷却（轻功·续/极）
+var _dash_time_scale := 1.0 # 冲刺时长倍率（疾影）
+var _dash_cd_scale := 1.0 # 冲刺冷却倍率（疾影）
 var _skill_poise := false # 当前技能自带的霸体（力僧定山：蓄力期间自身霸体，不依赖强化）
 var _skill_reflect := false # 当前技能自带的反伤（力僧定山：技能期间无敌，伤害原样弹回攻击者）
 var _skill_ranged_guard := false # 当前技能的远程格挡（梅剑转鞭：技能期间免疫并反弹敌方投射物）
@@ -99,6 +132,8 @@ var _skill_tick_acc := 0.0 # 技能持续伤害段的计时累计（每 interval
 # ---------- 银夜·将去未还专属机制（形态表注入，其他形态全为默认值=关闭） ----------
 var _qg_jump_mul := 1.0 # 轻功：跳跃初速倍率（明显跳得更高）
 var _qg_hover := 0.0 # 轻功：跃过顶点后空中滞留时长
+var _qg_jump_mul_base := 1.0 # 形态表原始跳跃倍率（流派卡在其上叠加）
+var _qg_hover_base := 0.0 # 形态表原始悬停时长
 var _hover_left := 0.0 # 本次跳跃剩余悬停时间
 var _buff_damage := 0 # 觉醒（I）：限时内全伤害 +N
 var _buff_timer := 0.0 # 觉醒剩余时间
@@ -154,37 +189,138 @@ func _apply_profile(id: String) -> void:
 	body_radius = float(profile.get("body_radius", 30.0)) # 形态表可按体型覆盖（未来大型化身）
 	# 轻功（银夜）：没有该配置的形态倍率 1.0、不悬停，手感不受影响
 	var qg: Dictionary = profile.get("qinggong", {})
-	_qg_jump_mul = float(qg.get("jump_mul", 1.0))
-	_qg_hover = float(qg.get("hover", 0.0))
+	_qg_jump_mul_base = float(qg.get("jump_mul", 1.0))
+	_qg_hover_base = float(qg.get("hover", 0.0))
 	_dash_anim_speed = float(profile.get("dash_anim_speed", 1.0)) # 短冲刺动画可慢放（银夜 autorush 只有 0.083s）
+	# 换头后按新形态重算流派强化：旧形态的卡休眠，新形态的卡生效
+	_apply_form_mods()
 
 
-## 局内强化注入：伤害/移速/冷却/生命上限/换头费用。换房间时由 Run.apply_to 重新调用
+## 局内强化注入：通用卡（伤害/冷却/生命/换头/冲刺/闪避）+ 当前形态的流派卡。换房间时由 Run.apply_to 重新调用
 func set_upgrades(up: Dictionary) -> void:
-	var spd := int(up.get("speed", 0))
+	_upgrades = up.duplicate()
 	var cd := int(up.get("cooldown", 0))
 	var sw := int(up.get("swap", 0))
 	damage_bonus = int(up.get("damage", 0))
-	run_speed = 240.0 * (1.0 + 0.12 * spd)
+	run_speed = 240.0 # 上一房间石碑的"疾风"随换房清掉（原位漂移不跨房）
 	cooldown_scale = maxf(0.55, 1.0 - 0.15 * cd)
 	swap_cost = maxi(2, SWAP_COST - 3 * sw)
 	max_hp = 8 + int(up.get("hp", 0))
-	# 形态专属强化消费：先归零再按已购键逐个装上（换房间重注入，表外键直接忽略）
+	# 疾影：冲刺时长/距离 +20%，完美闪避判定窗口同步变长；冷却 -10%
+	var dash_lv := int(up.get("dash", 0))
+	_dash_time_scale = 1.0 + 0.2 * dash_lv
+	_dash_cd_scale = maxf(0.6, 1.0 - 0.1 * dash_lv)
+	# 掠影：完美闪避收益加档
+	var dodge_lv := int(up.get("dodge", 0))
+	_dodge_bonus = dodge_lv
+	_dodge_time_bonus = 0.2 * dodge_lv
+	_apply_form_mods()
+
+
+## 形态流派强化：只对当前形态生效（换头后旧形态的卡休眠，换回来再生效）。
+## 先整组归零，再按已购键逐个装上——换房间/换头都走这里重算，不残留上一形态的加成。
+func _apply_form_mods() -> void:
 	range_scale = 1.0
 	proj_extra = 0
 	proj_pierce = false
 	skill_lifesteal = false
 	poise = false
-	for k in up:
+	_attack_damage_bonus = 0
+	_proj_damage_bonus = 0
+	_proj_speed_scale = 1.0
+	_proj_range_scale = 1.0
+	_lifesteal_heal = 1
+	_lifesteal_cd_max = 6.0
+	_lifesteal_buff = 0
+	_damage_reduce = 0
+	_hurt_bones = 0
+	_reflect_bonus = 0
+	_heal_bonus = 0
+	_form_cd_scale = 1.0
+	_skill_cd_mod.clear()
+	_skill_damage_mod.clear()
+	_skill_hit_refund = 0.0
+	_tick_damage_bonus = 0
+	_tick_interval_scale = 1.0
+	_tick_range_scale = 1.0
+	_stop_bonus = 0.0
+	_stop_buff_damage = 0
+	_blink_dist_scale = 1.0
+	_qg_jump_bonus = 0.0
+	_qg_hover_bonus = 0.0
+	_dash_attack_dmg = 0
+	_dash_attack_refund = false
+	_dash_attack_bones = 0
+	_dodge_cd_refund = 0.0
+	for k in _upgrades:
+		var info: Dictionary = Run.card_info(str(k))
+		var forms: Array = info.get("forms", [])
+		if forms.is_empty() or not forms.has(skull_id):
+			continue # 通用卡已在 set_upgrades 处理；别的形态的卡休眠
 		match str(k):
-			"form_drink_blood": skill_lifesteal = true # 双刺·饮血
-			"form_wide_sweep": range_scale *= 1.35 # 双刺·横扫
-			"form_calm": cooldown_scale *= 0.8 # 梅剑·清心
-			"form_broad_sword": range_scale *= 1.3 # 梅剑·阔剑
-			"form_poise": poise = true # 力僧·霸体
-			"form_quake": range_scale *= 1.4 # 力僧·裂地
-			"form_pierce": proj_pierce = true # 剑仙·穿云
-			"form_twin": proj_extra += 1 # 剑仙·双剑气
+			# 双刺·血饮：续航流派
+			"c021_blood_1": skill_lifesteal = true
+			"c021_blood_2": _lifesteal_heal = 2; _lifesteal_cd_max = 4.0
+			"c021_blood_3": _lifesteal_buff = 1
+			# 双刺·锋扫：群战范围
+			"c021_sweep_1": range_scale *= 1.3
+			"c021_sweep_2": range_scale *= 1.25; _attack_damage_bonus += 1
+			"c021_sweep_3": range_scale *= 1.2; _attack_damage_bonus += 1
+			# 双刺·疾刃：冲刺输出
+			"c021_dash_1": _dash_attack_dmg = 1
+			"c021_dash_2": _dash_attack_dmg = 2; _dash_attack_refund = true
+			"c021_dash_3": _dash_attack_dmg = 3; _dash_attack_refund = true; _dash_attack_bones = 1
+			# 梅剑·鞭术
+			"c023_whip_1": range_scale *= 1.25
+			"c023_whip_2": range_scale *= 1.25; _attack_damage_bonus += 1
+			"c023_whip_3": range_scale *= 1.25; _attack_damage_bonus += 1
+			# 梅剑·内劲：转鞭持续段
+			"c023_force_1": _tick_damage_bonus = 1
+			"c023_force_2": _tick_interval_scale = 0.7
+			"c023_force_3": _tick_range_scale = 1.4; _skill_cd_mod["skill02"] = _skill_cd_mod.get("skill02", 1.0) * 0.75
+			# 梅剑·铁骨：站桩减伤
+			"c023_iron_1": _damage_reduce = 1
+			"c023_iron_2": _skill_cd_mod["skill02"] = _skill_cd_mod.get("skill02", 1.0) * 0.8
+			"c023_iron_3": _damage_reduce = 2
+			# 力僧·金刚：定山反伤
+			"c013_vajra_1": _reflect_bonus = 2
+			"c013_vajra_2": _heal_bonus = 2
+			"c013_vajra_3": _reflect_bonus += 2; _skill_cd_mod["skill02"] = _skill_cd_mod.get("skill02", 1.0) * 0.7
+			# 力僧·震地：范围
+			"c013_quake_1": range_scale *= 1.35
+			"c013_quake_2": range_scale *= 1.25; _attack_damage_bonus += 1
+			"c013_quake_3": range_scale *= 1.25; _attack_damage_bonus += 1
+			# 力僧·禅定：减伤
+			"c013_zen_1": _damage_reduce = 1
+			"c013_zen_2": _hurt_bones = 1
+			"c013_zen_3": _damage_reduce = 2
+			# 剑仙·剑气：弹道强度
+			"z000_qi_1": _proj_damage_bonus = 1
+			"z000_qi_2": _proj_damage_bonus = 2; _proj_speed_scale = 1.3
+			"z000_qi_3": proj_pierce = true
+			# 剑仙·双发：数量
+			"z000_twin_1": proj_extra = 1
+			"z000_twin_2": proj_extra = 2
+			"z000_twin_3": proj_extra = 3
+			# 剑仙·御剑：冷却与射程
+			"z000_calm_1": _form_cd_scale *= 0.75
+			"z000_calm_2": _proj_range_scale = 1.3
+			"z000_calm_3": _form_cd_scale *= 0.85; _proj_damage_bonus += 1
+			# 银夜·轻功：闪避流
+			"z003_qinggong_1": _qg_jump_bonus = 0.15; _qg_hover_bonus = 0.2
+			"z003_qinggong_2": _dodge_cd_refund = 2.0
+			"z003_qinggong_3": _dodge_cd_refund = 4.0
+			# 银夜·时停：时停流
+			"z003_stop_1": _stop_bonus = 1.0
+			"z003_stop_2": _stop_buff_damage = 2
+			"z003_stop_3": _skill_cd_mod["skill06"] = _skill_cd_mod.get("skill06", 1.0) * 0.7
+			# 银夜·杀阵：位移斩杀流
+			"z003_kill_1": _blink_dist_scale = 1.33
+			"z003_kill_2": _skill_damage_mod["skill11"] = 2 # O 伤害 +2
+			"z003_kill_3": _skill_hit_refund = 3.0
+	# 轻功：形态表原值 + 流派加成（跳跃更高、悬停更久）
+	_qg_jump_mul = _qg_jump_mul_base * (1.0 + _qg_jump_bonus)
+	_qg_hover = _qg_hover_base + _qg_hover_bonus
 
 
 func _setup_sfx() -> void:
@@ -259,6 +395,7 @@ func _physics_process(delta: float) -> void:
 	_hurt_invincible = maxf(0.0, _hurt_invincible - delta)
 	_lifesteal_cd = maxf(0.0, _lifesteal_cd - delta) # 饮血内置冷却
 	_buff_timer = maxf(0.0, _buff_timer - delta) # 觉醒 buff 倒计时
+	_stop_buff_timer = maxf(0.0, _stop_buff_timer - delta) # 时停加伤倒计时
 	for n in _skill_cds:
 		_skill_cds[n] = maxf(0.0, _skill_cds[n] - delta)
 	if is_on_floor():
@@ -334,9 +471,37 @@ func _dash_tick(delta: float) -> void:
 	_dash_timer -= delta
 	velocity = Vector2(facing * dash_speed, 0.0)
 	if _dash_timer <= 0.0:
-		_dash_cd = dash_cooldown
+		var cut := _dash_attack() # 疾刃：冲刺收尾斩身前一刀
+		_dash_cd = 0.0 if (cut and _dash_attack_refund) else dash_cooldown * _dash_cd_scale
 		velocity.x = facing * run_speed * 0.5
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
+
+
+## 疾刃（双刺流派）：冲刺终点斩身前敌人；返回是否命中（供"命中即回满冲刺"判定）
+func _dash_attack() -> bool:
+	if _dash_attack_dmg <= 0:
+		return false
+	var did_hit := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or int(e.get("hp")) <= 0:
+			continue
+		var dx: float = p.global_position.x - global_position.x
+		var dy: float = absf(p.global_position.y - global_position.y)
+		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
+		if not in_front or absf(dx) > 130.0 + _radius_of(p) or dy > 80.0:
+			continue
+		p.call("take_damage", _dash_attack_dmg + damage_bonus + _buff_now(), global_position.x)
+		Score.add_hit()
+		FX.spawn(get_tree().current_scene, "slash", Vector2((global_position.x + p.global_position.x) * 0.5, global_position.y - 70), {"scale": 0.5, "flip": facing < 0})
+		did_hit = true
+	if did_hit:
+		_play_sfx("hit_heavy")
+		Feel.hitstop(0.05)
+		Feel.shake(5.0, 0.15)
+		if _dash_attack_bones > 0:
+			Score.add_bones(_dash_attack_bones)
+	return did_hit
 
 
 func _attack_tick(delta: float) -> void:
@@ -381,14 +546,14 @@ func _deal_hit(h = null) -> void:
 	var atk: Dictionary = attacks[_attack_idx]
 	# 远程形态：发投射物，命中由投射物自己结算（伤害带上局内强化与契合加伤）
 	if atk.has("projectile"):
-		# 双剑气（剑仙形态专属）：额外投射物纵向错开齐发
+		# 双发（剑仙流派）：额外投射物纵向错开齐发；剑气·初/续 与 御剑·极 在此加伤
 		for i in proj_extra + 1:
-			_spawn_projectile(atk["projectile"], int(atk["damage"]) + damage_bonus + _mastery_dmg + _buff_now(), "voice_sword_hit", i * 26.0)
+			_spawn_projectile(atk["projectile"], int(atk["damage"]) + damage_bonus + _mastery_dmg + _proj_damage_bonus + _buff_now(), "voice_sword_hit", i * 26.0)
 		return
 	# 命中段：旧格式是纯秒数（沿用本段统一 damage/range），
 	# 新格式是字典（一段动画里多段不同伤害/范围，如梅剑鞭击后接突刺）
 	var spec: Dictionary = h if h is Dictionary else atk
-	var dmg := int(spec.get("damage", atk.get("damage", 1))) + damage_bonus + _mastery_dmg + _buff_now()
+	var dmg := int(spec.get("damage", atk.get("damage", 1))) + damage_bonus + _mastery_dmg + _attack_damage_bonus + _buff_now()
 	var reach := float(spec.get("range", atk.get("range", 100.0))) * range_scale
 	var side_any := bool(spec.get("both", atk.get("both", false)))
 	var pull := float(spec.get("pull", 0.0)) # 鞭击拉回：命中后把敌人拽到身前这个距离
@@ -439,9 +604,12 @@ func _radius_of(e) -> float:
 	return float(r) if r != null else 30.0
 
 
-## 觉醒（银夜 I）：buff 生效期间全部伤害 +N
+## 限时加伤：觉醒（银夜 I）、完美闪避、血饮·极、时停·续 共用"取最高"
 func _buff_now() -> int:
-	return _buff_damage if _buff_timer > 0.0 else 0
+	var v := _buff_damage if _buff_timer > 0.0 else 0
+	if _stop_buff_timer > 0.0:
+		v = maxi(v, _stop_buff_damage)
+	return v
 
 
 func _skill_tick(delta: float) -> void:
@@ -474,7 +642,7 @@ func _skill_tick(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, 0.0, accel * delta)
 	elif cfg.has("blink_from") and t >= cfg["blink_from"] and t <= cfg["blink_to"]:
 		_set_blink(true)
-		velocity.x = facing * cfg["blink_speed"] # 闪现突进
+		velocity.x = facing * float(cfg["blink_speed"]) * _blink_dist_scale # 闪现突进（杀阵·初 拉长位移）
 	else:
 		_set_blink(false)
 		velocity.x = move_toward(velocity.x, 0.0, accel * delta)
@@ -488,7 +656,7 @@ func _skill_tick(delta: float) -> void:
 	var tick: Dictionary = cfg.get("tick", {})
 	if not tick.is_empty() and t >= float(tick["from"]) and t <= float(tick.get("to", _skill_dur)):
 		_skill_tick_acc += delta
-		var iv := float(tick.get("interval", 0.5))
+		var iv := float(tick.get("interval", 0.5)) * _tick_interval_scale # 内劲·续：出鞭更快
 		while _skill_tick_acc >= iv:
 			_skill_tick_acc -= iv
 			_deal_skill_tick(tick)
@@ -496,11 +664,15 @@ func _skill_tick(delta: float) -> void:
 	var stop: Dictionary = cfg.get("stop", {})
 	if not stop.is_empty() and not _stop_done and t >= float(stop.get("at", 0.5)):
 		_stop_done = true
+		var stop_dur := float(stop.get("mob", 2.0)) + _stop_bonus # 时停·初：全档位 +1 秒
 		for e in get_tree().get_nodes_in_group("enemies"):
 			if int(e.get("hp")) <= 0:
 				continue
 			var tier := str(e.call("stop_tier")) if e.has_method("stop_tier") else "mob"
-			e.call("time_stop", float(stop.get(tier, 2.0)))
+			e.call("time_stop", float(stop.get(tier, 2.0)) + _stop_bonus)
+		# 时停·续：定住的这段时间里全伤害 +2（独立槽，_buff_now 取最高）
+		if _stop_buff_damage > 0:
+			_stop_buff_timer = maxf(_stop_buff_timer, stop_dur)
 	# 纯时长驱动退出：到点的同一帧排队的 stand 恰好接续，别看 is_complete（会被 loop 污染）
 	if _skill_timer <= 0.0:
 		# 自带位移动画兜底：正常尾声已提前 0.12s 瞬移+切 stand（见上），这里只兜底位置
@@ -534,8 +706,8 @@ func _set_blink(on: bool) -> void:
 func _deal_skill_hit(h: Dictionary) -> void:
 	# 远程技能：发投射物，命中由投射物自己结算
 	if h.has("projectile"):
-		for i in proj_extra + 1: # 双剑气齐发
-			_spawn_projectile(h["projectile"], int(h["damage"]) + damage_bonus + _buff_now(), str(h.get("sfx", "")), i * 26.0)
+		for i in proj_extra + 1: # 双发齐射
+			_spawn_projectile(h["projectile"], int(h["damage"]) + damage_bonus + _proj_damage_bonus + _buff_now(), str(h.get("sfx", "")), i * 26.0)
 		return
 	# 纯回血段（力僧定山砸地）：不打伤害，只结算回血与砸地音
 	if not h.has("damage"):
@@ -560,7 +732,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			var in_path: bool = p.global_position.x >= x0 and p.global_position.x <= x1
 			var ahead := dx == 0.0 or (dx > 0.0) == (facing > 0)
 			if in_path or (ahead and absf(dx) <= h["range"] * range_scale + _radius_of(p)):
-				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now(), global_position.x)
+				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)), global_position.x)
 				Score.add_hit()
 				_skill_kinetic(p, h)
 				var mx := (global_position.x + p.global_position.x) * 0.5
@@ -570,7 +742,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 			# both = 回身横扫（力僧狼牙棒、双刺回身刺）：动画扫到身后也照样判定
 			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"] * range_scale + _radius_of(p):
-				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now(), global_position.x)
+				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)), global_position.x)
 				Score.add_hit()
 				_skill_kinetic(p, h)
 				var mx := (global_position.x + p.global_position.x) * 0.5
@@ -579,12 +751,20 @@ func _deal_skill_hit(h: Dictionary) -> void:
 	if did_hit:
 		if h.has("sfx"):
 			_play_sfx(h["sfx"])
-		# 饮血（双刺形态专属）：技能命中回 1 血，内置冷却防一波吸满
+		# 血饮（双刺流派）：技能命中回血，内置冷却防一波吸满；「极」额外挂 4 秒加伤
 		if skill_lifesteal and _lifesteal_cd <= 0.0:
-			_lifesteal_cd = 6.0
-			hp = mini(hp + 1, max_hp)
-			hp_changed.emit(hp, max_hp)
-			_spawn_number(1, Color(0.45, 0.75, 0.5), 130.0) # 绿字提示回了口血
+			_lifesteal_cd = _lifesteal_cd_max
+			var heal := mini(_lifesteal_heal, max_hp - hp)
+			if heal > 0:
+				hp += heal
+				hp_changed.emit(hp, max_hp)
+				_spawn_number(heal, Color(0.45, 0.75, 0.5), 130.0) # 绿字提示回了口血
+			if _lifesteal_buff > 0:
+				_buff_damage = maxi(_buff_damage, _lifesteal_buff)
+				_buff_timer = maxf(_buff_timer, 4.0)
+		# 杀阵·极：O 命中返还冷却秒数
+		if _skill_hit_refund > 0.0 and _skill_cds.has(_skill_name):
+			_skill_cds[_skill_name] = maxf(0.0, float(_skill_cds[_skill_name]) - _skill_hit_refund)
 		Feel.hitstop(0.06) # 技能命中：比普攻更重的顿帧与震屏
 		Feel.shake(7.0, 0.2)
 	_apply_skill_heal(h)
@@ -608,7 +788,7 @@ func _apply_skill_heal(h: Dictionary) -> void:
 	if h.has("sfx") and not h.has("damage"):
 		_play_sfx(h["sfx"])
 	if h.has("heal") and hp < max_hp:
-		var heal := mini(int(h["heal"]), max_hp - hp)
+		var heal := mini(int(h["heal"]) + _heal_bonus, max_hp - hp) # 金刚·续：定山回血 +2
 		hp += heal
 		hp_changed.emit(hp, max_hp)
 		var dn := DAMAGE_NUMBER.new()
@@ -631,9 +811,9 @@ func _deal_skill_tick(tick: Dictionary) -> void:
 			continue
 		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 		# both = 转鞭：鞭子一直在转，前后方都扫得到
-		if not (in_front or bool(tick.get("both", false))) or absf(dx) > float(tick["range"]) * range_scale + _radius_of(p):
+		if not (in_front or bool(tick.get("both", false))) or absf(dx) > float(tick["range"]) * range_scale * _tick_range_scale + _radius_of(p):
 			continue
-		p.call("take_damage", int(tick["damage"]) + damage_bonus + _buff_now(), global_position.x)
+		p.call("take_damage", int(tick["damage"]) + _tick_damage_bonus + damage_bonus + _buff_now(), global_position.x)
 		Score.add_hit()
 		did_hit = true
 	if did_hit:
@@ -675,7 +855,7 @@ func try_reflect_ranged(damage: int, from_x: float, attacker: Node = null) -> bo
 ## 发一颗投射物：从胸口高度出手，沿朝向直线飞
 func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0) -> void:
 	var pr = PROJECTILE.new()
-	pr.setup(facing, float(spec.get("speed", 520.0)), float(spec.get("range", 420.0)), damage, sfx, proj_pierce)
+	pr.setup(facing, float(spec.get("speed", 520.0)) * _proj_speed_scale, float(spec.get("range", 420.0)) * _proj_range_scale, damage, sfx, proj_pierce)
 	pr.global_position = global_position + Vector2(facing * 36.0, -52.0 + y_off)
 	get_tree().current_scene.add_child(pr)
 
@@ -719,7 +899,7 @@ func _try_jump() -> void:
 func _try_dash() -> void:
 	if Input.is_action_just_pressed("dash") and _dash_cd <= 0.0:
 		state = State.DASH
-		_dash_timer = dash_time
+		_dash_timer = dash_time * _dash_time_scale # 疾影：冲刺更久 = 更远 + 完美闪避窗口更长
 		_play(anim_map["dash"], false, _dash_anim_speed)
 		_play_sfx("dash_step") # 冲刺踏地声，补上原本只有画面没有声音的空档
 
@@ -812,12 +992,12 @@ func _start_skill(n: String) -> void:
 	_skill_ranged_guard = bool(cfg.get("ranged_guard", false))
 	_skill_tick_acc = 0.0
 	_stop_done = false
-	_skill_cds[n] = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd
+	_skill_cds[n] = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd * _form_cd_scale * float(_skill_cd_mod.get(n, 1.0))
 	_invincible = false
 	# 自带位移动画（银夜 O 抽到 #87 skill11-cankao）：原地播放，收招瞬间瞬移整段冲刺距离（闪现窗口×速度）
 	_skill_teleport = 0.0
 	if _skill_anim in cfg.get("teleport_anims", []):
-		_skill_teleport = float(cfg.get("blink_speed", 800.0)) * (float(cfg.get("blink_to", 0.9)) - float(cfg.get("blink_from", 0.15)))
+		_skill_teleport = float(cfg.get("blink_speed", 800.0)) * (float(cfg.get("blink_to", 0.9)) - float(cfg.get("blink_from", 0.15))) * _blink_dist_scale
 	# 觉醒（银夜 I）：起手即回血 + 限时加伤
 	if cfg.has("heal"):
 		_apply_skill_heal({"heal": cfg["heal"]})
@@ -861,6 +1041,7 @@ func swap_skull(id: String) -> void:
 	_skill_tick_acc = 0.0
 	_skill_teleport = 0.0
 	_buff_timer = 0.0 # 觉醒属于银夜，换头即散
+	_stop_buff_timer = 0.0 # 时停加伤同理
 	_hover_left = 0.0
 	_apply_profile(id)
 	_setup_spine()
@@ -889,12 +1070,13 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	# 放在 _hurt_invincible 之前——刚受过伤的 0.8s 无敌期内照样反弹
 	if _skill_reflect and attacker != null and is_instance_valid(attacker) \
 			and attacker.has_method("take_damage"):
-		attacker.call("take_damage", amount, global_position.x)
+		var reflected := amount + _reflect_bonus # 金刚·初/极：反弹额外加伤
+		attacker.call("take_damage", reflected, global_position.x)
 		var ap := attacker as Node2D
 		if ap != null:
 			FX.spawn(get_tree().current_scene, "ink_hit", ap.global_position + Vector2(0, -60), {"scale": 0.4})
 			var dn := DAMAGE_NUMBER.new()
-			dn.setup(str(amount), Color(0.72, 0.45, 0.3)) # 赭石：反伤数字挂在攻击者头上
+			dn.setup(str(reflected), Color(0.72, 0.45, 0.3)) # 赭石：反伤数字挂在攻击者头上
 			dn.global_position = ap.global_position + Vector2(0, -140)
 			get_tree().current_scene.add_child(dn)
 		_play_sfx("voice_fan_hit")
@@ -902,9 +1084,12 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		return
 	if _hurt_invincible > 0.0:
 		return
+	amount = maxi(1, amount - _damage_reduce) # 铁骨/禅定：减伤，但最低仍吃 1 点
 	_hurt_invincible = 0.8
 	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
 	hp -= amount
+	if _hurt_bones > 0:
+		Score.add_bones(_hurt_bones) # 禅定·续：挨打也赚墨骨
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(amount, DMG_COLOR, 130.0)
 	_play_sfx("hit_fist") # 玩家受伤闷拳声
@@ -951,9 +1136,13 @@ func _spawn_number(amount: int, color: Color, height: float) -> void:
 ## 0.5s 短无敌防同一轮攻击的后段在冲刺结束后立刻命中。
 func _perfect_dodge() -> void:
 	_dash_cd = 0.0 # 收益一：冷却回零
-	_hurt_invincible = maxf(_hurt_invincible, 0.5) # 冲刺窗口只有 0.16s，垫一层防后续段
-	_buff_damage = maxi(_buff_damage, 2) # 收益二：限时加伤
-	_buff_timer = maxf(_buff_timer, 4.0)
+	_hurt_invincible = maxf(_hurt_invincible, 0.5 + _dodge_time_bonus) # 冲刺窗口只有 0.16s，垫一层防后续段
+	_buff_damage = maxi(_buff_damage, 2 + _dodge_bonus) # 收益二：限时加伤（掠影加档）
+	_buff_timer = maxf(_buff_timer, 4.0 + _dodge_time_bonus)
+	# 轻功·续/极：完美闪避额外减全部技能冷却
+	if _dodge_cd_refund > 0.0:
+		for n in _skill_cds:
+			_skill_cds[n] = maxf(0.0, float(_skill_cds[n]) - _dodge_cd_refund)
 	_play_sfx("weapon_sword") # 侧身擦过的嗖声当闪避音
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("完美闪避", Color(0.9, 0.75, 0.3)) # 金：奖励时刻

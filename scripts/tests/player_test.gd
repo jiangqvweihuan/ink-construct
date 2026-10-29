@@ -167,6 +167,57 @@ func _ready() -> void:
 		await _shot("14_ult_after_" + str(_player.skull_id))
 
 	p("SWAP DONE skull=" + str(_player.skull_id))
+
+	# ---- 升级 Build 验证：流派层级价格、续卡轮转、跨形态隔离、换头休眠 ----
+	Run.start()
+	Score.add_bones(400)
+	_player.swap_skull("z003") # 银夜：走一条流派做样本（同形态会早退，这里同步 Run 的形态）
+	Run.skull_id = str(_player.skull_id)
+	await get_tree().process_frame
+	var roll0: Array = Run.roll_cards(3)
+	var kinds: Array = []
+	for k in roll0:
+		var inf: Dictionary = Run.card_info(str(k))
+		kinds.append(str(k) + (("[流派%d]" % int(inf["tier"])) if inf.has("tier") else "[通用]"))
+	p("roll0 银夜三选一：%s" % str(kinds))
+	# 一条流派连买三级：价格应为 初 8 / 续 14 / 极 20
+	for k in ["z003_stop_1", "z003_stop_2", "z003_stop_3"]:
+		var cost_now := Run.upgrade_cost(k)
+		var ok := Run.buy(k)
+		p("buy %s cost=%d ok=%s bones=%d" % [k, cost_now, ok, Score.bones])
+		if k == "z003_stop_1":
+			var roll1: Array = Run.roll_cards(3)
+			p("roll1（已拿时停·初）含时停·续=%s → %s" % [roll1.has("z003_stop_2"), str(roll1)])
+	Run.buy("dash") # 通用卡：疾影 Lv1，验证冲刺倍率确实被 set_upgrades 装上
+	var roll2: Array = Run.roll_cards(3)
+	var cross: Array = []
+	for k in roll2:
+		var forms: Array = Run.card_info(str(k)).get("forms", [])
+		if not forms.is_empty() and not forms.has("z003"):
+			cross.append(k)
+	p("roll2 跨形态泄漏=%s（期望 []） → %s" % [str(cross), str(roll2)])
+	_player.set_upgrades(Run.upgrades)
+	p("build 生效：_stop_bonus=%.1f _stop_buff_damage=%d skill06_cd=%.2f dash_time=%.2f dash_cd=%.2f（期望 1.0 / 2 / 0.70 / 1.20 / 0.90）" % [
+		_player._stop_bonus, _player._stop_buff_damage, float(_player._skill_cd_mod.get("skill06", 1.0)),
+		_player._dash_time_scale, _player._dash_cd_scale])
+	# 换头休眠：切成双刺后银夜的时停卡应整组归零，切回来再恢复
+	_player.swap_skull("c021")
+	await get_tree().process_frame
+	p("换到 c021：_stop_bonus=%.1f（期望 0.0 休眠）" % _player._stop_bonus)
+	_player.swap_skull("z003")
+	await get_tree().process_frame
+	p("切回 z003：_stop_bonus=%.1f（期望恢复 1.0）" % _player._stop_bonus)
+
+	# 三选一面板冒烟：卡面（流派配色 / 层级 / 价格）能正常构建、不报错
+	var panel = load("res://scenes/ui/upgrade_panel.tscn").instantiate()
+	add_child(panel)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await _shot("16_upgrade_panel")
+	p("upgrade_panel cards=%d" % panel._cards.size())
+	panel.queue_free()
+	get_tree().paused = false
+
 	get_tree().quit()
 
 
