@@ -84,6 +84,8 @@ func _refresh() -> void:
 	# 必须在信号回调里重建（点卡片/返回键）：只摘下来 + queue_free，
 	# 千万不能用 free()——那会把正在发 pressed 的按钮当场销毁，引擎直接报错卡死
 	for c in get_children():
+		if c == _sfx: # 常驻点击音不参与重建，删了之后再点按钮就是「访问已释放对象」
+			continue
 		remove_child(c)
 		c.queue_free()
 	_build()
@@ -114,7 +116,8 @@ func _pick_char(id: String) -> void:
 
 
 func _click_sfx() -> void:
-	_sfx.play()
+	if is_instance_valid(_sfx):
+		_sfx.play()
 
 
 func _label(text: String, y: float, font_size: int, color: Color) -> void:

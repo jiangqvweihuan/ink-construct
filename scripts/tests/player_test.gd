@@ -242,6 +242,9 @@ func _ready() -> void:
 			mode_cards.append(c)
 	mode_cards[1].pressed.emit() # 第二张 = 无尽
 	p("开始面板点「无尽」-> step=%d 模式卡=%d（期望 1 / 2）" % [start._step, mode_cards.size()])
+	# 锁住的卡点了不该有反应（此时新档只有双刺可点）
+	start._pick_char("z003")
+	p("点未解锁银夜 -> step=%d（期望 1，停在选角页）" % start._step)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await _shot("18_start_char_locked")
@@ -253,11 +256,31 @@ func _ready() -> void:
 	Meta.kills = 150
 	Meta.clears = 3
 	p("击杀150 / 通关3 -> 银夜=%s（期望 开）" % Meta.is_unlocked("z003"))
-	start._step = 1
 	start._refresh()
 	await get_tree().process_frame
+	await get_tree().process_frame
 	await _shot("19_start_char_all")
-	start.queue_free()
+
+	# 逐颗按钮都按一遍（都走 pressed 真信号）：上一步回选模式 → 返回关面板 → 再开一次确认没残留
+	var back_btn := _find_btn(start, Vector2(220, 52))
+	back_btn.pressed.emit()
+	await get_tree().process_frame
+	p("点「上一步」-> step=%d（期望 0）" % start._step)
+	await _shot("20_start_back")
+	var ret_btn := _find_btn(start, Vector2(220, 52))
+	ret_btn.pressed.emit()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	p("点「返回」-> 面板已释放=%s（期望 true）" % (not is_instance_valid(start)))
+
+	# 重新打开一次：确认上一步/返回留下的状态不会把新面板弄坏
+	var start2 = load("res://scenes/ui/start_panel.tscn").instantiate()
+	add_child(start2)
+	await get_tree().process_frame
+	_find_btn(start2, Vector2(220, 52)).pressed.emit() # 返回
+	await get_tree().process_frame
+	await get_tree().process_frame
+	p("二次打开后点「返回」-> 已释放=%s（期望 true）" % (not is_instance_valid(start2)))
 
 	# 无尽缩放：层数越深，小怪血量 / 精英倍率 / Boss 血量越高、出手越快
 	Run.start(Run.MODE_ENDLESS, "c021")
@@ -297,6 +320,14 @@ func _wait_free(max_wait := 6.0) -> void:
 	while _player.state > 1 and t < max_wait:
 		await get_tree().physics_frame
 		t += get_physics_process_delta_time()
+
+
+## 按尺寸找一个按钮：开始面板里模式卡 320x250、角色卡 208x270、底部按钮 220x52
+func _find_btn(parent: Node, wanted: Vector2) -> TextureButton:
+	for c in parent.get_children():
+		if c is TextureButton and c.size.is_equal_approx(wanted):
+			return c
+	return null
 
 
 func _shot(name: String) -> void:

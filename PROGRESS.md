@@ -73,6 +73,7 @@
 | 特效/音效 | `fx_test.tscn`、`sfx_preview.tscn` |
 | 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`（自动扫描全部骨架 → `tests/anim_list.log`）、`anim_viewer.tscn`（可视化查看器：←→ 切骨架、↑↓ 切动画、空格重播、L 循环）、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
 | 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`、`settings_test.tscn`、`font_probe.tscn` |
+| 开局流程（真鼠标） | `start_flow_test.tscn`：把主菜单挂进来，用 `push_input(ev, true)` 发真实鼠标/键盘事件点一遍「开始游戏 → 模式卡 → 上一步 → 返回 → 连点 → Esc」。**`pressed.emit()` 不走 BaseButton 输入路径，模拟不出真实点击的崩溃，UI 回归优先用这个** |
 | **试炼场（调试单挑）** | **`sandbox.tscn`**：一块空地 + 任选敌人单挑，调技能机制/动画/判定专用。[/] 换玩家形态、,/. 轮换敌人（小怪+精英+Boss，直接读两张形态表，新增怪自动进表）、R 重刷敌人；双方无限血（999999）；启动 1s 自动存 `tests/out/sandbox_boot.png` 供回归验收，`-- --shot` 跑完整自动巡游 |
 
 ---
@@ -219,6 +220,29 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-29 · 修开始面板两处「访问已释放对象」崩溃
+
+#### 症状
+① 点「开始游戏」选模式后卡死报错；② 修完 ① 后点「上一步」又卡死报错。两条都是编辑器调试器 `Debugger Break`，游戏当场停在 `debug> `，看起来像闪退。
+
+#### 根因（都已复现 + 修好）
+1. **`free()` 销毁正在发信号的按钮**：`_refresh()` 在 `pressed` 回调里对全部子节点 `c.free()`，把刚发出 `pressed` 的卡片当场销毁 → 引擎直接报错。
+2. **`_sfx` 被一起清掉**：点击音播放器是面板子节点，`_refresh()` 重建时把它也 `queue_free` 了；下一次点按钮 `_click_sfx()` 调 `play()` 命中 `Cannot call method 'play' on a previously freed instance.` → 调试器中断。
+   - 复现记录：去掉两处保护后跑 `start_flow_test`，日志停在点「上一步」后第一次点击，控制台出现该 SCRIPT ERROR + `debug> `。
+
+#### 修法
+- `_refresh()`：`remove_child` + `queue_free`（延后销毁），并**跳过 `_sfx`**；`_click_sfx()` 加 `is_instance_valid(_sfx)` 兜底。点击音改成 `_ready` 建一次、之后只 `play()`，不再每次点都新建节点。
+- 主菜单加 `_start_panel` 单例引用，连点「开始游戏」不会叠出两块面板。
+
+#### 教训（写测试时注意）
+- **`pressed.emit()` 不等于真点击**：它绕过 BaseButton 的输入/状态机，真实鼠标路径才暴露了上面第 1 类崩溃。以后新 UI 按钮先用 `start_flow_test` 的手法（`get_viewport().push_input(ev, true)`，坐标用 1280x720 设计坐标）真点一遍。
+- 编辑器里跑会停在 `Debugger Break`（不是进程退出），别当成闪退去猜；直接看 `%APPDATA%\Godot\app_userdata\InkConstruct\logs\godot.log` 末尾的 SCRIPT ERROR 和 backtrace。
+
+#### 回归
+- `start_flow_test`：开始→无尽→上一步→冒险→上一步→返回→再开始→无尽→Esc(两次)→连点，全绿无 SCRIPT ERROR
+- `player_test` / `room_test` 全绿；`start_flow_test` 已入库，作为真鼠标回归
+
 
 ### 2026-10-29 · 开局流程（模式 → 选角）+ 无尽模式
 

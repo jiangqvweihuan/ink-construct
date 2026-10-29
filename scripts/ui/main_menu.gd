@@ -8,6 +8,8 @@ const SFX_CLICK := preload("res://audio/sfx/click.wav")
 
 const INK := Color(0.05, 0.05, 0.05)
 
+var _start_panel: Node # 开始面板单例引用：连点「开始游戏」不叠加
+
 
 func _ready() -> void:
 	Settings.apply_all() # 启动时应用持久化设置（音量/全屏/分辨率）
@@ -75,9 +77,13 @@ func _open_settings() -> void:
 	add_child(load("res://scenes/ui/settings_panel.tscn").instantiate())
 
 
-## 开始游戏：先弹「模式 → 选角」两步面板，由面板负责 Run.start 与切场景
+## 开始游戏：先弹「模式 → 选角」两步面板，由面板负责 Run.start 与切场景。
+## 面板已经开着就忽略，避免连点叠出两块
 func _open_start() -> void:
-	add_child(load("res://scenes/ui/start_panel.tscn").instantiate())
+	if is_instance_valid(_start_panel):
+		return
+	_start_panel = load("res://scenes/ui/start_panel.tscn").instantiate()
+	add_child(_start_panel)
 
 
 func _open_codex() -> void:
