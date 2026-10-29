@@ -27,10 +27,14 @@ const MODES := {
 
 var _mode := ""
 var _step := 0 # 0 = 选模式，1 = 选角色
+var _sfx: AudioStreamPlayer # 常驻点击音：重建界面时不能把正在响的播放器一起删掉
 
 
 func _ready() -> void:
 	layer = 10
+	_sfx = AudioStreamPlayer.new()
+	_sfx.stream = SFX_CLICK
+	add_child(_sfx)
 	_build()
 
 
@@ -77,9 +81,11 @@ func _build() -> void:
 
 
 func _refresh() -> void:
+	# 必须在信号回调里重建（点卡片/返回键）：只摘下来 + queue_free，
+	# 千万不能用 free()——那会把正在发 pressed 的按钮当场销毁，引擎直接报错卡死
 	for c in get_children():
 		remove_child(c)
-		c.free()
+		c.queue_free()
 	_build()
 
 
@@ -108,10 +114,7 @@ func _pick_char(id: String) -> void:
 
 
 func _click_sfx() -> void:
-	var s := AudioStreamPlayer.new()
-	add_child(s)
-	s.stream = SFX_CLICK
-	s.play()
+	_sfx.play()
 
 
 func _label(text: String, y: float, font_size: int, color: Color) -> void:

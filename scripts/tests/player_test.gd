@@ -234,7 +234,15 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await _shot("17_start_mode")
-	start._pick_mode(Run.MODE_ENDLESS)
+	# 真按按钮（走 pressed 信号整条链），而不是直接调内部函数：
+	# 之前 _refresh 在回调里用 free() 销毁正在发信号的按钮，引擎当场报错卡死
+	var mode_cards: Array = []
+	for c in start.get_children():
+		if c is TextureButton and is_equal_approx(c.size.x, 320.0):
+			mode_cards.append(c)
+	mode_cards[1].pressed.emit() # 第二张 = 无尽
+	p("开始面板点「无尽」-> step=%d 模式卡=%d（期望 1 / 2）" % [start._step, mode_cards.size()])
+	await get_tree().process_frame
 	await get_tree().process_frame
 	await _shot("18_start_char_locked")
 	Meta.kills = 20

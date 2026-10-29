@@ -1,4 +1,4 @@
-[PT] player created, sprite=@SpineSprite@8:<SpineSprite#39963330080>
+[PT] player created, sprite=@SpineSprite@8:<SpineSprite#39896221216>
 [PT] state -> 0 pos=(300.0, 560.0)
 [PT] state -> 3 pos=(300.0, 560.5555)
 [PT] state -> 0 pos=(300.0, 599.9999)
@@ -88,12 +88,12 @@
 [PT] ult_after skull=z003 hp=7/8
 [PT] saved 14_ult_after_z003 err=0 state=0 pos=(879.644, 599.9337)
 [PT] SWAP DONE skull=z003
-[PT] roll0 银夜三选一：["hp[通用]", "z003_qinggong_1[流派1]", "dash[通用]"]
+[PT] roll0 银夜三选一：["z003_qinggong_1[流派1]", "cooldown[通用]", "swap[通用]"]
 [PT] buy z003_stop_1 cost=8 ok=true bones=407
-[PT] roll1（已拿时停·初）含时停·续=true → ["damage", "z003_kill_1", "z003_stop_2"]
+[PT] roll1（已拿时停·初）含时停·续=true → ["z003_stop_2", "cooldown", "z003_qinggong_1"]
 [PT] buy z003_stop_2 cost=14 ok=true bones=393
 [PT] buy z003_stop_3 cost=20 ok=true bones=373
-[PT] roll2 跨形态泄漏=[]（期望 []） → ["z003_qinggong_1", "damage", "cooldown"]
+[PT] roll2 跨形态泄漏=[]（期望 []） → ["cooldown", "dash", "z003_qinggong_1"]
 [PT] build 生效：_stop_bonus=1.0 _stop_buff_damage=2 skill06_cd=0.70 dash_time=1.20 dash_cd=0.90（期望 1.0 / 2 / 0.70 / 1.20 / 0.90）
 [PT] 换到 c021：_stop_bonus=0.0（期望 0.0 休眠）
 [PT] 切回 z003：_stop_bonus=1.0（期望恢复 1.0）
@@ -101,6 +101,7 @@
 [PT] upgrade_panel cards=3
 [PT] 新档解锁顺序 ["c021开", "c013锁", "c023锁", "z000锁", "z003锁"]（期望 c021 开、其余全锁）
 [PT] saved 17_start_mode err=0 state=0 pos=(879.644, 599.9337)
+[PT] 开始面板点「无尽」-> step=1 模式卡=2（期望 1 / 2）
 [PT] saved 18_start_char_locked err=0 state=0 pos=(879.644, 599.9337)
 [PT] 击杀20 / 通关1 -> 力僧=true 梅剑=false 剑仙=true 银夜=false（期望 开/锁/开/锁）
 [PT] 银夜进度 击杀 20/150 · 通关 1/3（期望 击杀 20/150 · 通关 1/3）
