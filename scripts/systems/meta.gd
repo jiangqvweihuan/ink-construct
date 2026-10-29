@@ -3,9 +3,9 @@ extends Node
 ## 局外养成 · 化身解锁 + 契合度（形态专精）
 ## 存档：user://meta.json（JSON），只存累计击杀/通关/各形态契合经验，解锁状态由条件推导。
 ##
-## 解锁条件：c021/c023 初始开放；其余按 UNLOCKS 里的累计击杀 / 通关次数。
-## 解锁顺序 = 强度梯度（近战 -> 远程）：力僧杀25 -> 剑仙杀60，越强的越靠后。
-## 剑仙（真远程剑气）实测最强，放最难位置；青笠 c012 已下掉玩家形态转精英怪，第 5 席待新素材。
+## 解锁条件：c021 双刺初始开放；其余按强度梯度（双刺 < 力僧 < 梅剑 < 剑仙 < 银夜）逐步加码。
+## 解锁难度与强度同序：击杀 20 → 击杀 60 → 通关冒险 1 次 → 通关冒险 3 次 + 累计击杀 150。
+## 通关计数只记「冒险模式」，无尽模式不计通关（但击杀照常累计，进度靠多打）。
 ## 契合度：用某形态击杀 +1、通关整局 +20；等级加成只作用于该形态：
 ##   Lv1(30) 技能冷却 -10% ｜ Lv2(80) 普攻伤害 +1 ｜ Lv3(150) 化身为该形态免费
 
@@ -13,15 +13,17 @@ const SAVE_PATH := "user://meta.json"
 const LV_EXP := [30, 80, 150]
 
 const UNLOCKS := {
-	"c013": {"kills": 25, "hint": "累计击杀 25 解锁"},
-	"z000": {"kills": 60, "hint": "累计击杀 60 解锁"},
-	"z003": {"clears": 1, "hint": "通关 1 次解锁"}, # 银夜强度超标，压轴解锁
+	"c013": {"kills": 20, "hint": "累计击杀 20 解锁"},
+	"c023": {"kills": 60, "hint": "累计击杀 60 解锁"},
+	"z000": {"clears": 1, "hint": "通关冒险模式 1 次解锁"},
+	"z003": {"clears": 3, "kills": 150, "hint": "通关冒险模式 3 次\n+ 累计击杀 150 解锁"}, # 银夜强度超标，压轴解锁
 }
 
 ## 墨锭商店（化身谱面板消费）：买断解锁绕过条件，按强度梯度定价；开局加成为永久被动。
 ## 买断为一次性购买（cost），开局加成可升级（costs 每级价格）。
 const INK_SHOP := {
 	"buyout_c013": {"label": "买断 · 力僧", "cost": 40, "form": "c013"},
+	"buyout_c023": {"label": "买断 · 梅剑", "cost": 80, "form": "c023"},
 	"buyout_z000": {"label": "买断 · 剑仙", "cost": 120, "form": "z000"},
 	"buyout_z003": {"label": "买断 · 银夜", "cost": 200, "form": "z003"},
 	"start_bones": {"label": "墨囊", "desc": "每局开局墨骨 +5", "costs": [30, 50, 80]},
@@ -59,14 +61,15 @@ func unlock_hint(id: String) -> String:
 	return str(UNLOCKS.get(id, {}).get("hint", ""))
 
 
-## 解锁进度文本（未解锁形态用）：12/25 之类
+## 解锁进度文本（未解锁形态用）：支持双条件的条目会拼成「击杀 12/150 · 通关 1/3」
 func unlock_progress(id: String) -> String:
 	var cond: Dictionary = UNLOCKS.get(id, {})
+	var parts: Array = []
 	if cond.has("kills"):
-		return "%d/%d" % [mini(kills, int(cond["kills"])), int(cond["kills"])]
+		parts.append("击杀 %d/%d" % [mini(kills, int(cond["kills"])), int(cond["kills"])])
 	if cond.has("clears"):
-		return "%d/%d" % [mini(clears, int(cond["clears"])), int(cond["clears"])]
-	return ""
+		parts.append("通关 %d/%d" % [mini(clears, int(cond["clears"])), int(cond["clears"])])
+	return " · ".join(parts)
 
 
 # ---------- 墨锭商店 ----------

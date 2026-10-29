@@ -222,6 +222,9 @@ func _build_actors() -> void:
 func _spawn_boss() -> void:
 	_boss = load("res://scenes/enemies/bosses/boss.tscn").instantiate()
 	_boss.type_id = Run.boss_id
+	# 无尽缩放必须在 add_child 之前写入（_ready -> _apply_type 会读这两个值）
+	_boss.hp_scale = Run.boss_hp_scale()
+	_boss.cd_scale = Run.boss_cd_scale()
 	_boss.position = Vector2(1120, 560) # 玩家 460 进门，镜头里能完整看到它登场
 	_boss.died.connect(_on_boss_died)
 	add_child(_boss)
@@ -255,7 +258,7 @@ func _on_all_cleared() -> void:
 	_show_upgrade()
 
 
-## Boss 斩杀 = 通关：倒地动画播完再走结算，尸体多看一会
+## Boss 斩杀：冒险模式 = 通关；无尽模式 = 打完一层，补墨骨 + 一次强化，前进即进下一层
 func _on_boss_died() -> void:
 	if _ended:
 		return
@@ -263,6 +266,11 @@ func _on_boss_died() -> void:
 	if is_instance_valid(_player):
 		Run.snapshot(_player)
 	await get_tree().create_timer(1.6).timeout
+	if Run.mode == Run.MODE_ENDLESS:
+		# 层间补给：层数越高给得越多，正好抵掉下一层的血量膨胀
+		Score.add_bones(8 + 4 * Run.depth)
+		_show_upgrade() # 这边的「前进」= advance() -> 层数 +1，重开三小关
+		return
 	Run.active = false # 通关收尾，再来一局开新档
 	Meta.add_clear(Run.skull_id) # 局外养成：通关计数 + 当前形态契合 +20
 	_show_settlement("通  关", true)
@@ -274,6 +282,10 @@ func _on_player_died() -> void:
 	_ended = true
 	Run.active = false # 这一局到此为止，再来一局从第一层重开
 	await get_tree().create_timer(1.2).timeout # 等阵亡动画
+	# 无尽模式：结算标题直接写死在第几层，方便对照自己的最好成绩
+	if Run.mode == Run.MODE_ENDLESS:
+		_show_settlement("无尽 · 第 %d 层" % Run.depth, false)
+		return
 	_show_settlement("阵  亡", false)
 
 

@@ -161,6 +161,9 @@ func _apply_type() -> void:
 func configure(cfg: Dictionary) -> void:
 	if cfg.has("hp"):
 		max_hp = int(cfg["hp"])
+	# 倍率血量：精英不填绝对血量，按形态表基础值乘倍率（无尽模式逐层变厚）
+	if cfg.has("hp_mul"):
+		max_hp = maxi(1, int(round(float(max_hp) * float(cfg["hp_mul"]))))
 	if cfg.has("speed"):
 		var m := float(cfg["speed"])
 		patrol_speed *= m

@@ -13,6 +13,7 @@ class Trainer extends Node2D:
 
 const OUT_DIR := "res://tests/out/"
 const PlayerClass := preload("res://scripts/player/player.gd")
+const Skulls = preload("res://scripts/player/skulls.gd")
 
 var _log: FileAccess
 var _player: PlayerClass
@@ -217,6 +218,53 @@ func _ready() -> void:
 	p("upgrade_panel cards=%d" % panel._cards.size())
 	panel.queue_free()
 	get_tree().paused = false
+
+	# ---- 开局流程验证：解锁梯度 / 开始面板两步 / 无尽缩放 ----
+	Meta.persist = false # 这一段的读写都只在本进程，别污染真实存档
+	Meta.kills = 0
+	Meta.clears = 0
+	Meta.purchases = {}
+	var seq: Array = []
+	for id in Skulls.ids():
+		seq.append(str(id) + ("开" if Meta.is_unlocked(str(id)) else "锁"))
+	p("新档解锁顺序 %s（期望 c021 开、其余全锁）" % str(seq))
+	# 开始面板冒烟：新档下选角页应只有双刺可点
+	var start = load("res://scenes/ui/start_panel.tscn").instantiate()
+	add_child(start)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await _shot("17_start_mode")
+	start._pick_mode(Run.MODE_ENDLESS)
+	await get_tree().process_frame
+	await _shot("18_start_char_locked")
+	Meta.kills = 20
+	Meta.clears = 1
+	p("击杀20 / 通关1 -> 力僧=%s 梅剑=%s 剑仙=%s 银夜=%s（期望 开/锁/开/锁）" % [
+		Meta.is_unlocked("c013"), Meta.is_unlocked("c023"), Meta.is_unlocked("z000"), Meta.is_unlocked("z003")])
+	p("银夜进度 %s（期望 击杀 20/150 · 通关 1/3）" % Meta.unlock_progress("z003"))
+	Meta.kills = 150
+	Meta.clears = 3
+	p("击杀150 / 通关3 -> 银夜=%s（期望 开）" % Meta.is_unlocked("z003"))
+	start._step = 1
+	start._refresh()
+	await get_tree().process_frame
+	await _shot("19_start_char_all")
+	start.queue_free()
+
+	# 无尽缩放：层数越深，小怪血量 / 精英倍率 / Boss 血量越高、出手越快
+	Run.start(Run.MODE_ENDLESS, "c021")
+	Run.depth = 1
+	var hp1 := int(Run.room_config()["waves"][0]["hp"])
+	var mul1 := float(Run.room_config()["waves"][0]["hp_mul"])
+	var bhp1 := Run.boss_hp_scale()
+	var cd1 := Run.boss_cd_scale()
+	Run.depth = 6
+	var hp6 := int(Run.room_config()["waves"][0]["hp"])
+	var mul6 := float(Run.room_config()["waves"][0]["hp_mul"])
+	p("无尽第1层 怪血=%d 精英倍率=%.2f Boss血倍率=%.2f 冷却倍率=%.2f（期望 原数值）" % [hp1, mul1, bhp1, cd1])
+	p("无尽第6层 怪血=%d 精英倍率=%.2f Boss血倍率=%.2f 冷却倍率=%.2f（期望全部更狠）" % [
+		hp6, mul6, Run.boss_hp_scale(), Run.boss_cd_scale()])
+	p("HUD 模式文本（第6层第1间）：%s" % ("无尽 · 第 6 层 · 1/3"))
 
 	get_tree().quit()
 

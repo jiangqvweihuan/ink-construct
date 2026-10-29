@@ -1,7 +1,7 @@
 # 墨构 InkConstruct · 项目进度与路线图
 
 > Godot 4.6.2 mono + spine-godot 4.2 水墨国风 Roguelite 横版动作
-> 更新日期：2026-10-28（本文档已与代码现状全面对齐）
+> 更新日期：2026-10-29（本文档已与代码现状全面对齐）
 
 ---
 
@@ -15,10 +15,10 @@
 | 手感系统 | `scripts/systems/combat_feel.gd` | hitstop 顿帧、屏幕震、受击白闪；player 三档加速度（`accel`/`brake`/`turn_accel` 均 `@export`）、lunge 惯性（`brake*0.5`）、hit_at × 0.9 提前判定、预警泛红闪 0.2s；攻击后 30% 可取消窗口（`atk["cancel"]` 可调） |
 | 小怪 AI | `scripts/enemies/c016.gd` + `scripts/enemies/enemy_types.gd` | 形态表驱动巡逻/追击/挑招式/出手令牌/攻击锁定/受击硬直分层（普通 vs 精英霸体）；三档加速度对齐玩家手感；range_probe 标定 ranges + hit_at；**多段命中**（`hit_at`/`ranges` 支持数组按段结算）、`damage` 每招伤害、`poise_atk` 出手霸体（挨打掉血不断招）、`lunge_mul` 前冲倍率、`hop` 起手跃起、`enrage` 半血狂暴（冷却×cd、追速×speed，触发一次）；**FLY 状态**（击飞/击退共用：重力抛物线，击退撞同伴手动距离判定双方各吃 impact、撞墙自己吃，落地回硬直）；**`time_stop` 时停**（sprite.process_mode=DISABLED 冻结动画 + 主循环早退，时长按 mob/elite 分档，时停中伤害照算、打死先解冻再 die） |
 | 敌人池 | `scenes/enemies/`（全部复用 c016.gd） | 小怪 4 种：c016 刀客 / z002 黑袍剑客 / c017 蛮兵 / c035 刺客；精英 3 种：c037_elite 大剑骑士 / c018_elite 双镰 / **c012_elite 青笠剑客（前玩家形态转生）**。**除青笠外主角形态不设同名敌人版本**（原 c023_elite 落梅弓手已删，与梅剑共用美术） |
-| 波次刷怪 | `scripts/systems/wave_spawner.gd` | 每房 3 波（5/7/9 只，血量速度递增 + 精英混入），同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared` |
+| 波次刷怪 | `scripts/systems/wave_spawner.gd` | 波次表由 `Run.room_config()` 提供：**冒险**每房 2 波（5~7 只，血量速度递增 + 精英混入）；**无尽**波数/血量/速度/精英数随层数抬升（`Run.endless_waves`）。同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared`。精英血量走「形态表基础值 × `hp_mul`」`configure({"hp_mul": ...})`，普通怪用绝对 `hp` |
 | Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技 + **绕后转身演出**（配 `turn` 动画的 Boss 被穿裆时播调头动画再翻转朝向，不瞬转，转身期不还手是奖励窗口，带冷却防锁死）；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底；**时停可打断冲锋/技能前摇**（boss 档 1s，变身演出冻结不取消）；**霸体免疫击退/击飞**（`launch`/`knock_back` 覆盖为空） |
 | 特效系统 | `scripts/systems/fx.gd` | GIF 精灵条逐帧播放器，12 条特效；Boss fx 配置表驱动 + 焚鼎 P3 封锁火区（聚气预警 → 火柱喷发 → 范围灼烧）；预警用程序化墨环（`tools/gen_telegraph.py`） |
-| 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | **3 普通房（波次清怪）→ Boss 房**；每清一房花墨骨强化三选一；首房出发前排赐福三选一；Boss 房按形态换主题背景（`BOSS_BG` 表）；普通房固定 4 棵远景树点缀 |
+| 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | **两种模式**：冒险 = 3 普通房（波次清怪）→ Boss 房 → 通关结算；**无尽 = 每层都是「3 小关 + 1 Boss」**，Boss 倒下补墨骨 + 一次强化，前进即 `depth+1` 重开三小关、换一只 Boss（血量每层 ×1.4、出手冷却每层 ×0.94，最低 0.6）。每清一房花墨骨强化三选一；首房出发前排赐福三选一（一局一次，无尽跨层不再弹）；Boss 房按形态换主题背景（`BOSS_BG` 表）；普通房固定 4 棵远景树点缀 |
 | 墨骨掉落 | `scripts/systems/bone_pickup.gd` | 敌人死亡掉墨骨：上抛落地 → 玩家靠近 95px 自动吸附 → 收下；14s 无人拾取消失；纯 `_draw` 墨点不依赖素材 |
 | 关卡互动装饰 | `scripts/world/decor_interactive.gd` | 普通房随机刷 2-3 个可互动物件：卷轴回血 +1 / 香炉 +5 墨骨 / 石碑本房临时 buff（伤害 +2 或移速 ×1.25，换房自动失效）；走近 90px 自动触发 → decor_burst 爆开特效 + 飘字 + 音效（decor_pickup / decor_stele）→ 消失；香炉待机挂 decor_idle_fire 白焰 loop。**本体是程序化 `_draw` 临时绘制（偏简陋），待用户找到好素材整件替换（见 P1 标记）** |
 
@@ -27,18 +27,19 @@
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | 局内计数 | `scripts/systems/score.gd`（autoload Score） | 连击（窗口清零）/ 最高连击 / 击杀 / 墨骨；墨骨跨房间保留，开新局才清空；花墨骨 = 局内强化 + 换头 |
-| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；解锁条件：c021/c023 初始开放，力僧杀 25 → 剑仙杀 60（强度梯度，剑仙实测最强放最后）→ 银夜通关 1 次；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
+| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；**解锁按强度梯度（双刺 < 力僧 < 梅剑 < 剑仙 < 银夜）**：双刺初始开放 → 力僧累计击杀 20 → 梅剑累计击杀 60 → 剑仙通关冒险 1 次 → **银夜通关冒险 3 次 + 累计击杀 150**（压轴）。通关计数只记冒险模式（无尽不计通关，击杀照常累计）；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
 | 墨锭商栈 | `meta.gd` `INK_SHOP` + `forms_panel.gd` | 结算时本局剩余墨骨沉淀为局外货币**墨锭**；化身谱面板内消费：买断解锁（绕过条件）+ 永久开局加成（初始墨骨/生命上限，可升级） |
 
 ### UI / 流程
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
-| 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：水墨远山底 + 书法标题 + 开始/化身谱/设置/退出；启动时 `Settings.apply_all()` |
+| 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：水墨远山底 + 书法标题 + 开始/化身谱/设置/退出；启动时 `Settings.apply_all()`。「开始游戏」不再直接进房间，改为弹开始面板 |
+| 开始面板 | `scripts/ui/start_panel.gd` + `scenes/ui/start_panel.tscn` | **两步开局**：① 选模式（冒险 / 无尽卡片）② 选角色（`Skulls.ids()` 强度顺序 5 张，未解锁整卡压暗 + 显示解锁条件与实时进度，已解锁显示契合等级）。选中即 `Run.start(模式, 形态)` → 切 `room_01.tscn`；Esc / 上一步可回退 |
 | 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：5 形态解锁条件/契合进度/各级加成一览 + 墨锭商栈 |
 | 暂停菜单 | `scripts/ui/pause_menu.gd` | Esc 呼出：继续 / 设置 / 回主菜单 |
 | 设置 | `scripts/ui/settings.gd` + `settings_panel.gd` | 音乐/音效音量（Music/SFX 总线）、全屏、分辨率（1280×720 / 1600×900 / 1920×1080）；`user://settings.cfg` 持久化，改动立即生效 |
-| HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 |
+| HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 + **顶部中央模式标签**（`冒险 · 1/3` / `无尽 · 第 2 层 · 2/3` / Boss 房写 `Boss`） |
 | 结算 | `scripts/ui/settlement_panel.gd` | 通关/阵亡结算 + 战绩行（最高连击/击杀/墨骨）+ 朱砂「讨伐 · Boss 名」+ 契合经验条动画 + 墨锭沉淀；**结算栏旁挂当前形态化身**（通关从 profile `victory` 池随机播一遍转待机 / 阵亡播 dead 接 dead_hold 循环躺尸，SpineSprite `process_mode=ALWAYS` 对抗暂停，无 victory 配置的形态 = 接口 fallback 只待机） |
 | 换头面板 | `scripts/ui/swap_panel.gd` | Q 键呼出，暂停时间选形态 |
 | 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一。**通用池 6 张机制卡**（锋锐/静心/铁骨/轻骨/疾影/掠影，cost = 8+4×等级）+ **形态流派 45 张**（5 形态 × 3 流派 × 初/续/极，T2/T3 需前置 req，价格 8/14/20，一局 3 次强化正好走完一条流派）；`roll_cards` 保证「续卡 + 新流派 + 通用」各一张；流派卡只对当前形态生效（换头休眠，`player._apply_form_mods` 按 forms 过滤）；卡面按流派配色（朱砂/墨青/赭金）+ 右上角层级；卡牌图标 `art/ui/icons/` |
@@ -218,6 +219,36 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-29 · 开局流程（模式 → 选角）+ 无尽模式
+
+#### 为什么
+用户要求：① 进游戏先选角色（只列已解锁），解锁条件按强度顺序 双刺 < 力僧 < 梅剑 < 剑仙 < 银夜 重排，银夜压轴最难；② 新增无尽模式，怪物随层数在数值/机制上变强，结构仍是「三小关 + 一关 Boss」。流程改成：开始游戏 → 选模式 → 选角色 → 进房间。
+
+#### 数据层
+- **`skulls.gd`**：新增 `ORDER = ["c021","c013","c023","z000","z003"]`（强度由弱到强）+ `ids()` 按 ORDER 输出（漏写的新形态自动补末尾），选角面板与化身谱共用同一顺序
+- **`meta.gd` 解锁梯度**：c013 击杀 20 / c023 击杀 60 / z000 通关冒险 1 / **z003 通关冒险 3 + 击杀 150**；`unlock_progress()` 支持双条件拼成「击杀 20/150 · 通关 1/3」；`INK_SHOP` 补 `buyout_c023`（80 墨锭）。**通关计数只记冒险**（无尽不计通关，击杀照常累计，解锁进度靠多打）
+- **`run_state.gd`**：`MODE_ADVENTURE/MODE_ENDLESS`、`mode`、`depth`；`start(mode, skull)`；`room_config()` 无尽分支走 `endless_waves(i)`；`boss_hp_scale()` = 1+0.4×(depth-1)，`boss_cd_scale()` = max(0.6, 1-0.06×(depth-1))；`room_label()/mode_label()`；`advance()` 在无尽下 `room_index > 3` 时 `depth+1`、`room_index=0`、换一只 Boss
+- **`boss.gd`**：新增外部缩放字段 `hp_scale` / `cd_scale`（默认 1 = 冒险原数值），`_apply_type` 里乘进 `max_hp` / `attack_cooldown`
+- **`c016.gd`**：`configure()` 支持 `hp_mul`（按形态表基础血量乘倍率）；`wave_spawner` 给精英传 `hp_mul`，普通怪仍用绝对 `hp`
+
+#### 无尽数值（`endless_waves`，第 d 层第 i 间）
+- 普通怪血 `2+(d-1)+i`；速度 `min(1.55, 1+0.05(d-1))`；总数量 `min(12, 5+i+min(d-1,5))`；精英数 `floor((d-1)/2) + (i>=2 ? 1 : 0)`；精英血量倍率 `1+0.3(d-1)`（数量与血厚双管，速度有上限避免手感崩）
+- Boss 血 ×(1+0.4(d-1))、出手冷却 ×max(0.6, 1-0.06(d-1))；层间补给 `8+4d` 墨骨 + 一次强化
+- 赐福一局只发一次（`Run.blessing` 已存则不再弹），无尽跨层不重复
+
+#### UI
+- **`start_panel.gd/.tscn`（新）**：两步面板。① 冒险/无尽两张卡（写法差异，不写数值）② 5 张角色卡（`Skulls.ids()` 顺序，未解锁压暗 + 解锁条件 + 实时进度，已解锁显示契合）；Esc/上一步回退；选中即 `Run.start(mode, id)` → 切房间
+- **`main_menu.gd`**：开始键改为 `_open_start()` 弹面板（不再自己 `Run.start` + 切场景）
+- **`hud.gd`**：顶部中央模式标签 `冒险 · 1/3` / `无尽 · 第 2 层 · 2/3` / Boss 房 `Boss`（y=46，避开大血条与墨骨）
+- **`room_01.gd`**：`_spawn_boss()` 在 add_child 前写 `hp_scale/cd_scale`；`_on_boss_died()` 无尽分支 = 补墨骨 + 弹强化（前进即下一层）；`_on_player_died()` 无尽结算标题写「无尽 · 第 N 层」
+
+#### 回归结果（`player_test` 新增开局段）
+- 新档解锁顺序 `[c021开, 其余锁]`；击杀 20/通关 1 → 力僧开、梅剑锁、剑仙开、银夜锁；击杀 150/通关 3 → 银夜开
+- 开始面板两步截图 `17_start_mode` / `18_start_char_locked` / `19_start_char_all`
+- 无尽第 1 层 vs 第 6 层：怪血、精英倍率、Boss 血倍率、冷却倍率全部单调变狠
+- **肉眼验收点（交用户）**：主菜单开始游戏 → 选模式 → 选角色（新档只有双刺亮）→ 进房间看顶部模式标签；打通一层无尽确认自动进下一层、数值更硬
+
 
 ### 2026-10-29 · 升级系统 Build 化：通用卡机制化 + 每形态 3 流派 × 3 级
 

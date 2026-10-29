@@ -20,6 +20,7 @@ var _hp_clip: Control
 var _hp_label: Label
 var _combo_label: Label
 var _bones_label: Label
+var _mode_label: Label
 var _hud_skills: Array = [] # 当前形态的技能名顺序（与遮罩一一对应）
 var _cd_masks: Array = [] # 每个技能格一个冷却遮罩
 var _player: Node2D
@@ -49,6 +50,7 @@ func _ready() -> void:
 	_build_hp_bar(_root)
 	_build_combo(_root)
 	_build_bones(_root)
+	_build_mode_label(_root)
 
 	# 先找玩家（技能栏要按当前形态的技能表来建），再建底部动作栏
 	var players = get_tree().get_nodes_in_group("player")
@@ -154,6 +156,27 @@ func _build_bones(root: Control) -> void:
 	_bones_label.add_theme_font_size_override("font_size", 22)
 	_bones_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_bones_label)
+
+
+## 顶部中央：模式 + 当前房间进度（Boss 房写 Boss）。放在大血条下沿，和血条/墨骨错开
+func _build_mode_label(root: Control) -> void:
+	_mode_label = Label.new()
+	_mode_label.size = Vector2(600, 26)
+	_mode_label.position = Vector2(340, 46)
+	_mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_mode_label.add_theme_color_override("font_color", INK)
+	_mode_label.add_theme_font_size_override("font_size", 18)
+	_mode_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mode_label.text = _mode_text()
+	root.add_child(_mode_label)
+
+
+func _mode_text() -> String:
+	if Run.is_boss_room():
+		return "%s · Boss" % Run.mode_label()
+	if Run.mode == Run.MODE_ENDLESS:
+		return "无尽 · 第 %d 层 · %d/3" % [Run.depth, Run.room_index + 1]
+	return "冒险 · %d/3" % [Run.room_index + 1]
 
 
 func _process(_delta: float) -> void:

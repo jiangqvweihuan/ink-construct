@@ -29,6 +29,9 @@ const ARENA_R := 1840.0
 
 var boss_label := ""
 var stage := 0
+## 无尽模式的外部缩放：room_01 在 add_child（_ready -> _apply_type）之前写入
+var hp_scale := 1.0 # 血量倍率，1 = 冒险模式原始数值
+var cd_scale := 1.0 # 出手冷却倍率，<1 = 出手更快
 
 var _stage_at: Array = []
 var _stages: Array = []
@@ -61,7 +64,8 @@ func _apply_type() -> void:
 	_ranges = t["ranges"]
 	_hit_at_map = t["hit_at"]
 	_both_anims = t.get("both", {})
-	max_hp = int(t["hp"])
+	# 无尽模式缩放：room_01 在 add_child 前写 hp_scale / cd_scale（默认 1 = 冒险原数值）
+	max_hp = maxi(1, int(round(float(t["hp"]) * hp_scale)))
 	patrol_speed = float(t["patrol_speed"])
 	chase_speed = float(t["chase_speed"])
 	patrol_range = float(t["patrol_range"])
@@ -70,7 +74,7 @@ func _apply_type() -> void:
 	lose_range = float(t["lose_range"])
 	attack_range = float(t["attack_range"])
 	keep_dist = float(t["keep_dist"])
-	attack_cooldown = float(t["attack_cooldown"])
+	attack_cooldown = float(t["attack_cooldown"]) * cd_scale
 	attack_lunge = float(t["attack_lunge"])
 	attack_hit_height = float(t["hit_height"])
 	hurt_time = float(t["hurt_time"])

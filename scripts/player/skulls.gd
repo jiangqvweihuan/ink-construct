@@ -10,6 +10,9 @@ extends RefCounted
 
 const DEFAULT_ID := "c021"
 
+## 形态强度顺序（由弱到强）：选角界面 / 化身谱按此排列，解锁条件也按同一梯度递增
+const ORDER := ["c021", "c013", "c023", "z000", "z003"]
+
 const SKULLS := {
 	"c021": {
 		"label": "双刺", # 代称：红缨双匕 + 面纱长裙的女刺客造型
@@ -293,4 +296,12 @@ static func get_profile(id: String) -> Dictionary:
 
 
 static func ids() -> Array:
-	return SKULLS.keys()
+	# 按强度顺序输出；以后新增形态若忘了写进 ORDER，也会补在末尾不至于漏掉
+	var out: Array = []
+	for id in ORDER:
+		if SKULLS.has(id):
+			out.append(id)
+	for id in SKULLS:
+		if not out.has(id):
+			out.append(id)
+	return out

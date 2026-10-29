@@ -39,9 +39,7 @@ func _ready() -> void:
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(sub)
 
-	_make_button("开始游戏", 380, func():
-		Run.start() # 从主菜单进入 = 新的一局（清墨骨/形态/强化）
-		get_tree().change_scene_to_file("res://scenes/world/room_01.tscn"))
+	_make_button("开始游戏", 380, _open_start)
 	_make_button("化 身 谱", 465, _open_codex) # 局外养成一览：解锁进度 / 契合等级 / 加成
 	_make_button("设    置", 550, _open_settings)
 	_make_button("退    出", 635, func(): get_tree().quit())
@@ -75,6 +73,11 @@ func _make_button(text: String, y: float, cb: Callable) -> void:
 
 func _open_settings() -> void:
 	add_child(load("res://scenes/ui/settings_panel.tscn").instantiate())
+
+
+## 开始游戏：先弹「模式 → 选角」两步面板，由面板负责 Run.start 与切场景
+func _open_start() -> void:
+	add_child(load("res://scenes/ui/start_panel.tscn").instantiate())
 
 
 func _open_codex() -> void:

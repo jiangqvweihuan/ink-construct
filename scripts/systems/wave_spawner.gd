@@ -92,9 +92,9 @@ func _spawn_one() -> void:
 	e.died.connect(_on_enemy_died.bind(e))
 	add_child(e)
 	if is_elite:
-		# 精英的招式 / 血量 / 霸体都在形态表里，这里只按波次微调速度
+		# 精英的招式 / 血量 / 霸体都在形态表里，这里只按波次微调速度与血量倍率
 		_elites_left -= 1
-		e.configure({"speed": float(cfg.get("speed", 1.0)) * 0.9})
+		e.configure({"speed": float(cfg.get("speed", 1.0)) * 0.9, "hp_mul": float(cfg.get("hp_mul", 1.0))})
 	else:
 		# 每只怪的站位距离与出手节奏都错开：不会几只挤在同一格，也不会整齐划一地同时挥刀
 		e.configure({

@@ -8,6 +8,10 @@ const BASE_HP := 8
 const SWAP_FROM := 8 # 换头基础消耗（与 player.gd 的 SWAP_COST 对齐）
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 
+## 两种模式：冒险 = 三关 + Boss 通关；无尽 = 每层都是「三小关 + 一个 Boss」，Boss 倒下进下一层
+const MODE_ADVENTURE := "adventure"
+const MODE_ENDLESS := "endless"
+
 ## 每个房间的波次配置；index 越大越难
 const ROOMS := [
 	{
@@ -114,6 +118,8 @@ const BLESSINGS := {
 }
 
 var active := false
+var mode := MODE_ADVENTURE # adventure / endless
+var depth := 1 # 无尽模式层数（冒险模式恒为 1）
 var room_index := 0
 var hp := BASE_HP
 var max_hp := BASE_HP
@@ -125,13 +131,15 @@ var boss_id := "" # 本局 Boss 房登场的 Boss（开局随机定）
 var meta_snapshot := {} # 开局时的 Meta 快照，结算面板 diff 出本局收获
 
 
-## 开新一局（主菜单点开始 / 重开）
-func start() -> void:
+## 开新一局（开始流程面板选完模式与角色后调用；测试场景直接无参调用 = 冒险 + 双刺）
+func start(new_mode := MODE_ADVENTURE, new_skull := "c021") -> void:
 	active = true
+	mode = MODE_ENDLESS if new_mode == MODE_ENDLESS else MODE_ADVENTURE
+	depth = 1
 	room_index = 0
 	max_hp = BASE_HP + Meta.start_hp_bonus() # 固元：墨锭商店的永久开局生命
 	hp = max_hp
-	skull_id = "c021"
+	skull_id = new_skull if new_skull != "" else "c021"
 	upgrades = {}
 	blessing = ""
 	blessing_used = false
@@ -146,10 +154,38 @@ func start() -> void:
 func room_config() -> Dictionary:
 	if is_boss_room():
 		return BOSS_ROOM
+	if mode == MODE_ENDLESS:
+		return {"waves": endless_waves(room_index)}
 	return ROOMS[clampi(room_index, 0, ROOMS.size() - 1)]
 
 
+## 无尽模式第 i 间房的波次（按层数成长）：血量/数量/速度/精英数一起抬，
+## 精英血量为「形态表基础血量 × hp_mul」，每层 +30%
+func endless_waves(i: int) -> Array:
+	var d := depth
+	var hp := 2 + (d - 1) + i
+	var spd := minf(1.55, 1.0 + 0.05 * float(d - 1))
+	var total := mini(12, 5 + i + mini(d - 1, 5))
+	var elite := int((d - 1) / 2) + (1 if i >= 2 else 0)
+	var mul := 1.0 + 0.3 * float(d - 1)
+	return [
+		{"count": maxi(3, total - 1), "hp": hp, "speed": spd, "elite": maxi(0, elite - 1), "hp_mul": mul},
+		{"count": total + 1, "hp": hp + 1, "speed": minf(1.6, spd + 0.05), "elite": elite, "hp_mul": mul},
+	]
+
+
+## 无尽模式 Boss 缩放：血量每层 +40%，出手冷却每层 -6%（最低 0.6 倍 = 出手快 40%）
+func boss_hp_scale() -> float:
+	return 1.0 + 0.4 * float(depth - 1) if mode == MODE_ENDLESS else 1.0
+
+
+func boss_cd_scale() -> float:
+	return maxf(0.6, 1.0 - 0.06 * float(depth - 1)) if mode == MODE_ENDLESS else 1.0
+
+
 func room_label() -> String:
+	if mode == MODE_ENDLESS:
+		return "无尽 · 第 %d 层" % depth
 	return str(room_config()["label"])
 
 
@@ -157,6 +193,10 @@ func room_no() -> String:
 	if is_boss_room():
 		return "Boss"
 	return "%d / %d" % [room_index + 1, ROOMS.size()]
+
+
+func mode_label() -> String:
+	return "无尽" if mode == MODE_ENDLESS else "冒险"
 
 
 ## 三关全过后进入 Boss 房（room_index 越过普通房间数）
@@ -170,6 +210,13 @@ func is_last_room() -> bool:
 
 func advance() -> void:
 	room_index += 1
+	# 无尽：打完 Boss 进下一层（三小关重来，Boss 换一只，数值更高）
+	if mode == MODE_ENDLESS and room_index > ROOMS.size():
+		depth += 1
+		room_index = 0
+		boss_id = BossTypes.ROSTER[randi() % BossTypes.ROSTER.size()]
+	elif room_index > ROOMS.size():
+		room_index = ROOMS.size()
 
 
 func level(key: String) -> int:
