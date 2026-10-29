@@ -70,9 +70,10 @@ const SKULLS := {
 			},
 			# U 掷匕·缚（第 25 号 skill02-cankao，2.05s）：远程投掷一把双刺（1.43s 出手），
 			# 命中后定身 3 秒（期间敌人不能移动但可以出手），并从命中点分裂出第二把继续飞。
-			# 无 blink / teleport：位移只靠起手小前冲，不会出现闪现或残影。
+			# 无 blink / teleport：位移只靠动画本身的根骨后跃（root_motion），不会出现闪现或残影。
 			"skill02-cankao": {
 				"action": "skill_ult", "cooldown": 9.0,
+				"root_motion": true, # 动画 1.2~1.42s 把根骨后挪约 430 骨架像素（≈170 世界像素）：节点跟着挪，收招后停在那里
 				"hits": [{
 					"at": 1.43, "damage": 2, "sfx": "skill_blade",
 					"projectile": {"speed": 900.0, "range": 460.0, "root": 3.0, "split": 1, "style": "dagger"},

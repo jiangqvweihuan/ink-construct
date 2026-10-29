@@ -14,6 +14,10 @@ const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
 ## 换头消耗的墨骨数
 const SWAP_COST := 8
 
+## 队列动画提前接管的时长：spine 在结束前一个混合时长（default_mix=0.2）就把下一段混进来，
+## root_motion 技能必须在此之前结算位移，否则读到的是被 stand 拉回途中的根骨值（多留一帧余量）
+const ROOT_MIX_LEAD := 0.24
+
 ## 技能 action -> HUD 按键字母
 const KEY_LABELS := {"skill": "K", "skill_sweep": "L", "skill_ult": "U", "skill_i": "I", "skill_o": "O"}
 
@@ -156,6 +160,8 @@ var _skill_anim := "" # 本次技能实际播放的动画（随机池技能用�
 var _skill_speed := 1.0 # 本次技能的动画播放速度倍率（<1 慢放，时刻表按动画时间对齐）
 var _dash_anim_speed := 1.0 # dash 动画播放速度倍率（形态表 dash_anim_speed，短动画慢放填满冲刺窗口）
 var _skill_teleport := 0.0 # 技能抽到自带位移动画（银夜 O 的 #87）：原地播放，收招瞬间瞬移这段距离
+var _skill_root_follow := false # 技能配置 root_motion：节点跟着根骨位移走，收招后真的停在动画终点
+var _skill_root_x := 0.0 # root_motion 技能起手时的节点 x（根骨位移量以它为基准）
 var _mix_restore := false # 瞬移切换时把默认混合压到 0，渲染侧应用完后下一帧恢复 0.2
 var _stop_done := false # 时停（U）本场已触发
 var _lifesteal_cd := 0.0 # 饮血内置冷却
@@ -172,6 +178,8 @@ var _idle_queued := false # stand 已排队在技能后面，切 IDLE 时别重�
 
 var sprite: Node2D # SpineSprite（GDExtension 类，用 ClassDB 创建）
 var _anim_state # SpineAnimationState
+var _root_bone # SpineBone：骨架根骨，root_motion 技能按它的位移驱动节点位移
+var _root_bone_base := 0.0 # 根骨出生 x：结算位移后必须把它拨回这里，否则后续动画会一直带着上一招的位移
 var _current_anim := "" # 防同名动画重放（floated 在跳跃顶点重放会抽搐）
 var _sfx_player: AudioStreamPlayer
 var _sfx_cache: Dictionary = {}
@@ -383,6 +391,8 @@ func _setup_spine() -> void:
 	data.call("set_default_mix", 0.2) # 切换混合 0.1->0.2，收招/起步过渡更柔
 	sprite.scale = Vector2(base_scale * facing, base_scale)
 	_anim_state = sprite.call("get_animation_state")
+	_root_bone = sprite.call("get_skeleton").call("get_root_bone") # root_motion 技能靠它读动画的位移量
+	_root_bone_base = float(_root_bone.call("get_x")) if _root_bone != null else 0.0
 	# 缓存技能动画真实时长，技能锁定必须按实际时长走（C016 的教训：手填时长收招会抽搐）
 	# 随机池技能（银夜 I/O）：池里每个动画都要缓存，时长按抽中的那个走
 	_skill_durations.clear()
@@ -660,6 +670,25 @@ func _skill_tick(delta: float) -> void:
 		sprite.get("skeleton_data_res").call("set_default_mix", 0.2)
 	var cfg: Dictionary = skill_config[_skill_name]
 	var t: float = (_skill_dur - _skill_timer) * _skill_speed # 动画时间：慢放技能的时刻表按动画帧标定，与 cfg 的 at/blink 对齐
+	# 根骨跟随（root_motion）：动画把根骨挪了多远，节点就跟着挪多远，再用 sprite 反向抵消同一份量——
+	# 画面看到的动作与原来一模一样，但人物真的走到了动画终点（命中判定 / 投射物出手点也都在正确位置）
+	if _skill_root_follow and _root_bone != null:
+		var off := _root_offset()
+		sprite.position.x = -off
+		global_position.x = _skill_root_x + off
+	# root_motion 收尾：队列里的 stand 会在结束前一个混合时长（默认 0.2s）就接管轨道、把根骨往 0 拉，
+	# 所以必须赶在混合开始前结算位移（再多留一帧余量），然后零混合瞬切 stand——人物正好停在动画终点
+	if _skill_root_follow and t >= _skill_dur * _skill_speed - ROOT_MIX_LEAD:
+		_reset_root_follow()
+		if _anim_state != null:
+			var idle_anim := _idle_anim()
+			var data = sprite.get("skeleton_data_res")
+			data.call("set_default_mix", 0.0)
+			_anim_state.call("clear_track", 0) # 连队列里排的 stand 一起清，防止它在旧位置自动接续
+			_anim_state.call("set_animation", idle_anim, true, 0)
+			_mix_restore = true
+			_current_anim = idle_anim
+			_idle_queued = true
 	# 自带位移动画（#87）尾声提前 0.12s 收尾：瞬移到终点 + 清轨道瞬时切 stand。
 	# 不能等收招帧才切——队列里自动接续的 stand 会在旧位置抢先起播、混出一帧残影（残影根因）；
 	# 提前切，缝在动画还在播时合上，path 命中仍在收招帧从终点回扫整段路径
@@ -680,6 +709,9 @@ func _skill_tick(delta: float) -> void:
 	if _skill_teleport > 0.0:
 		_set_blink(true) # 原地期间同样开穿身：动画画面在冲，站位不动不该被敌人挤住
 		velocity.x = move_toward(velocity.x, 0.0, accel * delta)
+	elif _skill_root_follow:
+		# 位置直接由根骨驱动。这里不碰 blink：blink 同时等于"整段无敌"，U 不该白送无敌
+		velocity.x = 0.0
 	elif cfg.has("blink_from") and t >= cfg["blink_from"] and t <= cfg["blink_to"]:
 		_set_blink(true)
 		velocity.x = facing * float(cfg["blink_speed"]) * _blink_dist_scale # 闪现突进（杀阵·初 拉长位移）
@@ -741,6 +773,28 @@ func _set_blink(on: bool) -> void:
 			add_collision_exception_with(e)
 		else:
 			remove_collision_exception_with(e)
+
+
+## 根骨当前把人物推开了多少世界像素（骨架空间位移 × 缩放 × 朝向）
+func _root_offset() -> float:
+	if _root_bone == null:
+		return 0.0
+	return (float(_root_bone.call("get_world_x")) - _root_bone_base) * base_scale * facing
+
+
+## 收掉根骨跟随：先把当下的位移量结算进节点位置，再把根骨拨回出生位置、清掉 sprite 补偿——
+## 节点挪了 +off、根骨退了 -off、补偿清 0，画面不动，但骨架姿势回到正常基准。
+## 只清补偿不回拨根骨的话，人偶会被永远画在节点左侧 off 处（实测 stand 不会自己把根骨拉回 0）。
+func _reset_root_follow() -> void:
+	if not _skill_root_follow:
+		return
+	_skill_root_follow = false
+	var off := _root_offset()
+	if _root_bone != null:
+		global_position.x = _skill_root_x + off
+		_root_bone.call("set_x", _root_bone_base)
+	if sprite:
+		sprite.position = Vector2.ZERO
 
 
 func _deal_skill_hit(h: Dictionary) -> void:
@@ -1056,6 +1110,11 @@ func _start_skill(n: String) -> void:
 	else:
 		_skill_hits = cfg.get("hits", []).duplicate(true)
 	_skill_start_x = global_position.x
+	# root_motion：节点跟着动画根骨走（双刺 U：动画自己后跃约 170px，节点必须跟到那儿，收招才不会滑回原点）
+	_skill_root_follow = bool(cfg.get("root_motion", false))
+	_skill_root_x = global_position.x
+	if sprite:
+		sprite.position = Vector2.ZERO # 清掉上一招残留的根骨补偿
 	_skill_poise = bool(cfg.get("poise", false))
 	_skill_reflect = bool(cfg.get("reflect", false))
 	_skill_ranged_guard = bool(cfg.get("ranged_guard", false))
@@ -1109,6 +1168,7 @@ func swap_skull(id: String) -> void:
 	_skill_ranged_guard = false
 	_skill_tick_acc = 0.0
 	_skill_teleport = 0.0
+	_skill_root_follow = false # 新骨架自带 position 0，这里只清标记，别把旧形态的位移带过来
 	_buff_timer = 0.0 # 觉醒属于银夜，换头即散
 	_stop_buff_timer = 0.0 # 时停加伤同理
 	_hover_left = 0.0
@@ -1156,6 +1216,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	amount = maxi(1, amount - _damage_reduce) # 铁骨/禅定：减伤，但最低仍吃 1 点
 	_hurt_invincible = 0.8
 	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
+	_reset_root_follow() # 技能被受击打断：把根骨位移结算进节点，别把骨架留在偏移位置
 	hp -= amount
 	if _hurt_bones > 0:
 		Score.add_bones(_hurt_bones) # 禅定·续：挨打也赚墨骨
@@ -1253,6 +1314,7 @@ func _perfect_dodge() -> void:
 func die() -> void:
 	state = State.DEAD
 	_set_blink(false) # 尸体也别穿怪
+	_reset_root_follow() # 死亡时收掉根骨补偿，尸体倒在实际站位
 	velocity = Vector2.ZERO
 	_idle_queued = false
 	_invincible = false
