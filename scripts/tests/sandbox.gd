@@ -4,6 +4,7 @@ extends Node2D
 ## 双方无限血（生成时血量顶到 999999，打不死，专心看动作与命中）+ 技能零 CD（cooldown_scale 归零）。
 ## 操作：[ / ] 换玩家形态    , / . 轮换敌人（小怪 + 精英 + Boss 全在表里）    R 重刷当前敌人
 ##      数字键 1~9 模拟受 N 点伤害（测受击分档 / 倒地起身 / 残血待机用）
+##      0 键直接把血量压到上限的 15%（测残血待机，比连按掉血快）
 ## 敌人轮换表直接读 enemy_types / boss_types 两张形态表——以后新增怪/Boss 自动进表，不用改这里。
 ## 启动 1s 后自动存 tests/out/sandbox_boot.png 供回归验收；命令行加 `-- --shot` 再跑完整自动流程并退出。
 
@@ -96,6 +97,11 @@ func _unhandled_input(e: InputEvent) -> void:
 		KEY_R:
 			_spawn_enemy() # 重刷当前敌人（换动画/重置位置用）
 			_update_info()
+		KEY_0:
+			# 一键残血：直接压到上限的 15%，待机下一帧就会自动切残血动画（形态表 low_hp_ratio=0.2）
+			_player.hp = maxi(1, int(round(_player.max_hp * 0.15)))
+			_player.hp_changed.emit(_player.hp, _player.max_hp)
+			_update_info()
 		KEY_1, KEY_2, KEY_3, KEY_4, KEY_5, KEY_6, KEY_7, KEY_8, KEY_9:
 			# 数字键 = 模拟受到 N 点伤害，走玩家真实受击入口，能完整验证分档/倒地/待机切换。
 			# 先清掉受伤后 0.8s 的短无敌，否则连按几下只有第一下生效，测起来很别扭（仅试炼场这么干）
@@ -136,7 +142,7 @@ func _spawn_enemy() -> void:
 func _update_info() -> void:
 	var skull: Dictionary = Skulls.get_profile(_player.skull_id)
 	var info: Dictionary = _roster[_ri]
-	_info.text = "形态 %d/%d  %s（%s）    敌人 %d/%d  %s（%s）    血量 %d/%d\n[ ] 换形态    , . 换敌人    R 重刷敌人    1~9 模拟受 N 点伤    敌人无限血 + 技能零CD" % [
+	_info.text = "形态 %d/%d  %s（%s）    敌人 %d/%d  %s（%s）    血量 %d/%d\n[ ] 换形态    , . 换敌人    R 重刷敌人    1~9 模拟受 N 点伤    0 压到残血    敌人无限血 + 技能零CD" % [
 		_skull_ids.find(_player.skull_id) + 1, _skull_ids.size(),
 		str(skull["label"]), _player.skull_id,
 		_ri + 1, _roster.size(), str(info["label"]), str(info["id"]),
