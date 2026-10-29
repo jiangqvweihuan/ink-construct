@@ -19,7 +19,7 @@ const SWAP_COST := 8
 const ROOT_MIX_LEAD := 0.24
 
 ## 技能 action -> HUD 按键字母
-const KEY_LABELS := {"skill": "K", "skill_sweep": "L", "skill_ult": "U", "skill_i": "I", "skill_o": "O"}
+const KEY_LABELS := {"skill": "K", "skill_sweep": "L", "skill_ult": "U", "skill_i": "I", "skill_o": "O", "skill_p": "P"}
 
 ## 技能配置里 hits.at 是动画开始后多少秒判定命中，按逐帧截图标定：
 ## skill01：0.75s 前冲突刺后起跳隐身（0.75~1.28s 闪现位移+无敌），1.30s 现身一刀，path=沿闪现路径全判。
@@ -152,12 +152,24 @@ var _skill_poise := false # 当前技能自带的霸体（力僧定山：蓄力�
 var _skill_reflect := false # 当前技能自带的反伤（力僧定山：技能期间无敌，伤害原样弹回攻击者）
 var _skill_ranged_guard := false # 当前技能的远程格挡（梅剑转鞭：技能期间免疫并反弹敌方投射物）
 var _skill_tick_acc := 0.0 # 技能持续伤害段的计时累计（每 interval 秒结算一次）
+# ---------- 剑仙·洛惊鸿专属机制（形态表注入，其他形态全为默认值=关闭） ----------
+var _dash_pool: Dictionary = {} # 双闪避：still=站定原地闪 / move=移动中随机段（逐项 anim/time/speed/cd）
+var _dash_speed_now := 0.0 # 本次闪避的实际速度（0 = 原地闪避，不产生位移）
+var _dash_cd_set := 0.0 # 本次闪避结束后要走的冷却（站定/移动两套不同）
+var _jump_seg := false # 形态是否配了分段跳跃动画（jump_start/jump_mid/jump_down/jump_land）
+var _awaken_time := 0.0 # 觉醒剩余时间（剑仙 I：从动画播完那一刻才开始计时）
+var _awaken_pending := 0.0 # 觉醒待激活时长（I 动画播完时转成 _awaken_time）
+var _awaken_stacks := 0 # 剑意层数：觉醒期间每次命中 +1（最多 5），每层全伤 +1
+var _skill_damage_total := 0 # 本次技能累计打出的伤害（O 第三段按比例回血）
+var _skill_cd_set := 0.0 # 本次技能的原始冷却（P 命中返还按它的比例算）
 # ---------- 银夜·将去未还专属机制（形态表注入，其他形态全为默认值=关闭） ----------
 var _qg_jump_mul := 1.0 # 轻功：跳跃初速倍率（明显跳得更高）
 var _qg_hover := 0.0 # 轻功：跃过顶点后空中滞留时长
 var _qg_jump_mul_base := 1.0 # 形态表原始跳跃倍率（流派卡在其上叠加）
 var _qg_hover_base := 0.0 # 形态表原始悬停时长
 var _hover_left := 0.0 # 本次跳跃剩余悬停时间
+var _hover_frozen := false # 悬停期间动画已定格（time_scale=0 冻成漂浮姿态）
+var _room_buff_used := false # 银夜 P：本房间的觉醒强化是否已加持（玩家随房间重建 = 天然一房一次）
 var _buff_damage := 0 # 觉醒（I）：限时内全伤害 +N
 var _buff_timer := 0.0 # 觉醒剩余时间
 var _attack_anim := "" # 本段普攻实际抽中的动画（随机池段用）
@@ -219,6 +231,13 @@ func _apply_profile(id: String) -> void:
 	_qg_jump_mul_base = float(qg.get("jump_mul", 1.0))
 	_qg_hover_base = float(qg.get("hover", 0.0))
 	_dash_anim_speed = float(profile.get("dash_anim_speed", 1.0)) # 短冲刺动画可慢放（银夜 autorush 只有 0.083s）
+	# 双闪避池（剑仙）：站定/移动各一套，不配就走下方通用的单段闪避
+	_dash_pool = profile.get("dash_pool", {})
+	_jump_seg = anim_map.has("jump_start") # 分段跳跃：起跳/上升/下降/落地四段动画
+	_awaken_time = 0.0
+	_awaken_pending = 0.0
+	_awaken_stacks = 0
+	_skill_damage_total = 0
 	# 通用动作接口：闪避时长/速度、受击分档、倒地、残血待机（形态表不配就走默认值）
 	_dash_time_base = float(profile.get("dash_time", dash_time))
 	_dash_speed_base = float(profile.get("dash_speed", dash_speed))
@@ -467,6 +486,10 @@ func _physics_process(delta: float) -> void:
 		if _shield_time <= 0.0:
 			_shield_hits = 0
 	_buff_timer = maxf(0.0, _buff_timer - delta) # 觉醒 buff 倒计时
+	# 剑仙觉醒：到点清空剑意层数（层数只在觉醒期内有效）
+	_awaken_time = maxf(0.0, _awaken_time - delta)
+	if _awaken_time <= 0.0:
+		_awaken_stacks = 0
 	_stop_buff_timer = maxf(0.0, _stop_buff_timer - delta) # 时停加伤倒计时
 	for n in _skill_cds:
 		_skill_cds[n] = maxf(0.0, _skill_cds[n] - delta)
@@ -500,12 +523,15 @@ func _physics_process(delta: float) -> void:
 			_play(want_idle, true)
 
 	if state != State.DASH:
-		# 轻功悬停（银夜）：跃过顶点后滞留一小段，期间不落——velocity.y 快归零时触发
+		# 轻功悬停（银夜）：跃过顶点后滞留一小段，期间不落——velocity.y 快归零时触发；
+		# 悬停期间把跳跃动画定格成漂浮姿态（动画还在播但人不动，看着才不怪）
 		if _hover_left > 0.0 and (state == State.JUMP or state == State.FALL) and velocity.y > -60.0:
 			_hover_left -= delta
 			velocity.y = 0.0
+			_set_hover_freeze(true)
 		else:
 			velocity.y = minf(velocity.y + gravity * delta, max_fall_speed)
+			_set_hover_freeze(false)
 	move_and_slide()
 	_post_move()
 
@@ -547,10 +573,10 @@ func _air_move(delta: float) -> void:
 
 func _dash_tick(delta: float) -> void:
 	_dash_timer -= delta
-	velocity = Vector2(facing * _dash_speed_base, 0.0)
+	velocity = Vector2(facing * _dash_speed_now, 0.0)
 	if _dash_timer <= 0.0:
 		var cut := _dash_attack() # 疾刃：冲刺收尾斩身前一刀
-		_dash_cd = 0.0 if (cut and _dash_attack_refund) else dash_cooldown * _dash_cd_scale
+		_dash_cd = 0.0 if (cut and _dash_attack_refund) else _dash_cd_set * _dash_cd_scale
 		velocity.x = facing * run_speed * 0.5
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
 
@@ -570,7 +596,7 @@ func _dash_attack() -> bool:
 		if not in_front or absf(dx) > 130.0 + _radius_of(p) or dy > 80.0:
 			continue
 		p.call("take_damage", _dash_attack_dmg + damage_bonus + _buff_now(), global_position.x)
-		Score.add_hit()
+		hit_scored()
 		FX.spawn(get_tree().current_scene, "slash", Vector2((global_position.x + p.global_position.x) * 0.5, global_position.y - 70), {"scale": 0.5, "flip": facing < 0})
 		did_hit = true
 	if did_hit:
@@ -654,7 +680,7 @@ func _deal_hit(h = null) -> void:
 		# 朱砂斩击打在攻击者与被击者的中点胸口高度：视觉上像"从玩家挥出"（拉回前先取位置）
 		var mx := (global_position.x + p.global_position.x) * 0.5
 		p.call("take_damage", dmg, global_position.x)
-		Score.add_hit() # 命中一只算一次连击
+		hit_scored() # 命中一只算一次连击
 		# 击飞（银夜段2）：敌人往空中挑起，落地硬直；打死的尸体不再挑
 		var lc: Dictionary = spec.get("launch", {})
 		if not lc.is_empty() and int(e.get("hp")) > 0:
@@ -663,6 +689,10 @@ func _deal_hit(h = null) -> void:
 		var kb: Dictionary = spec.get("knockback", {})
 		if not kb.is_empty() and int(e.get("hp")) > 0:
 			p.call("knock_back", facing, float(kb.get("force", 620.0)), int(kb.get("impact", 1)))
+		# 眩晕（剑仙普攻第三段）：每一段都附短暂眩晕，锁移动也锁出手
+		var stun := float(spec.get("stun", 0.0))
+		if stun > 0.0 and int(e.get("hp")) > 0 and p.has_method("stun"):
+			p.call("stun", stun)
 		if pull > 0.0:
 			# 只朝玩家方向收，已经贴脸的敌人不往前推
 			var want_x := global_position.x + float(facing) * (pull + pulled * 34.0)
@@ -682,12 +712,20 @@ func _radius_of(e) -> float:
 	return float(r) if r != null else 30.0
 
 
-## 限时加伤：觉醒（银夜 I）、完美闪避、血饮·极、时停·续 共用"取最高"
+## 限时加伤：觉醒（银夜 I）、完美闪避、血饮·极、时停·续 共用"取最高"；
+## 剑仙的剑意层数（觉醒期间每次命中 +1，最多 5）在此额外叠加
 func _buff_now() -> int:
 	var v := _buff_damage if _buff_timer > 0.0 else 0
 	if _stop_buff_timer > 0.0:
 		v = maxi(v, _stop_buff_damage)
-	return v
+	return v + _awaken_stacks
+
+
+## 命中计数：连击数 +（剑仙觉醒期间）剑意叠层。玩家造成的每次命中都走这里
+func hit_scored() -> void:
+	Score.add_hit()
+	if _awaken_time > 0.0 and _awaken_stacks < 5:
+		_awaken_stacks += 1
 
 
 func _skill_tick(delta: float) -> void:
@@ -789,6 +827,11 @@ func _skill_tick(delta: float) -> void:
 		_skill_ranged_guard = false
 		_skill_tick_acc = 0.0
 		_set_blink(false)
+		# 觉醒（剑仙 I）：动画播完这一刻才开始计时，觉醒窗口内 O/P 才解锁
+		if _awaken_pending > 0.0:
+			_awaken_time = _awaken_pending
+			_awaken_pending = 0.0
+			_awaken_stacks = 0
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
 
 
@@ -839,6 +882,17 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		_apply_skill_heal(h)
 		return
 	var did_hit := false
+	var dmg := int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0))
+	# 觉醒强化（银夜 P）：释放即加持本房间全伤 +N，与是否命中无关；一房一次，再放只剩伤害
+	var rb: Dictionary = h.get("room_buff", {})
+	if not rb.is_empty() and not _room_buff_used:
+		_room_buff_used = true
+		damage_bonus += int(rb.get("damage", 0))
+		var bn := DAMAGE_NUMBER.new()
+		bn.setup("觉醒·全伤+%d" % int(rb.get("damage", 0)), Color(0.9, 0.75, 0.3)) # 金字提示
+		bn.global_position = global_position + Vector2(0, -160)
+		get_tree().current_scene.add_child(bn)
+	var full := bool(h.get("full_screen", false)) # 全屏伤害（银夜 P 觉醒）：无视距离/朝向/高度
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var p := e as Node2D
 		if p == null:
@@ -848,37 +902,30 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			continue
 		var dx: float = p.global_position.x - global_position.x
 		var dy: float = absf(p.global_position.y - global_position.y)
-		if dy > h["height"]:
-			continue
-		if h.get("path", false):
-			# 路径判定：闪现扫过的整条线段 + 落点正前方 range
-			var x0: float = minf(_skill_start_x, global_position.x) - 20.0
-			var x1: float = maxf(_skill_start_x, global_position.x) + 20.0
-			var in_path: bool = p.global_position.x >= x0 and p.global_position.x <= x1
-			var ahead := dx == 0.0 or (dx > 0.0) == (facing > 0)
-			if in_path or (ahead and absf(dx) <= h["range"] * range_scale + _radius_of(p)):
-				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)), global_position.x)
-				Score.add_hit()
-				_apply_hit_bleed(p, h)
-				_apply_hit_poison(p, h)
-				_skill_kinetic(p, h)
-				_apply_hit_control(p, h)
-				var mx := (global_position.x + p.global_position.x) * 0.5
-				FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
-				did_hit = true
-		else:
-			var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
-			# both = 回身横扫（力僧狼牙棒、双刺回身刺）：动画扫到身后也照样判定
-			if (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"] * range_scale + _radius_of(p):
-				p.call("take_damage", int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)), global_position.x)
-				Score.add_hit()
-				_apply_hit_bleed(p, h)
-				_apply_hit_poison(p, h)
-				_skill_kinetic(p, h)
-				_apply_hit_control(p, h)
-				var mx := (global_position.x + p.global_position.x) * 0.5
-				FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
-				did_hit = true
+		var hit_ok := full
+		if not hit_ok and dy <= h["height"]:
+			if h.get("path", false):
+				# 路径判定：闪现扫过的整条线段 + 落点正前方 range
+				var x0: float = minf(_skill_start_x, global_position.x) - 20.0
+				var x1: float = maxf(_skill_start_x, global_position.x) + 20.0
+				var in_path: bool = p.global_position.x >= x0 and p.global_position.x <= x1
+				var ahead := dx == 0.0 or (dx > 0.0) == (facing > 0)
+				hit_ok = in_path or (ahead and absf(dx) <= h["range"] * range_scale + _radius_of(p))
+			else:
+				var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
+				# both = 回身横扫（力僧狼牙棒、双刺回身刺）：动画扫到身后也照样判定
+				hit_ok = (in_front or bool(h.get("both", false))) and absf(dx) <= h["range"] * range_scale + _radius_of(p)
+		if hit_ok:
+			p.call("take_damage", dmg, global_position.x)
+			_skill_damage_total += dmg
+			hit_scored()
+			_apply_hit_bleed(p, h)
+			_apply_hit_poison(p, h)
+			_skill_kinetic(p, h)
+			_apply_hit_control(p, h)
+			var mx := (global_position.x + p.global_position.x) * 0.5
+			FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
+			did_hit = true
 	if did_hit:
 		if h.has("sfx"):
 			_play_sfx(h["sfx"])
@@ -896,6 +943,10 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		# 杀阵·极：O 命中返还冷却秒数
 		if _skill_hit_refund > 0.0 and _skill_cds.has(_skill_name):
 			_skill_cds[_skill_name] = maxf(0.0, float(_skill_cds[_skill_name]) - _skill_hit_refund)
+		# 剑仙 P：命中返还本次技能冷却的一定比例（形象上是"踢中就能再来一次"）
+		var refund_ratio := float(skill_config[_skill_name].get("refund_ratio", 0.0))
+		if refund_ratio > 0.0 and _skill_cds.has(_skill_name):
+			_skill_cds[_skill_name] = maxf(0.0, float(_skill_cds[_skill_name]) - _skill_cd_set * refund_ratio)
 		Feel.hitstop(0.06) # 技能命中：比普攻更重的顿帧与震屏
 		Feel.shake(7.0, 0.2)
 	_apply_skill_heal(h)
@@ -907,10 +958,12 @@ func _skill_kinetic(p: Node2D, h: Dictionary) -> void:
 		return
 	var lc: Dictionary = h.get("launch", {})
 	if not lc.is_empty():
-		p.call("launch", facing, float(lc.get("vx", 150.0)), float(lc.get("vy", 520.0)))
+		# ignore_armor（剑仙 U 飞脚）：规则级击飞，连 Boss 的霸体也能挑起来
+		p.call("launch", facing, float(lc.get("vx", 150.0)), float(lc.get("vy", 520.0)), bool(lc.get("ignore_armor", false)))
 	var kb: Dictionary = h.get("knockback", {})
 	if not kb.is_empty():
-		p.call("knock_back", facing, float(kb.get("force", 620.0)), int(kb.get("impact", 1)))
+		# ignore_armor（剑仙 O 横斩）：霸体也照样轰飞
+		p.call("knock_back", facing, float(kb.get("force", 620.0)), int(kb.get("impact", 1)), bool(kb.get("ignore_armor", false)))
 
 
 ## 技能命中附加控制（敌人侧接口）：
@@ -957,13 +1010,22 @@ func _apply_hit_poison(p: Node2D, h: Dictionary) -> void:
 		p.call("apply_poison", dur)
 
 
-## 技能自带回血段：与是否命中无关，带 "heal" 字段的技能（力僧砸地、银夜觉醒等）走这里
+## 技能自带回血段：与是否命中无关，带 "heal"/"heal_ratio"/"self_buff" 字段的技能走这里
+## heal_ratio（剑仙 O 第三段）：按本次技能已打出总伤害的比例回血
 func _apply_skill_heal(h: Dictionary) -> void:
 	# 纯回血段没有命中判定，命中音得在这里补一声砸地闷响
 	if h.has("sfx") and not h.has("damage"):
 		_play_sfx(h["sfx"])
-	if h.has("heal") and hp < max_hp:
-		var heal := mini(int(h["heal"]) + _heal_bonus, max_hp - hp) # 金刚·续：回血量 +2
+	# 自我加伤（剑仙 O 祈祷）：限时全伤 +N
+	var sb: Dictionary = h.get("self_buff", {})
+	if not sb.is_empty():
+		_buff_damage = maxi(_buff_damage, int(sb.get("damage", 0)))
+		_buff_timer = maxf(_buff_timer, float(sb.get("time", 6.0)))
+	var heal_amt := int(h.get("heal", 0))
+	if h.has("heal_ratio") and _skill_damage_total > 0:
+		heal_amt += int(round(float(_skill_damage_total) * float(h["heal_ratio"])))
+	if heal_amt > 0 and hp < max_hp:
+		var heal := mini(heal_amt + _heal_bonus, max_hp - hp) # 金刚·续：回血量 +2
 		hp += heal
 		hp_changed.emit(hp, max_hp)
 		var dn := DAMAGE_NUMBER.new()
@@ -990,7 +1052,7 @@ func _deal_skill_tick(tick: Dictionary) -> void:
 		if not (in_front or bool(tick.get("both", false))) or absf(dx) > float(tick["range"]) * range_scale * _tick_range_scale + _radius_of(p):
 			continue
 		p.call("take_damage", int(tick["damage"]) + _tick_damage_bonus + damage_bonus + _buff_now(), global_position.x)
-		Score.add_hit()
+		hit_scored()
 		_apply_hit_poison(p, tick) # 转鞭每一跳也挂毒：只要长鞭剑打中就有中毒，不是只认尾端
 		did_hit = true
 	if did_hit:
@@ -1020,7 +1082,7 @@ func try_reflect_ranged(damage: int, from_x: float, attacker: Node = null) -> bo
 				target = e
 	if target != null:
 		target.call("take_damage", damage, global_position.x)
-		Score.add_hit()
+		hit_scored()
 		var tp := target as Node2D
 		if tp != null:
 			FX.spawn(get_tree().current_scene, "ink_hit", tp.global_position + Vector2(0, -60), {"scale": 0.4})
@@ -1033,8 +1095,11 @@ func try_reflect_ranged(damage: int, from_x: float, attacker: Node = null) -> bo
 func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0) -> void:
 	var pr = PROJECTILE.new()
 	# root=命中定身秒数；split=命中后分裂出的第二把数量；style=dagger 画短匕（默认剑气弧）
+	# pierce=本发穿透（剑气·极 / 剑仙月华斩无限穿透）；bleed=命中叠流血层数；scale=剑气视觉尺寸
 	pr.setup(facing, float(spec.get("speed", 520.0)) * _proj_speed_scale, float(spec.get("range", 420.0)) * _proj_range_scale,
-		damage, sfx, proj_pierce, float(spec.get("root", 0.0)), int(spec.get("split", 0)), str(spec.get("style", "qi")))
+		damage, sfx, proj_pierce or bool(spec.get("pierce", false)), float(spec.get("root", 0.0)),
+		int(spec.get("split", 0)), str(spec.get("style", "qi")),
+		int(spec.get("bleed", 0)), float(spec.get("scale", 1.0)))
 	pr.global_position = global_position + Vector2(facing * 36.0, -52.0 + y_off)
 	get_tree().current_scene.add_child(pr)
 
@@ -1135,11 +1200,33 @@ func _try_jump() -> void:
 
 
 func _try_dash() -> void:
-	if Input.is_action_just_pressed("dash") and _dash_cd <= 0.0:
-		state = State.DASH
-		_dash_timer = _dash_time_base * _dash_time_scale # 闪避时长 = 形态闪避动画长度（整段都是完美闪避）
-		_play(anim_map["dash"], false, _dash_anim_speed)
-		_play_sfx("dash_step") # 冲刺踏地声，补上原本只有画面没有声音的空档
+	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0:
+		return
+	var anim := str(anim_map["dash"])
+	var dur := _dash_time_base
+	var speed := _dash_speed_base
+	var cd := dash_cooldown
+	# 双闪避池（剑仙）：站着不动就是原地闪（零位移），移动中就随机抽一段带位移的闪避
+	if not _dash_pool.is_empty():
+		var entry: Dictionary = {}
+		if Input.get_axis("move_left", "move_right") != 0.0:
+			var pool: Array = _dash_pool.get("move", [])
+			if not pool.is_empty():
+				entry = pool[randi() % pool.size()]
+				cd = float(entry.get("cd", _dash_pool.get("move_cd", dash_cooldown)))
+		else:
+			entry = _dash_pool.get("still", {})
+			cd = float(entry.get("cd", _dash_pool.get("still_cd", 1.0)))
+		if not entry.is_empty():
+			anim = str(entry.get("anim", anim))
+			dur = float(entry.get("time", dur))
+			speed = float(entry.get("speed", speed))
+	state = State.DASH
+	_dash_speed_now = speed
+	_dash_cd_set = cd
+	_dash_timer = dur * _dash_time_scale # 闪避时长 = 闪避动画长度（整段都是完美闪避）
+	_play(anim, false, _dash_anim_speed)
+	_play_sfx("dash_step") # 冲刺踏地声，补上原本只有画面没有声音的空档
 
 
 func _start_attack(idx: int) -> void:
@@ -1183,9 +1270,13 @@ func _start_attack(idx: int) -> void:
 func _try_skill() -> void:
 	for n in skill_config:
 		var cfg: Dictionary = skill_config[n]
-		if Input.is_action_just_pressed(cfg["action"]) and _skill_cds.get(n, 0.0) <= 0.0:
-			_start_skill(n)
-			return
+		if not Input.is_action_just_pressed(cfg["action"]) or _skill_cds.get(n, 0.0) > 0.0:
+			continue
+		# 觉醒限定技（O/P）：剑仙看剑意觉醒窗口 _awaken_time，银夜看觉醒加伤 _buff_timer，都不在则按了也不响应
+		if bool(cfg.get("require_buff", false)) and _awaken_time <= 0.0 and _buff_timer <= 0.0:
+			continue
+		_start_skill(n)
+		return
 
 
 func _start_skill(n: String) -> void:
@@ -1209,11 +1300,12 @@ func _start_skill(n: String) -> void:
 		_skill_speed *= base_dur / max_dur
 	_skill_dur = base_dur / _skill_speed
 	_skill_timer = _skill_dur
-	# per-anim 命中标定（hit_at/range 按抽中动画查表）：池技能各动画挥出时刻/范围不同
+	# per-anim 命中标定（hit_at/range 按抽中动画查表）：池技能各动画挥出时刻/范围不同。
+	# 附加效果（projectile/bleed/stun/击飞/回血等）也一并带进这一段命中
 	if cfg.has("hit_at"):
 		var at_map: Dictionary = cfg["hit_at"]
 		var range_map: Dictionary = cfg.get("range", {})
-		_skill_hits = [{
+		var h := {
 			"at": float(at_map.get(_skill_anim, 0.5)),
 			"range": float(range_map.get(_skill_anim, 100.0)),
 			"height": float(cfg.get("height", 100.0)),
@@ -1221,7 +1313,12 @@ func _start_skill(n: String) -> void:
 			"both": bool(cfg.get("both", false)),
 			"path": bool(cfg.get("path", false)),
 			"sfx": str(cfg.get("sfx", "")),
-		}]
+		}
+		for extra in ["projectile", "bleed", "poison", "stun", "root", "knockback", "launch",
+				"heal", "heal_ratio", "self_buff", "self_shield", "full_screen", "room_buff"]:
+			if cfg.has(extra):
+				h[extra] = cfg[extra]
+		_skill_hits = [h]
 	else:
 		_skill_hits = cfg.get("hits", []).duplicate(true)
 	_skill_start_x = global_position.x
@@ -1235,7 +1332,12 @@ func _start_skill(n: String) -> void:
 	_skill_ranged_guard = bool(cfg.get("ranged_guard", false))
 	_skill_tick_acc = 0.0
 	_stop_done = false
-	_skill_cds[n] = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd * _form_cd_scale * float(_skill_cd_mod.get(n, 1.0))
+	_skill_cd_set = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd * _form_cd_scale * float(_skill_cd_mod.get(n, 1.0))
+	_skill_cds[n] = _skill_cd_set
+	_skill_damage_total = 0 # O 第三段按本次技能总伤害比例回血
+	_awaken_pending = float(cfg.get("awaken_time", 0.0)) # I 觉醒：动画播完才开始计时
+	if _awaken_pending > 0.0:
+		_awaken_stacks = 0
 	_invincible = false
 	# 自带位移动画（银夜 O 抽到 #87 skill11-cankao）：原地播放，收招瞬间瞬移整段冲刺距离（闪现窗口×速度）
 	_skill_teleport = 0.0
@@ -1287,6 +1389,10 @@ func swap_skull(id: String) -> void:
 	_shield_hits = 0 # 金钟罩属于形态技能，换头即散
 	_shield_time = 0.0
 	_buff_timer = 0.0 # 觉醒属于银夜，换头即散
+	_awaken_time = 0.0 # 剑仙觉醒与剑意层数同理，换头即散
+	_awaken_pending = 0.0
+	_awaken_stacks = 0
+	_skill_damage_total = 0
 	_stop_buff_timer = 0.0 # 时停加伤同理
 	_hover_left = 0.0
 	_apply_profile(id)
@@ -1477,6 +1583,14 @@ func _post_move() -> void:
 		State.FALL:
 			if is_on_floor():
 				_hover_left = 0.0 # 落地收掉残余悬停
+				# 分段跳跃：落地瞬间补一帧落地动画（只在不移动时播，跑动着地直接接 run 更顺）
+				var land := str(anim_map.get("jump_land", ""))
+				if _jump_seg and land != "" and absf(velocity.x) <= 10.0:
+					_play(land, false)
+					_queue(anim_map["idle"], true)
+					_idle_queued = true
+					_set_state(State.IDLE)
+					return
 				_set_state(State.RUN if absf(velocity.x) > 10.0 else State.IDLE)
 
 
@@ -1497,7 +1611,15 @@ func _set_state(new_state: int) -> void:
 			_play(anim_map["run"], true)
 		State.JUMP, State.FALL:
 			_idle_queued = false # set_animation 会清掉队列里的 stand
-			_play(anim_map["air"], true)
+			if _jump_seg:
+				# 分段跳跃（剑仙）：起跳跳一帧起跳动画，空中换上升/下降姿态，落地另有落地帧
+				if state == State.JUMP:
+					_play(anim_map["jump_start"], false)
+					_queue(anim_map.get("jump_mid", anim_map["air"]), true)
+				else:
+					_play(anim_map.get("jump_down", anim_map["air"]), true)
+			else:
+				_play(anim_map["air"], true)
 
 
 func _apply_facing() -> void:
@@ -1520,3 +1642,16 @@ func _play(anim: String, loop: bool, spd := 1.0) -> void:
 func _queue(anim: String, loop: bool) -> void:
 	if _anim_state:
 		_anim_state.call("add_animation", anim, 0.0, loop, 0)
+
+
+## 轻功悬停（银夜）：把当前轨道冻成"漂浮静止"姿态（time_scale=0），悬停结束恢复播放。
+## 只动当前轨道，不影响队列里排好的待机动画
+func _set_hover_freeze(on: bool) -> void:
+	if on == _hover_frozen or _anim_state == null:
+		return
+	_hover_frozen = on
+	if not _anim_state.has_method("get_current"):
+		return
+	var entry = _anim_state.call("get_current", 0)
+	if entry != null and entry.has_method("set_time_scale"):
+		entry.call("set_time_scale", 0.0 if on else 1.0)

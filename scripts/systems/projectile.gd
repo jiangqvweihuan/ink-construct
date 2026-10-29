@@ -22,12 +22,14 @@ var _hit_list: Array = [] # 穿透模式下已结算过的敌人，防止同一�
 var _root_time := 0.0 # 命中定身秒数（双刺 U：无法移动但可以攻击）
 var _split_left := 0 # 命中后还要分裂出去的第二把数量（双刺 U）
 var _style := "qi" # 视觉：qi=朱砂剑气弧 / dagger=短匕
+var _bleed := 0 # 命中叠流血层数（剑仙月华斩）
+var _size := 1.0 # 剑气视觉与判定尺寸倍率（巨大剑气）
 
 
 ## dir: 1 朝右 -1 朝左；damage 已含局内强化/契合加成；sfx 命中音效名（空则不播）；pierce 命中不毁；
-## root 命中定身秒数；split 命中后分裂数量；style 视觉风格
+## root 命中定身秒数；split 命中后分裂数量；style 视觉风格；bleed 命中叠流血层数；scale 尺寸倍率
 func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "", p_pierce := false,
-		p_root := 0.0, p_split := 0, p_style := "qi") -> void:
+		p_root := 0.0, p_split := 0, p_style := "qi", p_bleed := 0, p_scale := 1.0) -> void:
 	_dir = p_dir
 	_speed = p_speed
 	_range = p_range
@@ -37,10 +39,12 @@ func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "
 	_root_time = p_root
 	_split_left = p_split
 	_style = p_style
+	_bleed = p_bleed
+	_size = p_scale
 
 
 func _ready() -> void:
-	scale.x = _dir # 剑气弧朝飞行方向
+	scale = Vector2(_dir * _size, _size) # 剑气弧朝飞行方向，尺寸按配置放大
 	if _sfx != "":
 		_sfx_stream = load("res://audio/sfx/" + _sfx + ".wav")
 		_sfx_player = AudioStreamPlayer.new()
@@ -93,22 +97,30 @@ func _physics_process(delta: float) -> void:
 		# 命中窗口 = 剑气自身 30px + 目标受击半径：大体型 Boss 边缘就能截住剑气
 		var r = e.get("body_radius")
 		var br := float(r) if r != null else 30.0
-		if absf(p.global_position.x - global_position.x) <= 30.0 + br and absf(p.global_position.y - global_position.y) <= 80.0:
+		if absf(p.global_position.x - global_position.x) <= 30.0 * _size + br and absf(p.global_position.y - global_position.y) <= 80.0:
 			p.call("take_damage", _damage, global_position.x)
-			Score.add_hit()
+			# 命中计数走玩家侧统一入口（剑仙觉醒期间每次命中都会叠剑意层数）
+			var pl = get_tree().get_first_node_in_group("player")
+			if pl != null and pl.has_method("hit_scored"):
+				pl.call("hit_scored")
+			else:
+				Score.add_hit()
 			# 定身：命中时敌人还在（没被这一下打死）才挂，避免对着尸体定身
 			if _root_time > 0.0 and int(e.get("hp")) > 0 and e.has_method("root"):
 				e.call("root", _root_time)
+			# 流血（剑仙月华斩）：命中即叠层，剑气本身不消失
+			if _bleed > 0 and int(e.get("hp")) > 0 and e.has_method("apply_bleed"):
+				e.call("apply_bleed", _bleed)
 			Feel.hitstop(0.04)
 			Feel.shake(3.0, 0.1)
 			# 分裂（双刺 U）：第一把钉进敌人，第二把从命中点继续飞，忽略刚命中的目标防重复掉血
 			if _split_left > 0:
 				_split_left -= 1
 				var child = get_script().new()
-				child.setup(_dir, _speed, _range, _damage, _sfx, _pierce, _root_time, _split_left, _style)
+				child.setup(_dir, _speed, _range, _damage, _sfx, _pierce, _root_time, _split_left, _style, _bleed, _size)
 				child._hit_list = _hit_list.duplicate()
 				child._hit_list.append(e.get_instance_id())
-				child.global_position = global_position + Vector2(_dir * 34.0, 0.0)
+				child.global_position = global_position + Vector2(_dir * 34.0 * _size, 0.0)
 				get_tree().current_scene.add_child(child)
 				queue_free()
 				return

@@ -455,13 +455,24 @@ func time_stop(dur: float) -> void:
 		sprite.process_mode = Node.PROCESS_MODE_DISABLED
 
 
-## Boss 全程霸体：免疫击飞/击退（只有时停这种规则级控制能管他）
-func launch(_dir: int, _vx: float, _vy: float) -> void:
-	pass
+## Boss 全程霸体：普通击飞/击退免疫（银夜等）。
+## ignore_armor（剑仙 U 飞脚 / O 横斩）：规则级位移照样生效——挑起约 0.4 秒后自然落地，
+## 或直接被推开一段；但绝不打断阶段/变身/冲锋计时，AI 节奏原样继续
+func launch(_dir: int, _vx: float, vy: float, ignore_armor := false) -> void:
+	if not ignore_armor or state == State.DEAD or _invincible:
+		return
+	velocity.y = -vy * 0.5 # 半速上抛 ≈ 0.4 秒滞空，落地由重力自然结算
+	Feel.shake(5.0, 0.15)
 
 
-func knock_back(_dir: int, _force: float, _impact: int) -> void:
-	pass
+func knock_back(dir: int, force: float, _impact: int, ignore_armor := false) -> void:
+	if not ignore_armor or state == State.DEAD or _invincible:
+		return
+	# 规则级推开：直接挪一段身位（0.12 系数把 900 力度换算成约 108px），不做抛物线
+	var push := clampf(force * 0.12, 0.0, 140.0)
+	global_position.x = clampf(global_position.x + float(dir) * push, ARENA_L + 60.0, ARENA_R - 60.0)
+	velocity.y = -160.0
+	Feel.shake(7.0, 0.2)
 
 
 ## Boss 不需要全局出手令牌：战场上只有它一个攻击者

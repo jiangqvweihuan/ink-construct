@@ -12,6 +12,7 @@ const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.82, 0.79, 0.72)
 const RED := Color(0.66, 0.2, 0.16)
+const GOLD := Color(0.9, 0.75, 0.3) # 英雄级主角的金标
 
 ## 两种模式的卡面文案（只留名字，别写解释性小作文）；数值成长写在 run_state.endless_waves
 const MODES := {
@@ -183,6 +184,9 @@ func _char_card(id: String, i: int) -> void:
 	add_child(card)
 
 	if unlocked:
+		# 英雄级主角（剑仙/银夜）：卡顶一道金标
+		if bool(profile.get("hero", false)):
+			_card_text(card, "英 雄", Vector2(0, 4), Vector2(208, 20), 13, GOLD)
 		_card_text(card, str(profile["label"]), Vector2(0, 24), Vector2(208, 42), 30, PAPER)
 		_card_text(card, str(profile.get("name", "")), Vector2(0, 64), Vector2(208, 24), 16, DIM)
 		_card_text(card, "契合  " + Meta.mastery_text(id), Vector2(0, 108), Vector2(208, 30), 16, RED)

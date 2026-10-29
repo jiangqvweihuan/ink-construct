@@ -631,15 +631,17 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 		die()
 
 
-## 击飞（银夜普攻二段）：向上挑起，落地短暂硬直。无视出手霸体（跳劈也照挑）
-func launch(dir: int, vx: float, vy: float) -> void:
+## 击飞（银夜普攻二段 / 剑仙 U 飞脚）：向上挑起，落地短暂硬直。无视出手霸体（跳劈也照挑）
+## ignore_armor：剑仙 U 的规则级击飞标记——小怪/精英本来就吃击飞，这里无需额外分支
+func launch(dir: int, vx: float, vy: float, _ignore_armor := false) -> void:
 	if state == State.DEAD:
 		return
 	_enter_fly(Vector2(dir * vx, -vy), 0)
 
 
-## 击退（银夜 L）：横向轰飞，途中撞到同伴双方各吃 impact 组合伤害，撞墙自己再吃一下
-func knock_back(dir: int, force: float, impact: int) -> void:
+## 击退（银夜 L / 剑仙 O）：横向轰飞，途中撞到同伴双方各吃 impact 组合伤害，撞墙自己再吃一下
+## ignore_armor：同上，小怪/精英的击退本就不看霸体
+func knock_back(dir: int, force: float, impact: int, _ignore_armor := false) -> void:
 	if state == State.DEAD:
 		return
 	_enter_fly(Vector2(dir * force, -120.0), impact)

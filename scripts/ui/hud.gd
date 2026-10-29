@@ -98,14 +98,18 @@ func _build_action_bar(root: Control) -> void:
 	root.add_child(_action_root)
 	_cd_masks.clear()
 
-	var splat := _rect("res://art/ui/hud/action_splat.png", Vector2(300, 92), Vector2(490, 636), _action_root)
-	splat.modulate = Color(1, 1, 1, 0.92)
 	# 第一格 J 是普攻（无冷却），后面按当前形态的技能表依次排
 	var slot_count: int = 1 + _hud_skills.size()
-	var total_w := SLOT_GAP * float(slot_count - 1) + SLOT
+	# 剑仙有 6 个技能（J+K+L+U+I+O+P 共 7 格），格距收一点免得撑出画面
+	var gap := SLOT_GAP if slot_count <= 6 else 52.0
+	var total_w := gap * float(slot_count - 1) + SLOT
+	# 背景墨点跟着栏宽放大，7 格时两端不露出底色
+	var splat_w := 300.0 if slot_count <= 6 else 376.0
+	var splat := _rect("res://art/ui/hud/action_splat.png", Vector2(splat_w, 92), Vector2(640.0 - splat_w * 0.5, 636), _action_root)
+	splat.modulate = Color(1, 1, 1, 0.92)
 	var start_x := 640.0 - total_w * 0.5
 	for i in slot_count:
-		var x := start_x + i * SLOT_GAP
+		var x := start_x + i * gap
 		_rect("res://art/ui/hud/skill_slot.png", Vector2(SLOT, SLOT), Vector2(x, 658), _action_root)
 		var key := "J"
 		if i > 0 and _player != null and is_instance_valid(_player):

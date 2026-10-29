@@ -15,6 +15,7 @@ const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.82, 0.79, 0.72)
 const RED := Color(0.66, 0.2, 0.16)
+const GOLD := Color(0.9, 0.75, 0.3) # 英雄级主角的金标（与觉醒·全伤飘字同款金）
 
 const TAB_ENEMY := 0
 const TAB_FORM := 1
@@ -23,7 +24,7 @@ const TAB_FORM := 1
 const ENEMY_ORDER := ["c016", "z002", "c017", "c035", "c018", "c012", "c037"]
 
 ## 技能键位：与形态表 hud_skills 的顺序一一对应
-const KEY_NAMES := ["K", "L", "U", "I", "O"]
+const KEY_NAMES := ["K", "L", "U", "I", "O", "P"]
 
 ## 化身通用动作：图鉴里也能悬停看待机 / 奔跑 / 闪避 / 滞空 / 受击 / 倒地
 const ACT_ORDER := ["idle", "run", "dash", "air", "hurt", "dead"]
@@ -197,7 +198,8 @@ func _entries() -> Array:
 			var p: Dictionary = Skulls.get_profile(id)
 			var unlocked := Meta.is_unlocked(id)
 			out.append({"id": id, "locked": not unlocked, "label": str(p["label"]),
-				"sub": str(p.get("name", "")) if unlocked else "未解锁"})
+				"sub": str(p.get("name", "")) if unlocked else "未解锁",
+				"hero": bool(p.get("hero", false))})
 	return out
 
 
@@ -228,6 +230,18 @@ func _make_card(e: Dictionary, i: int) -> void:
 
 	_entry_label(card, "？？？" if locked else str(e["label"]), 8, 18, PAPER)
 	_entry_label(card, str(e["sub"]), 34, 12, DIM)
+
+	# 英雄级主角（剑仙/银夜）：卡片右上角一点金标，扫一眼就知道这是能觉醒的主角
+	if not locked and bool(e.get("hero", false)):
+		var tag := Label.new()
+		tag.text = "英雄"
+		tag.position = Vector2(CARD_W - 48, 6)
+		tag.size = Vector2(40, 18)
+		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		tag.add_theme_color_override("font_color", GOLD)
+		tag.add_theme_font_size_override("font_size", 12)
+		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(tag)
 
 
 # ---------- 右侧详情 ----------
@@ -486,6 +500,8 @@ func _skill_num(cfg: Dictionary) -> String:
 		if typeof(h) == TYPE_DICTIONARY and (h as Dictionary).has("damage"):
 			dmg = maxi(dmg, int((h as Dictionary)["damage"]))
 			cnt += 1
+	if dmg == 0 and cfg.has("damage"):
+		dmg = int(cfg["damage"]) # 单段技能（hit_at 按动画查表）的伤害写在 cfg 顶层
 	if dmg > 0:
 		parts.append("%d伤%s" % [dmg, ("×%d" % cnt) if cnt > 1 else ""])
 	if cfg.has("stop"):
@@ -495,6 +511,8 @@ func _skill_num(cfg: Dictionary) -> String:
 		if typeof(h) == TYPE_DICTIONARY and (h as Dictionary).has("projectile"):
 			parts.append("远程")
 			break
+	if cfg.has("projectile"):
+		parts.append("远程")
 	return " ｜ ".join(parts)
 
 
@@ -515,6 +533,12 @@ func _skill_desc(cfg: Dictionary) -> String:
 		tags.append("瞬步位移")
 	if cfg.has("knockback"):
 		tags.append("击退撞墙")
+	if bool(cfg.get("require_buff", false)):
+		tags.append("觉醒限定")
+	if bool(cfg.get("full_screen", false)):
+		tags.append("全屏伤害")
+	if cfg.has("room_buff"):
+		tags.append("每房一次强化")
 	# 命中追加效果：叠流血 / 命中定身 / 命中晕眩 / 命中中毒 / 自身金钟罩（都写在 hits 段的可选字段里）
 	var bleed := false
 	var root := false
@@ -537,6 +561,8 @@ func _skill_desc(cfg: Dictionary) -> String:
 			root = true
 		if float((h as Dictionary).get("root", 0.0)) > 0.0:
 			root = true
+	if int(cfg.get("bleed", 0)) > 0:
+		bleed = true # 池技能（hit_at 按动画查表）的 bleed 写在 cfg 顶层
 	if bleed:
 		tags.append("命中叠流血")
 	if root:

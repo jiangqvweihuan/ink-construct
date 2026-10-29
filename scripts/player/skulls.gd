@@ -199,52 +199,104 @@ const SKULLS := {
 		},
 		"hud_skills": ["skill01", "skill03", "skill02"],
 	},
-	# ---------- 剑仙：Z000，持剑的远程剑客，招式最全（92 个动画），挥剑放剑气 ----------
+	# ---------- 剑仙：Z000，持剑的全能剑客（92 个动画），四段普攻 + 六技能（K/L/U/I/O/P） ----------
 	"z000": {
 		"label": "剑仙",
 		"name": "洛惊鸿",
+		"hero": true, # 英雄级主角：K/L/U 普通技 + I 觉醒 + O/P 觉醒技（规范见 PROGRESS.md）
 		"data": "res://art/characters/player/skulls/z000/z000_data.tres",
 		"scale": 0.448, # 骨架 285.7px -> 128px
+		"body_radius": 30.0, # 标准体型
 		"anim": {
 			"idle": "stand",
 			"run": "run",
-			"dash": "dash_front",
+			"dash": "dash_front", # 兜底（实际走下面的 dash_pool 双闪避）
 			"air": "floated",
-			"hurt": "atked",
-			"dead": "dead",
-			"getup": "getup",
+			"hurt": "atked", # 第 19 号：1 点伤害轻受击
+			"hurt_heavy": "atked_heavy", # 第 24 号：2 点伤害重受击
+			"fall": "2", # 第 2 号：倒地（1.85s，倒地+起身一体）
+			"getup": "2", # 倒地链末段 = 第 2 号，整段无敌（防止无限倒地）
+			"dead": "atked_fall_end", # dead 时长为 0，先用倒地动画再定格
+			"dead_hold": "dead", # 第 dead 号是单帧定格，循环即躺尸姿势
+			"jump_start": "jump_start", # 第 42 号：起跳一帧
+			"jump_mid": "jump_mid", # 第 41 号：上升姿态（循环）
+			"jump_down": "jump_down", # 第 39 号：下降姿态（循环）
+			"jump_land": "jump_end", # 第 40 号：落地一帧
 		},
-		# 剑仙是真远程：每次挥剑甩出一道剑气（projectile），不再用身前近战判定
+		# 受击分档：1 伤=轻；2 伤=重；≥3 伤先重受击再整条倒地链（第 24 号 → 第 2 号），第 2 号整段无敌
+		"hurt_tiers": {"heavy": 2, "knockdown": 3},
+		"knock_chain": ["atked_heavy", "2"],
+		# 双闪避：站定按闪避 = 第 88 号原地闪（零位移、整段完美闪避、冷却 1s）；
+		# 移动中按闪避 = 第 25 / 35 号随机抽取（带约 120px 位移、冷却 0.45s）
+		"dash_pool": {
+			"still": {"anim": "speed_run_finish", "time": 0.717, "speed": 0.0, "cd": 1.0},
+			"move": [
+				{"anim": "autorush", "time": 0.167, "speed": 760.0},
+				{"anim": "dash_front", "time": 0.483, "speed": 260.0},
+			],
+			"move_cd": 0.45,
+		},
+		# 四段普攻（探针 ×0.448 实测标定，全部近战、无剑气）：
+		# 段1 第 4 号 1 伤；段2 第 5 号 1 伤；段3 第 62 号动画期间 4 次 1 伤且每次附眩晕；段4 第 67 号 2 伤 + 击飞
 		"attacks": [
-			{"anim": "atk01", "lock": 0.42, "hits": [0.22], "damage": 1, "lunge": 120.0, "projectile": {"speed": 500.0, "range": 400.0}},
-			{"anim": "atk02", "lock": 0.48, "hits": [0.20], "damage": 1, "lunge": 110.0, "projectile": {"speed": 500.0, "range": 400.0}},
-			{"anim": "atk03", "lock": 0.36, "hits": [0.27], "damage": 1, "lunge": 110.0, "projectile": {"speed": 520.0, "range": 420.0}},
+			{"anim": "atk01", "lock": 0.367, "hits": [{"at": 0.22, "damage": 1, "range": 180.0}], "lunge": 110.0},
+			{"anim": "atk02", "lock": 0.433, "hits": [{"at": 0.28, "damage": 1, "range": 100.0, "both": true}], "lunge": 110.0},
+			{"anim": "skill16", "lock": 1.300, "lunge": 90.0, "hits": [
+				{"at": 0.25, "damage": 1, "range": 160.0, "both": true, "stun": 0.8},
+				{"at": 0.56, "damage": 1, "range": 160.0, "both": true, "stun": 0.8},
+				{"at": 0.74, "damage": 1, "range": 160.0, "both": true, "stun": 0.8},
+				{"at": 0.93, "damage": 1, "range": 160.0, "both": true, "stun": 0.8}]},
+			{"anim": "skill07_02", "lock": 1.433, "lunge": 130.0, "hits": [
+				{"at": 1.20, "damage": 2, "range": 130.0, "both": true,
+					"launch": {"vx": 150.0, "vy": 520.0}}]},
 		],
 		"skills": {
-			"skill01": {
-				"action": "skill", "cooldown": 3.0,
-				"hits": [{"at": 0.54, "damage": 2, "sfx": "hit_heavy", "projectile": {"speed": 540.0, "range": 440.0}}],
-			},
-			"skill02": {
-				"action": "skill_sweep", "cooldown": 5.0,
-				"hits": [{"at": 0.91, "damage": 1, "sfx": "skill_fist", "projectile": {"speed": 540.0, "range": 440.0}}],
-			},
-			"skill04": {
-				"action": "skill_ult", "cooldown": 9.0,
+			# K 送出配件：第 7 / 18 号随机，身前高速旋转，快速 3 次伤害 + 流血
+			"atk04": {"action": "skill", "cooldown": 6.0, "poise": true,
+				"pool": ["atk04", "atk04_air"],
 				"hits": [
-					{"at": 0.30, "damage": 1, "sfx": "skill_blade", "projectile": {"speed": 560.0, "range": 460.0}},
-					{"at": 0.67, "damage": 1, "sfx": "skill_blade", "projectile": {"speed": 560.0, "range": 460.0}},
-				],
-			},
+					{"at": 0.16, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"},
+					{"at": 0.34, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"},
+					{"at": 0.50, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"}]},
+			# L 月华斩：第 64 / 58 号随机，挥出巨大剑影（5 伤 / 700 速 / 900 射程 / 无限穿透 / 命中叠 1 层流血）
+			"skill02-": {"action": "skill_sweep", "cooldown": 8.0, "poise": true,
+				"pool": ["skill02-", "skill12"],
+				"hit_at": {"skill02-": 1.20, "skill12": 0.62},
+				"range": {"skill02-": 120.0, "skill12": 180.0},
+				"height": 130.0, "damage": 5, "sfx": "skill_blade",
+				"projectile": {"speed": 700.0, "range": 900.0, "pierce": true, "bleed": 1, "scale": 1.7}},
+			# U 飞脚：第 50 号，超高击飞（无视霸体，连 Boss 也能挑起来）
+			"skill04": {"action": "skill_ult", "cooldown": 10.0, "poise": true,
+				"hits": [{"at": 0.48, "range": 110.0, "height": 120.0, "damage": 3, "sfx": "hit_heavy",
+					"launch": {"vx": 200.0, "vy": 780.0, "ignore_armor": true}}]},
+			# I 觉醒：第 54 / 57 / 70 号随机，释放期间霸体；动画播完起算 12s 觉醒窗口（O/P 解锁）
+			"skill08": {"action": "skill_i", "cooldown": 20.0, "poise": true, "align_max": true,
+				"pool": ["skill08", "skill11", "skill09_02"],
+				"awaken_time": 12.0, "hits": []},
+			# O 剑域三段（觉醒限定，第 55 号）：多段眩晕 → 横斩超远击退 + 流血 → 祈祷回血 + 加伤
+			"skill09": {"action": "skill_o", "cooldown": 14.0, "poise": true, "require_buff": true,
+				"hits": [
+					{"at": 0.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "hit_heavy"},
+					{"at": 1.3, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "hit_heavy"},
+					{"at": 1.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "hit_heavy"},
+					{"at": 3.0, "range": 260.0, "height": 130.0, "damage": 4, "sfx": "skill_blade", "bleed": 2,
+						"knockback": {"force": 900.0, "impact": 0, "ignore_armor": true}},
+					{"at": 5.2, "heal_ratio": 0.3, "self_buff": {"damage": 1, "time": 6.0}, "sfx": "voice_skill_cast"}]},
+			# P 翻滚踢（觉醒限定，第 77 号）：0.20~0.55s 向前约 200px 且无敌穿身，末段踢击 2 伤 + 小击飞，命中返还 50% 冷却
+			"skill20_03": {"action": "skill_p", "cooldown": 8.0, "poise": true, "require_buff": true,
+				"blink_from": 0.20, "blink_to": 0.55, "blink_speed": 571.0, "refund_ratio": 0.5,
+				"hits": [{"at": 0.85, "range": 110.0, "height": 110.0, "damage": 2, "sfx": "skill_fist",
+					"launch": {"vx": 100.0, "vy": 300.0}}]},
 		},
-		"hud_skills": ["skill01", "skill02", "skill04"],
+		"hud_skills": ["atk04", "skill02-", "skill04", "skill08", "skill09", "skill20_03"],
 	},
 	# 青笠 c012 已下掉玩家形态（动画撑不起招式，强度垫底），转生为精英怪——
 	# 见 scripts/enemies/enemy_types.gd c012；第 5 席由银夜 z003 填补（见下）
-	# ---------- 银夜：Z003，轻功剑客。普攻三段随机池 + 五技能（K/L/U/I/O） ----------
+	# ---------- 银夜：Z003，轻功剑客。普攻三段随机池 + 六技能（K/L/U/I/O/P，O/P 觉醒限定） ----------
 	"z003": {
 		"label": "银夜",
 		"name": "将去未还",
+		"hero": true, # 英雄级主角：K/L/U 普通技 + I 觉醒 + O/P 觉醒技（规范见 PROGRESS.md）
 		"data": "res://art/characters/player/skulls/z003/z003_data.tres",
 		"scale": 0.431, # 骨架 297.1px -> 128px
 		"anim": {
@@ -252,12 +304,18 @@ const SKULLS := {
 			"run": "run",
 			"dash": "autorush", # 0.083s 冲刺姿态帧，dash 时间短正好一闪而过
 			"air": "jump", # 轻功跳跃动画兼滞空姿态
-			"hurt": "atked",
-			"dead": "atked_fall_end", # 先播一遍倒地（0.833s）
+			"hurt": "atked", # 第 22 号：1 点伤害轻受击
+			"hurt_heavy": "atked_heavy", # 第 27 号：2 点伤害重受击
+			"low_idle": "weak", # 第 128 号：残血待机（血量比例 ≤ 20%，与双刺同界限）
+			"dead": "atked_fall_end", # 第 26 号：先播一遍倒地（0.833s）
 			"dead_hold": "dead", # 再循环躺尸定格（dead 只有 0.083s，不循环会闪回 setup pose）
-			"getup": "getup",
+			"getup": "getup", # 第 55 号：倒地链末段起身，整段无敌
 		},
 		"body_radius": 30.0, # 标准体型
+		# 受击分档：1 伤=第 22 号轻受击；2 伤=第 27 号重受击；≥3 伤走倒地链（27 → 26 → 55 起身）
+		"hurt_tiers": {"heavy": 2, "knockdown": 3},
+		"knock_chain": ["atked_heavy", "atked_fall_end", "getup"],
+		"low_hp_ratio": 0.2,
 		"dash_anim_speed": 0.4, # autorush 只有 0.083s，慢放到 0.21s 填满冲刺窗口，不再一闪而过
 		# 轻功：跳得明显更高 + 跃过顶点后空中滞留一小会（独门机制，其他形态没有）
 		"qinggong": {"jump_mul": 1.32, "hover": 0.32},
@@ -320,22 +378,34 @@ const SKULLS := {
 				"heal": 2, "buff_damage": 2, "buff_time": 8.0,
 				"hits": [],
 			},
-			# O 位移斩杀（skill11/skill11-cankao/skill23_03 随机）：向前突进一整段，
-			# 路径上所有敌人吃高伤。位移距离三动画统一 600px（以 skill11-cankao 动画自带位移
-			# 为准）：提速后 blink 0.15~0.90s × 800px/s = 600px——窗口压缩、突进更凌厉，距离不变。
-			# 全程无敌；teleport_anims：#87 动画自带位移，原地播放、收招瞬间瞬移 600px（不突兀），
-			# 其 hit_at=99 收招帧补结算——瞬移后 path 从终点回扫整条位移路径
+			# O 舜华斩·位移斩杀（觉醒限定，觉醒中才可释放；skill11/skill11-cankao/skill23_03 随机）：
+			# 向前突进一整段，路径上所有敌人吃高伤。位移距离三动画统一 600px（以 skill11-cankao
+			# 动画自带位移为准）：提速后 blink 0.15~0.90s × 800px/s = 600px——窗口压缩、突进更凌厉，
+			# 距离不变。全程无敌；teleport_anims：#87 动画自带位移，原地播放、收招瞬间瞬移 600px
+			#（不突兀），其 hit_at=99 收招帧补结算——瞬移后 path 从终点回扫整条位移路径。
+			# 觉醒加持后数值：伤害 6→8、冷却 12→10、命中叠 2 层流血
 			"skill11": {
-				"action": "skill_o", "cooldown": 12.0, "poise": true, "invincible": true,
+				"action": "skill_o", "cooldown": 10.0, "poise": true, "invincible": true, "require_buff": true,
 				"pool": ["skill11", "skill11-cankao", "skill23_03"],
 				"blink_from": 0.15, "blink_to": 0.90, "blink_speed": 800.0,
 				"teleport_anims": ["skill11-cankao"],
 				"hit_at": {"skill11": 0.95, "skill11-cankao": 99.0, "skill23_03": 0.95},
 				"range": {"skill11": 90.0, "skill11-cankao": 90.0, "skill23_03": 90.0},
-				"height": 110.0, "damage": 6, "path": true, "sfx": "hit_heavy",
+				"height": 110.0, "damage": 8, "path": true, "bleed": 2, "sfx": "hit_heavy",
+			},
+			# P 觉醒·天倾（觉醒限定；第 115 号 sky_skill18_02 / 第 121 号 sky_skill24_03 随机，
+			# 都是漂浮姿态）：全屏无差别 8 伤（无视距离/朝向/高度）；每房间首次释放额外加持
+			# 本房全伤 +3——玩家实例随房间重建，_room_buff_used 天然一房一次，再放只剩伤害
+			"sky_skill18_02": {
+				"action": "skill_p", "cooldown": 25.0, "poise": true, "require_buff": true,
+				"pool": ["sky_skill18_02", "sky_skill24_03"],
+				"hit_at": {"sky_skill18_02": 1.20, "sky_skill24_03": 1.00},
+				"range": {"sky_skill18_02": 0.0, "sky_skill24_03": 0.0},
+				"height": 9999.0, "damage": 8, "full_screen": true,
+				"room_buff": {"damage": 3}, "sfx": "skill_boom",
 			},
 		},
-		"hud_skills": ["skill14_02", "skill02", "skill06", "skill10", "skill11"],
+		"hud_skills": ["skill14_02", "skill02", "skill06", "skill10", "skill11", "sky_skill18_02"],
 		# 通关结算演出：从这三个里挑一个播一遍，之后保持待机（其他形态留空=只待机，接口预留）
 		"victory": ["skill17_02", "skill17_02-", "skill17_02-cankao"],
 	},
