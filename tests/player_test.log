@@ -27,8 +27,8 @@
 [PT] state -> 5 pos=(848.7223, 599.9326)
 [PT] saved 11_atk_c023 err=0 state=5 pos=(850.2226, 599.9339)
 [PT] c023 鞭击后靶子距玩家 80px（期望约 80）
-[PT] c023 普攻总伤害=7（基础 2+3=5，伤害加成 +1/段 = 契合/局内强化）
 [PT] state -> 0 pos=(850.2226, 599.9339)
+[PT] c023 普攻总伤害=7（基础 2+3=5，伤害加成 +1/段 = 契合/局内强化）
 [PT] state -> 6 pos=(851.3226, 599.9337)
 [PT] saved 12_skill_c023 err=0 state=6 pos=(851.8115, 599.9337)
 [PT] c023 技能中转鞭 ranged_guard=true（期望 true，无敌人时只免疫）
@@ -77,8 +77,8 @@
 [PT] saved 11_atk_z003 err=0 state=5 pos=(873.4445, 599.9337)
 [PT] state -> 0 pos=(873.4445, 599.9337)
 [PT] state -> 6 pos=(874.7441, 599.9329)
+[PT] saved 12_skill_z003 err=0 state=6 pos=(875.5107, 599.9337)
 [PT] state -> 0 pos=(875.5107, 599.9337)
-[PT] saved 12_skill_z003 err=0 state=0 pos=(875.5107, 599.9337)
 [PT] state -> 6 pos=(876.8108, 599.9337)
 [PT] saved 12b_sweep_z003 err=0 state=6 pos=(877.5778, 599.9337)
 [PT] state -> 0 pos=(877.5778, 599.9337)

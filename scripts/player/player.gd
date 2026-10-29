@@ -108,7 +108,8 @@ var _attack_durations := {} # 普攻动画名 -> 真实时长（随机池段的 
 var _skill_anim := "" # 本次技能实际播放的动画（随机池技能用）
 var _skill_speed := 1.0 # 本次技能的动画播放速度倍率（<1 慢放，时刻表按动画时间对齐）
 var _dash_anim_speed := 1.0 # dash 动画播放速度倍率（形态表 dash_anim_speed，短动画慢放填满冲刺窗口）
-var _skill_teleport := 0.0 # 技能抽到自带位移动画（银夜 O 的 #87）：原地播放，收招瞬间瞬移这段距离
+var _skill_phantom := 0.0 # 残影模式（银夜 O 的 #87）：本体原地不动，动画自带位移当作"残影冲出"，记录冲刺距离做 path 判定终点
+var _phantom_cut := false # 残影尾声已收（零混合切回 stand），防止重复收
 var _mix_restore := false # 瞬移切换时把默认混合压到 0，渲染侧应用完后下一帧恢复 0.2
 var _stop_done := false # 时停（U）本场已触发
 var _lifesteal_cd := 0.0 # 饮血内置冷却
@@ -452,25 +453,24 @@ func _skill_tick(delta: float) -> void:
 		sprite.get("skeleton_data_res").call("set_default_mix", 0.2)
 	var cfg: Dictionary = skill_config[_skill_name]
 	var t: float = (_skill_dur - _skill_timer) * _skill_speed # 动画时间：慢放技能的时刻表按动画帧标定，与 cfg 的 at/blink 对齐
-	# 自带位移动画（#87）尾声提前 0.12s 收尾：瞬移到终点 + 清轨道瞬时切 stand。
-	# 不能等收招帧才切——队列里自动接续的 stand 会在旧位置抢先起播、混出一帧残影（残影根因）；
-	# 提前切，缝在动画还在播时合上，path 命中仍在收招帧从终点回扫整段路径
-	if _skill_teleport > 0.0 and t >= _skill_dur * _skill_speed - 0.12:
-		global_position.x += facing * _skill_teleport
-		_skill_teleport = 0.0
+	# 残影模式（#87）尾声提前 0.12s 收：零混合清轨道瞬时切 stand——残影消散、本体原地现身。
+	# 不能等收招帧才切——队列里自动接续的 stand 会带着动画位移余势在旧姿势上混出残影；
+	# 提前切，缝在动画还在播时合上。本体全程不动，path 命中以"残影冲到的位置"为终点
+	if _skill_phantom > 0.0 and not _phantom_cut and t >= _skill_dur * _skill_speed - 0.12:
+		_phantom_cut = true
 		if _anim_state != null:
 			# 全程零混合做手术：clear_track 自身也会按默认混合把旧轨道淡出（旧姿势带 600px
 			# 位移量，淡出去就是残余虚影）——压到 0 再切，渲染侧应用后由 _mix_restore 恢复
 			var data = sprite.get("skeleton_data_res")
 			data.call("set_default_mix", 0.0)
-			_anim_state.call("clear_track", 0) # 连队列里排的 stand 一起清，防止它在旧位置自动接续
+			_anim_state.call("clear_track", 0) # 连队列里排的 stand 一起清，防止它带着位移余势自动接续
 			_anim_state.call("set_animation", anim_map["idle"], true, 0)
 			_mix_restore = true
 			_current_anim = anim_map["idle"]
 			_idle_queued = true # _set_state 走"stand 已就位"分支，别再重开淡化
-	# 位移三分支：自带位移动画（#87）原地播放等收招瞬移；普通闪现段高速前冲+穿身；其余减速
-	if _skill_teleport > 0.0:
-		_set_blink(true) # 原地期间同样开穿身：动画画面在冲，站位不动不该被敌人挤住
+	# 位移三分支：残影模式（#87）本体原地不动；普通闪现段高速前冲+穿身；其余减速
+	if _skill_phantom > 0.0:
+		_set_blink(true) # 残影冲刺期间本体开穿身：画面在远处冲，站位不动不该被敌人挤住
 		velocity.x = move_toward(velocity.x, 0.0, accel * delta)
 	elif cfg.has("blink_from") and t >= cfg["blink_from"] and t <= cfg["blink_to"]:
 		_set_blink(true)
@@ -503,14 +503,12 @@ func _skill_tick(delta: float) -> void:
 			e.call("time_stop", float(stop.get(tier, 2.0)))
 	# 纯时长驱动退出：到点的同一帧排队的 stand 恰好接续，别看 is_complete（会被 loop 污染）
 	if _skill_timer <= 0.0:
-		# 自带位移动画兜底：正常尾声已提前 0.12s 瞬移+切 stand（见上），这里只兜底位置
-		if _skill_teleport > 0.0:
-			global_position.x += facing * _skill_teleport
-			_skill_teleport = 0.0
 		# 收招兜底：命中段 at 略晚于动画时长时（力僧定山 at=3.12 > 3.05），
 		# 靠计时器驱动永远触发不到 t>=at，整段伤害会凭空丢失——退出这一帧补结算
 		while not _skill_hits.is_empty():
 			_deal_skill_hit(_skill_hits.pop_front())
+		_skill_phantom = 0.0 # 残影结算完毕
+		_phantom_cut = false
 		_invincible = false
 		_skill_poise = false
 		_skill_reflect = false
@@ -554,9 +552,10 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		if dy > h["height"]:
 			continue
 		if h.get("path", false):
-			# 路径判定：闪现扫过的整条线段 + 落点正前方 range
-			var x0: float = minf(_skill_start_x, global_position.x) - 20.0
-			var x1: float = maxf(_skill_start_x, global_position.x) + 20.0
+			# 路径判定：闪现扫过的整条线段 + 落点正前方 range（残影模式：本体不动，终点=残影冲到的位置）
+			var far_x: float = global_position.x + _skill_phantom * facing
+			var x0: float = minf(_skill_start_x, far_x) - 20.0
+			var x1: float = maxf(_skill_start_x, far_x) + 20.0
 			var in_path: bool = p.global_position.x >= x0 and p.global_position.x <= x1
 			var ahead := dx == 0.0 or (dx > 0.0) == (facing > 0)
 			if in_path or (ahead and absf(dx) <= h["range"] * range_scale + _radius_of(p)):
@@ -814,10 +813,12 @@ func _start_skill(n: String) -> void:
 	_stop_done = false
 	_skill_cds[n] = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd
 	_invincible = false
-	# 自带位移动画（银夜 O 抽到 #87 skill11-cankao）：原地播放，收招瞬间瞬移整段冲刺距离（闪现窗口×速度）
-	_skill_teleport = 0.0
-	if _skill_anim in cfg.get("teleport_anims", []):
-		_skill_teleport = float(cfg.get("blink_speed", 800.0)) * (float(cfg.get("blink_to", 0.9)) - float(cfg.get("blink_from", 0.15)))
+	# 残影模式（银夜 O 抽到 #87 skill11-cankao）：本体原地不动，动画自带位移当作"残影冲出"，
+	# 冲刺距离（闪现窗口×速度）记为 path 判定终点；尾声残影消散、本体原地现身，不瞬移
+	_skill_phantom = 0.0
+	_phantom_cut = false
+	if _skill_anim in cfg.get("phantom_anims", []):
+		_skill_phantom = float(cfg.get("blink_speed", 800.0)) * (float(cfg.get("blink_to", 0.9)) - float(cfg.get("blink_from", 0.15)))
 	# 觉醒（银夜 I）：起手即回血 + 限时加伤
 	if cfg.has("heal"):
 		_apply_skill_heal({"heal": cfg["heal"]})
@@ -859,7 +860,8 @@ func swap_skull(id: String) -> void:
 	_skill_reflect = false
 	_skill_ranged_guard = false
 	_skill_tick_acc = 0.0
-	_skill_teleport = 0.0
+	_skill_phantom = 0.0
+	_phantom_cut = false
 	_buff_timer = 0.0 # 觉醒属于银夜，换头即散
 	_hover_left = 0.0
 	_apply_profile(id)
