@@ -21,12 +21,13 @@ func _ready() -> void:
 	get_window().size = Vector2i(1280, 720)
 	_log = FileAccess.open(OUT, FileAccess.WRITE)
 	_menu = MENU.instantiate()
+	_menu.size = Vector2(1280, 720) # 挂在 Node2D 下时根 Control 不会自动铺满视口，背景/视频会变成 0 面积
 	add_child(_menu)
 	await get_tree().process_frame
 	p("viewport=%s window=%s" % [get_viewport().get_visible_rect().size, get_window().size])
 	await _shot("run_00_menu")
 
-	await _click(Vector2(640, 412)) # 开始游戏
+	await _click(Vector2(200, 624)) # 开始游戏
 	p("点开始游戏 -> 面板=%s step=%d（期望 true / 0）" % [_panel() != null, _step(_panel())])
 	await _shot("run_01_mode")
 
@@ -49,7 +50,7 @@ func _ready() -> void:
 	p("点「返回」-> 面板=%s（期望 false）" % (_panel() != null))
 	await _shot("run_05_closed")
 
-	await _click(Vector2(640, 412)) # 再开一次
+	await _click(Vector2(200, 624)) # 再开一次
 	p("二次点开始游戏 -> 面板=%s step=%d（期望 true / 0）" % [_panel() != null, _step(_panel())])
 	await _click(Vector2(840, 365)) # 无尽
 	p("二次点「无尽」-> step=%d（期望 1）" % _step(_panel()))
@@ -60,8 +61,8 @@ func _ready() -> void:
 	await _esc()
 	p("再按 Esc -> 面板=%s（期望 false）" % (_panel() != null))
 
-	await _click(Vector2(640, 412)) # 开始游戏
-	await _click(Vector2(640, 412)) # 连点
+	await _click(Vector2(200, 624)) # 开始游戏
+	await _click(Vector2(200, 624)) # 连点
 	p("连点两次开始游戏 -> 面板数=%d（期望 1）" % _panel_count())
 	await _shot("run_07_double")
 
