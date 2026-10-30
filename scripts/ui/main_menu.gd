@@ -58,11 +58,11 @@ func _make_credits_entry() -> void:
 	l.size = Vector2(28, 84)
 	l.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY # 宽度只容一个字，自然竖排
 	l.add_theme_font_size_override("font_size", 24)
-	l.add_theme_color_override("font_color", Color(0.28, 0.28, 0.28, 0.85))
+	l.add_theme_color_override("font_color", Color(0.66, 0.2, 0.16, 0.9)) # 朱砂：像一方落款印
 	l.mouse_filter = Control.MOUSE_FILTER_STOP
 	l.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	l.mouse_entered.connect(func(): l.add_theme_color_override("font_color", Color(0.66, 0.2, 0.16)))
-	l.mouse_exited.connect(func(): l.add_theme_color_override("font_color", Color(0.28, 0.28, 0.28, 0.85)))
+	l.mouse_entered.connect(func(): l.add_theme_color_override("font_color", Color(0.05, 0.05, 0.05, 0.9)))
+	l.mouse_exited.connect(func(): l.add_theme_color_override("font_color", Color(0.66, 0.2, 0.16, 0.9)))
 	l.gui_input.connect(func(ev: InputEvent):
 		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
 			_open_credits())
