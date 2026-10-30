@@ -47,6 +47,31 @@ func _ready() -> void:
 	_make_button("设    置", 546, _open_settings)
 	_make_button("退    出", 618, func(): get_tree().quit())
 
+	_make_credits_entry()
+
+
+## 致谢入口：左下角竖排两字小字（题跋落款的位置），不挤压中间五个主键
+func _make_credits_entry() -> void:
+	var l := Label.new()
+	l.text = "致谢"
+	l.position = Vector2(30, 442) # 压在远山剪影上会看不清，落在上方留白处
+	l.size = Vector2(28, 84)
+	l.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY # 宽度只容一个字，自然竖排
+	l.add_theme_font_size_override("font_size", 24)
+	l.add_theme_color_override("font_color", Color(0.28, 0.28, 0.28, 0.85))
+	l.mouse_filter = Control.MOUSE_FILTER_STOP
+	l.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	l.mouse_entered.connect(func(): l.add_theme_color_override("font_color", Color(0.66, 0.2, 0.16)))
+	l.mouse_exited.connect(func(): l.add_theme_color_override("font_color", Color(0.28, 0.28, 0.28, 0.85)))
+	l.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+			_open_credits())
+	add_child(l)
+
+
+func _open_credits() -> void:
+	add_child(load("res://scenes/ui/credits_panel.tscn").instantiate())
+
 
 func _make_button(text: String, y: float, cb: Callable) -> void:
 	var b := TextureButton.new()

@@ -1,4 +1,7 @@
 [UI] saved 01_main_menu err=0
+[UI] 致谢打开=true（期望 true）
+[UI] 致谢滚动 offset=28.0（期望 > 0）
+[UI] saved 01b_credits err=0
 [UI] saved 02_settings err=0
 [UI] 化身谱打开=true（期望 true）
 [UI] saved 03_codex err=0

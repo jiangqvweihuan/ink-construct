@@ -24,6 +24,17 @@ func _ready() -> void:
 	await get_tree().create_timer(0.6).timeout
 	await _shot("01_main_menu")
 
+	# 致谢：左侧竖排入口 → 滚动名单（打开后必须真的在上移）
+	_menu._open_credits()
+	await get_tree().create_timer(0.5).timeout
+	var credits = _find_panel("credits_panel.gd")
+	p("致谢打开=%s（期望 true）" % (credits != null))
+	if credits != null:
+		p("致谢滚动 offset=%.1f（期望 > 0）" % credits._offset)
+		await _shot("01b_credits")
+		credits.queue_free()
+		await get_tree().process_frame
+
 	_menu._open_settings()
 	await get_tree().create_timer(0.4).timeout
 	await _shot("02_settings")
