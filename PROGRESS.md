@@ -58,7 +58,7 @@
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
-| 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：**循环播放水墨剑客剪影视频**（`art/ui/menu/bg_swordsman.ogv`，1280×720/30fps/15.65s/无音轨，`VideoStreamPlayer` + `loop`，底下垫静态远山兜底）+ 左上纸白书法标题「墨构」（演示佛系体 96px、黑描边）+ 副标 InkConstruct + 朱砂短线；**六项菜单条压在底部纯黑地面带**（y 588，x 118~1162，164×72 等间距，纸白 26px）；悬停上浮 4px + 墨底淡入 + 朱砂线拉满 + 其余项压暗 + 轻响；上下只做渐变遮罩（顶 0.55 黑衬标题 / 底 0.62 黑托菜单），中间画面不动。启动时 `Settings.apply_all()`；「开始游戏」不直接进房间，改为弹开始面板 |
+| 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：**循环播放水墨剑客剪影视频**（`art/ui/menu/bg_swordsman.ogv`，1920×1080/30fps/15.65s/无音轨，`VideoStreamPlayer` + `loop`，底下垫静态远山兜底）+ 左上纸白书法标题「墨构」（演示佛系体 96px、黑描边）+ 副标 InkConstruct + 朱砂短线；**六项菜单条压在底部纯黑地面带**（y 588，x 118~1162，164×72 等间距，纸白 26px）；悬停上浮 4px + 墨底淡入 + 朱砂线拉满 + 其余项压暗 + 轻响；上下只做渐变遮罩（顶 0.55 黑衬标题 / 底 0.62 黑托菜单），中间画面不动。启动时 `Settings.apply_all()`；「开始游戏」不直接进房间，改为弹开始面板 |
 | 开始面板 | `scripts/ui/start_panel.gd` + `scenes/ui/start_panel.tscn` | **两步开局**：① 选模式（冒险 / 无尽卡片）② 选角色（`Skulls.ids()` 强度顺序 5 张，未解锁整卡压暗 + 显示解锁条件与实时进度，已解锁显示契合等级）。选中即 `Run.start(模式, 形态)` → 切 `room_01.tscn`；Esc / 上一步可回退 |
 | 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：5 形态解锁条件/契合进度/各级加成一览 + 墨锭商栈 |
 | 图鉴 | `scripts/ui/codex_panel.gd` + `scenes/ui/codex_panel.tscn` | 主菜单入口：左栏收录卡（2 列 × 6 行）分**敌人 / 化身**两页——敌人只收击败过的（未打过压暗 ？？？，Boss 追加在杂兵精英之后）；右栏预览台 + 名称/分类/生命/击败次数 + **背景故事**（`LORE` 表，现为占位文案）+ 动作条（4 列网格）。**鼠标悬停任一条 → SpineSprite 循环播该动画**（普攻 / 招式 / 技能 K-L-U-I-O / 待机奔跑冲刺滞空受击倒地；Boss 含三阶段招式并集 + 变身），说明行同步显示机制标签与紧凑数值（`1.33s ｜ 144px ｜ 1伤`）；数值全部由形态表 / 敌人表自动生成 |
@@ -88,7 +88,7 @@
 | `tools/contact_sheet.py` | 精灵条重排网格接触表供人工预览 |
 | `tools/gen_telegraph.py` | 程序化生成预警墨环（根治 gather 贴图脏底） |
 | `tools/png2strip.py` | PNG 序列 → 水平精灵条通用管线（按文件名数字排序，`--align bottom/center`） |
-| `ffmpeg`（外部工具） | **视频管线**：Godot 只能播 Theora，mp4 必须先转 ogv：`ffmpeg -i in.mp4 -vf "scale=1280:720,fps=30" -c:v libtheora -q:v 6 -an out.ogv`（q6 ≈ 5.5MB/15.6s）；`.ogv` 不要 `.import` 侧车，Godot 直接按 `VideoStreamTheora` 加载（只生成 `.uid`） |
+| `ffmpeg`（外部工具） | **视频管线**：Godot 只能播 Theora，mp4 必须先转 ogv：`ffmpeg -i in.mp4 -vf "scale=1920:1080:flags=lanczos,fps=30" -c:v libtheora -q:v 8 -an out.ogv`（1080p q8 ≈ 20.5MB/15.6s；UI 背景视频统一 1080p，别压到 720p）；`.ogv` 不要 `.import` 侧车，Godot 直接按 `VideoStreamTheora` 加载（只生成 `.uid`） |
 
 ### 测试场景（`scenes/tests/`）
 
@@ -282,7 +282,7 @@ tests/out/           # 回归截图 + 日志
 1. 布局 = **底部横排菜单条**；2. 压暗 = **只做上下渐变**；3. 悬停 = **中档（上浮 + 墨底 + 朱砂线 + 轻响）**；4. 循环接缝 = 先接受，不加双播放器交叉淡化。
 
 #### 做法
-- **视频**：`ffmpeg` 转 Theora → `art/ui/menu/bg_swordsman.ogv`（1280×720 / 30fps / 15.65s / q6 / 5.54MB）；`VideoStreamPlayer` 铺满 + `expand` + `loop` + `autoplay`，底下垫 `bg_mountains.jpg` 兜底。
+- **视频**：`ffmpeg` 转 Theora → `art/ui/menu/bg_swordsman.ogv`（1920×1080 / 30fps / 15.65s / q8 / 20.5MB）；`VideoStreamPlayer` 铺满 + `expand` + `loop` + `autoplay`，底下垫 `bg_mountains.jpg` 兜底。
 - **构图依据（1280×720）**：上 0~380 黑树冠（白字压这里最稳）、380~500 亮天空、左下 270~350 剑客剪影、**555 以下整条纯黑地面 → 菜单条压这里**。
 - **标题**：左上 (116, 44)，演示佛系体 96px 纸白 + 黑描边 10（树叶细节碎，不描边会糊）；副标 InkConstruct 22px 描边 6；下方朱砂短线 (122, 226) 110×3。
 - **菜单条**：6 项（开始游戏/化身谱/图鉴/设置/致谢/退出）164×72、间距 12、y 588，整条水平居中（x 118~1162）；每项 = Control + 墨底 ColorRect + Label(26px 纸白) + 朱砂短线(40px)。
@@ -291,6 +291,7 @@ tests/out/           # 回归截图 + 日志
 
 #### 踩坑
 - **Godot 只能播 Theora**，mp4 不认；`.ogv` 不生成 `.import` 侧车（只有 `.uid`），`preload` 直接可用。
+- **`canvas_items` 拉伸下 2D 是按窗口分辨率渲染的**：`viewport 1280×720` 只是设计坐标基准，窗口开到 1080p / 4K 时画布仍按真实像素渲染，纹理是被放大的 —— 720p 视频在 4K 屏上等于 3 倍像素拉伸，必糊。**所以背景视频必须 1080p（q8）**，不能为省体积压到 720p。
 - **书法字体 ascent 偏大**：96px 的「墨构」字形比 Label 框低约 18px，副标按 Label 顶部对齐会压进大字里 —— 位置要按肉眼校准。
 - **细字压在树叶纹理上会看不见**（20px 浅灰直接消失）：副标必须加 `font_outline_color` + `outline_size`。
 - **Control 挂在 Node2D 下拿不到视口尺寸**：根 Control 的 bg/video 会变成 0 面积（`start_flow_test` 就踩到，表现为只剩渐变、没有画面）。测试里给根 Control 显式 `size`，或像 `ui_test` 那样挂到 `Node` 下。
