@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const Settings = preload("res://scripts/ui/settings.gd") # 改键后普攻键名要读 InputMap
 
 ## 水墨 HUD：左上血条 · 底部技能栏（J 普攻 / 各形态自带的 K L U 技能，带冷却遮罩）
 ## · 中上连击数 · 右上墨骨计数。技能格数量随换头形态变化，换头时重建。
@@ -111,7 +112,7 @@ func _build_action_bar(root: Control) -> void:
 	for i in slot_count:
 		var x := start_x + i * gap
 		_rect("res://art/ui/hud/skill_slot.png", Vector2(SLOT, SLOT), Vector2(x, 658), _action_root)
-		var key := "J"
+		var key := Settings.action_label("attack") # 改键后普攻格键名跟着变
 		if i > 0 and _player != null and is_instance_valid(_player):
 			key = _player.get_skill_key(str(_hud_skills[i - 1]))
 		var l := Label.new()

@@ -9,6 +9,7 @@ const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")
 const Skulls := preload("res://scripts/player/skulls.gd")
 const PROJECTILE := preload("res://scripts/systems/projectile.gd") # 远程形态的普攻/技能发投射物
 const FX := preload("res://scripts/systems/fx.gd") # 精灵条特效：斩击/化身光柱/受击墨花
+const Settings = preload("res://scripts/ui/settings.gd") # 改键后 HUD 键名要读 InputMap
 const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
 
 ## 换头消耗的墨骨数
@@ -1185,7 +1186,12 @@ func get_skill_cd_ratio(n: String) -> float:
 ## 给 HUD 查技能对应的按键字母
 func get_skill_key(n: String) -> String:
 	var cfg: Dictionary = skill_config.get(n, {})
-	return str(KEY_LABELS.get(str(cfg.get("action", "")), "-"))
+	var action := str(cfg.get("action", ""))
+	if action == "":
+		return "-"
+	# 优先读 InputMap（设置里改键后 HUD 跟着变），读不到再退回写死表
+	var s := Settings.action_label(action)
+	return s if s != "-" else str(KEY_LABELS.get(action, "-"))
 
 
 # ---------- 动作入口 ----------

@@ -5,6 +5,8 @@ extends Node
 
 const OUT_DIR := "res://tests/out/"
 
+const Settings = preload("res://scripts/ui/settings.gd") # 改键回归用
+
 var _log: FileAccess
 var _menu: Node
 
@@ -38,9 +40,33 @@ func _ready() -> void:
 		credits.queue_free()
 		await get_tree().process_frame
 
+	# 设置：三页签截图 + 改键/冲突/Esc 取消（persist 关掉，不写玩家配置）
+	Settings.persist = false
 	_menu._open_settings()
 	await get_tree().create_timer(0.4).timeout
-	await _shot("02_settings")
+	var sp = _find_panel("settings_panel.gd")
+	p("设置打开=%s（期望 true）" % (sp != null))
+	await _shot("02_settings_audio")
+	if sp != null:
+		sp._switch_tab("画面")
+		await get_tree().process_frame
+		await _shot("02b_settings_video")
+		sp._switch_tab("操作")
+		await get_tree().process_frame
+		await _shot("02c_settings_keys")
+		# 改键：跳跃 Space -> G，InputMap 与按钮文字都要跟着变
+		sp._start_capture("jump")
+		await _press_key(KEY_G)
+		p("改键 jump -> %s 按钮=%s（期望 G / G）" % [Settings.action_label("jump"), sp._key_btns["jump"].text])
+		# 冲突：闪避想绑 G（已被跳跃占用）-> 拒绝并出提示
+		sp._start_capture("dash")
+		await _press_key(KEY_G)
+		p("冲突绑定被拒 dash 仍=%s hint=%s（期望 Sh / 非空）" % [Settings.action_label("dash"), sp._hint.text])
+		# Esc 取消录入
+		sp._start_capture("dash")
+		await _press_key(KEY_ESCAPE)
+		p("Esc 取消录入 dash 仍=%s（期望 Sh）" % Settings.action_label("dash"))
+	await get_tree().create_timer(0.2).timeout
 	_close_settings() # 先关掉设置，别让它的窗口叠在化身谱截图里
 	await get_tree().process_frame
 
@@ -106,6 +132,16 @@ func _close_settings() -> void:
 	for c in _menu.get_children():
 		if c.get_script() != null and str(c.get_script().resource_path).ends_with("settings_panel.gd"):
 			c.queue_free()
+
+
+## 真实按键（改键录入走 _input 路径）
+func _press_key(code: Key) -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = code
+	ev.keycode = code
+	ev.pressed = true
+	get_viewport().push_input(ev)
+	await get_tree().process_frame
 
 
 ## 真实鼠标移动（触发 mouse_entered，图鉴的悬停演示靠它）

@@ -2,7 +2,14 @@
 [UI] 致谢打开=true（期望 true）
 [UI] 致谢滚动 offset=28.0（期望 > 0）
 [UI] saved 01b_credits err=0
-[UI] saved 02_settings err=0
+[UI] 致谢中点击菜单区 -> 开始面板=false（期望 false）
+[UI] 设置打开=true（期望 true）
+[UI] saved 02_settings_audio err=0
+[UI] saved 02b_settings_video err=0
+[UI] saved 02c_settings_keys err=0
+[UI] 改键 jump -> G 按钮=G（期望 G / G）
+[UI] 冲突绑定被拒 dash 仍=Sh hint=「G」已被 跳跃 占用，换一个键（期望 Sh / 非空）
+[UI] Esc 取消录入 dash 仍=Sh（期望 Sh）
 [UI] 化身谱打开=true（期望 true）
 [UI] saved 03_codex err=0
 [UI] saved 04_codex_refresh err=0

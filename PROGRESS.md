@@ -21,7 +21,8 @@
 1. **致谢名单**：已完成（主界面左下角竖排「致谢」→ 全屏滚动，内容来源 `e:\素材\墨构素材库\致谢.txt`）。
 2. **主界面与子界面 UI 优化**：进游戏主界面及各小界面的 UI 按钮位置、背景图优化调整。
    - ✅ 主界面已改：视频底 + 左上标题 + 底部六项菜单条（详见交接笔记 2026-10-30）
-   - ⬜ 子界面（开始/化身谱/图鉴/设置/致谢/结算）暂按兵不动，等用户找到合适素材再动
+   - ✅ 设置面板已改：三页签（音频/画面/操作）+ 改键 + 水墨印章控件（详见交接笔记 2026-10-30 设置 v2）
+   - ⬜ 其余子界面（开始/化身谱/图鉴/致谢/结算）暂按兵不动，等用户找到合适素材再动
 3. **角色技能成长机制重构 + 经济平衡**：为每个角色重新构筑独一无二的技能成长机制；平衡墨骨与墨锭消耗（当前通货膨胀，需收紧）。
 4. **小怪 AI 与动画优化**：整体优化目前所有小怪的 AI 攻击逻辑与动画。
 5. **音效特效九级大升级**：全体实体的音效、特效全面升级。
@@ -64,7 +65,8 @@
 | 图鉴 | `scripts/ui/codex_panel.gd` + `scenes/ui/codex_panel.tscn` | 主菜单入口：左栏收录卡（2 列 × 6 行）分**敌人 / 化身**两页——敌人只收击败过的（未打过压暗 ？？？，Boss 追加在杂兵精英之后）；右栏预览台 + 名称/分类/生命/击败次数 + **背景故事**（`LORE` 表，现为占位文案）+ 动作条（4 列网格）。**鼠标悬停任一条 → SpineSprite 循环播该动画**（普攻 / 招式 / 技能 K-L-U-I-O / 待机奔跑冲刺滞空受击倒地；Boss 含三阶段招式并集 + 变身），说明行同步显示机制标签与紧凑数值（`1.33s ｜ 144px ｜ 1伤`）；数值全部由形态表 / 敌人表自动生成 |
 | 暂停菜单 | `scripts/ui/pause_menu.gd` | Esc 呼出：继续 / 设置 / 回主菜单 |
 | 致谢名单 | `scripts/ui/credits_panel.gd` + `scenes/ui/credits_panel.tscn` | 主界面左下角竖排「致谢」小字（不挤压中间五键）→ 全屏向上滚动：制作 → 核心团队（程序/美术/设计/音频/QA/运营）→ 外部协作 → 软件与素材署名 → 特别感谢 → 版权免责 → 致谢纠错 → 结尾。56px/s，Esc 立即返回，滚完自动淡出；`CREDITS` 常量逐条改文案，`【】`占位项等全部开发完成后统一核验 |
-| 设置 | `scripts/ui/settings.gd` + `settings_panel.gd` | 音乐/音效音量（Music/SFX 总线）、全屏、分辨率（1280×720 / 1600×900 / 1920×1080）；`user://settings.cfg` 持久化，改动立即生效 |
+| 设置 | `scripts/ui/settings.gd` + `settings_panel.gd` | **三页签**（音频/画面/操作）：音频 = 主音量/背景音乐/音效（Master/Music/SFX 三总线）滑条带百分比；画面 = 显示模式（窗口化/无边框/全屏）/ 分辨率 / 帧率限制（不限~120）/ 垂直同步 / 亮度（0.5~1.5，`ScreenFX` 全屏着色器）；操作 = **12 动作改键**（点按钮→按下新键，Esc 取消，冲突拒绝并提示）+ 屏幕震动开关（`Feel.shake_enabled`）；「恢复默认设置」一键还原；印章式勾选（启红/闭灰）；`user://settings.cfg` 持久化，改动立即生效；`Settings.persist=false` 供测试不写盘 |
+| 亮度叠加 | `scripts/systems/screen_fx.gd`（autoload ScreenFX） | 全屏 `hint_screen_texture` 着色器 ColorRect（layer 100 压在一切 UI 上），亮度 =1.0 时隐藏零开销；Godot 无「无边框」窗口模式，无边框 = 窗口化 + `WINDOW_FLAG_BORDERLESS`（settings.gd `_apply_display`） |
 | HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 + **顶部中央模式标签**（`冒险 · 1/3` / `无尽 · 第 2 层 · 2/3` / Boss 房写 `Boss`） |
 | 结算 | `scripts/ui/settlement_panel.gd` | 通关/阵亡结算 + 战绩行（最高连击/击杀/墨骨）+ 朱砂「讨伐 · Boss 名」+ 契合经验条动画 + 墨锭沉淀；**结算栏旁挂当前形态化身**（通关从 profile `victory` 池随机播一遍转待机 / 阵亡播 dead 接 dead_hold 循环躺尸，SpineSprite `process_mode=ALWAYS` 对抗暂停，无 victory 配置的形态 = 接口 fallback 只待机） |
 | 换头面板 | `scripts/ui/swap_panel.gd` | Q 键呼出，暂停时间选形态 |
@@ -272,6 +274,34 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-30 · 设置面板 v2：三页签 + 改键 + 水墨印章控件
+
+#### 需求
+用户大纲（`e:\素材\墨构素材库\设置界面大纲.txt`）：设置面板从「音乐/音效 + 全屏 + 分辨率」扩到音频/画面/操作/游戏性全套，附水墨化 UI 建议；用户明确要**键位自定义**（适应不同操作习惯）。经确认拍板：键位本轮一起做；音频 3 条真实生效（环境音/配音暂无内容不做）；画面加帧率/垂直同步/亮度（不做 UI 缩放、画质等级）；水墨样式全做。
+
+#### 已确认方案（用户拍板）
+1. 键位自定义本轮做；2. 音频 3 条（主音量/音乐/音效）；3. 画面 = 显示模式三档 + 帧率 + 垂直同步 + 亮度；4. 水印印章控件全做。**直接跳过**（依赖不存在的系统）：语言/文本速度/剧情相关（无对话系统）、鼠标灵敏度（纯键盘游戏）、画质等级（GL Compatibility 可调项少）。
+
+#### 做法
+- **面板**：`settings_panel.gd` 整体重写，窗口 780×580，三页签（音频/画面/操作）+ 底部「恢复默认设置」；右上角关闭钮换「闭」字印章；勾选框换印章式（选中红「启」/ 未选灰「闭」，`_seal` 程序绘制不占素材）；滑条右端加百分比读数。
+- **settings.gd** 扩展：`master_volume` / `display_mode`(0 窗口化 1 无边框 2 全屏，旧 cfg 的 fullscreen 布尔自动迁移) / `fps_limit`(Engine.max_fps) / `vsync` / `brightness`(0.5~1.5) / `screen_shake` / `binds`(action→物理键码)；`DEFAULT_BINDS`/`ACTION_NAMES` 常量表；`action_label()` 读 InputMap 出短键名（A-Z/数字单字符，特殊键查 `KEY_TEXT` 表）；`action_for_key()` 冲突检测；`reset_all()` 一键还原；`persist=false` 供测试不写盘。
+- **改键**：操作页 12 动作两列六行（左移/右移/跳跃/闪避/普攻/技能一~六/化身换头），点按钮进录入态（`_start_capture`），下一个按键在面板 `_input` 里接（`set_input_as_handled` 防漏给别的系统）；Esc 取消；冲突拒绝并出红字提示；`Settings.rebind` 写 InputMap + cfg。
+- **亮度**：新 autoload `screen_fx.gd`（ScreenFX）——全屏 `hint_screen_texture` 着色器 ColorRect，layer 100 压在一切之上，亮度 1.0 时隐藏零开销。
+- **HUD 键名跟改键走**：`player.get_skill_key()` 与 `hud.gd` 普攻格改读 `Settings.action_label()`（原 `KEY_LABELS` 写死表只作 fallback）。
+- **屏幕震动开关**：`combat_feel.gd` 加 `shake_enabled`，`shake()` 入口早退。
+
+#### 踩坑
+- **Godot 没有 `WINDOW_MODE_BORDERLESS`**：无边框窗口 = `WINDOW_MODE_WINDOWED` + `window_set_flag(WINDOW_FLAG_BORDERLESS, true)`，编译期才报错，写代码时容易想当然。
+- **`InputEvent` 基类取 `physical_keycode` 要先 `as InputEventKey`**：直接三元表达式 `var code := ev.physical_keycode if ...` 会因类型无法推断而编译失败（Parse Error: Cannot infer the type）。
+- **改键录入走 `_input` + `set_input_as_handled()`**：不然按键会漏给 `_unhandled_input`（Esc 会顺手把面板/暂停菜单关掉）。
+- **单行 lambda 写多条语句 `func(x): a; b` 不要用**，GDScript 解析不稳，全部换缩进块。
+- 测试里改键会污染玩家 `user://settings.cfg`：Settings 加了 `persist` 开关，`ui_test` 先置 false。
+
+#### 回归
+- `ui_test`：设置三页签截图 + 改键（jump→G 生效）/ 冲突拒绝（dash 绑 G 被拒出提示）/ Esc 取消，全过 `ALL DONE`。
+- `settings_test`：分辨率/音量/持久化/重载/窗口保持全 PASS。
+- `start_flow_test`：主菜单全流程无崩溃。
 
 ### 2026-10-30 · 主界面改版：视频底 + 左上标题 + 底部六项菜单条
 

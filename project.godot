@@ -19,6 +19,7 @@ config/icon="res://icon.svg"
 
 BGM="*res://scripts/audio/bgm.gd"
 Feel="*res://scripts/systems/combat_feel.gd"
+ScreenFX="*res://scripts/systems/screen_fx.gd"
 Score="*res://scripts/systems/score.gd"
 Run="*res://scripts/systems/run_state.gd"
 Meta="*res://scripts/systems/meta.gd"

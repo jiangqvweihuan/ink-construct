@@ -16,6 +16,7 @@ var _shake_until := 0
 var _shake_start := 0
 var _shake_amt := 0.0
 var _zoom_tween: Tween # 登场运镜的推拉动画，重复触发时杀掉旧的
+var shake_enabled := true # 设置里可关（Settings.set_screen_shake）
 
 
 func _ready() -> void:
@@ -41,6 +42,8 @@ func hitstop(dur := 0.055) -> void:
 
 ## 屏幕震动：amount 是像素幅度，dur 是持续秒数。取历史最大值，不叠加衰减。
 func shake(amount := 5.0, dur := 0.16) -> void:
+	if not shake_enabled:
+		return
 	var now := Time.get_ticks_msec()
 	var until := now + int(dur * 1000.0)
 	_shake_amt = maxf(_shake_amt, amount)
