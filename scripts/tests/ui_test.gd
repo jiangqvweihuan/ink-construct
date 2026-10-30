@@ -113,26 +113,41 @@ func _ready() -> void:
 		await get_tree().create_timer(0.3).timeout
 		p("切到化身页 -> 选中=%s（期望 c021）" % str(codex._sel))
 		await _shot("08_codex_form")
-		# 多模式技能轮播：强制解锁银夜（K 技能 3 个变式），点开后 _advance_pool 要换动画
+		# 银夜变式池：普攻 2 与 K 各留 2 条，I 只留 1 条；上 / 下键手动选择且不自动跳转
 		Meta.clears = 3
 		Meta.kills = 150
 		codex._select("z003")
 		await get_tree().create_timer(0.3).timeout
+		var atk2 := -1
 		var k := -1
+		var i_skill := -1
 		for i in codex._acts.size():
-			if str(codex._acts[i]["label"]) == "技能 K":
+			var label := str(codex._acts[i]["label"])
+			if label == "普攻 2":
+				atk2 = i
+			elif label == "技能 K":
 				k = i
+			elif label == "技能 I":
+				i_skill = i
 		var last_act: Dictionary = codex._acts[codex._acts.size() - 1] if codex._acts.size() > 0 else {}
-		p("银夜 K 变式数=%d 被动末位=%s（期望 3 / true）" % [
+		p("银夜变式数：普攻2=%d K=%d I=%d 被动末位=%s（期望 2 / 2 / 1 / true）" % [
+			(codex._acts[atk2]["anims"] as Array).size() if atk2 >= 0 else 0,
 			(codex._acts[k]["anims"] as Array).size() if k >= 0 else 0,
+			(codex._acts[i_skill]["anims"] as Array).size() if i_skill >= 0 else 0,
 			str(str(last_act.get("kind", "")) == "passive")])
 		if k >= 0:
 			codex._pick(k)
 			await get_tree().create_timer(0.25).timeout
 			var first_anim := str(codex._current_anim)
-			codex._advance_pool()
-			p("轮播 %s -> %s（期望变化）" % [first_anim, str(codex._current_anim)])
-			p("解析面板含变式=%s（期望 true）" % str(codex._desc_rt.text.contains("变式")))
+			await _press_key(KEY_DOWN)
+			var second_anim := str(codex._current_anim)
+			p("下键切换 %s -> %s（期望变化）" % [first_anim, second_anim])
+			await get_tree().create_timer(1.0).timeout
+			p("变式不自动跳转=%s（期望 true）" % str(str(codex._current_anim) == second_anim))
+			await _press_key(KEY_UP)
+			p("上键切回 -> %s（期望 %s）" % [str(codex._current_anim), first_anim])
+			p("解析面板含切换提示=%s（期望 true）" % str(codex._desc_rt.text.contains("↑ / ↓ 切换")))
+			await _press_key(KEY_DOWN)
 		await _shot("09_codex_pool")
 		await _click(Vector2(135, 594)) # 「返回」在左栏下方
 		await get_tree().process_frame

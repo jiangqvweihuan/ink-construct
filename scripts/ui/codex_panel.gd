@@ -3,7 +3,7 @@ extends CanvasLayer
 ## 图鉴 · 主菜单入口。
 ## 左栏收录列表（敌人 / 化身两页），右栏：上面是动画演示台 + 技能解析面板，右下是角色简介（可滚动）。
 ## 交互一律点击：默认播待机动画；点下方招式 / 技能 / 动作按钮，演示台播该动作并把
-## 来历 / 机制 / 数值 / 冷却写进解析面板；一条技能带多个变式（pool）时自动轮播。
+## 来历 / 机制 / 数值 / 冷却写进解析面板；一条技能带多个变式（pool）时用 ↑ / ↓ 手动切换。
 ## 每个角色（含敌人）都按词条分类，并预留一个被动技能占位钮（内容等第 6 阶段补）。
 ## 背景故事（LORE）与技能来历目前是占位，之后逐条替换即可；数值由形态表自动生成。
 
@@ -114,7 +114,7 @@ const BTN_COLS := 8
 const BTN_STEP_Y := 34.0
 const ACT_MAX := 24
 
-const HINT_TEXT := "点击下方招式 / 技能，演示台播放对应动画，解析面板显示来历 · 机制 · 数值 · 冷却"
+const HINT_TEXT := "点击招式 / 技能播放演示；多变式用 ↑ / ↓ 切换；解析含数值 · 机制 · 冷却 · 来历"
 
 ## 占位背景故事：之后逐条替换成正式文案（键 = 形态 / 敌人 id）
 const LORE := {
@@ -140,12 +140,10 @@ const LORE := {
 var _tab := TAB_ENEMY
 var _sel := "" # 当前选中的条目 id
 var _sfx: AudioStreamPlayer
-var _pool_timer: Timer # 变式轮播计时器（重建时保留，不随界面清掉）
 
 var _preview = null # 演示台用的 SpineSprite
 var _idle_anim := "" # 待机动画名（默认演示 / 取消选中时回到这里）
 var _current_anim := "" # 测试用：当前正在演的动作名
-var _durs := {} # 动画名 -> 真实时长（轮播计时用）
 var _desc_rt: RichTextLabel # 技能解析面板
 
 var _acts: Array = [] # 当前角色的动作条目（{label, anims, kind, src}）
@@ -160,14 +158,10 @@ var _pool_i := 0 # 池内当前变式下标
 
 func _ready() -> void:
 	layer = 9
-	# 点击音与轮播计时器常驻：切换条目 / 切页会整体重建界面，不能连它们一起清掉
+	# 点击音常驻：切换条目 / 切页会整体重建界面，不能连它一起清掉
 	_sfx = AudioStreamPlayer.new()
 	add_child(_sfx)
 	_sfx.stream = SFX_CLICK
-	_pool_timer = Timer.new()
-	_pool_timer.one_shot = true
-	_pool_timer.timeout.connect(_advance_pool)
-	add_child(_pool_timer)
 	_build()
 
 
@@ -217,11 +211,10 @@ func _build() -> void:
 ## 重建：只留常驻节点（按钮不能在自身信号里销毁自己，故一律延迟调用）
 func _refresh() -> void:
 	for c in get_children():
-		if c == _sfx or c == _pool_timer:
+		if c == _sfx:
 			continue
 		remove_child(c)
 		c.queue_free()
-	_pool_timer.stop()
 	_preview = null
 	_desc_rt = null
 	_current_anim = ""
@@ -239,6 +232,12 @@ func _refresh() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		_close()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_up") and _pool.size() > 1:
+		_cycle_pool(-1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_down") and _pool.size() > 1:
+		_cycle_pool(1)
 		get_viewport().set_input_as_handled()
 
 
@@ -481,7 +480,7 @@ func _enemy_scale(t: Dictionary, is_boss: bool) -> float:
 # ---------- 动作清单 ----------
 
 ## 动作条目统一结构：{label, anims(动画池), kind(attack/skill/act/passive/enemy_atk/transform), src}
-## anims 只放一条 = 单变式；放多条 = 点开后自动轮播
+## anims 只放一条 = 单变式；放多条 = 点开后用 ↑ / ↓ 手动切换
 func _form_actions(p: Dictionary) -> Array:
 	var out: Array = []
 	var atks: Array = p.get("attacks", [])
@@ -758,7 +757,6 @@ func _make_preview(data, view_scale: float, idle: String) -> void:
 	sprite.position = Vector2(SPRITE_X, SPRITE_Y)
 	_preview = sprite
 	_idle_anim = idle
-	_durs = _anim_durations(data)
 	_play(idle)
 
 
@@ -766,13 +764,6 @@ func _anim_names(data) -> Dictionary:
 	var out := {}
 	for a in data.call("get_animations"):
 		out[str(a.call("get_name"))] = true
-	return out
-
-
-func _anim_durations(data) -> Dictionary:
-	var out := {}
-	for a in data.call("get_animations"):
-		out[str(a.call("get_name"))] = float(a.call("get_duration"))
 	return out
 
 
@@ -813,7 +804,7 @@ func _make_action_button(a: Dictionary, i: int) -> void:
 	_act_labels.append(l)
 
 
-## 点击某条动作：演示台播它的动画（多变式自动轮播），解析面板写对应资料
+## 点击某条动作：演示台播它的动画，解析面板写对应资料；多变式由 ↑ / ↓ 手动切换
 func _pick(i: int) -> void:
 	if i < 0 or i >= _acts.size():
 		return
@@ -821,7 +812,6 @@ func _pick(i: int) -> void:
 	_pick_idx = i
 	_pool = a["anims"]
 	_pool_i = 0
-	_pool_timer.stop()
 	_click_sfx()
 
 	var anim := _idle_anim
@@ -830,28 +820,19 @@ func _pick(i: int) -> void:
 	_play(anim)
 	_desc_rt.text = _desc_text(a, anim)
 	_refresh_btns()
-	if str(a["kind"]) != "passive" and _pool.size() > 1:
-		_start_cycle()
 
 
-## 变式轮播：一条动画播完（按真实时长 + 一点余量）切下一条，循环往复
-func _advance_pool() -> void:
+## 上 / 下键在当前动作的变式池中循环选择；不自动跳转，选中的动画持续循环播放
+func _cycle_pool(step: int) -> void:
 	if _pick_idx < 0 or _pool.size() <= 1:
 		return
 	if _desc_rt == null or not is_instance_valid(_desc_rt):
 		return
-	_pool_i = (_pool_i + 1) % _pool.size()
+	_pool_i = posmod(_pool_i + step, _pool.size())
 	var anim := str(_pool[_pool_i])
 	_play(anim)
 	var a: Dictionary = _acts[_pick_idx]
 	_desc_rt.text = _desc_text(a, anim)
-	_start_cycle()
-
-
-func _start_cycle() -> void:
-	var anim := str(_pool[_pool_i])
-	var dur := float(_durs.get(anim, 0.0))
-	_pool_timer.start(maxf(0.4, dur + 0.3))
 
 
 func _refresh_btns() -> void:
@@ -875,13 +856,13 @@ func _on_btn_unhover(i: int) -> void:
 		_refresh_btns()
 
 
-## 解析面板文案：标题（含变式 x/n）+ 数值 / 机制 / 冷却 / 来历
+## 解析面板文案：标题（含变式 x/n 与切换提示）+ 数值 / 机制 / 冷却 / 来历
 func _desc_text(a: Dictionary, anim: String) -> String:
 	var lines: Array = []
 	var head := "[b]%s[/b]" % str(a["label"])
 	var pool: Array = a["anims"]
 	if pool.size() > 1:
-		head += "  [color=#b07a2c]· 变式 %d/%d[/color]" % [_pool_i + 1, pool.size()]
+		head += "  [color=#b07a2c]· 变式 %d/%d · ↑ / ↓ 切换[/color]" % [_pool_i + 1, pool.size()]
 	lines.append(head)
 
 	var kind := str(a["kind"])

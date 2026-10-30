@@ -329,9 +329,9 @@ const SKULLS := {
 				"range": {"skill03": 125.0, "skill09": 135.0},
 			},
 			{
-				"pool": ["skill04", "skill08", "skill08-cankao"], "damage": 2, "lunge": 120.0,
-				"hit_at": {"skill04": 0.26, "skill08": 0.45, "skill08-cankao": 0.74},
-				"range": {"skill04": 100.0, "skill08": 105.0, "skill08-cankao": 145.0},
+				"pool": ["skill04", "skill08"], "damage": 2, "lunge": 120.0,
+				"hit_at": {"skill04": 0.26, "skill08": 0.45},
+				"range": {"skill04": 100.0, "skill08": 105.0},
 				"launch": {"vx": 150.0, "vy": 520.0}, # 击飞：往空中挑起，落地硬直
 			},
 			{
@@ -341,19 +341,17 @@ const SKULLS := {
 			},
 		],
 		"skills": {
-			# K 蓄力斩（atk03_03/atk04_02/skill01 随机，编号 #15/#17/#70）：蓄力期间霸体。
-			# 三段都是双手蓄力大斩，hit_at 标"刀刃扫出"时刻（出手即判定不拖泥）：
-			# atk03_03/atk04_02 取扫出中段；skill01 是起手早挥（0.23s 左挥峰值 L320≈138px，
-			# 之后是长收势），标起手斩出点 0.25s——判定跟上视觉，和短动画手感一致
-			# speed 0.8 慢放：原速太赶，蓄力顿挫感出不来——慢放后实长 1.21/1.44/1.98s。
+			# K 蓄力斩（atk03_03/atk04_02 随机，编号 #15/#17）：蓄力期间霸体。
+			# 两段都是双手蓄力大斩，hit_at 标"刀刃扫出"的中段（出手即判定不拖泥）。
+			# speed 0.8 慢放：原速太赶，蓄力顿挫感出不来——慢放后实长 1.21/1.44s。
 			# sword_qi：预留的远程剑气接口——以后这里填 {speed, range, damage} 就会在
 			# 挥剑时刻发射剑气（走 projectile 管线），现在为 null 只发近战判定
 			"skill14_02": {
 				"action": "skill", "cooldown": 8.0, "poise": true, "speed": 0.8,
-				"pool": ["atk03_03", "atk04_02", "skill01"],
+				"pool": ["atk03_03", "atk04_02"],
 				"sword_qi": null, # 接口预留：剑气配置（未实装）
-				"hit_at": {"atk03_03": 0.34, "atk04_02": 0.53, "skill01": 0.25},
-				"range": {"atk03_03": 165.0, "atk04_02": 165.0, "skill01": 161.0},
+				"hit_at": {"atk03_03": 0.34, "atk04_02": 0.53},
+				"range": {"atk03_03": 165.0, "atk04_02": 165.0},
 				"height": 100.0, "damage": 3, "both": true, "sfx": "skill_blade",
 			},
 			# L 冲拳（skill02 0.883s）：不动剑的武德拳，伤害低冷却短；
@@ -370,11 +368,10 @@ const SKULLS := {
 				"stop": {"at": 0.5, "mob": 3.0, "elite": 2.0, "boss": 1.0},
 				"hits": [],
 			},
-			# I 觉醒（skill10/skill18_02/skill24_03 随机）：爆气强化——立刻回血 + 限时全伤害提升。
-			# align_max：池内最长 2.3s（skill18_02），抽中短动画时慢放撑满，觉醒时长恒定
+			# I 觉醒（skill10）：爆气强化——立刻回血 + 限时全伤害提升。
 			"skill10": {
 				"action": "skill_i", "cooldown": 20.0, "poise": true, "align_max": true,
-				"pool": ["skill10", "skill18_02", "skill24_03"],
+				"pool": ["skill10"],
 				"heal": 2, "buff_damage": 2, "buff_time": 8.0,
 				"hits": [],
 			},
