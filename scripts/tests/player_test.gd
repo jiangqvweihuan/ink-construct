@@ -219,7 +219,7 @@ func _ready() -> void:
 	panel.queue_free()
 	get_tree().paused = false
 
-	# ---- 开局流程验证：解锁梯度 / 开始面板两步 / 无尽缩放 ----
+	# ---- 开局流程验证：解锁梯度 / 开始面板三步 / 无尽缩放 ----
 	Meta.persist = false # 这一段的读写都只在本进程，别污染真实存档
 	Meta.kills = 0
 	Meta.clears = 0
@@ -228,7 +228,7 @@ func _ready() -> void:
 	for id in Skulls.ids():
 		seq.append(str(id) + ("开" if Meta.is_unlocked(str(id)) else "锁"))
 	p("新档解锁顺序 %s（期望 c021 开、其余全锁）" % str(seq))
-	# 开始面板冒烟：新档下选角页应只有双刺可点
+	# 开始面板冒烟：新档下化身页应只有双刺可点
 	var start = load("res://scenes/ui/start_panel.tscn").instantiate()
 	add_child(start)
 	await get_tree().process_frame
@@ -238,13 +238,19 @@ func _ready() -> void:
 	# 之前 _refresh 在回调里用 free() 销毁正在发信号的按钮，引擎当场报错卡死
 	var mode_cards: Array = []
 	for c in start.get_children():
-		if c is TextureButton and is_equal_approx(c.size.x, 320.0):
+		if c is TextureButton and is_equal_approx(c.size.x, 360.0):
 			mode_cards.append(c)
 	mode_cards[1].pressed.emit() # 第二张 = 无尽
 	p("开始面板点「无尽」-> step=%d 模式卡=%d（期望 1 / 2）" % [start._step, mode_cards.size()])
+	var difficulty_cards: Array = []
+	for c in start.get_children():
+		if c is TextureButton and is_equal_approx(c.size.x, 194.0):
+			difficulty_cards.append(c)
+	difficulty_cards[1].pressed.emit() # 第二张 = 落笔
+	p("点「落笔」-> step=%d difficulty=%d 难度卡=%d（期望 2 / 1 / 5）" % [start._step, start._difficulty, difficulty_cards.size()])
 	# 锁住的卡点了不该有反应（此时新档只有双刺可点）
 	start._pick_char("z003")
-	p("点未解锁银夜 -> step=%d（期望 1，停在选角页）" % start._step)
+	p("点未解锁银夜 -> step=%d（期望 2，停在化身页）" % start._step)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await _shot("18_start_char_locked")
@@ -261,12 +267,15 @@ func _ready() -> void:
 	await get_tree().process_frame
 	await _shot("19_start_char_all")
 
-	# 逐颗按钮都按一遍（都走 pressed 真信号）：上一步回选模式 → 返回关面板 → 再开一次确认没残留
+	# 逐颗按钮都按一遍：化身 → 问境 → 择路 → 返回关面板 → 再开一次确认没残留
 	var back_btn := _find_btn(start, Vector2(220, 52))
 	back_btn.pressed.emit()
 	await get_tree().process_frame
-	p("点「上一步」-> step=%d（期望 0）" % start._step)
+	p("化身页点「上一步」-> step=%d（期望 1）" % start._step)
 	await _shot("20_start_back")
+	_find_btn(start, Vector2(220, 52)).pressed.emit()
+	await get_tree().process_frame
+	p("问境页点「上一步」-> step=%d（期望 0）" % start._step)
 	var ret_btn := _find_btn(start, Vector2(220, 52))
 	ret_btn.pressed.emit()
 	await get_tree().process_frame
@@ -396,7 +405,7 @@ func _wait_free(max_wait := 6.0) -> void:
 		t += get_physics_process_delta_time()
 
 
-## 按尺寸找一个按钮：开始面板里模式卡 320x250、角色卡 208x270、底部按钮 220x52
+## 按尺寸找一个按钮：开始面板里模式卡 360x270、难度卡 194x278、底部按钮 220x52
 func _find_btn(parent: Node, wanted: Vector2) -> TextureButton:
 	for c in parent.get_children():
 		if c is TextureButton and c.size.is_equal_approx(wanted):

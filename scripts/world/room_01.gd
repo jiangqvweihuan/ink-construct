@@ -258,14 +258,27 @@ func _on_all_cleared() -> void:
 	_show_upgrade()
 
 
-## Boss 斩杀：冒险模式 = 通关；无尽模式 = 打完一层，补墨骨 + 一次强化，前进即进下一层
+## Boss 斩杀：无归冒险先接第二只不同 Boss；其余冒险通关，无尽打完一层。
 func _on_boss_died() -> void:
 	if _ended:
 		return
 	_ended = true
 	if is_instance_valid(_player):
 		Run.snapshot(_player)
+	if not Run.boss_defeated.has(Run.boss_id):
+		Run.boss_defeated.append(Run.boss_id)
 	await get_tree().create_timer(1.6).timeout
+	# 无归二连战：只回 2 血，不回满、不弹强化；第二只仍在当前房间直接登场。
+	if Run.mode == Run.MODE_ADVENTURE and Run.difficulty == Run.DIFFICULTIES.size() - 1 and Run.boss_phase == 0:
+		Run.boss_phase = 1
+		Run.boss_id = str(Run.boss_queue[1])
+		Run.hp = mini(Run.max_hp, Run.hp + 2)
+		if is_instance_valid(_player):
+			Run.apply_to(_player)
+		_spawn_boss()
+		_hud.show_boss(_boss)
+		_ended = false
+		return
 	if Run.mode == Run.MODE_ENDLESS:
 		# 层间补给：层数越高给得越多，正好抵掉下一层的血量膨胀
 		Score.add_bones(8 + 4 * Run.depth)

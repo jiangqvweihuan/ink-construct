@@ -12,6 +12,15 @@ const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const MODE_ADVENTURE := "adventure"
 const MODE_ENDLESS := "endless"
 
+## 五档问境：只调整普通怪数量与所有敌方攻击，不改敌人血量/速度；默认第二档「落笔」。
+const DIFFICULTIES := [
+	{"label": "濡墨", "seal": "壹", "desc": "墨意初濡，且试锋芒", "count": 0.8, "attack": -1},
+	{"label": "落笔", "seal": "贰", "desc": "笔落惊风，攻守有度", "count": 1.0, "attack": 0},
+	{"label": "惊锋", "seal": "叁", "desc": "锋鸣渐急，杀机四伏", "count": 1.2, "attack": 1},
+	{"label": "狂澜", "seal": "肆", "desc": "墨浪倾天，险中求胜", "count": 1.45, "attack": 2},
+	{"label": "无归", "seal": "伍", "desc": "此去无归，双雄连战", "count": 1.75, "attack": 3},
+]
+
 ## 每个房间的波次配置；index 越大越难
 const ROOMS := [
 	{
@@ -122,6 +131,7 @@ const BLESSINGS := {
 
 var active := false
 var mode := MODE_ADVENTURE # adventure / endless
+var difficulty := 1 # 五档问境索引，默认落笔
 var depth := 1 # 无尽模式层数（冒险模式恒为 1）
 var room_index := 0
 var hp := BASE_HP
@@ -136,14 +146,19 @@ var supply_revive_used := false
 var supply_upgrade_rerolls := 0 # 重随券：整局共享的额外强化重随次数
 var guard_available := false # 护砚：每局第一次实际受伤减免
 var c021_dance_kills := 0 # 血舞·极：跨房间保留的每三杀回血计数
-var boss_id := "" # 本局 Boss 房登场的 Boss（开局随机定）
+var boss_id := "" # 当前 Boss 房登场的 Boss
+var boss_queue: Array = [] # 无归冒险为两只不同 Boss；其他情况只有一只
+var boss_defeated: Array = [] # 本次 Boss 房已讨伐名录，结算落款用
+var boss_phase := 0 # 无归连战当前场次（0/1）
+var last_hit := {} # 玩家最后一次实际扣血的攻击者/招式/伤害，结算终局对演用
 var meta_snapshot := {} # 开局时的 Meta 快照，结算面板 diff 出本局收获
 
 
-## 开新一局（开始流程面板选完模式与角色后调用；测试场景直接无参调用 = 冒险 + 双刺）
-func start(new_mode := MODE_ADVENTURE, new_skull := "c021") -> void:
+## 开新一局（开始流程面板选完模式、难度与角色后调用；测试无参 = 冒险 + 落笔 + 双刺）
+func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1) -> void:
 	active = true
 	mode = MODE_ENDLESS if new_mode == MODE_ENDLESS else MODE_ADVENTURE
+	difficulty = clampi(new_difficulty, 0, DIFFICULTIES.size() - 1)
 	depth = 1
 	room_index = 0
 	skull_id = new_skull if new_skull != "" else "c021"
@@ -158,8 +173,10 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021") -> void:
 	supply_upgrade_rerolls = 0
 	guard_available = Meta.shop_level("start_guard") > 0
 	c021_dance_kills = 0
-	# 本局 Boss：从 Boss 名录随机挑一只（名录见 boss_types.gd，转换完成前是占位）
-	boss_id = BossTypes.ROSTER[randi() % BossTypes.ROSTER.size()]
+	last_hit = {}
+	boss_defeated = []
+	boss_phase = 0
+	_roll_bosses()
 	meta_snapshot = Meta.snapshot() # 结算面板据此展示本局契合/解锁收获
 	Score.reset()
 	if Meta.start_bones_bonus() > 0: # 墨囊：永久开局墨骨
@@ -175,9 +192,44 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021") -> void:
 func room_config() -> Dictionary:
 	if is_boss_room():
 		return BOSS_ROOM
+	var cfg: Dictionary
 	if mode == MODE_ENDLESS:
-		return {"waves": endless_waves(room_index)}
-	return ROOMS[clampi(room_index, 0, ROOMS.size() - 1)]
+		cfg = {"waves": endless_waves(room_index)}
+	else:
+		cfg = ROOMS[clampi(room_index, 0, ROOMS.size() - 1)]
+	cfg = cfg.duplicate(true)
+	cfg["waves"] = scale_waves(cfg["waves"])
+	return cfg
+
+
+## 数量倍率只作用于普通怪：先从波次总数扣除精英，再把精英原数加回。
+func scale_waves(source: Array) -> Array:
+	var result := source.duplicate(true)
+	var mul := float(DIFFICULTIES[difficulty]["count"])
+	for cfg in result:
+		var elite := int(cfg.get("elite", 0))
+		var normal := maxi(0, int(cfg.get("count", 0)) - elite)
+		cfg["count"] = maxi(1, int(round(float(normal) * mul))) + elite
+	return result
+
+
+## 敌方攻击统一入口：普通怪、精英、Boss 近战/冲锋/火区及后续敌投射物均走这里。
+func enemy_damage(base: int) -> int:
+	return maxi(1, base + int(DIFFICULTIES[difficulty]["attack"]))
+
+
+func difficulty_label() -> String:
+	return str(DIFFICULTIES[difficulty]["label"])
+
+
+func _roll_bosses() -> void:
+	var pool := BossTypes.ROSTER.duplicate()
+	pool.shuffle()
+	boss_queue = []
+	var amount := 2 if mode == MODE_ADVENTURE and difficulty == DIFFICULTIES.size() - 1 else 1
+	for i in amount:
+		boss_queue.append(str(pool[i]))
+	boss_id = str(boss_queue[0])
 
 
 ## 无尽模式第 i 间房的波次（按层数成长）：血量/数量/速度/精英数一起抬，
@@ -235,7 +287,9 @@ func advance() -> void:
 	if mode == MODE_ENDLESS and room_index > ROOMS.size():
 		depth += 1
 		room_index = 0
-		boss_id = BossTypes.ROSTER[randi() % BossTypes.ROSTER.size()]
+		boss_phase = 0
+		boss_defeated = []
+		_roll_bosses()
 	elif room_index > ROOMS.size():
 		room_index = ROOMS.size()
 

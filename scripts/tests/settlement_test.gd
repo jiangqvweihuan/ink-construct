@@ -20,11 +20,13 @@ func _ready() -> void:
 
 	var room = load("res://scenes/world/room_01.tscn").instantiate()
 	if test_clear:
-		# 通关路径改了：三关全过进 Boss 房，斩杀 Boss 才出通关结算。
-		# 先 Run.start() 再设房间号，房间 _ready 就不会重开新局覆盖掉
-		Run.start()
-		Run.room_index = Run.ROOMS.size() # Boss 房
+		# 无归通关：连续斩杀两只不同 Boss，验证中间不弹强化、结算留下双印。
+		Run.start(Run.MODE_ADVENTURE, "c021", Run.DIFFICULTIES.size() - 1)
+		Run.room_index = Run.ROOMS.size()
+		Run.boss_queue = ["_debug", "c001"]
 		Run.boss_id = "_debug"
+	else:
+		Run.start(Run.MODE_ADVENTURE, "c021", 3)
 	add_child(room)
 	await get_tree().create_timer(1.0).timeout
 
@@ -33,13 +35,20 @@ func _ready() -> void:
 		room._player.max_hp = 99
 		room._player.hp = 99
 		var waited := 0.0
+		var saw_second := false
 		while room.get_node_or_null("Settlement") == null and waited < 120.0:
+			room._player.max_hp = 99
+			room._player.hp = 99
+			room._player._invincible = true
 			var b = room._boss
 			if is_instance_valid(b) and b.hp > 0:
-				b.take_damage(4, b.global_position.x - 10.0)
+				b.take_damage(8, b.global_position.x - 10.0)
+			if is_instance_valid(b) and str(b.type_id) == "c001" and not saw_second:
+				saw_second = true
+				p("第二只 Boss 已登场：phase=%d，强化面板=%s（期望 1 / false）" % [Run.boss_phase, room.get_node_or_null("Upgrade") != null])
 			await get_tree().create_timer(0.4).timeout
 			waited += 0.4
-		p("cleared, waited=%.1f" % waited)
+		p("cleared, waited=%.1f second=%s defeated=%s（期望双 Boss）" % [waited, saw_second, str(Run.boss_defeated)])
 		await get_tree().create_timer(1.0).timeout
 		await _shot("clear")
 	else:
@@ -48,14 +57,16 @@ func _ready() -> void:
 		p("换形态 -> " + str(room._player.skull_id))
 		# 受伤无敌 0.8s 会让连打大部分落空，直接压到 1 血再补一刀走阵亡路径
 		room._player.hp = 1
-		room._player.hurt(1, Vector2(80, -60))
-		p("killed player, hp=" + str(room._player.hp))
-		await get_tree().create_timer(1.8).timeout
+		var attacker = room._spawner._alive[0] if not room._spawner._alive.is_empty() else null
+		var move := {"anim": "skill01", "hit_at": 0.25}
+		room._player.hurt(1, Vector2(80, -60), attacker, move)
+		p("killed player, hp=%d last_hit=%s" % [room._player.hp, str(Run.last_hit)])
+		await get_tree().create_timer(2.6).timeout
 		await _shot("dead")
-		p("阵亡后 Run.skull_id=%s mode=%s（期望 z003 / adventure）" % [Run.skull_id, Run.mode])
-		# 结算面板「再来一局」就是这两步：先按本局模式+当前形态重开，再重载场景
-		Run.start(Run.mode, Run.skull_id)
-		p("再来一局 -> skull=%s mode=%s depth=%d active=%s（期望 z003 / adventure / 1 / true）" % [Run.skull_id, Run.mode, Run.depth, Run.active])
+		p("阵亡后 Run.skull_id=%s mode=%s difficulty=%d（期望 z003 / adventure / 3）" % [Run.skull_id, Run.mode, Run.difficulty])
+		# 结算面板「再来一局」沿用本局模式、难度与当前形态。
+		Run.start(Run.mode, Run.skull_id, Run.difficulty)
+		p("再来一局 -> skull=%s mode=%s difficulty=%d depth=%d active=%s（期望 z003 / adventure / 3 / 1 / true）" % [Run.skull_id, Run.mode, Run.difficulty, Run.depth, Run.active])
 
 	p("settlement visible=" + str(room.get_node_or_null("Settlement") != null))
 	p("ALL DONE")

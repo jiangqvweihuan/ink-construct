@@ -1,8 +1,7 @@
 extends CanvasLayer
 
-## 开始游戏 · 两步选择面板：先选模式（冒险 / 无尽），再选角色（按强度顺序，只放已解锁的）。
-## 由主菜单「开始游戏」打开；选完角色立刻 Run.start(模式, 形态) 并切进第一间房。
-## 风格与 blessing_panel / forms_panel 一致：水墨窗口 + 按钮卡。
+## 开始游戏 · 行旅卷：择路（模式）→ 问境（五档难度）→ 化身（选人、预览、补给、启程）。
+## 角色卡只负责选中，右侧显示真实 Spine 待机；最后点「启程」才开新一局。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
@@ -12,18 +11,19 @@ const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.82, 0.79, 0.72)
 const RED := Color(0.66, 0.2, 0.16)
-const GOLD := Color(0.9, 0.75, 0.3) # 英雄级主角的金标
+const GOLD := Color(0.9, 0.75, 0.3)
 
-## 两种模式的卡面文案（只留名字，别写解释性小作文）；数值成长写在 run_state.endless_waves
 const MODES := {
-	"adventure": {"label": "冒 险 模 式"},
-	"endless": {"label": "无 尽 模 式"},
+	"adventure": {"label": "冒 险 模 式", "desc": "三关问道 · 讨伐守关者", "foot": "一卷有终，胜负有款"},
+	"endless": {"label": "无 尽 模 式", "desc": "层层深入 · 问道无止", "foot": "以所选问境为初始，逐层成长"},
 }
 
 var _mode := ""
-var _step := 0 # 0 = 选模式，1 = 选角色与开局补给
+var _difficulty := 1 # 默认落笔，保持此前的战斗体验
+var _char := ""
+var _step := 0 # 0 择路 / 1 问境 / 2 化身
 var _supply := ""
-var _sfx: AudioStreamPlayer # 常驻点击音：重建界面时不能把正在响的播放器一起删掉
+var _sfx: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -39,8 +39,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
 		return
 	get_viewport().set_input_as_handled()
-	if _step == 1: # 先从选角退回选模式，再按一次才关面板
-		_step = 0
+	if _step > 0:
+		_step -= 1
 		_refresh()
 		return
 	queue_free()
@@ -48,7 +48,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _build() -> void:
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.5)
+	dim.color = Color(0, 0, 0, 0.62)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 
@@ -61,27 +61,36 @@ func _build() -> void:
 	win.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(win)
 
-	if _step == 0:
-		_label("选 择 模 式", 100, 44, PAPER)
-		var modes := MODES.keys()
-		for i in modes.size():
-			_mode_card(str(modes[i]), i)
-		_button("返  回", 530, 590, _close)
-	else:
-		_label("选 择 角 色", 100, 44, PAPER)
-		_label("%s ｜ 只能选择已解锁的形态（由弱到强）" % Run.mode_label(), 170, 18, DIM)
-		var ids := Skulls.ids()
-		for i in ids.size():
-			_char_card(str(ids[i]), i)
-		_supply_selector()
-		_button("上 一 步", 530, 590, _back)
+	var titles := ["择  路", "问  境", "化  身"]
+	var subtitles := ["此行向何处去", "五重墨境，只改敌众与敌锋", "先见其人，再赴其局"]
+	_label("行 旅 卷", 72, 16, RED)
+	_label(titles[_step], 98, 38, PAPER)
+	_label(subtitles[_step], 146, 16, DIM)
+	var steps := ["壹 · 择路", "贰 · 问境", "叁 · 化身"]
+	for i in 3:
+		_text(steps[i], Vector2(374 + i * 180, 180), Vector2(170, 26), 15, PAPER if i == _step else DIM)
+	_rule(Vector2(180, 213), Vector2(920, 1))
+
+	match _step:
+		0:
+			var modes := MODES.keys()
+			for i in modes.size():
+				_mode_card(str(modes[i]), i)
+			_button("返  回", 530, 585, _close)
+		1:
+			for i in Run.DIFFICULTIES.size():
+				_difficulty_card(i)
+			_button("上 一 步", 100, 585, _back)
+		2:
+			_character_step()
+			_button("上 一 步", 100, 590, _back)
+			_button("启  程", 930, 590, _start_run)
+	_label("墨 构 · 一 卷 一 行", 624, 12, DIM)
 
 
 func _refresh() -> void:
-	# 必须在信号回调里重建（点卡片/返回键）：只摘下来 + queue_free，
-	# 千万不能用 free()——那会把正在发 pressed 的按钮当场销毁，引擎直接报错卡死
 	for c in get_children():
-		if c == _sfx: # 常驻点击音不参与重建，删了之后再点按钮就是「访问已释放对象」
+		if c == _sfx:
 			continue
 		remove_child(c)
 		c.queue_free()
@@ -89,7 +98,7 @@ func _refresh() -> void:
 
 
 func _back() -> void:
-	_step = 0
+	_step = maxi(0, _step - 1)
 	_refresh()
 
 
@@ -104,12 +113,37 @@ func _pick_mode(id: String) -> void:
 	_refresh()
 
 
+func _pick_difficulty(index: int) -> void:
+	_click_sfx()
+	_difficulty = index
+	_step = 2
+	_ensure_char()
+	_refresh()
+
+
 func _pick_char(id: String) -> void:
 	if not Meta.is_unlocked(id):
 		return
 	_click_sfx()
+	_char = id
+	_refresh()
+
+
+func _ensure_char() -> void:
+	if _char != "" and Meta.is_unlocked(_char):
+		return
+	_char = ""
+	for id in Skulls.ids():
+		if Meta.is_unlocked(str(id)):
+			_char = str(id)
+			return
+
+
+func _start_run() -> void:
+	if _mode == "" or _char == "" or not Meta.is_unlocked(_char):
+		return
 	Meta.select_supply(_supply)
-	Run.start(_mode, id)
+	Run.start(_mode, _char, _difficulty)
 	get_tree().change_scene_to_file("res://scenes/world/room_01.tscn")
 
 
@@ -119,24 +153,30 @@ func _click_sfx() -> void:
 
 
 func _label(text: String, y: float, font_size: int, color: Color) -> void:
+	_text(text, Vector2(60, y), Vector2(1160, 46), font_size, color)
+
+
+func _text(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color, alignment := HORIZONTAL_ALIGNMENT_CENTER) -> void:
 	var l := Label.new()
 	l.text = text
-	l.position = Vector2(60, y)
-	l.size = Vector2(1160, 46)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.position = pos
+	l.size = size
+	l.horizontal_alignment = alignment
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_font_size_override("font_size", font_size)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(l)
 
 
-## 卡片内的多行文字：position 相对卡片，居中折行
 func _card_text(card: Control, text: String, pos: Vector2, size: Vector2, font_size: int, color: Color) -> void:
 	var l := Label.new()
 	l.text = text
 	l.position = pos
 	l.size = size
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_font_size_override("font_size", font_size)
@@ -144,35 +184,74 @@ func _card_text(card: Control, text: String, pos: Vector2, size: Vector2, font_s
 	card.add_child(l)
 
 
-func _mode_card(id: String, i: int) -> void:
-	var info: Dictionary = MODES[id]
-	# 两张卡居中排开：320 宽 + 80 间距
-	var x := 280.0 + i * 400.0
+func _rule(pos: Vector2, size: Vector2) -> void:
+	var r := ColorRect.new()
+	r.color = Color(0.66, 0.2, 0.16, 0.6)
+	r.position = pos
+	r.size = size
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(r)
+
+
+func _texture_card(pos: Vector2, size: Vector2, selected := false) -> TextureButton:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = Vector2(320, 250)
-	b.position = Vector2(x, 240)
-	b.pressed.connect(_pick_mode.bind(id))
+	b.position = pos
+	b.size = size
+	b.modulate = Color(1.16, 1.09, 0.88) if selected else Color.WHITE
 	add_child(b)
-	_card_text(b, str(info["label"]), Vector2(0, 100), Vector2(320, 44), 28, PAPER)
+	return b
+
+
+func _mode_card(id: String, i: int) -> void:
+	var info: Dictionary = MODES[id]
+	var b := _texture_card(Vector2(260 + i * 400, 252), Vector2(360, 270))
+	_card_text(b, str(info["label"]), Vector2(0, 42), Vector2(360, 48), 30, PAPER)
+	_card_text(b, str(info["desc"]), Vector2(20, 116), Vector2(320, 34), 17, DIM)
+	_card_text(b, str(info["foot"]), Vector2(20, 190), Vector2(320, 42), 15, RED)
+	b.pressed.connect(_pick_mode.bind(id))
+
+
+func _difficulty_card(index: int) -> void:
+	var info: Dictionary = Run.DIFFICULTIES[index]
+	var b := _texture_card(Vector2(110 + index * 214, 246), Vector2(194, 278), index == _difficulty)
+	_card_text(b, str(info["seal"]), Vector2(0, 10), Vector2(194, 24), 14, GOLD if index == 4 else RED)
+	_card_text(b, str(info["label"]), Vector2(0, 44), Vector2(194, 46), 30, PAPER)
+	_card_text(b, str(info["desc"]), Vector2(12, 108), Vector2(170, 52), 15, DIM)
+	_card_text(b, "敌众 %d%%" % int(round(float(info["count"]) * 100.0)), Vector2(0, 180), Vector2(194, 26), 15, PAPER)
+	var attack := int(info["attack"])
+	var attack_text := "敌锋 原值" if attack == 0 else "敌锋 %+d" % attack
+	_card_text(b, attack_text, Vector2(0, 208), Vector2(194, 26), 15, PAPER)
+	var foot := "双守关者 · 连战" if index == 4 and _mode == Run.MODE_ADVENTURE else ("仅此初始 · 逐层成长" if _mode == Run.MODE_ENDLESS else "单守关者")
+	_card_text(b, foot, Vector2(6, 242), Vector2(182, 24), 12, RED if index == 4 else DIM)
+	b.pressed.connect(_pick_difficulty.bind(index))
+
+
+func _character_step() -> void:
+	_ensure_char()
+	var ids := Skulls.ids()
+	for i in ids.size():
+		_char_card(str(ids[i]), i)
+	_rule(Vector2(782, 246), Vector2(1, 270))
+	if _char != "":
+		var profile: Dictionary = Skulls.get_profile(_char)
+		_text(str(profile["label"]), Vector2(812, 246), Vector2(160, 38), 26, GOLD if bool(profile.get("hero", false)) else PAPER, HORIZONTAL_ALIGNMENT_LEFT)
+		_text(str(profile.get("name", "")), Vector2(812, 286), Vector2(160, 26), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT)
+		_text("动 作 预 览", Vector2(800, 326), Vector2(360, 24), 13, RED)
+		_rule(Vector2(850, 522), Vector2(260, 2))
+		_make_preview()
+	_supply_selector()
 
 
 func _char_card(id: String, i: int) -> void:
 	var unlocked := Meta.is_unlocked(id)
 	var profile: Dictionary = Skulls.get_profile(id)
-	# 五张卡居中排开：208 宽 + 20 间距
-	var x := 80.0 + i * 228.0
-
 	var card: Control
 	if unlocked:
-		var b := TextureButton.new()
-		b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
-		b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
-		b.ignore_texture_size = true
-		b.stretch_mode = TextureButton.STRETCH_SCALE
+		var b := _texture_card(Vector2(90 + i * 134, 246), Vector2(122, 240), id == _char)
 		b.pressed.connect(_pick_char.bind(id))
 		card = b
 	else:
@@ -180,71 +259,62 @@ func _char_card(id: String, i: int) -> void:
 		t.texture = InkTex.load("res://art/ui/menu/btn_normal.png")
 		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		t.stretch_mode = TextureRect.STRETCH_SCALE
-		t.modulate = Color(1, 1, 1, 0.55) # 未解锁整卡压暗
+		t.modulate = Color(1, 1, 1, 0.48)
+		t.position = Vector2(90 + i * 134, 246)
+		t.size = Vector2(122, 240)
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(t)
 		card = t
-	card.size = Vector2(208, 270)
-	card.position = Vector2(x, 225)
-	card.mouse_filter = Control.MOUSE_FILTER_IGNORE if not unlocked else Control.MOUSE_FILTER_STOP
-	add_child(card)
-
 	if unlocked:
-		# 英雄级主角（剑仙/银夜）：卡顶一道金标
 		if bool(profile.get("hero", false)):
-			_card_text(card, "英 雄", Vector2(0, 4), Vector2(208, 20), 13, GOLD)
-		_card_text(card, str(profile["label"]), Vector2(0, 24), Vector2(208, 42), 30, PAPER)
-		_card_text(card, str(profile.get("name", "")), Vector2(0, 64), Vector2(208, 24), 16, DIM)
-		_card_text(card, "契合  " + Meta.mastery_text(id), Vector2(0, 108), Vector2(208, 30), 16, RED)
-		_card_text(card, "点击开始这一局", Vector2(0, 200), Vector2(208, 30), 15, DIM)
+			_card_text(card, "英 雄", Vector2(0, 5), Vector2(122, 18), 11, GOLD)
+		_card_text(card, str(profile["label"]), Vector2(2, 32), Vector2(118, 38), 23, PAPER)
+		_card_text(card, str(profile.get("name", "")), Vector2(4, 76), Vector2(114, 42), 13, DIM)
+		_card_text(card, "契合", Vector2(0, 136), Vector2(122, 22), 12, DIM)
+		_card_text(card, Meta.mastery_text(id), Vector2(2, 160), Vector2(118, 24), 13, RED)
+		_card_text(card, "已 选" if id == _char else "选 择", Vector2(0, 202), Vector2(122, 24), 13, RED if id == _char else DIM)
 	else:
-		_card_text(card, "？？？", Vector2(0, 24), Vector2(208, 42), 30, PAPER)
-		_card_text(card, Meta.unlock_hint(id), Vector2(10, 92), Vector2(188, 96), 15, DIM)
-		# 双条件用换行竖排（比「·」拼一行更不容易顶出卡片）
-		_card_text(card, Meta.unlock_progress(id).replace(" · ", "\n"), Vector2(0, 196), Vector2(208, 44), 15, RED)
+		_card_text(card, "？？？", Vector2(0, 34), Vector2(122, 38), 22, PAPER)
+		_card_text(card, Meta.unlock_hint(id), Vector2(8, 94), Vector2(106, 76), 12, DIM)
+		_card_text(card, "尚未解锁", Vector2(0, 202), Vector2(122, 24), 12, RED)
+
+
+func _make_preview() -> void:
+	var profile: Dictionary = Skulls.get_profile(_char)
+	var data = load(str(profile["data"]))
+	if data == null or not data.call("is_skeleton_data_loaded"):
+		return
+	var sprite = ClassDB.instantiate("SpineSprite")
+	add_child(sprite)
+	sprite.set("skeleton_data_res", data)
+	data.call("set_default_mix", 0.2)
+	var sc := float(profile["scale"]) * 1.9
+	sprite.scale = Vector2(sc, sc)
+	sprite.position = Vector2(980, 520)
+	var st = sprite.call("get_animation_state")
+	st.call("set_animation", str(profile["anim"]["idle"]), true, 0)
 
 
 func _supply_selector() -> void:
-	_label("开局补给 · 选用后开局消耗 1 个", 500, 15, DIM)
+	_text("开局补给 · 启程消耗 1 个", Vector2(90, 500), Vector2(670, 24), 14, DIM)
 	var ids := ["", "supply_bones", "supply_revive", "supply_reroll"]
 	for i in ids.size():
 		var id := str(ids[i])
 		var text := "不带补给"
 		if id != "":
 			text = "%s ×%d" % [Meta.INK_SHOP[id]["label"], Meta.supply_count(id)]
-		var b := TextureButton.new()
-		b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
-		b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
-		b.ignore_texture_size = true
-		b.stretch_mode = TextureButton.STRETCH_SCALE
-		b.position = Vector2(165 + i * 240, 532)
-		b.size = Vector2(215, 44)
+		var b := _texture_card(Vector2(90 + i * 169, 532), Vector2(158, 42), id == _supply)
 		b.disabled = id != "" and Meta.supply_count(id) <= 0
-		b.modulate = Color(1.12, 1.08, 0.9) if id == _supply else Color.WHITE
-		_card_text(b, text, Vector2.ZERO, b.size, 16, INK if not b.disabled else DIM)
+		_card_text(b, text, Vector2.ZERO, b.size, 14, INK if not b.disabled else DIM)
 		b.pressed.connect(func():
 			_supply = id
 			_click_sfx()
 			_refresh())
-		add_child(b)
 
 
 func _button(text: String, x: float, y: float, cb: Callable) -> void:
-	var b := TextureButton.new()
-	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
-	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = Vector2(220, 52)
-	b.position = Vector2(x, y)
-	var l := Label.new()
-	l.text = text
-	l.size = b.size
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_color_override("font_color", INK)
-	l.add_theme_font_size_override("font_size", 24)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(l)
+	var b := _texture_card(Vector2(x, y), Vector2(220, 52))
+	_card_text(b, text, Vector2.ZERO, b.size, 22, INK)
 	b.pressed.connect(func():
 		_click_sfx()
 		cb.call())
-	add_child(b)

@@ -362,7 +362,8 @@ func _charge_hit_check() -> void:
 		_charge_hit_done = true
 		_sfx_player.stream = SFX_BOSS_SKILL_HIT # 碾压撞实了，闷响
 		_sfx_player.play()
-		_target.call("hurt", int(_charge.get("damage", 2)), Vector2(_charge_dir * 420.0, -120.0), self)
+		_target.call("hurt", Run.enemy_damage(int(_charge.get("damage", 2))), Vector2(_charge_dir * 420.0, -120.0), self,
+			{"anim": str(_charge.get("anim_run", _current_anim)), "hit_at": 0.55})
 
 
 ## 撞墙：大硬直 + 震屏，这是玩家唯一的稳定输出窗口
@@ -536,6 +537,7 @@ func _fire_zone_burst(pos: Vector2) -> void:
 	var dx: float = _target.global_position.x - pos.x
 	var dy: float = absf(_target.global_position.y - pos.y)
 	if absf(dx) <= float(_fz.get("radius", 110.0)) and dy <= 160.0:
-		_target.call("hurt", int(_fz.get("damage", 1)), Vector2(signf(dx) * 220.0, -100.0), self)
+		_target.call("hurt", Run.enemy_damage(int(_fz.get("damage", 1))), Vector2(signf(dx) * 220.0, -100.0), self,
+			{"anim": str(_anim_map["idle"]), "hit_at": 0.7})
 		# 火焰灼烧在玩家身上炸开（击中才放，区别于普通受击墨花）
 		FX.spawn(get_tree().current_scene, "fire_hit", _target.global_position + Vector2(0, -70), {"scale": 0.5})

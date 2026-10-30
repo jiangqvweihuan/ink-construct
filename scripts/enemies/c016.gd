@@ -441,11 +441,19 @@ func _deal_hit(seg := 0) -> void:
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
 	var rng := _range_of(_current_anim, seg)
-	var dmg := int(_damage_map.get(_current_anim, 1))
+	var dmg := Run.enemy_damage(int(_damage_map.get(_current_anim, 1)))
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_current_anim, false))
 	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height:
-		_target.call("hurt", dmg, Vector2(facing * 220.0, -80.0), self)
+		_target.call("hurt", dmg, Vector2(facing * 220.0, -80.0), self, _replay_move(seg))
+
+
+## 把本次真实招式与命中段交给玩家记录，结算可按同一时刻重演最后一击。
+func _replay_move(seg: int) -> Dictionary:
+	var at = _hit_at_map.get(_current_anim, 0.8)
+	if at is Array:
+		at = at[mini(seg, (at as Array).size() - 1)]
+	return {"anim": _current_anim, "hit_at": float(at)}
 
 
 ## 目标的受击半径：体型越大挨打面越大；没有该属性的测试替身按 30 兜底

@@ -1624,7 +1624,7 @@ func swap_skull(id: String) -> void:
 	skull_changed.emit(id)
 
 
-func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null) -> void:
+func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null, move: Dictionary = {}) -> void:
 	if state == State.DEAD or _invincible:
 		return
 	# 完美闪避：冲刺途中碰到"本应命中"的伤害——全部闪掉并发收益
@@ -1669,7 +1669,18 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		temporary_reduce += 1
 		Run.guard_available = false # 护砚只在实际扣血时消耗，闪避/护盾不会浪费
 	amount = maxi(1, amount - _damage_reduce - temporary_reduce) # 所有减伤都遵守最低 1 伤
-	if skull_id == "c013" and Meta.has_form_node("c013_meditation_2"):
+	# 只记录真正扣血的一击：闪避、护盾、受伤无敌与反伤都不会污染终局对演。
+	Run.last_hit = {}
+	if attacker != null and is_instance_valid(attacker):
+		var enemy_type = attacker.get("type_id")
+		if enemy_type != null:
+			Run.last_hit = {
+				"type_id": str(enemy_type),
+				"anim": str(move.get("anim", attacker.get("_current_anim"))),
+				"hit_at": maxf(0.05, float(move.get("hit_at", 0.65))),
+				"damage": amount,
+			}
+	if skull_id == "c013" and Meta.has_form_node("c013_meditation_2"): 
 		_hurt_guard_timer = 2.0
 	if skull_id == "c023" and Meta.has_form_node("c023_patience_3") and _hurt_cd_refund_cd <= 0.0:
 		_hurt_cd_refund_cd = 5.0
