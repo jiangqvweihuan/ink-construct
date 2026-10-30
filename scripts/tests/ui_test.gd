@@ -1,6 +1,6 @@
 extends Node
 
-## UI 冒烟测试：主菜单 -> 设置面板 -> 化身谱（含购买后重建）-> 图鉴（收录 / 悬停演示 / 切页）
+## UI 冒烟测试：主菜单 -> 设置面板 -> 化身谱（含购买后重建）-> 图鉴（收录 / 点击演示 / 变式轮播 / 切页）
 ## -> 截图 -> 退出。化身谱部分用真实鼠标点「返回」：_refresh 重建后点击音节点必须还在。
 
 const OUT_DIR := "res://tests/out/"
@@ -95,24 +95,45 @@ func _ready() -> void:
 	await _shot("05_codex_enemy")
 
 	if codex != null:
-		# 敌人页：鼠标停在第一条「招式 1」上，预览要切到该招式动画
+		# 敌人页：默认播待机；点击「招式 1」后演示台切到该招式，右侧简介要挂击败次数与词条
 		var before := str(codex._current_anim)
-		await _hover(Vector2(560, 470))
-		await get_tree().create_timer(0.2).timeout
-		p("悬停招式 -> 预览动画 %s（悬停前 %s，期望不同）" % [str(codex._current_anim), before])
-		await _shot("06_codex_hover")
+		codex._pick(0)
+		await get_tree().create_timer(0.25).timeout
+		p("点击招式 1 -> 演示动画 %s（点击前 %s，期望不同）" % [str(codex._current_anim), before])
+		var em: Dictionary = codex._model(codex._sel)
+		p("简介含击败次数=%s 词条数=%d（期望 true / >0）" % [
+			str(str(em["stat"]).contains("已击败")), (em["tags"] as Array).size()])
+		await _shot("06_codex_pick")
 		# 已收录的 Boss 详情（c032 三段变身）
 		codex._select("c032")
 		await get_tree().create_timer(0.3).timeout
 		await _shot("07_codex_boss")
-		# 化身页：切页后默认选中双刺，再悬停一个技能
+		# 化身页：切页后默认选中双刺
 		codex._switch_tab(1)
 		await get_tree().create_timer(0.3).timeout
 		p("切到化身页 -> 选中=%s（期望 c021）" % str(codex._sel))
-		await _hover(Vector2(560, 470))
-		await get_tree().create_timer(0.2).timeout
-		p("化身页悬停 -> 预览动画=%s" % str(codex._current_anim))
 		await _shot("08_codex_form")
+		# 多模式技能轮播：强制解锁银夜（K 技能 3 个变式），点开后 _advance_pool 要换动画
+		Meta.clears = 3
+		Meta.kills = 150
+		codex._select("z003")
+		await get_tree().create_timer(0.3).timeout
+		var k := -1
+		for i in codex._acts.size():
+			if str(codex._acts[i]["label"]) == "技能 K":
+				k = i
+		var last_act: Dictionary = codex._acts[codex._acts.size() - 1] if codex._acts.size() > 0 else {}
+		p("银夜 K 变式数=%d 被动末位=%s（期望 3 / true）" % [
+			(codex._acts[k]["anims"] as Array).size() if k >= 0 else 0,
+			str(str(last_act.get("kind", "")) == "passive")])
+		if k >= 0:
+			codex._pick(k)
+			await get_tree().create_timer(0.25).timeout
+			var first_anim := str(codex._current_anim)
+			codex._advance_pool()
+			p("轮播 %s -> %s（期望变化）" % [first_anim, str(codex._current_anim)])
+			p("解析面板含变式=%s（期望 true）" % str(codex._desc_rt.text.contains("变式")))
+		await _shot("09_codex_pool")
 		await _click(Vector2(135, 594)) # 「返回」在左栏下方
 		await get_tree().process_frame
 		p("图鉴点返回 -> 面板=%s（期望 false）" % (_find_panel("codex_panel.gd") != null))

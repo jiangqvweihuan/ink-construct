@@ -16,11 +16,15 @@
 [UI] 重建后点返回 -> 面板=false（期望 false）
 [UI] 图鉴打开=true（期望 true）
 [UI] saved 05_codex_enemy err=0
-[UI] 悬停招式 -> 预览动画 skill01（悬停前 stand，期望不同）
-[UI] saved 06_codex_hover err=0
+[UI] 点击招式 1 -> 演示动画 skill01（点击前 stand，期望不同）
+[UI] 简介含击败次数=true 词条数=4（期望 true / >0）
+[UI] saved 06_codex_pick err=0
 [UI] saved 07_codex_boss err=0
 [UI] 切到化身页 -> 选中=c021（期望 c021）
-[UI] 化身页悬停 -> 预览动画=atk01
 [UI] saved 08_codex_form err=0
+[UI] 银夜 K 变式数=3 被动末位=true（期望 3 / true）
+[UI] 轮播 atk03_03 -> atk04_02（期望变化）
+[UI] 解析面板含变式=true（期望 true）
+[UI] saved 09_codex_pool err=0
 [UI] 图鉴点返回 -> 面板=false（期望 false）
 [UI] ALL DONE
