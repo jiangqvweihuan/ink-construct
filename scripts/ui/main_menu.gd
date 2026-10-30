@@ -45,7 +45,8 @@ func _ready() -> void:
 
 	var items := [
 		["开始游戏", _open_start],
-		["化身谱", _open_forms], # 局外养成一览：解锁进度 / 契合等级 / 加成
+		["化身谱", _open_forms], # 角色解锁与永久修炼
+		["墨锭商栈", _open_shop], # 通用强化 / 重随 / 一次性补给
 		["图鉴", _open_codex], # 收录：击败过的敌人 + 已解锁化身的人设与招式演示
 		["设置", _open_settings],
 		["致谢", _open_credits],
@@ -222,6 +223,10 @@ func _open_start() -> void:
 
 func _open_forms() -> void:
 	add_child(load("res://scenes/ui/forms_panel.tscn").instantiate())
+
+
+func _open_shop() -> void:
+	add_child(load("res://scenes/ui/shop_panel.tscn").instantiate())
 
 
 func _open_codex() -> void:

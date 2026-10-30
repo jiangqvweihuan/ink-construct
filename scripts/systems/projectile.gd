@@ -18,7 +18,11 @@ var _sfx_stream
 var _travel := 0.0
 var _sfx_player: AudioStreamPlayer
 var _pierce := false # 穿云剑气（剑仙形态专属）：命中后不消失继续飞
+var _pierce_left := 0 # 永久剑气：有限穿透次数；与无限穿透独立
 var _hit_list: Array = [] # 穿透模式下已结算过的敌人，防止同一目标反复掉血
+var _source: Node = null # 来源玩家：目标状态加伤、技能命中与多道剑气回报
+var _from_skill := false
+var _cast_id := 0
 var _root_time := 0.0 # 命中定身秒数（双刺 U：无法移动但可以攻击）
 var _split_left := 0 # 命中后还要分裂出去的第二把数量（双刺 U）
 var _style := "qi" # 视觉：qi=朱砂剑气弧 / dagger=短匕
@@ -29,7 +33,8 @@ var _size := 1.0 # 剑气视觉与判定尺寸倍率（巨大剑气）
 ## dir: 1 朝右 -1 朝左；damage 已含局内强化/契合加成；sfx 命中音效名（空则不播）；pierce 命中不毁；
 ## root 命中定身秒数；split 命中后分裂数量；style 视觉风格；bleed 命中叠流血层数；scale 尺寸倍率
 func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "", p_pierce := false,
-		p_root := 0.0, p_split := 0, p_style := "qi", p_bleed := 0, p_scale := 1.0) -> void:
+		p_root := 0.0, p_split := 0, p_style := "qi", p_bleed := 0, p_scale := 1.0,
+		p_pierce_charges := 0, p_source: Node = null, p_from_skill := false, p_cast_id := 0) -> void:
 	_dir = p_dir
 	_speed = p_speed
 	_range = p_range
@@ -41,6 +46,10 @@ func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "
 	_style = p_style
 	_bleed = p_bleed
 	_size = p_scale
+	_pierce_left = p_pierce_charges
+	_source = p_source
+	_from_skill = p_from_skill
+	_cast_id = p_cast_id
 
 
 func _ready() -> void:
@@ -98,13 +107,19 @@ func _physics_process(delta: float) -> void:
 		var r = e.get("body_radius")
 		var br := float(r) if r != null else 30.0
 		if absf(p.global_position.x - global_position.x) <= 30.0 * _size + br and absf(p.global_position.y - global_position.y) <= 80.0:
-			p.call("take_damage", _damage, global_position.x)
-			# 命中计数走玩家侧统一入口（剑仙觉醒期间每次命中都会叠剑意层数）
-			var pl = get_tree().get_first_node_in_group("player")
-			if pl != null and pl.has_method("hit_scored"):
-				pl.call("hit_scored")
+			var hit_damage := _damage
+			if is_instance_valid(_source) and _source.has_method("_target_damage_bonus"):
+				hit_damage += int(_source.call("_target_damage_bonus", p))
+			p.call("take_damage", hit_damage, global_position.x)
+			# 命中计数与永久效果优先回报给实际来源；旧测试场景没有来源时保留原入口。
+			if is_instance_valid(_source) and _source.has_method("on_projectile_hit"):
+				_source.call("on_projectile_hit", p, _from_skill, _cast_id)
 			else:
-				Score.add_hit()
+				var pl = get_tree().get_first_node_in_group("player")
+				if pl != null and pl.has_method("hit_scored"):
+					pl.call("hit_scored")
+				else:
+					Score.add_hit()
 			# 定身：命中时敌人还在（没被这一下打死）才挂，避免对着尸体定身
 			if _root_time > 0.0 and int(e.get("hp")) > 0 and e.has_method("root"):
 				e.call("root", _root_time)
@@ -117,14 +132,17 @@ func _physics_process(delta: float) -> void:
 			if _split_left > 0:
 				_split_left -= 1
 				var child = get_script().new()
-				child.setup(_dir, _speed, _range, _damage, _sfx, _pierce, _root_time, _split_left, _style, _bleed, _size)
+				child.setup(_dir, _speed, _range, _damage, _sfx, _pierce, _root_time, _split_left, _style, _bleed, _size,
+					_pierce_left, _source, _from_skill, _cast_id)
 				child._hit_list = _hit_list.duplicate()
 				child._hit_list.append(e.get_instance_id())
 				child.global_position = global_position + Vector2(_dir * 34.0 * _size, 0.0)
 				get_tree().current_scene.add_child(child)
 				queue_free()
 				return
-			if _pierce: # 穿云：记下这个目标继续飞，命中音照播
+			if _pierce or _pierce_left > 0: # 记下这个目标继续飞；有限穿透只消耗次数，不与无限穿透混淆
+				if not _pierce:
+					_pierce_left -= 1
 				_hit_list.append(e.get_instance_id())
 				if _sfx_stream != null and not _sfx_player.playing:
 					_sfx_player.stream = _sfx_stream

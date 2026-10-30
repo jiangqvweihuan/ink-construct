@@ -115,6 +115,9 @@ const BLESSINGS := {
 	"revive": {"label": "残墨续命", "desc": "阵亡后以 4 点生命原地爬起一次"},
 	"bones": {"label": "墨囊饱满", "desc": "开局墨骨 +15"},
 	"hp": {"label": "铁砚护身", "desc": "生命上限 +2"},
+	"damage": {"label": "锋墨", "desc": "本局全部伤害 +1"},
+	"cooldown": {"label": "清流", "desc": "本局技能冷却 -10%"},
+	"dash": {"label": "燕回", "desc": "本局闪避冷却 -15%"},
 }
 
 var active := false
@@ -127,6 +130,12 @@ var skull_id := "c021"
 var upgrades: Dictionary = {}
 var blessing := ""
 var blessing_used := false # 续命赐福是否已消耗（一局一次）
+var blessing_rerolls := 0 # 永久商品提供的每局赐福重随次数
+var supply_revive := false # 复活墨符：与续命赐福相互独立
+var supply_revive_used := false
+var supply_upgrade_rerolls := 0 # 重随券：整局共享的额外强化重随次数
+var guard_available := false # 护砚：每局第一次实际受伤减免
+var c021_dance_kills := 0 # 血舞·极：跨房间保留的每三杀回血计数
 var boss_id := "" # 本局 Boss 房登场的 Boss（开局随机定）
 var meta_snapshot := {} # 开局时的 Meta 快照，结算面板 diff 出本局收获
 
@@ -137,18 +146,30 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021") -> void:
 	mode = MODE_ENDLESS if new_mode == MODE_ENDLESS else MODE_ADVENTURE
 	depth = 1
 	room_index = 0
-	max_hp = BASE_HP + Meta.start_hp_bonus() # 固元：墨锭商店的永久开局生命
-	hp = max_hp
 	skull_id = new_skull if new_skull != "" else "c021"
+	max_hp = BASE_HP + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id)
+	hp = max_hp
 	upgrades = {}
 	blessing = ""
 	blessing_used = false
+	blessing_rerolls = Meta.shop_level("blessing_reroll")
+	supply_revive = false
+	supply_revive_used = false
+	supply_upgrade_rerolls = 0
+	guard_available = Meta.shop_level("start_guard") > 0
+	c021_dance_kills = 0
 	# 本局 Boss：从 Boss 名录随机挑一只（名录见 boss_types.gd，转换完成前是占位）
 	boss_id = BossTypes.ROSTER[randi() % BossTypes.ROSTER.size()]
 	meta_snapshot = Meta.snapshot() # 结算面板据此展示本局契合/解锁收获
 	Score.reset()
 	if Meta.start_bones_bonus() > 0: # 墨囊：永久开局墨骨
 		Score.add_bones(Meta.start_bones_bonus())
+	var supply := Meta.consume_selected_supply()
+	supply_revive = supply == "supply_revive"
+	if supply == "supply_bones":
+		Score.add_bones(15)
+	elif supply == "supply_reroll":
+		supply_upgrade_rerolls = 2
 
 
 func room_config() -> Dictionary:
@@ -293,8 +314,16 @@ func buy(key: String) -> bool:
 	upgrades[key] = level(key) + 1
 	if key == "hp":
 		# 与 apply_to 同公式：铁砚护身赐福 + 固元（局外）都要算进上限
-		max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus()
+		max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id)
 		hp = max_hp # 买了加血就回满，下一层的起始血量一并提高
+	return true
+
+
+## 永久强化重随由每个面板自行重置；重随券的两次额度则整局共享。
+func consume_supply_reroll() -> bool:
+	if supply_upgrade_rerolls <= 0:
+		return false
+	supply_upgrade_rerolls -= 1
 	return true
 
 
@@ -312,7 +341,7 @@ func apply_to(player) -> void:
 		push_error("Run.apply_to: 玩家缺少 set_upgrades（脚本未加载？），状态未装回")
 		return
 	player.set_upgrades(upgrades)
-	max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() # 铁砚护身赐福 + 固元（局外）
+	max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) # 铁砚护身赐福 + 固元（局外）
 	player.max_hp = max_hp
 	player.hp = clampi(hp, 1, max_hp)
 	if player.skull_id != skull_id:

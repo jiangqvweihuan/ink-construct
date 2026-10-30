@@ -70,21 +70,65 @@ func _ready() -> void:
 	_close_settings() # 先关掉设置，别让它的窗口叠在化身谱截图里
 	await get_tree().process_frame
 
-	# 化身谱：先看初始排版，再模拟一次"买完刷新"后点返回（重建后按钮必须还能点）
+	# 化身谱：固定一份临时新档，覆盖滚动总览、买断、单角色修炼页与独立商栈。
+	Meta.persist = false
+	Meta.ink = 1000
+	Meta.kills = 0
+	Meta.clears = 0
+	Meta.purchases = {}
+	Meta.form_nodes = {}
+	Meta.inventory = {}
+	Meta.selected_supply = ""
 	_menu._open_forms()
 	await get_tree().create_timer(0.4).timeout
 	var forms = _find_panel("forms_panel.gd")
 	p("化身谱打开=%s（期望 true）" % (forms != null))
 	await _shot("03_codex")
 	if forms != null:
+		forms._form_id = "c013"
+		forms._refresh()
+		await get_tree().create_timer(0.2).timeout
+		await _shot("04_form_detail_locked")
+		forms._buyout() # 修炼页顶部买断：解锁区仍保留在分支上方
+		await get_tree().create_timer(0.2).timeout
+		p("力僧买断=%s（期望 true）" % Meta.is_unlocked("c013"))
+		Meta.learn_node("c013_guard_1")
+		forms._refresh()
+		await get_tree().create_timer(0.2).timeout
+		await _shot("04b_form_detail_nodes")
+		p("修炼节点已购=%s 可退=%s（期望 true / true）" % [Meta.has_form_node("c013_guard_1"), Meta.can_refund("c013_guard_1")])
+		forms._back()
+		await get_tree().create_timer(0.2).timeout
 		forms._refresh() # 购买后走的重建路径
 		await get_tree().create_timer(0.2).timeout
-		await _shot("04_codex_refresh")
+		await _shot("04c_codex_refresh")
 		await _click(Vector2(135, 80)) # 「返回」在窗口左上角
 		p("重建后点返回 -> 面板=%s（期望 false）" % (_find_panel("forms_panel.gd") != null))
 
+	# 独立墨锭商栈：四个页签、补给库存与外观空分类都要能正常重建。
+	_menu._open_shop()
+	await get_tree().create_timer(0.3).timeout
+	var shop = _find_panel("shop_panel.gd")
+	p("墨锭商栈打开=%s（期望 true）" % (shop != null))
+	if shop != null:
+		await _shot("04d_shop_permanent")
+		shop._set_tab("supply")
+		Meta.buy("supply_revive")
+		shop._refresh()
+		await get_tree().create_timer(0.2).timeout
+		await _shot("04e_shop_supply")
+		p("复活墨符库存=%d（期望 1）" % Meta.supply_count("supply_revive"))
+		shop._set_tab("reroll")
+		await get_tree().process_frame
+		await _shot("04f_shop_reroll")
+		shop._set_tab("appearance")
+		await get_tree().process_frame
+		await _shot("04g_shop_appearance")
+		shop._close()
+		await get_tree().process_frame
+		await get_tree().process_frame
+
 	# 图鉴：先给存档造几条"已击败"记录（persist 关掉，不写进玩家存档），再看两页
-	Meta.persist = false
 	Meta.add_enemy_kill("c016")
 	Meta.add_enemy_kill("c009")
 	Meta.add_enemy_kill("c032")

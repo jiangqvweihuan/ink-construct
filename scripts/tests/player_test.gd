@@ -297,7 +297,81 @@ func _ready() -> void:
 		hp6, mul6, Run.boss_hp_scale(), Run.boss_cd_scale()])
 	p("HUD 模式文本（第6层第1间）：%s" % ("无尽 · 第 6 层 · 1/3"))
 
+	_permanent_progression_check()
 	get_tree().quit()
+
+
+## 化身谱 / 商栈回归：购买退款链、永久战斗效果、重随券、护砚与复活墨符。
+func _permanent_progression_check() -> void:
+	Meta.persist = false
+	Meta.kills = 999
+	Meta.clears = 99
+	Meta.ink = 500
+	Meta.purchases = {}
+	Meta.form_nodes = {}
+	Meta.inventory = {}
+	Meta.selected_supply = ""
+	var counts := {}
+	for info in Meta.FORM_NODES.values():
+		var form := str(info["form"])
+		counts[form] = int(counts.get(form, 0)) + 1
+	p("永久节点总数=%d 各角色=%s（期望 45，五人各 9）" % [Meta.FORM_NODES.size(), str(counts)])
+	var learn1 := Meta.learn_node("c021_dance_1")
+	var learn2 := Meta.learn_node("c021_dance_2")
+	p("顺序修炼=%s/%s 有后继时初阶可退=%s（期望 true/true/false）" % [learn1, learn2, Meta.can_refund("c021_dance_1")])
+	var before_refund := Meta.ink
+	var refunded := Meta.refund_node("c021_dance_2")
+	p("末阶退款=%s 返还=%d（期望 true/65）" % [refunded, Meta.ink - before_refund])
+	before_refund = Meta.ink
+	var reset := Meta.reset_form("c021")
+	p("整角色重置返还=%d 墨锭复原=%s（期望 35/true）" % [reset, Meta.ink == before_refund + 35])
+
+	# 双刺半血技能 +1，同时血舞·初触发独立回血；直接走真实技能伤害入口。
+	_player.swap_skull("c021")
+	_player.set_upgrades({})
+	Meta.form_nodes = {"c021_dance_1": true, "c021_dance_2": true}
+	_player._apply_form_mods()
+	_player.max_hp = 8
+	_player.hp = 4
+	_player._skill_name = "skill01"
+	var dummy := Trainer.new()
+	dummy.add_to_group("enemies")
+	add_child(dummy)
+	dummy.global_position = _player.global_position + Vector2(50.0 * _player.facing, 0.0)
+	_player._deal_skill_hit({"range": 100.0, "height": 90.0, "damage": 2})
+	p("血舞半血技能伤害=%d 命中后 hp=%d（期望 3/5）" % [dummy.damage_taken, _player.hp])
+	dummy.queue_free()
+
+	# 重随券：开局带入两次，整局共享，第三次不能继续扣。
+	Meta.form_nodes = {}
+	Meta.inventory = {"supply_reroll": 1}
+	Meta.selected_supply = "supply_reroll"
+	Run.start()
+	var reroll1 := Run.consume_supply_reroll()
+	var reroll2 := Run.consume_supply_reroll()
+	var reroll3 := Run.consume_supply_reroll()
+	p("重随券开局次数=2 实际=%s/%s/%s 库存=%d（期望 true/true/false/0）" % [reroll1, reroll2, reroll3, Meta.supply_count("supply_reroll")])
+
+	# 护砚只在实际受伤时消耗，2 伤减为 1；最低 1 伤规则保持不变。
+	Meta.purchases = {"start_guard": 1}
+	Run.start()
+	_player.set_upgrades({})
+	_player.hp = 8
+	_player.state = 0
+	_player._hurt_invincible = 0.0
+	_player.hurt(2)
+	p("护砚后 hp=%d 剩余护砚=%s（期望 7/false）" % [_player.hp, Run.guard_available])
+
+	# 复活墨符由开始流程入行囊、Run.start 消耗，致死伤后以 4 血起身。
+	Meta.purchases = {}
+	Meta.inventory = {"supply_revive": 1}
+	Meta.selected_supply = "supply_revive"
+	Run.start()
+	_player.hp = 1
+	_player.state = 0
+	_player._hurt_invincible = 0.0
+	_player.hurt(3)
+	p("墨符复活 hp=%d 已消耗=%s 库存=%d（期望 4/true/0）" % [_player.hp, Run.supply_revive_used, Meta.supply_count("supply_revive")])
 
 
 func _physics_process(_delta: float) -> void:
@@ -331,7 +405,8 @@ func _find_btn(parent: Node, wanted: Vector2) -> TextureButton:
 
 
 func _shot(name: String) -> void:
-	await RenderingServer.frame_post_draw
+	await get_tree().process_frame
+	RenderingServer.force_draw()
 	var img = get_viewport().get_texture().get_image()
 	var err = img.save_png(OUT_DIR + "ctrl_" + name + ".png")
 	p("saved " + name + " err=" + str(err) + " state=" + str(_player.state) + " pos=" + str(_player.position))

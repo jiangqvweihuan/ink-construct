@@ -23,8 +23,9 @@
    - ✅ 主界面已改：视频底 + 左上标题 + 底部六项菜单条（详见交接笔记 2026-10-30）
    - ✅ 设置面板已改：三页签（音频/画面/操作）+ 改键 + 水墨印章控件（详见交接笔记 2026-10-30 设置 v2）
    - ✅ 图鉴面板已改：点击式演示 + 变式手动切换 + 技能解析 + 四组词条 + 被动占位 + 可滚动简介（详见交接笔记 2026-10-30 图鉴 v2）
-   - ⬜ 其余子界面（开始/化身谱/致谢/结算）暂按兵不动，等用户找到合适素材再动
-3. **角色技能成长机制重构 + 经济平衡**：为每个角色重新构筑独一无二的技能成长机制；平衡墨骨与墨锭消耗（当前通货膨胀，需收紧）。
+   - ✅ 化身谱与墨锭商栈已拆分为独立界面；化身谱支持滚动总览和单角色永久修炼页（详见交接笔记 2026-10-30 化身谱修炼与独立商栈）
+   - ⬜ 开始/致谢/结算等其余子界面暂按兵不动，等用户找到合适素材再动
+3. **角色技能成长机制重构 + 经济平衡**：✅ 5 名角色 × 3 分支 × 3 阶永久修炼已实装并接入战斗；后续继续平衡墨骨与墨锭消耗（当前通货膨胀，需收紧）。
 4. **小怪 AI 与动画优化**：整体优化目前所有小怪的 AI 攻击逻辑与动画。
 5. **音效特效九级大升级**：全体实体的音效、特效全面升级。
 6. **图鉴面板重做 + 人设 / 世界观 / 开发者故事**：全新的、整洁干练的图鉴面板（✅ 面板交互与词条体系已落地，见交接笔记 2026-10-30 图鉴 v2）；整个游戏世界的设定文案、各角色人设、开发者故事都收在图鉴里（`codex_panel.gd` 的 `LORE` 表逐条替换成正式人设与世界观，技能「来历」现为【待定】占位，开发者故事单独一页）。
@@ -53,16 +54,17 @@
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | 局内计数 | `scripts/systems/score.gd`（autoload Score） | 连击（窗口清零）/ 最高连击 / 击杀 / 墨骨；墨骨跨房间保留，开新局才清空；花墨骨 = 局内强化 + 换头 |
-| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；**敌人 / Boss 击杀收录 `seen` 表**（`add_enemy_kill(id)` / `enemy_kills(id)`，`c016.die()` 统一记账，Boss 走 `super()` 继承）；**解锁按强度梯度（双刺 < 力僧 < 梅剑 < 剑仙 < 银夜）**：双刺初始开放 → 力僧累计击杀 20 → 梅剑累计击杀 60 → 剑仙通关冒险 1 次 → **银夜通关冒险 3 次 + 累计击杀 150**（压轴）。通关计数只记冒险模式（无尽不计通关，击杀照常累计）；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费 |
-| 墨锭商栈 | `meta.gd` `INK_SHOP` + `forms_panel.gd` | 结算时本局剩余墨骨沉淀为局外货币**墨锭**；化身谱面板内消费：买断解锁（绕过条件）+ 永久开局加成（初始墨骨/生命上限，可升级） |
+| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；**敌人 / Boss 击杀收录 `seen` 表**；保留原击杀/通关解锁梯度，也可墨锭买断；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费。**永久修炼 `FORM_NODES`**：5 名角色各 3 分支 × 3 阶，共 45 节点，价格 35/65/110；允许跨分支混点，同分支顺序学习，末节点可全额退款，整角色可重置 |
+| 墨锭商栈 | `meta.gd` `INK_SHOP` + `shop_panel.gd` | 结算时本局剩余墨骨沉淀为局外货币**墨锭**；独立四页签：永久强化 / 重随秘宝 / 开局补给 / 外观收藏。商品含开局墨骨、生命、护砚、赐福与强化重随、墨骨包、复活墨符和重随券；补给先入行囊，在选角页选用，开局消耗一个。角色买断只放在各角色修炼页顶部 |
 
 ### UI / 流程
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
 | 主菜单 | `scripts/ui/main_menu.gd` | **启动场景**（`project.godot` run/main_scene）：**循环播放水墨剑客剪影视频**（`art/ui/menu/bg_swordsman.ogv`，1920×1080/30fps/15.65s/无音轨，`VideoStreamPlayer` + `loop`，底下垫静态远山兜底）+ 左上纸白书法标题「墨构」（演示佛系体 96px、黑描边）+ 副标 InkConstruct + 朱砂短线；**六项菜单条压在底部纯黑地面带**（y 588，x 118~1162，164×72 等间距，纸白 26px）；悬停上浮 4px + 墨底淡入 + 朱砂线拉满 + 其余项压暗 + 轻响；上下只做渐变遮罩（顶 0.55 黑衬标题 / 底 0.62 黑托菜单），中间画面不动。启动时 `Settings.apply_all()`；「开始游戏」不直接进房间，改为弹开始面板 |
-| 开始面板 | `scripts/ui/start_panel.gd` + `scenes/ui/start_panel.tscn` | **两步开局**：① 选模式（冒险 / 无尽卡片）② 选角色（`Skulls.ids()` 强度顺序 5 张，未解锁整卡压暗 + 显示解锁条件与实时进度，已解锁显示契合等级）。选中即 `Run.start(模式, 形态)` → 切 `room_01.tscn`；Esc / 上一步可回退 |
-| 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：5 形态解锁条件/契合进度/各级加成一览 + 墨锭商栈 |
+| 开始面板 | `scripts/ui/start_panel.gd` + `scenes/ui/start_panel.tscn` | **两步开局**：① 选模式（冒险 / 无尽卡片）② 选角色（`Skulls.ids()` 强度顺序 5 张，未解锁整卡压暗 + 显示解锁条件与实时进度，已解锁显示契合等级）；选角页可从已购行囊中选用一件开局补给。选中即 `Run.start(模式, 形态)` → 切 `room_01.tscn`；Esc / 上一步可回退 |
+| 化身谱 | `scripts/ui/forms_panel.gd` | 主菜单入口：`ScrollContainer` 滚动角色总览，后续角色增多不会越界；点击角色进入专属修炼页，顶部固定解锁区（原条件或墨锭买断），下方为三分支各三阶；支持末节点退款与整角色重置 |
+| 墨锭商栈 | `scripts/ui/shop_panel.gd` + `scenes/ui/shop_panel.tscn` | 仅从主菜单打开的独立商店；永久强化 / 重随秘宝 / 开局补给 / 外观收藏四页签，外观仅保留分类，不出售未制作内容 |
 | 图鉴 | `scripts/ui/codex_panel.gd` + `scenes/ui/codex_panel.tscn` | 主菜单入口：左栏收录卡（2 列 × 6 行）分**敌人 / 化身**两页——敌人只收击败过的（未打过压暗 ？？？，Boss 追加在杂兵精英之后，卡片副标 = 稀有度）；右栏 = 上方动画演示台 + 技能解析面板 + 右侧简介栏（名称/副标/**词条**（四组配色：战斗定位纸白 / 机制赭金 / 出身石青 / 稀有度朱砂）/ 状态行（敌人「已击败 N 次」、化身「契合 Lv…」）/ **可滚动背景故事**）。**默认播待机动画；点击底部动作钮才在演示台播该动作**，解析面板写 数值 / 机制 / 冷却 / 来历（来历现为【待定】）。多模式技能（`pool` 多变式）点开后用**上 / 下键手动循环切换**，当前动画持续循环，面板标「变式 x/n · ↑ / ↓ 切换」。动作钮 8 列 × 最多 3 行：普攻 → 技能 K/L/U/I/O/P → 待机/奔跑/闪避/滞空/受击/倒地 → **被动（每个角色含敌人固定占位一格，内容等第 6 阶段补）**；数值全部由形态表 / 敌人表自动生成 |
 | 暂停菜单 | `scripts/ui/pause_menu.gd` | Esc 呼出：继续 / 设置 / 回主菜单 |
 | 致谢名单 | `scripts/ui/credits_panel.gd` + `scenes/ui/credits_panel.tscn` | 主界面左下角竖排「致谢」小字（不挤压中间五键）→ 全屏向上滚动：制作 → 核心团队（程序/美术/设计/音频/QA/运营）→ 外部协作 → 软件与素材署名 → 特别感谢 → 版权免责 → 致谢纠错 → 结尾。56px/s，Esc 立即返回，滚完自动淡出；`CREDITS` 常量逐条改文案，`【】`占位项等全部开发完成后统一核验 |
@@ -71,7 +73,7 @@
 | HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 + **顶部中央模式标签**（`冒险 · 1/3` / `无尽 · 第 2 层 · 2/3` / Boss 房写 `Boss`） |
 | 结算 | `scripts/ui/settlement_panel.gd` | 通关/阵亡结算 + 战绩行（最高连击/击杀/墨骨）+ 朱砂「讨伐 · Boss 名」+ 契合经验条动画 + 墨锭沉淀；**结算栏旁挂当前形态化身**（通关从 profile `victory` 池随机播一遍转待机 / 阵亡播 dead 接 dead_hold 循环躺尸，SpineSprite `process_mode=ALWAYS` 对抗暂停，无 victory 配置的形态 = 接口 fallback 只待机） |
 | 换头面板 | `scripts/ui/swap_panel.gd` | Q 键呼出，暂停时间选形态 |
-| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局三选一 / 每房清完墨骨三选一。**通用池 6 张机制卡**（锋锐/静心/铁骨/轻骨/疾影/掠影，cost = 8+4×等级）+ **形态流派 45 张**（5 形态 × 3 流派 × 初/续/极，T2/T3 需前置 req，价格 8/14/20，一局 3 次强化正好走完一条流派）；`roll_cards` 保证「续卡 + 新流派 + 通用」各一张；流派卡只对当前形态生效（换头休眠，`player._apply_form_mods` 按 forms 过滤）；卡面按流派配色（朱砂/墨青/赭金）+ 右上角层级；卡牌图标 `art/ui/icons/` |
+| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局随机赐福三选一 / 每房清完墨骨强化三选一；支持永久赐福重随次数、强化重随，以及整局共享的重随券。**通用池 6 张机制卡** + **局内形态流派 45 张**（与局外永久修炼 45 节点分离）；`roll_cards` 保证「续卡 + 新流派 + 通用」各一张；流派卡只对当前形态生效，换头休眠；卡面按流派配色并显示层级 |
 | 伤害数字 | `scripts/ui/damage_number.gd` | 飘字 |
 | 字体 | `art/ui/fonts/main_theme.tres` + `hud.gd` | 全局庞门正道粗书体；Boss 落款/大血条名 = 演示佛系体（ASCII 文件名：slidefu_regular / pangmen） |
 
@@ -102,7 +104,7 @@
 | 结算 | `settlement_clear_test.tscn` / `settlement_dead_test.tscn`（阵亡分支会先换成银夜再死，断言 `Run.skull_id` 保留 = 「再来一局」不会掉回双刺） |
 | 特效/音效 | `fx_test.tscn`、`sfx_preview.tscn` |
 | 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`（自动扫描全部骨架 → `tests/anim_list.log`）、`anim_viewer.tscn`（可视化查看器：←→ 切骨架、↑↓ 切动画、空格重播、L 循环）、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
-| 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`（主菜单 → 设置 → 化身谱截图 → 模拟购买重建后再用真鼠标点「返回」→ 图鉴两页：造 `Meta.add_enemy_kill` 记录后开面板、悬停断言 `_current_anim` 变化、Boss 详情、切化身页、真鼠标返回）、`settings_test.tscn`、`font_probe.tscn` |
+| 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`（主菜单/设置 → 化身谱滚动总览、买断与修炼页 → 独立商店四页签及补给库存 → 图鉴两页）；`player_test` 另覆盖 45 节点、学习/退款/重置、永久战斗效果、重随券、护砚与复活墨符；`settings_test.tscn`、`font_probe.tscn` |
 | 开局流程（真鼠标） | `start_flow_test.tscn`：把主菜单挂进来，用 `push_input(ev, true)` 发真实鼠标/键盘事件点一遍「开始游戏 → 模式卡 → 上一步 → 返回 → 连点 → Esc」。**`pressed.emit()` 不走 BaseButton 输入路径，模拟不出真实点击的崩溃，UI 回归优先用这个** |
 | **试炼场（调试单挑）** | **`sandbox.tscn`**：一块空地 + 任选敌人单挑，调技能机制/动画/判定专用。[/] 换玩家形态、,/. 轮换敌人（小怪+精英+Boss，直接读两张形态表，新增怪自动进表）、R 重刷敌人；双方无限血（999999）；启动 1s 自动存 `tests/out/sandbox_boot.png` 供回归验收，`-- --shot` 跑完整自动巡游 |
 
@@ -134,18 +136,18 @@
 
 ```powershell
 # 回归 room_test
-& "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" "res://scenes/tests/room_test.tscn"
+& "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" --scene "res://scenes/tests/room_test.tscn"
 
 # Boss 真身冒烟（五选一）
 $env:BOSS_ID = "c009"  # 或 c015a1 / c001 / c008 / c032 / _debug
-& "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" "res://scenes/tests/boss_test.tscn"
+& "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" --scene "res://scenes/tests/boss_test.tscn"
 # 注意：经 MCP 启动时环境变量传不进去，需临时把 boss_test.gd L26 的 "_debug" 硬编码成目标 id，跑完还原
 
 # 重导素材（删 png 后必跑）
 & "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" --import
 
 # 骨架探针
-& "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" "res://scenes/tests/range_probe.tscn"
+& "E:\Godot\Godot_v4.6.2-stable_mono_win64.exe" --path "e:\GodotProjects\ink-construct" --scene "res://scenes/tests/range_probe.tscn"
 ```
 
 ## 素材库地图（`E:\素材\墨构素材库\`，新增素材也放这里）
@@ -275,6 +277,31 @@ tests/out/           # 回归截图 + 日志
 ---
 
 ## 七、交接笔记
+
+### 2026-10-30 · 化身谱永久修炼 + 独立墨锭商栈
+
+#### 已确认方案
+- 墨锭商店从化身体系拆成独立「墨锭商栈」；化身谱改为可滚动角色总览，点击角色进入专属修炼页。
+- 修炼页顶部永久保留解锁区：原击杀/通关条件与墨锭买断并存；下方为永久分支，可反悔退款。
+- 5 名角色各 3 分支 × 3 阶，共 45 节点；允许跨分支混点，同分支必须顺序学习，价格统一 35 / 65 / 110 墨锭。没有已购后继的末节点可全额退款，也可整角色重置。
+- 商店分永久强化 / 重随秘宝 / 开局补给 / 外观收藏；外观只留分类，不上架空商品。
+
+#### 实装
+- **分支**：双刺 = 血舞 / 连刃 / 无影；力僧 = 金刚 / 震岳 / 禅定；梅剑 = 鞭势 / 毒梅 / 静守；剑仙 = 剑气 / 万剑 / 御风；银夜 = 逐影 / 止时 / 无还。节点文案与价格集中在 `Meta.FORM_NODES`，效果在 `player._apply_form_mods()` 及各战斗入口结算，与 `Run.FORM_UPGRADES` 局内卡牌完全分离。
+- **战斗联动**：永久节点已接入普攻、技能、投射物、受击、护盾、击杀、中毒与时停；投射物携带来源玩家、技能标记和释放序号，支持状态加伤、技能回血、有限穿透及同次多剑气追加。双刺击杀计数存 `Run`，跨房间保留。
+- **时停与传毒**：只有自然时停结束才触发「止时·极」，死亡/击飞等提前解除不触发；毒死向 320px 内最近最多 2 名敌人传播 5 秒中毒，不直接连锁即死。
+- **商店与补给**：永久商品含开局墨骨/生命/首房加伤/护砚，重随商品含赐福与强化重随，补给含墨骨包/复活墨符/重随券。补给入行囊后在选角页选用，`Run.start()` 消耗一个；复活墨符与续命赐福相互独立，护砚只在实际扣血时消耗。
+- **梅剑静守**：基础 K 不再自带霸体，由「静守·初」真正赋予，避免永久节点与基础能力重复。
+
+#### 踩坑
+- `Meta` 继承 `Node`，修炼查询方法不能叫 `has_node(String)`：会与原生 `Node.has_node(NodePath)` 冲突并被警告提升为编译错误；现统一为 `has_form_node()`。
+- Godot 4.6.2 命令行用 `--scene res://...` 指定测试场景；PowerShell 启动 GUI 程序需 `Start-Process -Wait` 才会等待测试结束。
+- 玩家测试在后台窗口等待 `RenderingServer.frame_post_draw` 偶发挂起，截图改为等待一个 `process_frame` 后 `RenderingServer.force_draw()`。
+
+#### 回归
+- 编辑器编译、`player_test`、`ui_test`、`combat_test`、`skill_test` 均完成并正常退出。覆盖 45 节点配置、顺序学习、末节点退款 65、整角色重置、双刺永久技能、重随券两次共享消耗、护砚减伤及复活墨符 4 血起身。
+- 新 UI 验证买断、修炼节点购买/可退、总览重建返回、商店四页签和复活墨符库存；截图 `ui_03_codex`、`ui_04_form_detail_locked`、`ui_04b_form_detail_nodes`、`ui_04d_shop_permanent` ~ `ui_04g_shop_appearance`，未见卡片越界或页签遮挡。
+- 日志仍有 spine 目录贴图加载的历史已知噪声；本次没有新增 SCRIPT ERROR。
 
 ### 2026-10-30 · 图鉴 v2：点击式演示 + 变式手动切换 + 技能解析面板 + 四组词条 + 被动占位
 

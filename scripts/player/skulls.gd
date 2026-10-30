@@ -122,15 +122,14 @@ const SKULLS := {
 			},
 		],
 		"skills": {
-			# 唯一技能（K 位）：转鞭，skill02 4.167s。
-			# 起手即霸体；0.15~3.0s 每 0.5s 对前后方 130px 内所有敌人各打 1 点（both=前后都转）；
+			# 唯一技能（K 位）：转鞭，skill02 4.167s；永久修炼「静守·初」解锁起手霸体。
+			# 0.15~3.0s 每 0.5s 对前后方 130px 内所有敌人各打 1 点（both=前后都转）；
 			# 3.6s 最后一记超远甩鞭 R1051 -> 500px，伤害 2→5。
 			# 中毒挂"长鞭剑命中"而非只挂尾端：转鞭每一跳（tick）与尾端甩鞭都带 poison，
 			# 全程任意一下打中都会让目标中毒（4 秒，每 0.5 秒扣 1 点；不叠层，重复命中只刷新时长）
 			# ranged_guard：转鞭期间免疫敌方投射物并原路弹回（工程暂无敌方投射物，接口已预埋）
 			"skill02": {
 				"action": "skill", "cooldown": 9.0,
-				"poise": true,
 				"ranged_guard": true,
 				"tick": {"from": 0.15, "to": 3.0, "interval": 0.5, "range": 130.0, "height": 140.0, "damage": 1, "both": true, "poison": 4.0},
 				"hits": [{"at": 3.6, "range": 500.0, "height": 150.0, "damage": 5, "sfx": "skill_blade", "poison": 4.0}],

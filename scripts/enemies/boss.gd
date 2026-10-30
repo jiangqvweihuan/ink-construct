@@ -186,7 +186,7 @@ func _physics_process(delta: float) -> void:
 	if _stop_timer > 0.0:
 		_stop_timer -= delta
 		if _stop_timer <= 0.0:
-			_end_stop()
+			_end_stop(true)
 		return
 	_charge_cd = maxf(0.0, _charge_cd - delta)
 	_turn_cd = maxf(0.0, _turn_cd - delta)

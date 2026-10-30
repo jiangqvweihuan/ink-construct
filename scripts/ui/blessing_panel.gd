@@ -11,6 +11,10 @@ const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.82, 0.79, 0.72)
 
+var _cards: Array = []
+var _card_root: Node
+var _reroll_button: TextureButton
+
 
 func _ready() -> void:
 	layer = 8
@@ -34,9 +38,39 @@ func _ready() -> void:
 	_make_label("起 局 赐 福", 175, 40, PAPER)
 	_make_label("选一样墨赐带入这一局", 235, 20, DIM)
 
+	_card_root = Node.new()
+	add_child(_card_root)
+	_roll_cards()
+	_reroll_button = _make_button("重随 ×%d" % Run.blessing_rerolls, Vector2(520, 520), _reroll)
+	_update_reroll()
+
+
+func _roll_cards() -> void:
 	var ids := Run.BLESSINGS.keys()
-	for i in ids.size():
-		_make_card(str(ids[i]), i)
+	ids.shuffle()
+	_cards = ids.slice(0, 3)
+	for c in _card_root.get_children():
+		c.queue_free()
+	for i in _cards.size():
+		_make_card(str(_cards[i]), i)
+
+
+func _reroll() -> void:
+	if Run.blessing != "" or Run.blessing_rerolls <= 0:
+		return
+	Run.blessing_rerolls -= 1
+	_roll_cards()
+	_update_reroll()
+
+
+func _update_reroll() -> void:
+	if _reroll_button == null:
+		return
+	_reroll_button.disabled = Run.blessing_rerolls <= 0
+	_reroll_button.modulate = Color.WHITE if Run.blessing_rerolls > 0 else Color(1, 1, 1, 0.45)
+	var label := _reroll_button.get_child(0) as Label
+	if label != null:
+		label.text = "重随 ×%d" % Run.blessing_rerolls
 
 
 ## 选中一个赐福：写入 Run 并立刻结算能立刻结算的部分（续命留到阵亡时）
@@ -98,4 +132,26 @@ func _make_card(id: String, i: int) -> void:
 	desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(desc)
 
+	_card_root.add_child(b)
+
+
+func _make_button(text: String, pos: Vector2, cb: Callable) -> TextureButton:
+	var b := TextureButton.new()
+	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
+	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
+	b.ignore_texture_size = true
+	b.stretch_mode = TextureButton.STRETCH_SCALE
+	b.position = pos
+	b.size = Vector2(240, 44)
+	var l := Label.new()
+	l.text = text
+	l.size = b.size
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.add_theme_color_override("font_color", INK)
+	l.add_theme_font_size_override("font_size", 20)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(l)
+	b.pressed.connect(cb)
 	add_child(b)
+	return b

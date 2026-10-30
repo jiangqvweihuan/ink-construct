@@ -21,12 +21,14 @@ const MODES := {
 }
 
 var _mode := ""
-var _step := 0 # 0 = 选模式，1 = 选角色
+var _step := 0 # 0 = 选模式，1 = 选角色与开局补给
+var _supply := ""
 var _sfx: AudioStreamPlayer # 常驻点击音：重建界面时不能把正在响的播放器一起删掉
 
 
 func _ready() -> void:
 	layer = 10
+	_supply = Meta.selected_supply
 	_sfx = AudioStreamPlayer.new()
 	_sfx.stream = SFX_CLICK
 	add_child(_sfx)
@@ -71,6 +73,7 @@ func _build() -> void:
 		var ids := Skulls.ids()
 		for i in ids.size():
 			_char_card(str(ids[i]), i)
+		_supply_selector()
 		_button("上 一 步", 530, 590, _back)
 
 
@@ -105,6 +108,7 @@ func _pick_char(id: String) -> void:
 	if not Meta.is_unlocked(id):
 		return
 	_click_sfx()
+	Meta.select_supply(_supply)
 	Run.start(_mode, id)
 	get_tree().change_scene_to_file("res://scenes/world/room_01.tscn")
 
@@ -196,6 +200,31 @@ func _char_card(id: String, i: int) -> void:
 		_card_text(card, Meta.unlock_hint(id), Vector2(10, 92), Vector2(188, 96), 15, DIM)
 		# 双条件用换行竖排（比「·」拼一行更不容易顶出卡片）
 		_card_text(card, Meta.unlock_progress(id).replace(" · ", "\n"), Vector2(0, 196), Vector2(208, 44), 15, RED)
+
+
+func _supply_selector() -> void:
+	_label("开局补给 · 选用后开局消耗 1 个", 500, 15, DIM)
+	var ids := ["", "supply_bones", "supply_revive", "supply_reroll"]
+	for i in ids.size():
+		var id := str(ids[i])
+		var text := "不带补给"
+		if id != "":
+			text = "%s ×%d" % [Meta.INK_SHOP[id]["label"], Meta.supply_count(id)]
+		var b := TextureButton.new()
+		b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
+		b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
+		b.ignore_texture_size = true
+		b.stretch_mode = TextureButton.STRETCH_SCALE
+		b.position = Vector2(165 + i * 240, 532)
+		b.size = Vector2(215, 44)
+		b.disabled = id != "" and Meta.supply_count(id) <= 0
+		b.modulate = Color(1.12, 1.08, 0.9) if id == _supply else Color.WHITE
+		_card_text(b, text, Vector2.ZERO, b.size, 16, INK if not b.disabled else DIM)
+		b.pressed.connect(func():
+			_supply = id
+			_click_sfx()
+			_refresh())
+		add_child(b)
 
 
 func _button(text: String, x: float, y: float, cb: Callable) -> void:

@@ -19,22 +19,86 @@ const UNLOCKS := {
 	"z003": {"clears": 3, "kills": 150, "hint": "通关冒险模式 3 次\n+ 累计击杀 150 解锁"}, # 银夜强度超标，压轴解锁
 }
 
-## 墨锭商店（化身谱面板消费）：买断解锁绕过条件，按强度梯度定价；开局加成为永久被动。
-## 买断为一次性购买（cost），开局加成可升级（costs 每级价格）。
+## 永久修炼：每形态三分支，各初/续/极三阶；可跨分支混点，同分支顺序购买。
+## 退款只允许没有已购后继的节点，整角色重置则一次返还全部；价格统一 35 / 65 / 110。
+const NODE_COSTS := [35, 65, 110]
+const FORM_NODES := {
+	"c021_dance_1": {"form": "c021", "path": "血舞", "tier": 1, "desc": "技能命中回 1 生命（8 秒一次）"},
+	"c021_dance_2": {"form": "c021", "path": "血舞", "tier": 2, "desc": "生命不高于一半时，技能伤害 +1", "req": "c021_dance_1"},
+	"c021_dance_3": {"form": "c021", "path": "血舞", "tier": 3, "desc": "每击杀 3 名敌人回 1 生命", "req": "c021_dance_2"},
+	"c021_combo_1": {"form": "c021", "path": "连刃", "tier": 1, "desc": "普攻末段伤害 +1"},
+	"c021_combo_2": {"form": "c021", "path": "连刃", "tier": 2, "desc": "达到 10 连击后，全部伤害 +1", "req": "c021_combo_1"},
+	"c021_combo_3": {"form": "c021", "path": "连刃", "tier": 3, "desc": "普攻末段命中后，追加大范围 1 伤", "req": "c021_combo_2"},
+	"c021_shadow_1": {"form": "c021", "path": "无影", "tier": 1, "desc": "闪避后 2 秒内，下一次普攻伤害 +1"},
+	"c021_shadow_2": {"form": "c021", "path": "无影", "tier": 2, "desc": "完美闪避使全部技能冷却 -1 秒", "req": "c021_shadow_1"},
+	"c021_shadow_3": {"form": "c021", "path": "无影", "tier": 3, "desc": "空中造成的伤害 +1", "req": "c021_shadow_2"},
+
+	"c013_guard_1": {"form": "c013", "path": "金刚", "tier": 1, "desc": "U 反伤 +1"},
+	"c013_guard_2": {"form": "c013", "path": "金刚", "tier": 2, "desc": "金钟罩持续时间 +2 秒", "req": "c013_guard_1"},
+	"c013_guard_3": {"form": "c013", "path": "金刚", "tier": 3, "desc": "护盾抵挡或消失时回 1 生命（每房一次）", "req": "c013_guard_2"},
+	"c013_seismic_1": {"form": "c013", "path": "震岳", "tier": 1, "desc": "K 攻击范围 +15%"},
+	"c013_seismic_2": {"form": "c013", "path": "震岳", "tier": 2, "desc": "K 定身由 2 秒延长至 2.5 秒", "req": "c013_seismic_1"},
+	"c013_seismic_3": {"form": "c013", "path": "震岳", "tier": 3, "desc": "L 命中获得撞人效果，碰撞伤害 +1", "req": "c013_seismic_2"},
+	"c013_meditation_1": {"form": "c013", "path": "禅定", "tier": 1, "desc": "生命上限 +1"},
+	"c013_meditation_2": {"form": "c013", "path": "禅定", "tier": 2, "desc": "受击后 2 秒内，受到的伤害 -1", "req": "c013_meditation_1"},
+	"c013_meditation_3": {"form": "c013", "path": "禅定", "tier": 3, "desc": "生命不高于 4 时，冷却恢复速度 +20%", "req": "c013_meditation_2"},
+
+	"c023_lash_1": {"form": "c023", "path": "鞭势", "tier": 1, "desc": "普攻范围 +15%"},
+	"c023_lash_2": {"form": "c023", "path": "鞭势", "tier": 2, "desc": "首段鞭击拉回距离由 80 提至 120", "req": "c023_lash_1"},
+	"c023_lash_3": {"form": "c023", "path": "鞭势", "tier": 3, "desc": "K 尾鞭伤害 +1", "req": "c023_lash_2"},
+	"c023_venom_1": {"form": "c023", "path": "毒梅", "tier": 1, "desc": "中毒持续时间由 4 秒延长至 5 秒"},
+	"c023_venom_2": {"form": "c023", "path": "毒梅", "tier": 2, "desc": "对中毒敌人的伤害 +1", "req": "c023_venom_1"},
+	"c023_venom_3": {"form": "c023", "path": "毒梅", "tier": 3, "desc": "毒死敌人时，向附近最多 2 人传毒", "req": "c023_venom_2"},
+	"c023_patience_1": {"form": "c023", "path": "静守", "tier": 1, "desc": "K 获得霸体"},
+	"c023_patience_2": {"form": "c023", "path": "静守", "tier": 2, "desc": "生命上限 +1", "req": "c023_patience_1"},
+	"c023_patience_3": {"form": "c023", "path": "静守", "tier": 3, "desc": "受击使 K 冷却 -2 秒（5 秒一次）", "req": "c023_patience_2"},
+
+	"z000_edge_1": {"form": "z000", "path": "剑气", "tier": 1, "desc": "剑气伤害 +1"},
+	"z000_edge_2": {"form": "z000", "path": "剑气", "tier": 2, "desc": "剑气飞行速度 +20%", "req": "z000_edge_1"},
+	"z000_edge_3": {"form": "z000", "path": "剑气", "tier": 3, "desc": "剑气额外穿透 1 名敌人", "req": "z000_edge_2"},
+	"z000_volley_1": {"form": "z000", "path": "万剑", "tier": 1, "desc": "技能剑气 +1 道"},
+	"z000_volley_2": {"form": "z000", "path": "万剑", "tier": 2, "desc": "技能剑气再 +1 道", "req": "z000_volley_1"},
+	"z000_volley_3": {"form": "z000", "path": "万剑", "tier": 3, "desc": "同目标被多道命中追加 2 伤（每技能一次）", "req": "z000_volley_2"},
+	"z000_wind_1": {"form": "z000", "path": "御风", "tier": 1, "desc": "技能冷却 -5%"},
+	"z000_wind_2": {"form": "z000", "path": "御风", "tier": 2, "desc": "完美闪避时发射一道 1 伤剑气", "req": "z000_wind_1"},
+	"z000_wind_3": {"form": "z000", "path": "御风", "tier": 3, "desc": "空中剑气伤害 +1", "req": "z000_wind_2"},
+
+	"z003_chase_1": {"form": "z003", "path": "逐影", "tier": 1, "desc": "普攻末段伤害 +1"},
+	"z003_chase_2": {"form": "z003", "path": "逐影", "tier": 2, "desc": "对击飞状态敌人的伤害 +1", "req": "z003_chase_1"},
+	"z003_chase_3": {"form": "z003", "path": "逐影", "tier": 3, "desc": "击杀使全部技能冷却 -1 秒", "req": "z003_chase_2"},
+	"z003_time_1": {"form": "z003", "path": "止时", "tier": 1, "desc": "时停各档时长 +0.25 秒"},
+	"z003_time_2": {"form": "z003", "path": "止时", "tier": 2, "desc": "时停期间全部伤害 +1", "req": "z003_time_1"},
+	"z003_time_3": {"form": "z003", "path": "止时", "tier": 3, "desc": "时停自然结束时，对被停敌人追加 1 伤", "req": "z003_time_2"},
+	"z003_return_1": {"form": "z003", "path": "无还", "tier": 1, "desc": "O 位移距离 +100px"},
+	"z003_return_2": {"form": "z003", "path": "无还", "tier": 2, "desc": "I 觉醒持续时间 +2 秒", "req": "z003_return_1"},
+	"z003_return_3": {"form": "z003", "path": "无还", "tier": 3, "desc": "觉醒中 O 击杀返还 4 秒觉醒", "req": "z003_return_2"},
+}
+
+## 墨锭商栈：角色买断放在各角色修炼页顶部；独立商栈只卖通用强化、重随与补给。
 const INK_SHOP := {
 	"buyout_c013": {"label": "买断 · 力僧", "cost": 40, "form": "c013"},
 	"buyout_c023": {"label": "买断 · 梅剑", "cost": 80, "form": "c023"},
 	"buyout_z000": {"label": "买断 · 剑仙", "cost": 120, "form": "z000"},
 	"buyout_z003": {"label": "买断 · 银夜", "cost": 200, "form": "z003"},
-	"start_bones": {"label": "墨囊", "desc": "每局开局墨骨 +5", "costs": [30, 50, 80]},
-	"start_hp": {"label": "固元", "desc": "每局开局生命上限 +1", "costs": [80]},
+	"start_bones": {"label": "墨囊", "desc": "每局开局墨骨 +5", "costs": [30, 50, 80], "tab": "permanent"},
+	"start_hp": {"label": "固元", "desc": "每局开局生命上限 +1", "costs": [80], "tab": "permanent"},
+	"start_edge": {"label": "初锋", "desc": "每局首个普通房全部伤害 +1", "costs": [120], "tab": "permanent"},
+	"start_guard": {"label": "护砚", "desc": "每局第一次受到的伤害 -1", "costs": [100], "tab": "permanent"},
+	"blessing_reroll": {"label": "赐福重随", "desc": "每局可重随开局赐福", "costs": [120, 220], "tab": "reroll"},
+	"upgrade_reroll": {"label": "强化重随", "desc": "每次强化三选一可重随 1 次", "costs": [180], "tab": "reroll"},
+	"supply_bones": {"label": "墨骨包", "desc": "选用后开局墨骨 +15", "cost": 12, "supply": true, "stock": 3, "tab": "supply"},
+	"supply_revive": {"label": "复活墨符", "desc": "本局可复活一次并回复 4 生命", "cost": 35, "supply": true, "stock": 1, "tab": "supply"},
+	"supply_reroll": {"label": "重随券", "desc": "本局额外获得 2 次强化重随", "cost": 20, "supply": true, "stock": 3, "tab": "supply"},
 }
 
 var kills := 0 # 累计击杀（全形态合计）
 var clears := 0 # 累计通关整局次数
 var mastery := {} # 形态 id -> 契合经验
 var ink := 0 # 局外货币·墨锭：结算时由本局剩余墨骨沉淀而来
-var purchases := {} # 墨锭消费记录：买断 buyout_* -> true；开局加成 start_* -> 等级
+var purchases := {} # 墨锭消费记录：买断 buyout_* -> true；通用强化 -> 等级
+var form_nodes := {} # 永久修炼节点 id -> true（与局内 Run.upgrades 完全分开）
+var inventory := {} # 一次性补给 id -> 库存数量
+var selected_supply := "" # 下一局选用的补给；Run.start 时消耗一个
 var seen := {} # 图鉴收录：敌人 / Boss id -> 已击败次数（>0 即收录，图鉴里才不是 ？？？）
 var persist := true # 测试场景里关掉，别把 debug 数据写进玩家存档
 
@@ -73,26 +137,108 @@ func unlock_progress(id: String) -> String:
 	return " · ".join(parts)
 
 
+# ---------- 永久修炼 ----------
+
+func has_form_node(id: String) -> bool:
+	return bool(form_nodes.get(id, false))
+
+
+func node_cost(id: String) -> int:
+	var info: Dictionary = FORM_NODES.get(id, {})
+	return int(NODE_COSTS[int(info.get("tier", 1)) - 1]) if not info.is_empty() else -1
+
+
+func can_learn(id: String) -> bool:
+	var info: Dictionary = FORM_NODES.get(id, {})
+	if info.is_empty() or has_form_node(id) or not is_unlocked(str(info["form"])):
+		return false
+	var req := str(info.get("req", ""))
+	return (req == "" or has_form_node(req)) and ink >= node_cost(id)
+
+
+func learn_node(id: String) -> bool:
+	if not can_learn(id):
+		return false
+	ink -= node_cost(id)
+	form_nodes[id] = true
+	_save()
+	return true
+
+
+## 只能退分支最末的已购节点，保证退回后不会出现"有续/极却没有初"的断链。
+func can_refund(id: String) -> bool:
+	if not has_form_node(id):
+		return false
+	for other in FORM_NODES:
+		if str(FORM_NODES[other].get("req", "")) == id and has_form_node(str(other)):
+			return false
+	return true
+
+
+func refund_node(id: String) -> bool:
+	if not can_refund(id):
+		return false
+	form_nodes.erase(id)
+	ink += node_cost(id)
+	_save()
+	return true
+
+
+func form_spent(form_id: String) -> int:
+	var total := 0
+	for id in FORM_NODES:
+		if str(FORM_NODES[id]["form"]) == form_id and has_form_node(str(id)):
+			total += node_cost(str(id))
+	return total
+
+
+func form_node_count(form_id: String) -> int:
+	var total := 0
+	for id in FORM_NODES:
+		if str(FORM_NODES[id]["form"]) == form_id and has_form_node(str(id)):
+			total += 1
+	return total
+
+
+func reset_form(form_id: String) -> int:
+	var total := form_spent(form_id)
+	if total <= 0:
+		return 0
+	for id in FORM_NODES:
+		if str(FORM_NODES[id]["form"]) == form_id:
+			form_nodes.erase(id)
+	ink += total
+	_save()
+	return total
+
+
+func form_hp_bonus(form_id: String) -> int:
+	return int(form_id == "c013" and has_form_node("c013_meditation_1")) + int(form_id == "c023" and has_form_node("c023_patience_2"))
+
+
 # ---------- 墨锭商店 ----------
 
-## 各级价格：买断 [cost]，开局加成 costs 数组
+## 各级价格：买断/补给 [cost]，可升级强化 costs 数组
 func _shop_costs(item: Dictionary) -> Array:
-	if item.has("form"):
+	if item.has("form") or item.has("supply"):
 		return [int(item["cost"])]
 	return item.get("costs", [])
 
 
-## 当前等级：买断 0/1，开局加成 0..N
+## 当前等级：买断 0/1，补给为库存，其余为强化等级
 func shop_level(key: String) -> int:
 	var item: Dictionary = INK_SHOP.get(key, {})
 	if item.has("form"):
 		return 1 if bool(purchases.get(key, false)) else 0
+	if item.has("supply"):
+		return supply_count(key)
 	return int(purchases.get(key, 0))
 
 
-## 满级等级：买断 1，开局加成 costs 长度
+## 满级等级：买断 1，补给为库存上限，其余为 costs 长度
 func shop_max_level(key: String) -> int:
-	return _shop_costs(INK_SHOP.get(key, {})).size()
+	var item: Dictionary = INK_SHOP.get(key, {})
+	return int(item.get("stock", 0)) if item.has("supply") else _shop_costs(item).size()
 
 
 ## 下一级价格；-1 = 已满级/已买断/买断目标已解锁（没必要买）
@@ -102,8 +248,10 @@ func shop_cost(key: String) -> int:
 		return -1
 	if item.has("form") and is_unlocked(str(item["form"])):
 		return -1
+	if item.has("supply") and supply_count(key) >= int(item["stock"]):
+		return -1
 	var costs := _shop_costs(item)
-	var lv := shop_level(key)
+	var lv := 0 if item.has("supply") else shop_level(key)
 	if lv >= costs.size():
 		return -1
 	return int(costs[lv])
@@ -122,10 +270,40 @@ func buy(key: String) -> bool:
 	var item: Dictionary = INK_SHOP[key]
 	if item.has("form"):
 		purchases[key] = true
+	elif item.has("supply"):
+		inventory[key] = supply_count(key) + 1
 	else:
 		purchases[key] = shop_level(key) + 1
 	_save()
 	return true
+
+
+# ---------- 一次性补给行囊 ----------
+
+func supply_count(key: String) -> int:
+	return int(inventory.get(key, 0))
+
+
+func select_supply(key: String) -> bool:
+	if key != "" and supply_count(key) <= 0:
+		return false
+	selected_supply = key
+	_save()
+	return true
+
+
+## Run.start 调用：返回实际带入本局的补给并扣库存；无库存时自动清空旧选择。
+func consume_selected_supply() -> String:
+	var key := selected_supply
+	if key == "":
+		return ""
+	if supply_count(key) <= 0:
+		selected_supply = ""
+		return ""
+	inventory[key] = supply_count(key) - 1
+	selected_supply = ""
+	_save()
+	return key
 
 
 ## 永久开局加成：每局初始墨骨 / 生命上限
@@ -247,7 +425,11 @@ func _save() -> void:
 	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if f == null:
 		return
-	f.store_string(JSON.stringify({"kills": kills, "clears": clears, "mastery": mastery, "ink": ink, "purchases": purchases, "seen": seen}))
+	f.store_string(JSON.stringify({
+		"kills": kills, "clears": clears, "mastery": mastery, "ink": ink,
+		"purchases": purchases, "form_nodes": form_nodes, "inventory": inventory,
+		"selected_supply": selected_supply, "seen": seen,
+	}))
 
 
 func _load() -> void:
@@ -268,6 +450,15 @@ func _load() -> void:
 	var p = data.get("purchases", {})
 	if typeof(p) == TYPE_DICTIONARY:
 		purchases = p
+	var fn = data.get("form_nodes", {})
+	if typeof(fn) == TYPE_DICTIONARY:
+		form_nodes = fn
+	var inv = data.get("inventory", {})
+	if typeof(inv) == TYPE_DICTIONARY:
+		inventory = inv
+	selected_supply = str(data.get("selected_supply", ""))
+	if selected_supply != "" and supply_count(selected_supply) <= 0:
+		selected_supply = ""
 	var s = data.get("seen", {})
 	if typeof(s) == TYPE_DICTIONARY:
 		seen = s

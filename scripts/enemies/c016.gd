@@ -246,7 +246,7 @@ func _physics_process(delta: float) -> void:
 	if _stop_timer > 0.0:
 		_stop_timer -= delta
 		if _stop_timer <= 0.0:
-			_end_stop()
+			_end_stop(true)
 		return
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_chase_block = maxf(0.0, _chase_block - delta)
@@ -486,10 +486,15 @@ func time_stop(dur: float) -> void:
 		sprite.process_mode = Node.PROCESS_MODE_DISABLED # 冻结动画推进
 
 
-func _end_stop() -> void:
+func _end_stop(natural := false) -> void:
+	var was_stopped := _stop_timer > 0.0
 	_stop_timer = 0.0
 	if sprite != null and is_instance_valid(sprite):
 		sprite.process_mode = Node.PROCESS_MODE_INHERIT
+	if natural and was_stopped:
+		var pl = get_tree().get_first_node_in_group("player")
+		if pl != null and pl.has_method("on_time_stop_end"):
+			pl.call("on_time_stop_end", self)
 
 
 # ---------- 双刺机制接口：定身 / 流血 ----------
@@ -613,6 +618,11 @@ func _poison_tick(delta: float) -> void:
 	while _poison_acc >= POISON_TICK:
 		_poison_acc -= POISON_TICK
 		_direct_damage(POISON_DMG, POISON_COLOR)
+		if state == State.DEAD:
+			var pl = get_tree().get_first_node_in_group("player")
+			if pl != null and pl.has_method("on_poison_kill"):
+				pl.call("on_poison_kill", self)
+			break
 		if _poison_time <= 0.0:
 			break
 	if _poison_time <= 0.0:
@@ -768,6 +778,9 @@ func die() -> void:
 	Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
 	Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
 	Score.add_kill() # 本局击杀计数（结算战绩用）
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl != null and pl.has_method("on_enemy_killed"):
+		pl.call("on_enemy_killed", self)
 	died.emit()
 	_cleanup()
 

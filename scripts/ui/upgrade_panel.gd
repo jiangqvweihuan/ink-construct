@@ -17,6 +17,8 @@ var _cards: Array = []
 var _card_root: Node
 var _bones_label: Label
 var _bought := false
+var _rerolls_left := 0
+var _reroll_button: TextureButton
 
 
 func _ready() -> void:
@@ -24,6 +26,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().paused = true # 挑强化时时间停住，战场不再动弹
 	_cards = Run.roll_cards(3)
+	_rerolls_left = Meta.shop_level("upgrade_reroll") # 永久商品：每个强化面板都恢复这一次
 	var sfx := AudioStreamPlayer.new()
 	add_child(sfx)
 	sfx.stream = SFX_LEVEL
@@ -54,6 +57,31 @@ func _ready() -> void:
 	_build_cards()
 
 	_make_button("继续前进", 505, func(): proceed.emit())
+	_reroll_button = _make_button("", 510, _reroll, 800.0)
+	_update_reroll()
+
+
+func _reroll() -> void:
+	if _bought:
+		return
+	if _rerolls_left > 0:
+		_rerolls_left -= 1
+	elif not Run.consume_supply_reroll():
+		return
+	_cards = Run.roll_cards(3)
+	_build_cards()
+	_update_reroll()
+
+
+func _update_reroll() -> void:
+	if _reroll_button == null:
+		return
+	var total := _rerolls_left + Run.supply_upgrade_rerolls
+	_reroll_button.disabled = _bought or total <= 0
+	_reroll_button.modulate = Color.WHITE if not _reroll_button.disabled else Color(1, 1, 1, 0.45)
+	var label := _reroll_button.get_child(0) as Label
+	if label != null:
+		label.text = "重随 ×%d" % total
 
 
 func _make_label(text: String, y: float, font_size: int, color: Color) -> Label:
@@ -176,17 +204,18 @@ func _on_card(key: String) -> void:
 	_bought = true
 	_update_bones()
 	_build_cards()
+	_update_reroll()
 	purchased.emit()
 
 
-func _make_button(text: String, y: float, cb: Callable) -> void:
+func _make_button(text: String, y: float, cb: Callable, x := 520.0) -> TextureButton:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.size = Vector2(240, 60)
-	b.position = Vector2(520, y)
+	b.position = Vector2(x, y)
 	var l := Label.new()
 	l.text = text
 	l.size = b.size
@@ -203,3 +232,4 @@ func _make_button(text: String, y: float, cb: Callable) -> void:
 		s.play()
 		cb.call())
 	add_child(b)
+	return b
