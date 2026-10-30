@@ -121,7 +121,7 @@ func _build() -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.82)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP # 全屏遮罩吃掉点击，否则会穿透到底下的主菜单按钮
 	add_child(dim)
 
 	_scroll = Control.new()

@@ -32,6 +32,9 @@ func _ready() -> void:
 	if credits != null:
 		p("致谢滚动 offset=%.1f（期望 > 0）" % credits._offset)
 		await _shot("01b_credits")
+		# 致谢期间点主菜单区域不能穿透（全屏遮罩必须吃掉点击）
+		await _click(Vector2(200, 624))
+		p("致谢中点击菜单区 -> 开始面板=%s（期望 false）" % (_find_panel("start_panel.gd") != null))
 		credits.queue_free()
 		await get_tree().process_frame
 
