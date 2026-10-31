@@ -36,7 +36,6 @@ const TYPES := {
 		"armor": 0, # 伤害低于这个值不会打断出手（0 = 任何轻击都硬直）
 		"telegraph": false,
 		"pick": "random", # random = 够得着的招里随机挑；nearest = 挑刚好够得着的最近一招
-		"bones": 1,
 		"dead_min": 1.2, # 尸体至少停留多久再淡出
 		"bar_w": 44.0,
 		"bar_y": -120.0,
@@ -72,7 +71,6 @@ const TYPES := {
 		"armor": 0,
 		"telegraph": false,
 		"pick": "random",
-		"bones": 1,
 		"dead_min": 0.8, # dead 只有 0.083s，靠兜底才看得见尸体
 		"bar_w": 44.0,
 		"bar_y": -120.0,
@@ -108,7 +106,6 @@ const TYPES := {
 		"armor": 0, # 没有 atked 动作，受击用 def_break
 		"telegraph": false,
 		"pick": "random",
-		"bones": 1,
 		"dead_min": 0.8,
 		"bar_w": 46.0,
 		"bar_y": -120.0,
@@ -142,7 +139,6 @@ const TYPES := {
 		"armor": 0,
 		"telegraph": false,
 		"pick": "random",
-		"bones": 1,
 		"dead_min": 0.8,
 		"bar_w": 40.0,
 		"bar_y": -120.0,
@@ -178,7 +174,6 @@ const TYPES := {
 		"armor": 2, # 轻击不打断
 		"telegraph": true,
 		"pick": "nearest",
-		"bones": 3,
 		"dead_min": 0.8,
 		"bar_w": 64.0,
 		"bar_y": -170.0,
@@ -214,7 +209,6 @@ const TYPES := {
 		"armor": 1,
 		"telegraph": true,
 		"pick": "nearest",
-		"bones": 3,
 		"dead_min": 0.8,
 		"bar_w": 64.0,
 		"bar_y": -175.0,
@@ -257,7 +251,6 @@ const TYPES := {
 		"armor": 1, # 轻击不打断
 		"telegraph": true,
 		"pick": "random", # 两招范围接近，nearest 会让跳斩永远压过两连击；随机各出一半
-		"bones": 3,
 		"dead_min": 0.8,
 		"bar_w": 64.0,
 		"bar_y": -175.0,

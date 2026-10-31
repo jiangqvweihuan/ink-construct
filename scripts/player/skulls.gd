@@ -366,9 +366,9 @@ const SKULLS := {
 				"stop": {"at": 0.5, "mob": 3.0, "elite": 2.0, "boss": 1.0},
 				"hits": [],
 			},
-			# I 觉醒（skill10）：爆气强化——立刻回血 + 限时全伤害提升。
+			# I 觉醒（skill10）：爆气强化——立刻回血 + 限时全伤害提升；0.25 倍慢放，约 0.5 秒原动画完整展示 2 秒。
 			"skill10": {
-				"action": "skill_i", "cooldown": 20.0, "poise": true, "align_max": true,
+				"action": "skill_i", "cooldown": 20.0, "poise": true, "align_max": true, "speed": 0.25,
 				"pool": ["skill10"],
 				"heal": 2, "buff_damage": 2, "buff_time": 8.0,
 				"hits": [],

@@ -7,7 +7,7 @@ extends Node
 ## 解锁难度与强度同序：击杀 20 → 击杀 60 → 通关冒险 1 次 → 通关冒险 3 次 + 累计击杀 150。
 ## 通关计数只记「冒险模式」，无尽模式不计通关（但击杀照常累计，进度靠多打）。
 ## 契合度：用某形态击杀 +1、通关整局 +20；等级加成只作用于该形态：
-##   Lv1(30) 技能冷却 -10% ｜ Lv2(80) 普攻伤害 +1 ｜ Lv3(150) 化身为该形态免费
+##   Lv1(30) 技能冷却 -10% ｜ Lv2(80) 普攻伤害 +1 ｜ Lv3(150) 技能冷却再 -10%
 
 const SAVE_PATH := "user://meta.json"
 const LV_EXP := [30, 80, 150]
@@ -80,13 +80,13 @@ const INK_SHOP := {
 	"buyout_c023": {"label": "买断 · 梅剑", "cost": 80, "form": "c023"},
 	"buyout_z000": {"label": "买断 · 剑仙", "cost": 120, "form": "z000"},
 	"buyout_z003": {"label": "买断 · 银夜", "cost": 200, "form": "z003"},
-	"start_bones": {"label": "墨囊", "desc": "每局开局墨骨 +5", "costs": [30, 50, 80], "tab": "permanent"},
+	"start_ink": {"label": "聚墨", "desc": "每局结算墨锭 +2", "costs": [30, 50, 80], "tab": "permanent"},
 	"start_hp": {"label": "固元", "desc": "每局开局生命上限 +1", "costs": [80], "tab": "permanent"},
 	"start_edge": {"label": "初锋", "desc": "每局首个普通房全部伤害 +1", "costs": [120], "tab": "permanent"},
 	"start_guard": {"label": "护砚", "desc": "每局第一次受到的伤害 -1", "costs": [100], "tab": "permanent"},
 	"blessing_reroll": {"label": "赐福重随", "desc": "每局可重随开局赐福", "costs": [120, 220], "tab": "reroll"},
 	"upgrade_reroll": {"label": "强化重随", "desc": "每次强化三选一可重随 1 次", "costs": [180], "tab": "reroll"},
-	"supply_bones": {"label": "墨骨包", "desc": "选用后开局墨骨 +15", "cost": 12, "supply": true, "stock": 3, "tab": "supply"},
+	"supply_hp": {"label": "生肌散", "desc": "选用后本局生命上限 +2", "cost": 12, "supply": true, "stock": 3, "tab": "supply"},
 	"supply_revive": {"label": "复活墨符", "desc": "本局可复活一次并回复 4 生命", "cost": 35, "supply": true, "stock": 1, "tab": "supply"},
 	"supply_reroll": {"label": "重随券", "desc": "本局额外获得 2 次强化重随", "cost": 20, "supply": true, "stock": 3, "tab": "supply"},
 }
@@ -94,7 +94,7 @@ const INK_SHOP := {
 var kills := 0 # 累计击杀（全形态合计）
 var clears := 0 # 累计通关整局次数
 var mastery := {} # 形态 id -> 契合经验
-var ink := 0 # 局外货币·墨锭：结算时由本局剩余墨骨沉淀而来
+var ink := 0 # 局外货币·墨锭：按每局击杀、房间进度与通关结果结算
 var purchases := {} # 墨锭消费记录：买断 buyout_* -> true；通用强化 -> 等级
 var form_nodes := {} # 永久修炼节点 id -> true（与局内 Run.upgrades 完全分开）
 var inventory := {} # 一次性补给 id -> 库存数量
@@ -306,11 +306,7 @@ func consume_selected_supply() -> String:
 	return key
 
 
-## 永久开局加成：每局初始墨骨 / 生命上限
-func start_bones_bonus() -> int:
-	return 5 * shop_level("start_bones")
-
-
+## 永久开局加成：生命上限
 func start_hp_bonus() -> int:
 	return shop_level("start_hp") # 每级 +1，限 1 级
 
@@ -330,13 +326,12 @@ func mastery_level(id: String) -> int:
 	return lv
 
 
-## 该形态当前的专精加成：冷却倍率 / 普攻加伤 / 化身是否免费
+## 该形态当前的专精加成：冷却倍率 / 普攻加伤
 func mods(id: String) -> Dictionary:
 	var lv := mastery_level(id)
 	return {
-		"cd": 1.0 - (0.1 if lv >= 1 else 0.0),
+		"cd": 0.8 if lv >= 3 else (0.9 if lv >= 1 else 1.0),
 		"damage": 1 if lv >= 2 else 0,
-		"free": lv >= 3,
 	}
 
 
@@ -373,12 +368,12 @@ func diff_since(snap: Dictionary) -> Dictionary:
 	return {"mastery": gains, "unlocks": unlocks}
 
 
-## 结算沉淀：剩余墨骨的一半转为墨锭（向下取整），通关额外 +25
-func deposit_ink(bones_left: int, cleared: bool) -> int:
-	var n := bones_left / 2 + (25 if cleared else 0)
-	if n > 0:
-		ink += n
-		_save()
+## 每局基础 2 墨锭；每 2 击杀 +1、每个已清房间 +5，通关额外 +25。
+## 聚墨每级再 +2；阵亡同样按已有战绩结算，不再依赖局内货币余量。
+func deposit_ink(run_kills: int, cleared_rooms: int, cleared: bool) -> int:
+	var n := 2 + maxi(0, run_kills) / 2 + maxi(0, cleared_rooms) * 5 + (25 if cleared else 0) + 2 * shop_level("start_ink")
+	ink += n
+	_save()
 	return n
 
 
@@ -457,6 +452,15 @@ func _load() -> void:
 	if typeof(inv) == TYPE_DICTIONARY:
 		inventory = inv
 	selected_supply = str(data.get("selected_supply", ""))
+	# 旧存档迁移：保留已购等级与补给库存，替换为无墨骨经济下的等阶条目。
+	if purchases.has("start_bones"):
+		purchases["start_ink"] = maxi(int(purchases.get("start_ink", 0)), int(purchases["start_bones"]))
+		purchases.erase("start_bones")
+	if inventory.has("supply_bones"):
+		inventory["supply_hp"] = mini(int(INK_SHOP["supply_hp"]["stock"]), supply_count("supply_hp") + int(inventory["supply_bones"]))
+		inventory.erase("supply_bones")
+	if selected_supply == "supply_bones":
+		selected_supply = "supply_hp"
 	if selected_supply != "" and supply_count(selected_supply) <= 0:
 		selected_supply = ""
 	var s = data.get("seen", {})

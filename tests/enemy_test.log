@@ -1,4 +1,4 @@
-[ET] created player=@SpineSprite@8:<SpineSprite#39191578150> enemy=@SpineSprite@75:<SpineSprite#42865788545>
+[ET] created player=@SpineSprite@9:<SpineSprite#44375737898> enemy=@SpineSprite@76:<SpineSprite#48502933128>
 [ET] player state -> 0
 [ET] enemy state -> 0 x=980.0
 [ET] enemy hp -> 3
@@ -18,11 +18,8 @@
 [ET] enemy state -> 0 x=957.097412109375
 [ET] player state -> 5
 [ET] enemy state -> 2 x=957.097412109375
-[ET] enemy state -> 4 x=952.377319335938
-[ET] enemy hp -> 1
-[ET] enemy state -> 2 x=959.655029296875
-[ET] enemy state -> 5 x=922.183410644531
-[ET] enemy hp -> -1
+[ET] enemy state -> 5 x=949.514465332031
+[ET] enemy hp -> 0
 [ET] saved 04_enemy_dead err=0
 [ET] player state -> 0
 [ET] saved 05_corpse err=0
@@ -39,4 +36,9 @@
 [ET] player state -> 0
 [ET] elite enrage hp=5/10 cooldown=1.11（基础 1.70，狂暴后应约 1.11）
 [ET] saved 08_c012_dead err=0
+[ET] consume_bleed 收走=2 剩余=0（期望 2/0）
+[ET] 影饵索敌 优先残影=true（期望 true）
+[ET] 残影消失 回到玩家=true（期望 true）
+[ET] 余滞追击速度=67.5 期望=67.5
+[ET] 地面砸落 待回报=false 状态=4（期望 false/HURT=4）
 [ET] ALL DONE, enemy state=freed hp=- player state=0

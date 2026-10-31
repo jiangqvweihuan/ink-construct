@@ -79,8 +79,6 @@ func pick(id: String) -> void:
 		return
 	Run.blessing = id
 	match id:
-		"bones":
-			Score.add_bones(15)
 		"hp":
 			Run.hp += 2 # apply_to 重算上限时会带上赐福的 +2，这里先把当前血量加上
 	get_tree().paused = false

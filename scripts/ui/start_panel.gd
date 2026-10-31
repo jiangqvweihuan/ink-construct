@@ -297,7 +297,7 @@ func _make_preview() -> void:
 
 func _supply_selector() -> void:
 	_text("开局补给 · 启程消耗 1 个", Vector2(90, 500), Vector2(670, 24), 14, DIM)
-	var ids := ["", "supply_bones", "supply_revive", "supply_reroll"]
+	var ids := ["", "supply_hp", "supply_revive", "supply_reroll"]
 	for i in ids.size():
 		var id := str(ids[i])
 		var text := "不带补给"

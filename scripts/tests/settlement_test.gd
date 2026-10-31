@@ -7,6 +7,7 @@ extends Node
 const OUT_DIR := "res://tests/out/"
 
 var _log: FileAccess
+var _ink_before := 0
 
 func p(msg) -> void:
 	print("[S] ", msg)
@@ -17,6 +18,7 @@ func p(msg) -> void:
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_log = FileAccess.open("res://tests/settlement_test.log", FileAccess.WRITE)
+	Meta.persist = false # 结算会真实增加墨锭，测试进程内验证即可，不写玩家存档
 
 	var room = load("res://scenes/world/room_01.tscn").instantiate()
 	if test_clear:
@@ -29,6 +31,7 @@ func _ready() -> void:
 		Run.start(Run.MODE_ADVENTURE, "c021", 3)
 	add_child(room)
 	await get_tree().create_timer(1.0).timeout
+	_ink_before = Meta.ink
 
 	if test_clear:
 		# 玩家拉满血防止被 Boss 反杀；变身期无敌，分阶段持续打到死
@@ -51,6 +54,7 @@ func _ready() -> void:
 		p("cleared, waited=%.1f second=%s defeated=%s（期望双 Boss）" % [waited, saw_second, str(Run.boss_defeated)])
 		await get_tree().create_timer(1.0).timeout
 		await _shot("clear")
+		_check_ink(true)
 	else:
 		# 阵亡路径：先换成银夜再死，验证「再来一局」沿用当前形态（不能掉回默认双刺）
 		room._player.swap_skull("z003")
@@ -63,6 +67,7 @@ func _ready() -> void:
 		p("killed player, hp=%d last_hit=%s" % [room._player.hp, str(Run.last_hit)])
 		await get_tree().create_timer(2.6).timeout
 		await _shot("dead")
+		_check_ink(false)
 		p("阵亡后 Run.skull_id=%s mode=%s difficulty=%d（期望 z003 / adventure / 3）" % [Run.skull_id, Run.mode, Run.difficulty])
 		# 结算面板「再来一局」沿用本局模式、难度与当前形态。
 		Run.start(Run.mode, Run.skull_id, Run.difficulty)
@@ -71,6 +76,15 @@ func _ready() -> void:
 	p("settlement visible=" + str(room.get_node_or_null("Settlement") != null))
 	p("ALL DONE")
 	get_tree().quit()
+
+
+func _check_ink(cleared: bool) -> void:
+	var kills := Score.kills
+	var rooms := Run.cleared_room_count()
+	var expected := 2 + floori(kills / 2.0) + rooms * 5 + (25 if cleared else 0) + 2 * Meta.shop_level("start_ink")
+	var actual := Meta.ink - _ink_before
+	p("墨锭结算：击杀=%d 已清房间=%d 通关=%s 聚墨=%d 实际=%d 预期=%d（期望一致）" % [kills, rooms, cleared, Meta.shop_level("start_ink"), actual, expected])
+
 
 func _shot(tag: String) -> void:
 	await RenderingServer.frame_post_draw

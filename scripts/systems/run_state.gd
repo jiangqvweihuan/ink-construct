@@ -1,8 +1,7 @@
 extends Node
 
 ## 一局（run）的状态：房间进度 + 跨房间带走的东西 + 局内强化等级。
-## 局内循环：连续 3 个房间，每清一间可以花墨骨选一次强化，三关全过进 Boss 房，斩杀 Boss 通关。
-## 墨骨由 Score 管（跨房间不清空），只有开新一局才 reset。
+## 局内循环：连续 3 个房间，每清一间免费选一次强化，三关全过进 Boss 房，斩杀 Boss 通关。
 
 const BASE_HP := 8
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
@@ -49,7 +48,6 @@ const ROOMS := [
 const BOSS_ROOM := {"label": "残卷山谷 · 墨堂深处", "waves": []}
 
 ## 局内强化 · 通用池：全部是"能和机制搭话"的词条（不做纯数值移速），任何形态都吃得下。
-## cost = 8 + 4 * 已拥有等级
 const UPGRADES := {
 	"damage": {"label": "锋锐", "desc": "全部伤害 +1", "max": 5, "icon": "icon_sword"},
 	"cooldown": {"label": "静心", "desc": "技能冷却 -15%", "max": 3, "icon": "icon_undo"},
@@ -120,7 +118,7 @@ const FORM_UPGRADES := {
 ## 开局赐福：每局出发前三选一（blessing_panel 弹出），效果只在本局生效
 const BLESSINGS := {
 	"revive": {"label": "残墨续命", "desc": "阵亡后以 4 点生命原地爬起一次"},
-	"bones": {"label": "墨囊饱满", "desc": "开局墨骨 +15"},
+	"reroll": {"label": "灵思泉涌", "desc": "每次强化三选一额外重随 1 次"},
 	"hp": {"label": "铁砚护身", "desc": "生命上限 +2"},
 	"damage": {"label": "锋墨", "desc": "本局全部伤害 +1"},
 	"cooldown": {"label": "清流", "desc": "本局技能冷却 -10%"},
@@ -141,6 +139,7 @@ var blessing_used := false # 续命赐福是否已消耗（一局一次）
 var blessing_rerolls := 0 # 永久商品提供的每局赐福重随次数
 var supply_revive := false # 复活墨符：与续命赐福相互独立
 var supply_revive_used := false
+var supply_hp := 0 # 生肌散：本局额外生命上限
 var supply_upgrade_rerolls := 0 # 重随券：整局共享的额外强化重随次数
 var guard_available := false # 护砚：每局第一次实际受伤减免
 var c021_dance_kills := 0 # 血舞·极：跨房间保留的每三杀回血计数
@@ -168,6 +167,7 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1)
 	blessing_rerolls = Meta.shop_level("blessing_reroll")
 	supply_revive = false
 	supply_revive_used = false
+	supply_hp = 0
 	supply_upgrade_rerolls = 0
 	guard_available = Meta.shop_level("start_guard") > 0
 	c021_dance_kills = 0
@@ -177,14 +177,13 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1)
 	_roll_bosses()
 	meta_snapshot = Meta.snapshot() # 结算面板据此展示本局契合/解锁收获
 	Score.reset()
-	if Meta.start_bones_bonus() > 0: # 墨囊：永久开局墨骨
-		Score.add_bones(Meta.start_bones_bonus())
 	var supply := Meta.consume_selected_supply()
 	supply_revive = supply == "supply_revive"
-	if supply == "supply_bones":
-		Score.add_bones(15)
-	elif supply == "supply_reroll":
+	supply_hp = 2 if supply == "supply_hp" else 0
+	if supply == "supply_reroll":
 		supply_upgrade_rerolls = 2
+	max_hp += supply_hp
+	hp = max_hp
 
 
 func room_config() -> Dictionary:
@@ -292,16 +291,14 @@ func advance() -> void:
 		room_index = ROOMS.size()
 
 
+## 已完成的普通房间数；无尽每过一层额外计入已完成的 Boss 房。
+func cleared_room_count() -> int:
+	return maxi(0, depth - 1) * (ROOMS.size() + 1) + clampi(room_index, 0, ROOMS.size())
+
+
 func level(key: String) -> int:
 	return int(upgrades.get(key, 0))
 
-
-## 价格：流派卡按层级递增（初 8 / 续 14 / 极 20），通用卡按已拥有等级递增
-func upgrade_cost(key: String) -> int:
-	var info: Dictionary = card_info(key)
-	if info.has("tier"):
-		return 8 + 6 * (int(info["tier"]) - 1)
-	return 8 + 4 * level(key)
 
 
 ## 卡牌信息查询：通用与形态专属两表合并（面板/购买统一走这里）
@@ -354,19 +351,17 @@ func _take_random(pool: Array, into: Array, count: int) -> void:
 	into.append(pool[randi() % pool.size()])
 
 
-## 花墨骨买一个强化。成功会立刻影响本房间的玩家（room 负责调用 apply_to）
+## 免费选择一项通关强化。成功会立刻影响本房间的玩家（room 负责调用 apply_to）
 func buy(key: String) -> bool:
 	var info: Dictionary = card_info(key)
 	if info.is_empty():
 		return false
 	if level(key) >= int(info["max"]):
 		return false
-	if not Score.spend_bones(upgrade_cost(key)):
-		return false
 	upgrades[key] = level(key) + 1
 	if key == "hp":
 		# 与 apply_to 同公式：铁砚护身赐福 + 固元（局外）都要算进上限
-		max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id)
+		max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp
 		hp = max_hp # 买了加血就回满，下一层的起始血量一并提高
 	return true
 
@@ -393,7 +388,7 @@ func apply_to(player) -> void:
 		push_error("Run.apply_to: 玩家缺少 set_upgrades（脚本未加载？），状态未装回")
 		return
 	player.set_upgrades(upgrades)
-	max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) # 铁砚护身赐福 + 固元（局外）
+	max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp # 铁砚护身赐福 + 固元（局外）
 	player.max_hp = max_hp
 	player.hp = clampi(hp, 1, max_hp)
 	if player.skull_id != skull_id:

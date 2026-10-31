@@ -82,7 +82,6 @@ func _apply_type() -> void:
 	body_radius = float(t.get("body_radius", 30.0)) # 受击半径：巨型 Boss 必须按体型配大（武车 711px 宽）
 	_telegraph_on = bool(t["telegraph"])
 	_pick_nearest = str(t["pick"]) == "nearest"
-	_bones = int(t["bones"])
 	_dead_min = float(t["dead_min"])
 	_number_y = float(t["number_y"])
 	boss_label = str(t["label"])

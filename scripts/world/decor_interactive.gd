@@ -1,7 +1,7 @@
 extends Node2D
 
-## 关卡互动物件：卷轴（回血）/ 香炉（+墨骨）/ 石碑（本房临时 buff）。
-## 本体程序化水墨 _draw（与 bone_pickup 墨点同路数），玩家走近自动触发：
+## 关卡互动物件：卷轴（回血）/ 香炉（强化重随）/ 石碑（本房临时 buff）。
+## 本体程序化水墨 _draw，玩家走近自动触发：
 ## 金色爆开特效 + 飘字提示 + 音效，随后消散。每房由 room_01 随机摆放 2-3 个。
 
 const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")
@@ -9,7 +9,7 @@ const FX := preload("res://scripts/systems/fx.gd")
 const SFX_PICKUP := preload("res://audio/sfx/decor_pickup.wav") # 卷轴/香炉触发
 const SFX_STELE := preload("res://audio/sfx/decor_stele.wav") # 石碑触发
 
-const TRIGGER_RANGE := 90.0 # 走近触发半径（参考 bone_pickup 的 95 吸附圈）
+const TRIGGER_RANGE := 90.0 # 走近触发半径
 
 const INK := Color(0.1, 0.09, 0.11) # 深墨
 const PAPER := Color(0.949, 0.918, 0.847) # 宣纸
@@ -56,9 +56,9 @@ func _trigger() -> void:
 			_spawn_tip("+1 生命", Color(0.45, 0.75, 0.5))
 			_play_sfx(SFX_PICKUP)
 			FX.spawn(get_tree().current_scene, "decor_burst", global_position + Vector2(0, -40), {"scale": 0.55})
-		"censer": # 香炉：墨骨 +5
-			Score.add_bones(5)
-			_spawn_tip("墨骨 +5", GOLD)
+		"censer": # 香炉：本局额外强化重随 +1
+			Run.supply_upgrade_rerolls += 1
+			_spawn_tip("强化重随 +1", GOLD)
 			_play_sfx(SFX_PICKUP)
 			FX.spawn(get_tree().current_scene, "decor_burst", global_position + Vector2(0, -40), {"scale": 0.55})
 		"stele": # 石碑：本房临时 buff（伤害 / 疾行二选一）
@@ -82,7 +82,7 @@ func _spawn_tip(text: String, color: Color) -> void:
 
 
 func _play_sfx(stream: AudioStream) -> void:
-	# 挂场景根：本体 queue_free 后音效照常播完（bone_pickup 同款处理）
+	# 挂场景根：本体 queue_free 后音效照常播完
 	var s := AudioStreamPlayer.new()
 	get_tree().current_scene.add_child(s)
 	s.stream = stream

@@ -1,21 +1,32 @@
-[SF] viewport=(1280.0, 720.0) window=(1280, 720)
 [SF] saved run_00_menu err=0
 [SF] 点开始游戏 -> 面板=true step=0（期望 true / 0）
 [SF] saved run_01_mode err=0
 [SF] 点「无尽」-> step=1（期望 1）
-[SF] saved run_02_char err=0
-[SF] 点「上一步」-> 面板=true step=0（期望 true / 0）
-[SF] saved run_03_back err=0
-[SF] 点「冒险」-> step=1（期望 1）
-[SF] saved run_04_char2 err=0
-[SF] 再点「上一步」-> step=0（期望 0）
+[SF] saved run_02_difficulty_endless err=0
+[SF] 点「无归」-> step=2 difficulty=4（期望 2 / 4）
+[SF] 点角色卡 -> step=2 char=c021 scene=StartFlowTest（选中但不启程）
+[SF] saved run_03_character_preview err=0
+[SF] 化身页上一步 -> step=1（期望 1）
+[SF] 点「落笔」-> step=2 difficulty=1（期望 2 / 1）
+[SF] 连续上一步 -> step=0（期望 0）
 [SF] 点「返回」-> 面板=false（期望 false）
-[SF] saved run_05_closed err=0
-[SF] 二次点开始游戏 -> 面板=true step=0（期望 true / 0）
-[SF] 二次点「无尽」-> step=1（期望 1）
-[SF] saved run_06_reopen err=0
-[SF] Esc（选角页）-> 面板=true step=0（期望 true / 0）
-[SF] 再按 Esc -> 面板=false（期望 false）
+[SF] 冒险狂澜 -> step=2 difficulty=3（期望 2 / 3）
+[SF] saved run_04_character_adventure err=0
+[SF] Esc 化身 -> step=1（期望 1）
+[SF] Esc 问境 -> step=0（期望 0）
+[SF] Esc 择路 -> 面板=false（期望 false）
 [SF] 连点两次开始游戏 -> 面板数=1（期望 1）
-[SF] saved run_07_double err=0
-[SF] === 全部点击跑完，无崩溃 ===
+[SF] 濡墨首波=4（期望 4）
+[SF] 无归首波=9（期望 9）
+[SF] 无归中庭首波=10（期望 10 = 普通 9 + 精英 1）
+[SF] 无尽无归初始首波=7（期望 7）
+[SF] 无尽首层 Boss 房已清房间=3（期望 3）
+[SF] 无尽进入第二层：depth=2 room=0 已清房间=4（期望 2 / 0 / 4）
+[SF] 无尽第二层清两房后已清房间=6（期望 6）
+[SF] 濡墨：基础 2 攻 -> 1
+[SF] 落笔：基础 2 攻 -> 2
+[SF] 惊锋：基础 2 攻 -> 3
+[SF] 狂澜：基础 2 攻 -> 4
+[SF] 无归：基础 2 攻 -> 5
+[SF] 无参开局难度=1（期望默认落笔 1）
+[SF] 即将启程：mode=adventure difficulty=2 skull=c021（期望 adventure / 2 / c021）

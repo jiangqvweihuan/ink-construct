@@ -4,7 +4,7 @@ const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Settings = preload("res://scripts/ui/settings.gd") # 改键后普攻键名要读 InputMap
 
 ## 水墨 HUD：左上血条 · 底部技能栏（J 普攻 / 各形态自带的 K L U 技能，带冷却遮罩）
-## · 中上连击数 · 右上墨骨计数。技能格数量随换头形态变化，换头时重建。
+## · 中上连击数。技能格数量随换头形态变化，换头时重建。
 
 const BAR_W := 380.0
 const BAR_H := 30.0
@@ -20,7 +20,6 @@ var _action_root: Control
 var _hp_clip: Control
 var _hp_label: Label
 var _combo_label: Label
-var _bones_label: Label
 var _mode_label: Label
 var _hud_skills: Array = [] # 当前形态的技能名顺序（与遮罩一一对应）
 var _cd_masks: Array = [] # 每个技能格一个冷却遮罩
@@ -50,7 +49,6 @@ func _ready() -> void:
 
 	_build_hp_bar(_root)
 	_build_combo(_root)
-	_build_bones(_root)
 	_build_mode_label(_root)
 
 	# 先找玩家（技能栏要按当前形态的技能表来建），再建底部动作栏
@@ -64,9 +62,7 @@ func _ready() -> void:
 	_build_action_bar(_root)
 
 	Score.combo_changed.connect(_on_combo_changed)
-	Score.bones_changed.connect(_on_bones_changed)
 	_on_combo_changed(Score.combo)
-	_on_bones_changed(Score.bones)
 
 
 func _build_hp_bar(root: Control) -> void:
@@ -152,18 +148,8 @@ func _build_combo(root: Control) -> void:
 	root.add_child(_combo_label)
 
 
-func _build_bones(root: Control) -> void:
-	_bones_label = Label.new()
-	_bones_label.size = Vector2(200, 36)
-	_bones_label.position = Vector2(1050, 14) # 右上角
-	_bones_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_bones_label.add_theme_color_override("font_color", INK)
-	_bones_label.add_theme_font_size_override("font_size", 22)
-	_bones_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(_bones_label)
 
-
-## 顶部中央：模式 + 当前房间进度（Boss 房写 Boss）。放在大血条下沿，和血条/墨骨错开
+## 顶部中央：模式 + 当前房间进度（Boss 房写 Boss）。放在大血条下沿
 func _build_mode_label(root: Control) -> void:
 	_mode_label = Label.new()
 	_mode_label.size = Vector2(600, 26)
@@ -219,9 +205,6 @@ func _on_combo_changed(count: int) -> void:
 	_combo_label.visible = count >= 2
 	_combo_label.text = "%d 连击" % count
 
-
-func _on_bones_changed(count: int) -> void:
-	_bones_label.text = "墨骨  %d" % count
 
 
 # ---------- Boss 大血条（顶部居中，Boss 房专属） ----------

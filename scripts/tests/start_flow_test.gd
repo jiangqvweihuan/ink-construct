@@ -73,6 +73,12 @@ func _ready() -> void:
 	p("无归中庭首波=%d（期望 10 = 普通 9 + 精英 1）" % int(Run.room_config()["waves"][0]["count"]))
 	Run.start(Run.MODE_ENDLESS, "c021", 4)
 	p("无尽无归初始首波=%d（期望 7）" % int(Run.room_config()["waves"][0]["count"]))
+	Run.room_index = Run.ROOMS.size()
+	p("无尽首层 Boss 房已清房间=%d（期望 3）" % Run.cleared_room_count())
+	Run.advance()
+	p("无尽进入第二层：depth=%d room=%d 已清房间=%d（期望 2 / 0 / 4）" % [Run.depth, Run.room_index, Run.cleared_room_count()])
+	Run.room_index = 2
+	p("无尽第二层清两房后已清房间=%d（期望 6）" % Run.cleared_room_count())
 	for i in Run.DIFFICULTIES.size():
 		Run.difficulty = i
 		p("%s：基础 2 攻 -> %d" % [Run.difficulty_label(), Run.enemy_damage(2)])

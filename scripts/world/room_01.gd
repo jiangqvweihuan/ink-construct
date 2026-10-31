@@ -231,7 +231,7 @@ func _spawn_boss() -> void:
 	_boss.entrance()
 
 
-## 普通房互动物件：随机 2-3 个卷轴（回血）/ 香炉（墨骨）/ 石碑（本房 buff），站在地面线上
+## 普通房互动物件：随机 2-3 个卷轴（回血）/ 香炉（重随）/ 石碑（本房 buff），站在地面线上
 func _spawn_decors() -> void:
 	var kinds := ["scroll", "censer", "stele"]
 	kinds.shuffle()
@@ -280,8 +280,6 @@ func _on_boss_died() -> void:
 		_ended = false
 		return
 	if Run.mode == Run.MODE_ENDLESS:
-		# 层间补给：层数越高给得越多，正好抵掉下一层的血量膨胀
-		Score.add_bones(8 + 4 * Run.depth)
 		_show_upgrade() # 这边的「前进」= advance() -> 层数 +1，重开三小关
 		return
 	Run.active = false # 通关收尾，再来一局开新档
@@ -329,7 +327,7 @@ func _show_blessing() -> void:
 	add_child(b)
 
 
-## 清空房间后的三选一强化：可以花墨骨买一个，也可以直接前进
+## 清空房间后的免费三选一强化：选取一项奖励，或直接前进
 func _show_upgrade() -> void:
 	if get_node_or_null("Upgrade") != null:
 		return
@@ -356,14 +354,14 @@ func _on_proceed() -> void:
 func _run_demo() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_log = FileAccess.open("res://tests/room_test.log", FileAccess.WRITE)
-	# 赐福面板截图 + 任选一个（正常流程是玩家选；demo 里挑墨囊饱满，不影响后续验证）
+	# 赐福面板截图 + 任选一个（正常流程是玩家选；demo 里挑重随赐福，不影响后续验证）
 	var bp = load("res://scenes/ui/blessing_panel.tscn").instantiate()
 	bp.name = "Blessing"
 	add_child(bp)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await _shot("00_blessing")
-	bp.pick("bones")
+	bp.pick("reroll")
 	await get_tree().create_timer(0.3).timeout
 	await get_tree().create_timer(1.0).timeout
 	await _shot("01_view")
@@ -386,8 +384,7 @@ func _run_demo() -> void:
 	await _shot("03_fight")
 	await get_tree().create_timer(1.2).timeout
 	await _shot("04_after")
-	# 换头验证：补墨骨 -> 化身面板选形态 -> HUD 技能栏应跟着重建
-	Score.add_bones(20)
+	# 换头验证：化身面板选形态 -> HUD 技能栏应跟着重建
 	Meta.debug_unlock_all() # 测试环境直接拉满解锁条件，别让存档挡住换头验证
 	await _shot("05_before_swap")
 	var panel = load("res://scenes/ui/swap_panel.tscn").instantiate()
@@ -396,7 +393,7 @@ func _run_demo() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await _shot("05b_panel") # 面板开着的样子（时停中）
-	panel.select("c023") # 选中即扣墨骨换头并解除时停
+	panel.select("c023") # 选中即换头并解除时停
 	await get_tree().create_timer(0.6).timeout
 	await _shot("06_swap")
 	_tap("skill")

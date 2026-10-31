@@ -12,8 +12,6 @@ const FX := preload("res://scripts/systems/fx.gd") # 精灵条特效：斩击/�
 const Settings = preload("res://scripts/ui/settings.gd") # 改键后 HUD 键名要读 InputMap
 const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
 
-## 换头消耗的墨骨数
-const SWAP_COST := 8
 
 ## 队列动画提前接管的时长：spine 在结束前一个混合时长（default_mix=0.2）就把下一段混进来，
 ## root_motion 技能必须在此之前结算位移，否则读到的是被 stand 拉回途中的根骨值（多留一帧余量）
@@ -78,7 +76,6 @@ var base_scale := 0.394 # 骨架缩放，按形态反推
 # ---------- 局内强化（Run.upgrades 注入，换房间保留） ----------
 var damage_bonus := 0 # 全部伤害 +N
 var cooldown_scale := 1.0 # 技能冷却倍率
-var swap_cost := SWAP_COST # 换头消耗墨骨
 
 var _coyote := 0.0
 var _jump_buf := 0.0
@@ -125,7 +122,6 @@ var _lifesteal_heal := 1 # 血饮每次回血量
 var _lifesteal_cd_max := 6.0 # 血饮内置冷却
 var _lifesteal_buff := 0 # 血饮·极：回血同时挂的限时加伤
 var _damage_reduce := 0 # 受到伤害减免（最低仍吃 1）
-var _hurt_bones := 0 # 每次受伤回的墨骨
 var _reflect_bonus := 0 # 定山反弹加伤
 var _heal_bonus := 0 # 技能回血加量
 var _form_cd_scale := 1.0 # 形态卡片提供的技能冷却倍率
@@ -143,7 +139,6 @@ var _qg_jump_bonus := 0.0 # 轻功·初：跳跃额外倍率
 var _qg_hover_bonus := 0.0 # 轻功·初：悬停额外秒数
 var _dash_attack_dmg := 0 # 冲刺终点斩伤害（疾刃）
 var _dash_attack_refund := false # 冲刺斩命中即回满冲刺
-var _dash_attack_bones := 0 # 冲刺斩命中回墨骨
 var _dodge_bonus := 0 # 完美闪避赏伤加成（掠影）
 var _dodge_time_bonus := 0.0 # 完美闪避赏伤时长加成
 var _dodge_cd_refund := 0.0 # 完美闪避减全部技能冷却（轻功·续/极）
@@ -337,7 +332,6 @@ func _apply_form_mods() -> void:
 	_lifesteal_cd_max = 6.0
 	_lifesteal_buff = 0
 	_damage_reduce = 0
-	_hurt_bones = 0
 	_reflect_bonus = 0
 	_heal_bonus = 0
 	_form_cd_scale = 1.0
@@ -354,7 +348,6 @@ func _apply_form_mods() -> void:
 	_qg_hover_bonus = 0.0
 	_dash_attack_dmg = 0
 	_dash_attack_refund = false
-	_dash_attack_bones = 0
 	_dodge_cd_refund = 0.0
 	_attack_range_scale = 1.0
 	_skill_range_scale = 1.0
@@ -742,8 +735,6 @@ func _dash_attack() -> bool:
 		_play_sfx("hit_heavy")
 		Feel.hitstop(0.05)
 		Feel.shake(5.0, 0.15)
-		if _dash_attack_bones > 0:
-			Score.add_bones(_dash_attack_bones)
 	return did_hit
 
 
@@ -1222,8 +1213,15 @@ func _skill_tick(delta: float) -> void:
 		# 时停·续：定住的这段时间里全伤害 +2（独立槽，_buff_now 取最高）
 		if _stop_buff_damage > 0:
 			_stop_buff_timer = maxf(_stop_buff_timer, stop_dur)
-	# 纯时长驱动退出：到点的同一帧排队的 stand 恰好接续，别看 is_complete（会被 loop 污染）
-	if _skill_timer <= 0.0:
+	# 银夜 I 严格跟随 skill10 轨道：不预排 stand，动画完成的同一帧立即收招，避免终帧后仍锁操作。
+	var silver_awaken_done := false
+	if skull_id == "z003" and _skill_name == "skill10" and _anim_state != null:
+		var entry = _anim_state.call("get_current", 0)
+		if entry != null:
+			var animation = entry.call("get_animation")
+			silver_awaken_done = animation != null and str(animation.call("get_name")) == _skill_anim and bool(entry.call("is_complete"))
+	# 其他技能按真实时长退出（它们预排了 stand，current 会被循环待机污染）；银夜 I 额外接受轨道完成信号。
+	if _skill_timer <= 0.0 or silver_awaken_done:
 		# 自带位移动画兜底：正常尾声已提前 0.12s 瞬移+切 stand（见上），这里只兜底位置
 		if _skill_teleport > 0.0:
 			global_position.x += facing * _skill_teleport
@@ -2075,9 +2073,12 @@ func _start_skill(n: String) -> void:
 	velocity.x = facing * float(attacks[0]["lunge"]) * 0.6 # 起手小前冲
 	_play(_skill_anim, false, _skill_speed)
 	_play_sfx("voice_skill_cast") # 技能起手嗡一声
-	# 排队 stand 紧跟技能之后：非循环动画播完瞬间轨道空窗会闪回 setup pose
-	_queue(anim_map["idle"], true)
-	_idle_queued = true
+	# 其他技能排队 stand 防止收招空窗；银夜 I 必须保留原轨道供 _skill_tick 监听完成，收招时再切 stand。
+	if skull_id != "z003" or _skill_name != "skill10":
+		_queue(anim_map["idle"], true)
+		_idle_queued = true
+	else:
+		_idle_queued = false
 
 
 ## 立刻换成指定形态：拆旧骨架 → 重装形态数据 → 重建骨架
@@ -2265,8 +2266,6 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		precept_dn.setup("戒印 %d/3" % _precepts, Color(0.9, 0.75, 0.3))
 		precept_dn.global_position = global_position + Vector2(0, -165)
 		get_tree().current_scene.add_child(precept_dn)
-	if _hurt_bones > 0:
-		Score.add_bones(_hurt_bones) # 禅定·续：挨打也赚墨骨
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(amount, DMG_COLOR, 130.0)
 	_play_sfx("hit_fist") # 玩家受伤闷拳声

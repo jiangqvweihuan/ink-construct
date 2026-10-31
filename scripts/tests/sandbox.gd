@@ -3,7 +3,7 @@ extends Node2D
 ## 试炼场：一块空地 + 任选敌人单挑，专门调技能机制 / 动画 / 判定 bug。
 ## 双方无限血（生成时血量顶到 999999，打不死，专心看动作与命中）+ 技能零 CD（cooldown_scale 归零）。
 ## 操作：[ / ] 换玩家形态    , / . 轮换敌人（小怪 + 精英 + Boss 全在表里）    R 重刷当前敌人
-##      B 打开局内三选一强化（墨骨与重随充足，可反复打开补完整条流派）
+##      B 打开局内三选一强化（重随充足，可反复打开补完整条流派）
 ##      数字键 1~9 模拟受 N 点伤害（测受击分档 / 倒地起身 / 残血待机用）
 ##      0 键直接把血量压到上限的 15%（测残血待机，比连按掉血快）
 ## 敌人轮换表直接读 enemy_types / boss_types 两张形态表——以后新增怪/Boss 自动进表，不用改这里。
@@ -121,10 +121,9 @@ func _open_upgrade() -> void:
 	Run.skull_id = _player.skull_id
 	Run.hp = GOD_HP
 	Run.max_hp = GOD_HP
-	Score.add_bones(maxi(0, 999 - Score.bones))
 	Run.supply_upgrade_rerolls = maxi(Run.supply_upgrade_rerolls, 99)
 	_upgrade = load("res://scenes/ui/upgrade_panel.tscn").instantiate()
-	_upgrade.title_text = "试炼场 · 墨骨强化"
+	_upgrade.title_text = "试炼场 · 免费强化"
 	_upgrade.proceed_text = "返回试炼场"
 	_upgrade.purchased.connect(_on_upgrade_bought)
 	_upgrade.proceed.connect(_close_upgrade)

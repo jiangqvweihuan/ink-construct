@@ -1,4 +1,4 @@
-[PT] player created, sprite=@SpineSprite@9:<SpineSprite#40181433891>
+[PT] player created, sprite=@SpineSprite@9:<SpineSprite#48033170983>
 [PT] state -> 0 pos=(300.0, 560.0)
 [PT] state -> 3 pos=(300.0, 560.5555)
 [PT] state -> 0 pos=(300.0, 599.9999)
@@ -21,13 +21,13 @@
 [PT] ALL DONE, final state=5 pos=(932.8911, 599.9337)
 [PT] saved 09_before_swap err=0 state=5 pos=(932.8911, 599.9337)
 [PT] state -> 0 pos=(932.8911, 599.9337)
-[PT] swap -> skull=c023 hud=["skill02"] attacks=1 skills=["skill02"] bones=60
+[PT] swap -> skull=c023 hud=["skill02"] attacks=1 skills=["skill02"]
 [PT] saved 10_swap_c023 err=0 state=0 pos=(932.8911, 599.9337)
 [PT] c023 靶子起点距玩家 300px（期望被拉到约 80）
 [PT] state -> 5 pos=(934.7245, 599.9337)
 [PT] saved 11_atk_c023 err=0 state=5 pos=(936.2248, 599.9339)
 [PT] c023 鞭击后靶子距玩家 80px（期望约 80）
-[PT] c023 普攻总伤害=7（基础 2+3=5，伤害加成 +1/段 = 契合/局内强化）
+[PT] c023 普攻总伤害=9（基础 2+3=5，伤害加成 +1/段 = 契合/局内强化）
 [PT] state -> 0 pos=(936.2248, 599.9339)
 [PT] state -> 6 pos=(937.3251, 599.9343)
 [PT] saved 12_skill_c023 err=0 state=6 pos=(937.814, 599.9337)
@@ -37,7 +37,7 @@
 [PT] saved 13_ult_c023 err=0 state=0 pos=(937.814, 599.9337)
 [PT] ult_after skull=c023 hp=8/8
 [PT] saved 14_ult_after_c023 err=0 state=0 pos=(937.814, 599.9337)
-[PT] swap -> skull=z000 hud=["atk04", "skill02-", "skill04", "skill08", "skill09", "skill20_03"] attacks=4 skills=["atk04", "skill02-", "skill04", "skill08", "skill09", "skill20_03"] bones=60
+[PT] swap -> skull=z000 hud=["atk04", "skill02-", "skill04", "skill08", "skill09", "skill20_03"] attacks=4 skills=["atk04", "skill02-", "skill04", "skill08", "skill09", "skill20_03"]
 [PT] saved 10_swap_z000 err=0 state=0 pos=(937.814, 599.9337)
 [PT] state -> 5 pos=(939.6473, 599.9337)
 [PT] saved 11_atk_z000 err=0 state=5 pos=(941.1473, 599.9337)
@@ -53,7 +53,7 @@
 [PT] saved 13_ult_z000 err=0 state=0 pos=(945.9139, 599.9337)
 [PT] ult_after skull=z000 hp=8/8
 [PT] saved 14_ult_after_z000 err=0 state=0 pos=(945.9139, 599.9337)
-[PT] swap -> skull=c013 hud=["skill01", "skill03", "skill02"] attacks=2 skills=["skill01", "skill03", "skill02"] bones=52
+[PT] swap -> skull=c013 hud=["skill01", "skill03", "skill02"] attacks=2 skills=["skill01", "skill03", "skill02"]
 [PT] c013 压血 -> hp=5，准备验证定山回血
 [PT] saved 10_swap_c013 err=0 state=0 pos=(945.9139, 599.9337)
 [PT] state -> 5 pos=(947.9139, 599.9337)
@@ -71,7 +71,7 @@
 [PT] state -> 0 pos=(955.1133, 599.9337)
 [PT] ult_after skull=c013 hp=7/8
 [PT] saved 14_ult_after_c013 err=0 state=0 pos=(955.1133, 599.9337)
-[PT] swap -> skull=z003 hud=["skill14_02", "skill02", "skill06", "skill10", "skill11", "sky_skill18_02"] attacks=3 skills=["skill14_02", "skill02", "skill06", "skill10", "skill11", "sky_skill18_02"] bones=52
+[PT] swap -> skull=z003 hud=["skill14_02", "skill02", "skill06", "skill10", "skill11", "sky_skill18_02"] attacks=3 skills=["skill14_02", "skill02", "skill06", "skill10", "skill11", "sky_skill18_02"]
 [PT] saved 10_swap_z003 err=0 state=0 pos=(955.1133, 599.9337)
 [PT] state -> 5 pos=(957.2799, 599.9337)
 [PT] saved 11_atk_z003 err=0 state=5 pos=(959.4466, 599.9337)
@@ -88,30 +88,56 @@
 [PT] ult_after skull=z003 hp=7/8
 [PT] saved 14_ult_after_z003 err=0 state=0 pos=(965.6467, 599.9337)
 [PT] SWAP DONE skull=z003
-[PT] roll0 银夜三选一：["swap[通用]", "hp[通用]", "z003_qinggong_1[流派1]"]
-[PT] buy z003_stop_1 cost=8 ok=true bones=407
-[PT] roll1（已拿时停·初）含时停·续=true → ["z003_stop_2", "dodge", "z003_qinggong_1"]
-[PT] buy z003_stop_2 cost=14 ok=true bones=393
-[PT] buy z003_stop_3 cost=20 ok=true bones=373
-[PT] roll2 跨形态泄漏=[]（期望 []） → ["z003_kill_1", "cooldown", "hp"]
-[PT] build 生效：_stop_bonus=1.0 _stop_buff_damage=2 skill06_cd=0.70 dash_time=1.20 dash_cd=0.90（期望 1.0 / 2 / 0.70 / 1.20 / 0.90）
-[PT] 换到 c021：_stop_bonus=0.0（期望 0.0 休眠）
-[PT] 切回 z003：_stop_bonus=1.0（期望恢复 1.0）
+[PT] roll0 银夜三选一：["z003_returning_1[流派1]", "cooldown[通用]", "dash[通用]"]
+[PT] claim z003_clock_1 ok=true level=1
+[PT] roll1（已拿漏刻·初）含漏刻·续=true → ["z003_clock_2", "damage", "z003_returning_1"]
+[PT] claim z003_clock_2 ok=true level=1
+[PT] claim z003_clock_3 ok=true level=1
+[PT] roll2 跨形态泄漏=[]（期望 []） → ["z003_returning_1", "hp", "cooldown"]
+[PT] build 生效：漏刻=true/true/true dash_time=1.20 dash_cd=0.90（期望 true/true/true / 1.20 / 0.90）
+[PT] 换到 c021：当前形态=c021 银夜卡保留=true（机制按形态分支休眠）
+[PT] 切回 z003：漏刻可用=true（期望 true）
 [PT] saved 16_upgrade_panel err=0 state=0 pos=(965.6467, 599.9337)
 [PT] upgrade_panel cards=3
 [PT] 新档解锁顺序 ["c021开", "c013锁", "c023锁", "z000锁", "z003锁"]（期望 c021 开、其余全锁）
 [PT] saved 17_start_mode err=0 state=0 pos=(965.6467, 599.9337)
 [PT] 开始面板点「无尽」-> step=1 模式卡=2（期望 1 / 2）
-[PT] 点未解锁银夜 -> step=1（期望 1，停在选角页）
+[PT] 点「落笔」-> step=2 difficulty=1 难度卡=5（期望 2 / 1 / 5）
+[PT] 点未解锁银夜 -> step=2（期望 2，停在化身页）
 [PT] saved 18_start_char_locked err=0 state=0 pos=(965.6467, 599.9337)
 [PT] 击杀20 / 通关1 -> 力僧=true 梅剑=false 剑仙=true 银夜=false（期望 开/锁/开/锁）
 [PT] 银夜进度 击杀 20/150 · 通关 1/3（期望 击杀 20/150 · 通关 1/3）
 [PT] 击杀150 / 通关3 -> 银夜=true（期望 开）
 [PT] saved 19_start_char_all err=0 state=0 pos=(965.6467, 599.9337)
-[PT] 点「上一步」-> step=0（期望 0）
+[PT] 化身页点「上一步」-> step=1（期望 1）
 [PT] saved 20_start_back err=0 state=0 pos=(965.6467, 599.9337)
+[PT] 问境页点「上一步」-> step=0（期望 0）
 [PT] 点「返回」-> 面板已释放=true（期望 true）
 [PT] 二次打开后点「返回」-> 已释放=true（期望 true）
 [PT] 无尽第1层 怪血=2 精英倍率=1.00 Boss血倍率=1.00 冷却倍率=1.00（期望 原数值）
 [PT] 无尽第6层 怪血=7 精英倍率=2.50 Boss血倍率=3.00 冷却倍率=0.70（期望全部更狠）
 [PT] HUD 模式文本（第6层第1间）：无尽 · 第 6 层 · 1/3
+[PT] 永久节点总数=45 各角色={ "c021": 9, "c013": 9, "c023": 9, "z000": 9, "z003": 9 }（期望 45，五人各 9）
+[PT] 顺序修炼=true/true 有后继时初阶可退=false（期望 true/true/false）
+[PT] 末阶退款=true 返还=65（期望 true/65）
+[PT] 整角色重置返还=35 墨锭复原=true（期望 35/true）
+[PT] 血舞半血技能伤害=3 命中后 hp=5（期望 3/5）
+[PT] 重随券开局次数=2 实际=true/true/false 库存=0（期望 true/true/false/0）
+[PT] 护砚后 hp=7 剩余护砚=false（期望 7/false）
+[PT] 墨符复活 hp=4 已消耗=true 库存=0（期望 4/true/0）
+[PT] 局内流派节点=45 各角色={ "c021": 9, "c023": 9, "c013": 9, "z000": 9, "z003": 9 }（期望 45，五人各 9）
+[PT] 苦行三戒满血转盾=3（期望 3）
+[PT] 苦行三次受击后 盾=0 hp=8/8（期望 0 / 8/8）
+[PT] 藏锋三段 封脉=true 破招=1.5（期望 true/1.5）
+[PT] 藏锋引爆 封脉残留=false 近敌定身=0.8（期望 false/0.8）
+[PT] state -> 2 pos=(500.0, 420.0)
+[PT] state -> 3 pos=(500.0, 420.5555)
+[PT] 回锋空中第四段 砸落次数=1（期望 1）
+[PT] 游身回身横扫 身后命中=true 挑飞=1 身前误伤=0（期望 true/1/0）
+[PT] 剑仙换头清理 段数=0 封脉=0 取消=false 四段起手=false（期望 0/0/false/false）
+[PT] 归刃/绯羽回调 落匕=2 分裂定身=1.2（期望 2/1.2）
+[PT] 影饵到期 残影清理=true 追饵定身=1.5（期望 true/1.5）
+[PT] 漏刻不同招式计数=3（期望 3，重复普攻不叠）
+[PT] 漏刻自然结束 定身=1.8 余滞=4.0/0.45（期望 1.8 / 4.0/0.45）
+[PT] 去来返程 位置=400 流血=1 破招=1.5 伤害=0 闪避CD=0.0（期望 400/1/1.5/0/0）
+[PT] NEW BUILD DONE

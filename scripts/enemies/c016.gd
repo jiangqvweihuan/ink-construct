@@ -6,7 +6,6 @@ extends CharacterBody2D
 
 const Types := preload("res://scripts/enemies/enemy_types.gd")
 const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")
-const BONE_PICKUP := preload("res://scripts/systems/bone_pickup.gd")
 const FX := preload("res://scripts/systems/fx.gd")
 const DMG_COLOR := Color(0.66, 0.2, 0.16) # 朱砂：敌人受伤数字
 const SFX_HIT_QI := preload("res://audio/sfx/hit_qi.wav")
@@ -48,7 +47,6 @@ var turn_accel := 2100.0 # 反向转向
 
 var _armor := 0 # 伤害低于此值不打断出手（精英霸体）
 var body_radius := 30.0 # 受击半径：挨打按"攻击方射程 + 本半径"判定，体型越大越容易被够到（永久规则，见 PROGRESS 项目约束）
-var _bones := 1 # 死亡掉落墨骨数
 var _dead_min := 1.2 # 尸体最少停留时间（补死动画过短的形态）
 var _telegraph_on := false
 var _pick_nearest := false
@@ -167,7 +165,6 @@ func _apply_type() -> void:
 	body_radius = float(t.get("body_radius", 30.0))
 	_telegraph_on = bool(t["telegraph"])
 	_pick_nearest = str(t["pick"]) == "nearest"
-	_bones = int(t["bones"])
 	_dead_min = float(t["dead_min"])
 	_bar_w = float(t["bar_w"])
 	_bar_y = float(t["bar_y"])
@@ -841,7 +838,6 @@ func die() -> void:
 	_update_hp_bar()
 	$CollisionShape2D.set_deferred("disabled", true)
 	_play(str(_anim_map["dead"]), false)
-	_drop_bone()
 	# 尸体消散时一团墨散开，盖住淡出
 	FX.spawn(get_tree().current_scene, "vanish", global_position,
 		{"scale": _scale * 1.6, "z": 5})
@@ -866,13 +862,6 @@ func _cleanup() -> void:
 	await get_tree().create_timer(0.5).timeout
 	queue_free()
 
-
-## 掉落墨骨：从脚下抛出一枚，落地后玩家靠近自动吸附（精英掉 3 枚，值得啃）
-func _drop_bone() -> void:
-	for _i in _bones:
-		var b := BONE_PICKUP.new()
-		b.global_position = global_position + Vector2(randf_range(-18.0, 18.0), 0.0)
-		get_tree().current_scene.add_child(b)
 
 
 # ---------- 工具 ----------

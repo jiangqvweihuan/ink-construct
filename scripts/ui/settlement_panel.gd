@@ -43,7 +43,7 @@ func _ready() -> void:
 	var diff: Dictionary = {"mastery": {}, "unlocks": []}
 	if not Run.meta_snapshot.is_empty():
 		diff = Meta.diff_since(Run.meta_snapshot)
-	var ink_gain := Meta.deposit_ink(Score.bones, _cleared)
+	var ink_gain := Meta.deposit_ink(Score.kills, Run.cleared_room_count(), _cleared)
 	_build(diff, ink_gain)
 
 
@@ -81,7 +81,7 @@ func _build(diff: Dictionary, ink_gain: int) -> void:
 
 	_text("行 旅 记", Vector2(680, 198), Vector2(500, 32), 20, PAPER)
 	_make_line("%s · %s ｜ 历程 %s" % [Run.mode_label(), Run.difficulty_label(), _progress_text()], DIM, 17, 232)
-	_make_line("最高连击 %d ｜ 击杀 %d ｜ 墨骨 %d" % [Score.max_combo, Score.kills, Score.bones], PAPER, 18, 266)
+	_make_line("最高连击 %d ｜ 击杀 %d ｜ 已清房间 %d" % [Score.max_combo, Score.kills, Run.cleared_room_count()], PAPER, 18, 266)
 	var cy := 306.0
 	if _cleared and not _defeated_ids().is_empty():
 		_make_line("讨伐落款 · %s" % _defeated_names(), RED, 19, cy)

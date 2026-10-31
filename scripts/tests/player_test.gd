@@ -133,8 +133,7 @@ func _ready() -> void:
 
 	p("ALL DONE, final state=" + str(_player.state) + " pos=" + str(_player.position))
 
-	# ---- 换头验证：给够墨骨，走化身面板逐个选形态，确认骨架/技能表/HUD 数据全部换掉 ----
-	Score.add_bones(60)
+	# ---- 换头验证：走化身面板逐个选形态，确认骨架/技能表/HUD 数据全部换掉 ----
 	Meta.debug_unlock_all() # 测试环境直接拉满解锁条件，别让存档挡住换头验证
 	await _shot("09_before_swap")
 	for id in ["c023", "z000", "c013", "z003"]:
@@ -143,11 +142,11 @@ func _ready() -> void:
 		add_child(panel)
 		await get_tree().process_frame
 		await get_tree().process_frame
-		panel.select(id) # 选中即扣墨骨换头并解除时停
+		panel.select(id) # 选中即换头并解除时停
 		await get_tree().create_timer(0.6).timeout
-		p("swap -> skull=%s hud=%s attacks=%d skills=%s bones=%d" % [
+		p("swap -> skull=%s hud=%s attacks=%d skills=%s" % [
 			_player.skull_id, str(_player.hud_skills), _player.attacks.size(),
-			str(_player.skill_config.keys()), Score.bones])
+			str(_player.skill_config.keys())])
 		# 力僧 U（定山）是回血技：先压血到 5，砸下后应回到 7，否则满血时回血分支不进等于没测
 		if _player.skull_id == "c013":
 			_player.hp = 5
@@ -206,9 +205,8 @@ func _ready() -> void:
 
 	p("SWAP DONE skull=" + str(_player.skull_id))
 
-	# ---- 升级 Build 验证：流派层级价格、续卡轮转、跨形态隔离、换头休眠 ----
+	# ---- 升级 Build 验证：免费流派进阶、续卡轮转、跨形态隔离、换头休眠 ----
 	Run.start()
-	Score.add_bones(400)
 	_player.swap_skull("z003") # 银夜：走一条流派做样本（同形态会早退，这里同步 Run 的形态）
 	Run.skull_id = str(_player.skull_id)
 	await get_tree().process_frame
@@ -218,11 +216,10 @@ func _ready() -> void:
 		var inf: Dictionary = Run.card_info(str(k))
 		kinds.append(str(k) + (("[流派%d]" % int(inf["tier"])) if inf.has("tier") else "[通用]"))
 	p("roll0 银夜三选一：%s" % str(kinds))
-	# 一条流派连买三级：价格应为 初 8 / 续 14 / 极 20
+	# 一条流派免费连选三级，无需任何局内货币。
 	for k in ["z003_clock_1", "z003_clock_2", "z003_clock_3"]:
-		var cost_now := Run.upgrade_cost(k)
 		var ok := Run.buy(k)
-		p("buy %s cost=%d ok=%s bones=%d" % [k, cost_now, ok, Score.bones])
+		p("claim %s ok=%s level=%d" % [k, ok, Run.level(k)])
 		if k == "z003_clock_1":
 			var roll1: Array = Run.roll_cards(3)
 			p("roll1（已拿漏刻·初）含漏刻·续=%s → %s" % [roll1.has("z003_clock_2"), str(roll1)])

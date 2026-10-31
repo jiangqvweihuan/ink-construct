@@ -1,7 +1,6 @@
-[S] 换形态 -> z003
-[S] killed player, hp=0
-[S] saved dead err=0
-[S] 阵亡后 Run.skull_id=z003 mode=adventure（期望 z003 / adventure）
-[S] 再来一局 -> skull=z003 mode=adventure depth=1 active=true（期望 z003 / adventure / 1 / true）
+[S] 第二只 Boss 已登场：phase=1，强化面板=false（期望 1 / false）
+[S] cleared, waited=12.0 second=true defeated=["_debug", "c001"]（期望双 Boss）
+[S] saved clear err=0
+[S] 墨锭结算：击杀=2 已清房间=3 通关=true 聚墨=3 实际=49 预期=49（期望一致）
 [S] settlement visible=true
 [S] ALL DONE

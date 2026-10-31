@@ -4,19 +4,22 @@
 [T] STATE 3 -> 0  t=0.267 x=400.0 inv=false
 [T] PRESS skill at t=0.517
 [T] STATE 0 -> 6  t=0.550 x=401.1 inv=false
-[T] HIT t=1.867 enemy_hp 20 -> 18 player_x=692.6
-[T] STATE 6 -> 0  t=2.133 x=727.4 inv=false
-[T] TELEPORT enemy to x=867.4 at t=2.917
-[T] PRESS skill_sweep at t=3.017
-[T] STATE 0 -> 6  t=3.050 x=728.5 inv=false
-[T] HIT t=4.067 enemy_hp 18 -> 17 player_x=729.0
-[T] HIT t=5.067 enemy_hp 17 -> 16 player_x=729.0
-[T] STATE 6 -> 0  t=5.500 x=729.0 inv=false
-[T] TELEPORT enemy to x=869.0 at t=6.917
-[T] PRESS skill_ult at t=7.017
-[T] STATE 0 -> 6  t=7.050 x=730.1 inv=false
-[T] HIT t=8.267 enemy_hp 16 -> 15 player_x=730.6
-[T] HIT t=9.167 enemy_hp 15 -> 14 player_x=730.6
-[T] HIT t=10.067 enemy_hp 14 -> 13 player_x=730.6
-[T] STATE 6 -> 0  t=10.467 x=730.6 inv=false
+[T] HIT t=1.467 enemy_hp 20 -> 18 player_x=691.8
+[T] STATE 6 -> 0  t=1.669 x=772.5 inv=false
+[T] TELEPORT enemy to x=916.4 at t=2.903
+[T] PRESS skill_sweep at t=3.003
+[T] STATE 0 -> 6  t=3.036 x=777.5 inv=false
+[T] HIT t=3.820 enemy_hp 18 -> 16 player_x=778.0
+[T] HIT t=4.822 enemy_hp 16 -> 15 player_x=778.0
+[T] HIT t=4.823 enemy_hp 15 -> 13 player_x=778.0
+[T] STATE 6 -> 0  t=5.625 x=778.0 inv=false
+[T] HIT t=5.825 enemy_hp 13 -> 11 player_x=778.0
+[T] HIT t=6.825 enemy_hp 11 -> 9 player_x=778.0
+[T] TELEPORT enemy to x=918.0 at t=6.908
+[T] PRESS skill_ult at t=7.008
+[T] STATE 0 -> 6  t=7.041 x=779.1 inv=false
+[T] HIT t=7.825 enemy_hp 9 -> 7 player_x=778.0
+[T] HIT t=8.709 enemy_hp 7 -> 5 player_x=608.3
+[T] HIT t=8.826 enemy_hp 5 -> 3 player_x=608.3
+[T] STATE 6 -> 0  t=9.093 x=608.3 inv=false
 [T] ALL DONE

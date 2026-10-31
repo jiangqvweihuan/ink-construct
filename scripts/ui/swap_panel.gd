@@ -1,7 +1,6 @@
 extends CanvasLayer
 
-## 测试用化身选择面板：正式局内不再提供 Q 呼出。
-## Esc 取消不扣墨骨；按钮灰掉 = 当前形态或墨骨不够。
+## 测试用化身选择面板：正式局内不再提供 Q 呼出；选择已解锁形态即可免费切换。
 
 signal chosen(id: String)
 
@@ -9,7 +8,6 @@ const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 
 const SFX_SWAP := preload("res://audio/sfx/swap_draw.wav")
-const SFX_GOLD := preload("res://audio/sfx/gold.wav")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 
 const INK := Color(0.05, 0.05, 0.05)
@@ -20,7 +18,7 @@ const RED := Color(0.66, 0.2, 0.16)
 var _player
 
 
-## 必须在 add_child 之前调用：_ready 里就要读玩家当前形态与费用
+## 必须在 add_child 之前调用：_ready 里就要读玩家当前形态
 func setup(p) -> void:
 	_player = p
 
@@ -45,13 +43,12 @@ func _ready() -> void:
 	add_child(win)
 
 	_make_label("化  身", 210, 34, PAPER)
-	_make_label("选择化成的形态（Esc 取消）  墨骨 %d" % Score.bones, 262, 18, DIM)
+	_make_label("选择化成的形态（Esc 取消）", 262, 18, DIM)
 
 	var ids := Skulls.ids()
-	var cost: int = _player.swap_cost if is_instance_valid(_player) else 8
 	for i in ids.size():
 		var id := str(ids[i])
-		_make_card(id, i, cost)
+		_make_card(id, i)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -60,17 +57,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## 选中一个形态：扣墨骨、换头、关面板。未解锁 / 墨骨不够 / 已是该形态则无反应
+## 选中一个已解锁形态：换头并关闭面板；当前形态不重复切换。
 func select(id: String) -> void:
 	if not is_instance_valid(_player):
 		_cancel()
 		return
 	if id == _player.skull_id or not Meta.is_unlocked(id):
 		return
-	var cost: int = 0 if bool(Meta.mods(id)["free"]) else int(_player.swap_cost) # 契合 Lv3 免费化身
-	if not Score.spend_bones(cost):
-		return
-	# 抽签音效 + 扣费音效（抽签先响，扣费略延迟）
+	# 抽签音效
+
 	var s := AudioStreamPlayer.new()
 	add_child(s)
 	s.stream = SFX_SWAP
@@ -78,10 +73,6 @@ func select(id: String) -> void:
 	_player.swap_skull(id)
 	chosen.emit(id)
 	await get_tree().create_timer(0.18).timeout
-	var s2 := AudioStreamPlayer.new()
-	add_child(s2)
-	s2.stream = SFX_GOLD
-	s2.play()
 	_close()
 
 
@@ -106,13 +97,10 @@ func _make_label(text: String, y: float, font_size: int, color: Color) -> void:
 	add_child(l)
 
 
-func _make_card(id: String, i: int, cost: int) -> void:
+func _make_card(id: String, i: int) -> void:
 	var is_current: bool = is_instance_valid(_player) and id == _player.skull_id
 	var unlocked := Meta.is_unlocked(id)
 	var lv := Meta.mastery_level(id)
-	var free := unlocked and bool(Meta.mods(id)["free"]) # 契合 Lv3：化身免费
-	var price := 0 if free else cost
-	var affordable: bool = Score.bones >= price
 
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
@@ -121,7 +109,7 @@ func _make_card(id: String, i: int, cost: int) -> void:
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.size = Vector2(190, 150)
 	b.position = Vector2(140 + i * 205, 310)
-	if is_current or not unlocked or not affordable:
+	if is_current or not unlocked:
 		b.modulate = Color(1, 1, 1, 0.4)
 		b.disabled = true
 	else:
@@ -159,10 +147,8 @@ func _make_card(id: String, i: int, cost: int) -> void:
 		sub.text = "当前形态"
 	elif not unlocked:
 		sub.text = Meta.unlock_hint(id)
-	elif free:
-		sub.text = "契合Lv%d · 免费" % lv
 	else:
-		sub.text = "契合Lv%d · %d 墨骨" % [lv, price]
+		sub.text = "契合Lv%d · 可化身" % lv
 	sub.size = Vector2(190, 30)
 	sub.position = Vector2(0, 92)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

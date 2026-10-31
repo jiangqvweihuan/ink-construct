@@ -26,9 +26,9 @@
    - ✅ 化身谱与墨锭商栈已拆分为独立界面；化身谱支持滚动总览和单角色永久修炼页（详见交接笔记 2026-10-30 化身谱修炼与独立商栈）
    - ✅ 开始游戏已改为「行旅卷」三步开局，双模式接入五档问境，角色选中后显示真实 Spine 预览，最后点击「启程」才进局
    - ✅ 结算已改为阵亡「终局对演」与通关「收剑落款」，支持真实最后一击重演、双 Boss 连战及双讨伐印；致谢与退出不再调整 UI
-3. **角色技能成长机制重构 + 经济平衡**：✅ 5 名角色 × 3 分支 × 3 阶永久修炼已实装并接入战斗；后续继续平衡墨骨与墨锭消耗（当前通货膨胀，需收紧）。
+3. **角色技能成长机制重构 + 经济平衡**：✅ 已完成。5 名角色 × 3 分支 × 3 阶永久修炼已实装并接入战斗；局内货币墨骨已移除，房间强化与换形免费，墨锭按击杀、已清房间和通关结果直接结算，局内流派与局外永久修炼保持分离。
 4. **小怪 AI 与动画优化**：整体优化目前所有小怪的 AI 攻击逻辑与动画。
-5. **音效特效九级大升级**：全体实体的音效、特效全面升级。
+5. **音效特效究级大升级**：全体实体的音效、特效全面升级。
 6. **图鉴面板重做 + 人设 / 世界观 / 开发者故事**：全新的、整洁干练的图鉴面板（✅ 面板交互与词条体系已落地，见交接笔记 2026-10-30 图鉴 v2）；整个游戏世界的设定文案、各角色人设、开发者故事都收在图鉴里（`codex_panel.gd` 的 `LORE` 表逐条替换成正式人设与世界观，技能「来历」现为【待定】占位，开发者故事单独一页）。
 7. **新人物扩充**：添加新人物，包括敌人与小怪。
 8. **成就系统**：制作成就（击杀 / 通关 / 收集 / 形态熟练等），复用图鉴收录数据 + 存档层（`meta.gd`）。排在新人物之后：等内容量够了再上，否则成就表全是空条目。
@@ -46,17 +46,16 @@
 | 波次刷怪 | `scripts/systems/wave_spawner.gd` | 波次表由 `Run.room_config()` 提供：**冒险**每房 2 波（5~7 只，血量速度递增 + 精英混入）；**无尽**波数/血量/速度/精英数随层数抬升（`Run.endless_waves`）。同屏上限 6，死一只补一只，波间喘息 1.6s；清完发 `all_cleared`。精英血量走「形态表基础值 × `hp_mul`」`configure({"hp_mul": ...})`，普通怪用绝对 `hp` |
 | Boss 系统 | `scripts/enemies/boss.gd` + `scripts/enemies/boss_types.gd` | 五真身（墨霆巨兽骑手 C009 / 焚鼎紫焰巨汉 C015a1 / 武车双马战车 C001 / 碎岳墨甲巨汉 C008 / 鸣钟双斧武者 C032）；多阶段切换 + 变身无敌 + 僵直窗口 + 冲锋技 + **绕后转身演出**（配 `turn` 动画的 Boss 被穿裆时播调头动画再翻转朝向，不瞬转，转身期不还手是奖励窗口，带冷却防锁死）；C032 三套变身动画分 P2/P3；HUD 大血条 + 登场书法落款 + 运镜推拉；`ROSTER` 随机登场；每形态独立主题背景整图铺底；**时停可打断冲锋/技能前摇**（boss 档 1s，变身演出冻结不取消）；**霸体免疫击退/击飞**（`launch`/`knock_back` 覆盖为空）；`root`/`stun`/`slow` 时长减半，余滞同样缩放自定义冲锋速度，强制牵引等不可执行位移转为短破招 |
 | 特效系统 | `scripts/systems/fx.gd` | GIF 精灵条逐帧播放器，12 条特效；Boss fx 配置表驱动 + 焚鼎 P3 封锁火区（聚气预警 → 火柱喷发 → 范围灼烧）；预警用程序化墨环（`tools/gen_telegraph.py`） |
-| 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | **两种模式**：冒险 = 3 普通房（波次清怪）→ Boss 房 → 通关结算；**无尽 = 每层都是「3 小关 + 1 Boss」**，Boss 倒下补墨骨 + 一次强化，前进即 `depth+1` 重开三小关、换一只 Boss（血量每层 ×1.4、出手冷却每层 ×0.94，最低 0.6）。每清一房花墨骨强化三选一；首房出发前排赐福三选一（一局一次，无尽跨层不再弹）；Boss 房按形态换主题背景（`BOSS_BG` 表）；普通房固定 4 棵远景树点缀 |
-| 墨骨掉落 | `scripts/systems/bone_pickup.gd` | 敌人死亡掉墨骨：上抛落地 → 玩家靠近 95px 自动吸附 → 收下；14s 无人拾取消失；纯 `_draw` 墨点不依赖素材 |
-| 关卡互动装饰 | `scripts/world/decor_interactive.gd` | 普通房随机刷 2-3 个可互动物件：卷轴回血 +1 / 香炉 +5 墨骨 / 石碑本房临时 buff（伤害 +2 或移速 ×1.25，换房自动失效）；走近 90px 自动触发 → decor_burst 爆开特效 + 飘字 + 音效（decor_pickup / decor_stele）→ 消失；香炉待机挂 decor_idle_fire 白焰 loop。**本体是程序化 `_draw` 临时绘制（偏简陋），待用户找到好素材整件替换（见 P1 标记）** |
+| 房间流程 | `scripts/world/room_01.gd` + `scripts/systems/run_state.gd` | **两种模式**：冒险 = 3 普通房（波次清怪）→ Boss 房 → 通关结算；**无尽 = 每层都是「3 小关 + 1 Boss」**，Boss 倒下获得一次免费强化，前进即 `depth+1` 重开三小关、换一只 Boss（血量每层 ×1.4、出手冷却每层 ×0.94，最低 0.6）。每清一房免费强化三选一；首房出发前排赐福三选一（一局一次，无尽跨层不再弹）；Boss 房按形态换主题背景（`BOSS_BG` 表）；普通房固定 4 棵远景树点缀 |
+| 关卡互动装饰 | `scripts/world/decor_interactive.gd` | 普通房随机刷 2-3 个可互动物件：卷轴回血 +1 / 香炉强化重随 +1 / 石碑本房临时 buff（伤害 +2 或移速 ×1.25，换房自动失效）；走近 90px 自动触发 → decor_burst 爆开特效 + 飘字 + 音效（decor_pickup / decor_stele）→ 消失；香炉待机挂 decor_idle_fire 白焰 loop。**本体是程序化 `_draw` 临时绘制（偏简陋），待用户找到好素材整件替换（见 P1 标记）** |
 
 ### 经济 / 养成
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
-| 局内计数 | `scripts/systems/score.gd`（autoload Score） | 连击（窗口清零）/ 最高连击 / 击杀 / 墨骨；墨骨跨房间保留，开新局才清空；花墨骨 = 局内强化 |
-| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；**敌人 / Boss 击杀收录 `seen` 表**；保留原击杀/通关解锁梯度，也可墨锭买断；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 化身免费。**永久修炼 `FORM_NODES`**：5 名角色各 3 分支 × 3 阶，共 45 节点，价格 35/65/110；允许跨分支混点，同分支顺序学习，末节点可全额退款，整角色可重置 |
-| 墨锭商栈 | `meta.gd` `INK_SHOP` + `shop_panel.gd` | 结算时本局剩余墨骨沉淀为局外货币**墨锭**；独立四页签：永久强化 / 重随秘宝 / 开局补给 / 外观收藏。商品含开局墨骨、生命、护砚、赐福与强化重随、墨骨包、复活墨符和重随券；补给先入行囊，在选角页选用，开局消耗一个。角色买断只放在各角色修炼页顶部 |
+| 局内计数 | `scripts/systems/score.gd`（autoload Score） | 连击（窗口清零）/ 最高连击 / 本局击杀；房间强化与换形均免费，局内不再设货币 |
+| 局外养成 | `scripts/systems/meta.gd`（autoload Meta） | `user://meta.json` 持久化；**敌人 / Boss 击杀收录 `seen` 表**；保留原击杀/通关解锁梯度，也可墨锭买断；契合度 Lv1(30) 冷却-10% / Lv2(80) 普攻+1 / Lv3(150) 冷却再-10%。**永久修炼 `FORM_NODES`**：5 名角色各 3 分支 × 3 阶，共 45 节点，价格 35/65/110；允许跨分支混点，同分支顺序学习，末节点可全额退款，整角色可重置 |
+| 墨锭商栈 | `meta.gd` `INK_SHOP` + `shop_panel.gd` | 每局按战绩直接结算局外货币**墨锭**：基础 2 + 每 2 击杀 1 + 每已清房间 5 + 通关 25，聚墨每级再 +2，阵亡也有基础收益；独立四页签：永久强化 / 重随秘宝 / 开局补给 / 外观收藏。商品含聚墨、生命、护砚、赐福与强化重随、生肌散、复活墨符和重随券；补给先入行囊，在选角页选用，开局消耗一个。角色买断只放在各角色修炼页顶部 |
 
 ### UI / 流程
 
@@ -71,10 +70,10 @@
 | 致谢名单 | `scripts/ui/credits_panel.gd` + `scenes/ui/credits_panel.tscn` | 主界面左下角竖排「致谢」小字（不挤压中间五键）→ 全屏向上滚动：制作 → 核心团队（程序/美术/设计/音频/QA/运营）→ 外部协作 → 软件与素材署名 → 特别感谢 → 版权免责 → 致谢纠错 → 结尾。56px/s，Esc 立即返回，滚完自动淡出；`CREDITS` 常量逐条改文案，`【】`占位项等全部开发完成后统一核验 |
 | 设置 | `scripts/ui/settings.gd` + `settings_panel.gd` | **三页签**（音频/画面/操作）：音频 = 主音量/背景音乐/音效（Master/Music/SFX 三总线）滑条带百分比；画面 = 显示模式（窗口化/无边框/全屏）/ 分辨率 / 帧率限制（不限~120）/ 垂直同步 / 亮度（0.5~1.5，`ScreenFX` 全屏着色器）；操作 = **11 动作改键**（点按钮→按下新键，Esc 取消，冲突拒绝并提示）+ 屏幕震动开关（`Feel.shake_enabled`）；「恢复默认设置」一键还原；印章式勾选（启红/闭灰）；`user://settings.cfg` 持久化，改动立即生效；`Settings.persist=false` 供测试不写盘 |
 | 亮度叠加 | `scripts/systems/screen_fx.gd`（autoload ScreenFX） | 全屏 `hint_screen_texture` 着色器 ColorRect（layer 100 压在一切 UI 上），亮度 =1.0 时隐藏零开销；Godot 无「无边框」窗口模式，无边框 = 窗口化 + `WINDOW_FLAG_BORDERLESS`（settings.gd `_apply_display`） |
-| HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击/墨骨 + **顶部中央模式标签**（`冒险 · 1/3` / `无尽 · 第 2 层 · 2/3` / Boss 房写 `Boss`） |
+| HUD | `scripts/ui/hud.gd` | 大血条 + 技能冷却遮罩 + 连击 + **顶部中央模式标签**（`冒险 · 1/3` / `无尽 · 第 2 层 · 2/3` / Boss 房写 `Boss`） |
 | 结算 | `scripts/ui/settlement_panel.gd` | 1160×600 长卷：左侧演出、右侧战绩 / 契合 / 解锁 / 墨锭 / 按钮。**阵亡「终局对演」**读取真实最后攻击者、招式、实际伤害与命中时刻，重演攻击后玩家受击倒地，配朱砂墨痕与「殁于·敌人名」，点击左侧可跳过；**通关「收剑落款」**播胜利动作转待机并盖讨伐印，无归双 Boss 显示双印，另列模式、难度与历程。重开继承形态、模式和难度 |
 | 测试换头面板 | `scripts/ui/swap_panel.gd` | 仅供形态与测试场景调用；正式局内已无 Q 入口 |
-| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局随机赐福三选一 / 每房清完墨骨强化三选一；支持永久赐福重随次数、强化重随，以及整局共享的重随券。**通用池 5 张机制卡** + **局内形态流派 45 张**（与局外永久修炼 45 节点分离）；`roll_cards` 保证「续卡 + 新流派 + 通用」各一张；流派卡只对当前形态生效，换头休眠；卡面按流派配色并显示层级 |
+| 赐福 / 强化 | `scripts/ui/blessing_panel.gd` / `upgrade_panel.gd` | 开局随机赐福三选一 / 每房清完免费强化三选一；支持永久赐福重随次数、强化重随，以及整局共享的重随券。**通用池 5 张机制卡** + **局内形态流派 45 张**（与局外永久修炼 45 节点分离）；`roll_cards` 保证「续卡 + 新流派 + 通用」各一张；流派卡只对当前形态生效，换头休眠；卡面按流派配色并显示层级 |
 | 伤害数字 | `scripts/ui/damage_number.gd` | 飘字 |
 | 字体 | `art/ui/fonts/main_theme.tres` + `hud.gd` | 全局庞门正道粗书体；Boss 落款/大血条名 = 演示佛系体（ASCII 文件名：slidefu_regular / pangmen） |
 
@@ -102,11 +101,11 @@
 |---|---|
 | 主循环冒烟 | `room_test.tscn` |
 | Boss | `boss_test.tscn`（`BOSS_ID=c009\|c015a1\|c001\|c008\|c032\|_debug`）、`boss_bg_tour.tscn`（五房背景巡游）、`boss_cand_probe.tscn` |
-| 结算 | `settlement_clear_test.tscn` / `settlement_dead_test.tscn`：通关分支实测无归双 Boss 连战、中间不弹强化与双讨伐印；阵亡分支先换银夜再记录真实敌人最后一击，验证对演、倒地与重开继承形态 / 模式 / 难度 |
+| 结算 | `settlement_clear_test.tscn` / `settlement_dead_test.tscn`：通关分支实测无归双 Boss 连战、中间不弹强化与双讨伐印；阵亡分支先换银夜再记录真实敌人最后一击，验证对演、倒地与重开继承形态 / 模式 / 难度；两支均断言墨锭 = 基础 2 + 击杀/2 + 已清房间×5 + 通关 25 + 聚墨加成，测试不写真实存档 |
 | 特效/音效 | `fx_test.tscn`、`sfx_preview.tscn` |
 | 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`（自动扫描全部骨架 → `tests/anim_list.log`）、`anim_viewer.tscn`（可视化查看器：←→ 切骨架、↑↓ 切动画、空格重播、L 循环）、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
 | 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`（主菜单/设置 → 化身谱滚动总览、买断与修炼页 → 独立商店四页签及补给库存 → 图鉴两页）；`player_test` 另覆盖 45 节点、学习/退款/重置、永久战斗效果、重随券、护砚与复活墨符；`settings_test.tscn`、`font_probe.tscn` |
-| 开局流程（真鼠标） | `start_flow_test.tscn`：把主菜单挂进来，用 `push_input(ev, true)` 发真实鼠标/键盘事件点一遍「开始游戏 → 择路 → 问境 → 化身 → 启程」，另覆盖上一步、返回、连点与 Esc；断言五档普通怪数量 / 攻击、精英不增量、默认落笔及最终开局参数。**`pressed.emit()` 不走 BaseButton 输入路径，模拟不出真实点击的崩溃，UI 回归优先用这个** |
+| 开局流程（真鼠标） | `start_flow_test.tscn`：把主菜单挂进来，用 `push_input(ev, true)` 发真实鼠标/键盘事件点一遍「开始游戏 → 择路 → 问境 → 化身 → 启程」，另覆盖上一步、返回、连点与 Esc；断言五档普通怪数量 / 攻击、精英不增量、默认落笔、无尽跨层已清房间计数及最终开局参数。**`pressed.emit()` 不走 BaseButton 输入路径，模拟不出真实点击的崩溃，UI 回归优先用这个** |
 | **试炼场（调试单挑）** | **`sandbox.tscn`**：一块空地 + 任选敌人单挑，调技能机制/动画/判定专用。[/] 换玩家形态、,/. 轮换敌人（小怪+精英+Boss，直接读两张形态表，新增怪自动进表）、R 重刷敌人；双方无限血（999999）；启动 1s 自动存 `tests/out/sandbox_boot.png` 供回归验收，`-- --shot` 跑完整自动巡游 |
 
 ---
@@ -173,7 +172,7 @@ $env:BOSS_ID = "c009"  # 或 c015a1 / c001 / c008 / c032 / _debug
 scripts/
 ├── player/          # 玩家控制器 + 化身形态表（4 形态）
 ├── enemies/         # 通用小怪 AI c016.gd + 形态表 + Boss boss.gd + Boss 形态表
-├── systems/         # fx 特效 + run_state + combat_feel + meta + score + wave_spawner + bone_pickup + projectile
+├── systems/         # fx 特效 + run_state + combat_feel + meta + score + wave_spawner + projectile
 ├── audio/           # bgm.gd（autoload，双轨交叉淡化）
 ├── ui/              # main_menu / forms_panel / codex_panel / pause_menu / settings(+panel) / hud / settlement / swap / blessing / upgrade / damage_number / ink_tex
 ├── world/           # room_01
@@ -319,7 +318,7 @@ tests/out/           # 回归截图 + 日志
 - **分支**：双刺 = 血舞 / 连刃 / 无影；力僧 = 金刚 / 震岳 / 禅定；梅剑 = 鞭势 / 毒梅 / 静守；剑仙 = 藏锋 / 回锋 / 游身；银夜 = 逐影 / 止时 / 无还。节点文案与价格集中在 `Meta.FORM_NODES`，效果在 `player._apply_form_mods()` 及各战斗入口结算，与 `Run.FORM_UPGRADES` 局内卡牌完全分离。
 - **战斗联动**：永久节点已接入普攻、技能、投射物、受击、护盾、击杀、中毒与时停；投射物携带来源玩家、技能标记和释放序号供来源识别。剑仙永久修炼已改为近战段数、封脉、收招取消与空中派生，不再使用剑气追加逻辑。双刺击杀计数存 `Run`，跨房间保留。
 - **时停与传毒**：只有自然时停结束才触发「止时·极」，死亡/击飞等提前解除不触发；毒死向 320px 内最近最多 2 名敌人传播 5 秒中毒，不直接连锁即死。
-- **商店与补给**：永久商品含开局墨骨/生命/首房加伤/护砚，重随商品含赐福与强化重随，补给含墨骨包/复活墨符/重随券。补给入行囊后在选角页选用，`Run.start()` 消耗一个；复活墨符与续命赐福相互独立，护砚只在实际扣血时消耗。
+- **商店与补给**：永久商品含聚墨/生命/首房加伤/护砚，重随商品含赐福与强化重随，补给含生肌散/复活墨符/重随券。补给入行囊后在选角页选用，`Run.start()` 消耗一个；复活墨符与续命赐福相互独立，护砚只在实际扣血时消耗。
 - **梅剑静守**：基础 K 不再自带霸体，由「静守·初」真正赋予，避免永久节点与基础能力重复。
 
 #### 踩坑

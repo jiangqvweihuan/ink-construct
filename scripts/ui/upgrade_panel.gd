@@ -1,6 +1,6 @@
 extends CanvasLayer
 
-## 房间通关后的「三选一」强化面板：花墨骨买一个局内强化，或直接继续前进。
+## 房间通关后的「三选一」强化面板：免费选取一项局内强化，或直接继续前进。
 ## 由 room_01 在清空房间后弹出；purchased 让房间重算玩家属性，proceed 让房间进下一层。
 
 signal purchased
@@ -15,7 +15,6 @@ const PAPER := Color(0.949, 0.918, 0.847)
 
 var _cards: Array = []
 var _card_root: Node
-var _bones_label: Label
 var _bought := false
 var _rerolls_left := 0
 var _reroll_button: TextureButton
@@ -28,7 +27,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().paused = true # 挑强化时时间停住，战场不再动弹
 	_cards = Run.roll_cards(3)
-	_rerolls_left = Meta.shop_level("upgrade_reroll") # 永久商品：每个强化面板都恢复这一次
+	_rerolls_left = Meta.shop_level("upgrade_reroll") + int(Run.blessing == "reroll") # 每个强化面板恢复永久与赐福次数
 	var sfx := AudioStreamPlayer.new()
 	add_child(sfx)
 	sfx.stream = SFX_LEVEL
@@ -50,10 +49,7 @@ func _ready() -> void:
 
 	var heading := title_text if not title_text.is_empty() else Run.room_label() + "  " + Run.room_no() + "  已清"
 	_make_label(heading, 76, 36, PAPER)
-	_make_label("取一样墨骨强化 —— 同一条流派连选三级可推到「极」", 130, 20, Color(0.75, 0.72, 0.66))
-
-	_bones_label = _make_label("", 166, 22, PAPER)
-	_update_bones()
+	_make_label("选择一项通关强化 —— 同一条流派连选三级可推到「极」", 142, 20, Color(0.75, 0.72, 0.66))
 
 	_card_root = Node.new()
 	add_child(_card_root)
@@ -100,10 +96,6 @@ func _make_label(text: String, y: float, font_size: int, color: Color) -> Label:
 	return l
 
 
-func _update_bones() -> void:
-	if _bones_label:
-		_bones_label.text = "墨骨  %d" % Score.bones
-
 
 ## 流派配色：0 朱砂 / 1 墨青 / 2 赭金（与 run_state.FORM_UPGRADES 的 theme 对齐）
 func _theme_color(theme: int) -> Color:
@@ -119,7 +111,6 @@ func _build_cards() -> void:
 	for i in _cards.size():
 		var key := str(_cards[i])
 		var info: Dictionary = Run.card_info(key)
-		var cost := Run.upgrade_cost(key)
 		var is_form := info.has("tier")
 		var accent := _theme_color(int(info.get("theme", 0)))
 		var b := TextureButton.new()
@@ -129,7 +120,7 @@ func _build_cards() -> void:
 		b.stretch_mode = TextureButton.STRETCH_SCALE
 		b.size = Vector2(330, 350)
 		b.position = Vector2(115 + i * 360, 208)
-		if _bought or Score.bones < cost:
+		if _bought:
 			b.modulate = Color(1, 1, 1, 0.4)
 			b.disabled = true
 		else:
@@ -185,7 +176,7 @@ func _build_cards() -> void:
 		divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(divider)
 
-		# 正文使用独立固定区域；底部价格另起一行，任何换行都不会与价格重叠。
+		# 正文使用独立固定区域；底部领取提示另起一行，任何换行都不会与之重叠。
 		var desc := Label.new()
 		desc.text = str(info["desc"])
 		desc.size = Vector2(282, 140)
@@ -199,7 +190,7 @@ func _build_cards() -> void:
 		b.add_child(desc)
 
 		var price := Label.new()
-		price.text = "%d 墨骨" % cost
+		price.text = "免 费 领 取"
 		price.size = Vector2(286, 36)
 		price.position = Vector2(22, 292)
 		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -217,7 +208,6 @@ func _on_card(key: String) -> void:
 	if not Run.buy(key):
 		return
 	_bought = true
-	_update_bones()
 	_build_cards()
 	_update_reroll()
 	purchased.emit()
