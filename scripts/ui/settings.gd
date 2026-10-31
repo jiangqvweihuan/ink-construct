@@ -11,14 +11,14 @@ const RESOLUTIONS: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1600, 900), 
 const DEFAULT_BINDS := {
 	"move_left": KEY_A, "move_right": KEY_D, "jump": KEY_SPACE, "dash": KEY_SHIFT,
 	"attack": KEY_J, "skill": KEY_K, "skill_sweep": KEY_L, "skill_ult": KEY_U,
-	"skill_i": KEY_I, "skill_o": KEY_O, "skill_p": KEY_P, "swap_skull": KEY_Q,
+	"skill_i": KEY_I, "skill_o": KEY_O, "skill_p": KEY_P,
 }
 
 ## 动作 -> 中文显示名（键位页/冲突提示用）
 const ACTION_NAMES := {
 	"move_left": "左移", "move_right": "右移", "jump": "跳跃", "dash": "闪避",
 	"attack": "普攻", "skill": "技能一", "skill_sweep": "技能二", "skill_ult": "技能三",
-	"skill_i": "技能四", "skill_o": "技能五", "skill_p": "技能六", "swap_skull": "化身换头",
+	"skill_i": "技能四", "skill_o": "技能五", "skill_p": "技能六",
 }
 
 ## 特殊键的短显示名（字母/数字直接出字符，其余兜底取 keycode 字符串前 3 位）

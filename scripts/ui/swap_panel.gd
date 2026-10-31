@@ -1,7 +1,7 @@
 extends CanvasLayer
 
-## 化身选择面板：按 Q 呼出，时间暂停，从全部形态里挑一个化过去（花墨骨）。
-## 再按 Q / Esc 取消，不扣墨骨。按钮灰掉 = 当前形态或墨骨不够。
+## 测试用化身选择面板：正式局内不再提供 Q 呼出。
+## Esc 取消不扣墨骨；按钮灰掉 = 当前形态或墨骨不够。
 
 signal chosen(id: String)
 
@@ -45,7 +45,7 @@ func _ready() -> void:
 	add_child(win)
 
 	_make_label("化  身", 210, 34, PAPER)
-	_make_label("选择化成的形态（Q / Esc 取消）  墨骨 %d" % Score.bones, 262, 18, DIM)
+	_make_label("选择化成的形态（Esc 取消）  墨骨 %d" % Score.bones, 262, 18, DIM)
 
 	var ids := Skulls.ids()
 	var cost: int = _player.swap_cost if is_instance_valid(_player) else 8
@@ -55,7 +55,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("swap_skull") or event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("ui_cancel"):
 		_cancel()
 		get_viewport().set_input_as_handled()
 

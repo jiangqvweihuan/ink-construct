@@ -121,6 +121,40 @@ func _ready() -> void:
 		await get_tree().create_timer(0.15).timeout
 	await _shot("08_c012_dead")
 
+	# 新流派共用接口：流血收束、诱饵索敌、余滞移动与砸落落地单次回报。
+	var probe = load("res://scenes/enemies/c016.tscn").instantiate()
+	probe.position = Vector2(500, 560)
+	add_child(probe)
+	probe.apply_bleed(2)
+	var consumed: int = probe.consume_bleed()
+	p("consume_bleed 收走=%d 剩余=%d（期望 2/0）" % [consumed, probe._bleed_stacks])
+	var decoy := Node2D.new()
+	decoy.add_to_group("player_decoy")
+	decoy.position = Vector2(550, 560)
+	add_child(decoy)
+	probe._find_target()
+	p("影饵索敌 优先残影=%s（期望 true）" % (probe._target == decoy))
+	decoy.queue_free()
+	await get_tree().process_frame
+	probe._find_target()
+	p("残影消失 回到玩家=%s（期望 true）" % (probe._target == _player))
+	_player.global_position = Vector2(750, 560)
+	probe.global_position = Vector2(500, 560)
+	probe._target = _player
+	probe._attack_cd = 99.0
+	probe.velocity.x = probe.chase_speed
+	probe.slow(4.0, 0.45)
+	probe._chase_tick(1.0)
+	p("余滞追击速度=%.1f 期望=%.1f" % [probe.velocity.x, probe.chase_speed * 0.45])
+	probe.detect_range = 0.0
+	probe.global_position.y = 600.0
+	probe.velocity = Vector2.ZERO
+	probe._set_state(probe.State.IDLE)
+	await get_tree().create_timer(0.1).timeout
+	probe.slam()
+	p("地面砸落 待回报=%s 状态=%d（期望 false/HURT=4）" % [probe._slam_pending, probe.state])
+	probe.queue_free()
+
 	# 第一只小怪尸体死后 ~1.7s 就 queue_free，精英段跑完它早没了，访问前必须判活
 	var e_state := "freed"
 	var e_hp := "-"
@@ -162,7 +196,8 @@ func _tap(action: String) -> void:
 
 
 func _shot(name: String) -> void:
-	await RenderingServer.frame_post_draw
+	await get_tree().process_frame
+	RenderingServer.force_draw()
 	var img = get_viewport().get_texture().get_image()
 	var err = img.save_png(OUT_DIR + "ai_" + name + ".png")
 	p("saved " + name + " err=" + str(err))

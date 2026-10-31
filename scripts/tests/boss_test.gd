@@ -36,6 +36,23 @@ func _ready() -> void:
 	await get_tree().create_timer(1.5).timeout # 登场演出
 	await _shot("00_entrance")
 
+	# 漏刻·极：Boss 余滞时长减半，自定义冲锋状态也能读取同一倍率。
+	b.slow(4.0, 0.45)
+	p("boss slow timer=%.1f scale=%.2f（期望 2.0/0.45）" % [b._slow_timer, b._slow_scale])
+	if not b._charge.is_empty():
+		var old_state: int = b.state
+		var old_timer: float = b._state_timer
+		b.state = b.S_CHARGING
+		b._charge_dir = 1
+		b._charge_hit_done = true
+		b._custom_tick(0.016)
+		p("boss slowed charge vx=%.1f（期望 %.1f）" % [b.velocity.x, float(b._charge.get("speed", 640.0)) * 0.45])
+		b.state = old_state
+		b._state_timer = old_timer
+		b.velocity = Vector2.ZERO
+	b._slow_timer = 0.0
+	b._slow_scale = 1.0
+
 	# 阶段 1 -> 2：打到 68% 以下；变身期无敌，循环打到 stage 翻篇为止
 	var guard := 0
 	while b.stage < 1 and guard < 40:

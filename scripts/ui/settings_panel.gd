@@ -7,7 +7,7 @@ const SFX_CLICK := preload("res://audio/sfx/click.wav")
 ## 设置面板 v2：页签（音频 / 画面 / 操作），主菜单和暂停菜单共用。
 ## 音频：主音量 / 背景音乐 / 音效音量 三条滑条（全部真实生效）。
 ## 画面：显示模式（窗口化/无边框/全屏）/ 分辨率 / 帧率限制 / 垂直同步 / 亮度。
-## 操作：12 个动作改键（点按钮后按新键，Esc 取消，冲突拒绝）+ 屏幕震动开关。
+## 操作：11 个动作改键（点按钮后按新键，Esc 取消，冲突拒绝）+ 屏幕震动开关。
 ## 所有改动经 Settings 立即生效并写盘（user://settings.cfg）；「恢复默认」一键还原。
 
 const INK := Color(0.05, 0.05, 0.05)
@@ -21,7 +21,7 @@ const FPS_VALUES := [0, 30, 60, 120]
 const FPS_TEXTS := ["不限制", "30 帧", "60 帧", "120 帧"]
 const KEY_ORDER := [
 	"move_left", "move_right", "jump", "dash", "attack", "skill",
-	"skill_sweep", "skill_ult", "skill_i", "skill_o", "skill_p", "swap_skull",
+	"skill_sweep", "skill_ult", "skill_i", "skill_o", "skill_p",
 ]
 
 var _sfx: AudioStreamPlayer

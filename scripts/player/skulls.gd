@@ -257,13 +257,12 @@ const SKULLS := {
 					{"at": 0.16, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"},
 					{"at": 0.34, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"},
 					{"at": 0.50, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"}]},
-			# L 月华斩：第 64 / 58 号随机，挥出巨大剑影（5 伤 / 700 速 / 900 射程 / 无限穿透 / 命中叠 1 层流血）
+			# L 月华斩：第 64 / 58 号随机，两套动作都只按挥剑落点做近战判定，命中叠 1 层流血。
 			"skill02-": {"action": "skill_sweep", "cooldown": 8.0, "poise": true,
 				"pool": ["skill02-", "skill12"],
 				"hit_at": {"skill02-": 1.20, "skill12": 0.62},
-				"range": {"skill02-": 120.0, "skill12": 180.0},
-				"height": 130.0, "damage": 5, "sfx": "skill_blade",
-				"projectile": {"speed": 700.0, "range": 900.0, "pierce": true, "bleed": 1, "scale": 1.7}},
+				"range": {"skill02-": 210.0, "skill12": 240.0},
+				"height": 130.0, "damage": 5, "bleed": 1, "sfx": "skill_blade"},
 			# U 飞脚：第 50 号，超高击飞（无视霸体，连 Boss 也能挑起来）
 			"skill04": {"action": "skill_ult", "cooldown": 10.0, "poise": true,
 				"hits": [{"at": 0.48, "range": 110.0, "height": 120.0, "damage": 3, "sfx": "hit_heavy",

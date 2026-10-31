@@ -7,9 +7,46 @@ extends Node2D
 class Trainer extends Node2D:
 	var damage_taken := 0
 	var hp := 99
+	var state := 0
+	var airborne := false
+	var stunned := 0.0
+	var rooted := 0.0
+	var slowed := 0.0
+	var slow_scale := 1.0
+	var launches := 0
+	var slams := 0
+	var bleeds := 0
+	var _stop_timer := 0.0
+	var _stun_timer := 0.0
+	var _target: Node2D = null
 
 	func take_damage(amount: int, _source_x: float) -> void:
 		damage_taken += amount
+
+	func stun(dur: float) -> void:
+		stunned = maxf(stunned, dur)
+		_stun_timer = stunned
+
+	func root(dur: float) -> void:
+		rooted = maxf(rooted, dur)
+
+	func slow(dur: float, scale: float) -> void:
+		slowed = dur
+		slow_scale = scale
+
+	func launch(_dir: int, _vx: float, _vy: float, _ignore_armor := false) -> void:
+		launches += 1
+		airborne = true
+
+	func slam() -> void:
+		slams += 1
+		airborne = false
+
+	func apply_bleed(layers: int) -> void:
+		bleeds = mini(5, bleeds + layers)
+
+	func is_on_floor() -> bool:
+		return not airborne
 
 const OUT_DIR := "res://tests/out/"
 const PlayerClass := preload("res://scripts/player/player.gd")
@@ -182,13 +219,13 @@ func _ready() -> void:
 		kinds.append(str(k) + (("[流派%d]" % int(inf["tier"])) if inf.has("tier") else "[通用]"))
 	p("roll0 银夜三选一：%s" % str(kinds))
 	# 一条流派连买三级：价格应为 初 8 / 续 14 / 极 20
-	for k in ["z003_stop_1", "z003_stop_2", "z003_stop_3"]:
+	for k in ["z003_clock_1", "z003_clock_2", "z003_clock_3"]:
 		var cost_now := Run.upgrade_cost(k)
 		var ok := Run.buy(k)
 		p("buy %s cost=%d ok=%s bones=%d" % [k, cost_now, ok, Score.bones])
-		if k == "z003_stop_1":
+		if k == "z003_clock_1":
 			var roll1: Array = Run.roll_cards(3)
-			p("roll1（已拿时停·初）含时停·续=%s → %s" % [roll1.has("z003_stop_2"), str(roll1)])
+			p("roll1（已拿漏刻·初）含漏刻·续=%s → %s" % [roll1.has("z003_clock_2"), str(roll1)])
 	Run.buy("dash") # 通用卡：疾影 Lv1，验证冲刺倍率确实被 set_upgrades 装上
 	var roll2: Array = Run.roll_cards(3)
 	var cross: Array = []
@@ -198,20 +235,23 @@ func _ready() -> void:
 			cross.append(k)
 	p("roll2 跨形态泄漏=%s（期望 []） → %s" % [str(cross), str(roll2)])
 	_player.set_upgrades(Run.upgrades)
-	p("build 生效：_stop_bonus=%.1f _stop_buff_damage=%d skill06_cd=%.2f dash_time=%.2f dash_cd=%.2f（期望 1.0 / 2 / 0.70 / 1.20 / 0.90）" % [
-		_player._stop_bonus, _player._stop_buff_damage, float(_player._skill_cd_mod.get("skill06", 1.0)),
+	p("build 生效：漏刻=%s/%s/%s dash_time=%.2f dash_cd=%.2f（期望 true/true/true / 1.20 / 0.90）" % [
+		_player._own("z003_clock_1"), _player._own("z003_clock_2"), _player._own("z003_clock_3"),
 		_player._dash_time_scale, _player._dash_cd_scale])
-	# 换头休眠：切成双刺后银夜的时停卡应整组归零，切回来再恢复
+	# 换头只让银夜机制休眠，已购卡保留，切回来可继续使用。
 	_player.swap_skull("c021")
 	await get_tree().process_frame
-	p("换到 c021：_stop_bonus=%.1f（期望 0.0 休眠）" % _player._stop_bonus)
+	p("换到 c021：当前形态=%s 银夜卡保留=%s（机制按形态分支休眠）" % [_player.skull_id, _player._own("z003_clock_1")])
 	_player.swap_skull("z003")
 	await get_tree().process_frame
-	p("切回 z003：_stop_bonus=%.1f（期望恢复 1.0）" % _player._stop_bonus)
+	p("切回 z003：漏刻可用=%s（期望 true）" % _player._own("z003_clock_1"))
 
 	# 三选一面板冒烟：卡面（流派配色 / 层级 / 价格）能正常构建、不报错
 	var panel = load("res://scenes/ui/upgrade_panel.tscn").instantiate()
 	add_child(panel)
+	# 固定放入长描述卡，避免随机三选一漏测正文换行与底部价格的布局。
+	panel._cards = ["z003_returning_3", "z000_score_3", "c013_bell_2"]
+	panel._build_cards()
 	await get_tree().process_frame
 	await get_tree().process_frame
 	await _shot("16_upgrade_panel")
@@ -307,6 +347,7 @@ func _ready() -> void:
 	p("HUD 模式文本（第6层第1间）：%s" % ("无尽 · 第 6 层 · 1/3"))
 
 	_permanent_progression_check()
+	await _new_build_regression()
 	get_tree().quit()
 
 
@@ -381,6 +422,128 @@ func _permanent_progression_check() -> void:
 	_player._hurt_invincible = 0.0
 	_player.hurt(3)
 	p("墨符复活 hp=%d 已消耗=%s 库存=%d（期望 4/true/0）" % [_player.hp, Run.supply_revive_used, Meta.supply_count("supply_revive")])
+
+
+## 新局内流派的关键状态链：多层盾、封脉、空中派生、落匕/影饵、漏刻与去来。
+func _new_build_regression() -> void:
+	Meta.persist = false
+	Run.guard_available = false
+	Run.blessing = ""
+	var counts := {}
+	for info in Run.FORM_UPGRADES.values():
+		for form in info.get("forms", []):
+			counts[form] = int(counts.get(form, 0)) + 1
+	p("局内流派节点=%d 各角色=%s（期望 45，五人各 9）" % [Run.FORM_UPGRADES.size(), str(counts)])
+
+	# 苦行：满血时三戒转三层盾，三次攻击逐层消耗，不能一次清空。
+	Meta.form_nodes = {}
+	_player.swap_skull("c013")
+	_player.set_upgrades({"c013_ascetic_1": 1, "c013_ascetic_2": 1})
+	_player.max_hp = 8
+	_player.hp = 8
+	_player.state = 0
+	_player._invincible = false
+	_player._hurt_invincible = 0.0
+	_player._skill_reflect = false
+	_player._bell_shell = false
+	_player._precepts = 3
+	_player._skill_name = "skill02"
+	_player._apply_skill_heal({"heal": 2})
+	p("苦行三戒满血转盾=%d（期望 3）" % _player._shield_hits)
+	for i in 3:
+		_player._hurt_invincible = 0.0
+		_player.hurt(1)
+	p("苦行三次受击后 盾=%d hp=%d/%d（期望 0 / 8/8）" % [_player._shield_hits, _player.hp, _player.max_hp])
+
+	# 藏锋：三段封脉、L 引爆与极阶牵引；随后验证空中砸落和回身横扫。
+	_player.swap_skull("z000")
+	_player.set_upgrades({})
+	Meta.form_nodes = {
+		"z000_edge_1": true, "z000_edge_2": true, "z000_edge_3": true,
+		"z000_volley_3": true, "z000_wind_2": true, "z000_wind_3": true,
+	}
+	_player.global_position = Vector2(500, 560)
+	_player.facing = 1
+	var sword_target := Trainer.new()
+	sword_target.add_to_group("enemies")
+	add_child(sword_target)
+	sword_target.global_position = Vector2(605, 560)
+	var nearby := Trainer.new()
+	nearby.add_to_group("enemies")
+	add_child(nearby)
+	nearby.global_position = Vector2(690, 560)
+	for i in 3:
+		_player._on_build_hit(sword_target, "atk04")
+	var sword_id := sword_target.get_instance_id()
+	p("藏锋三段 封脉=%s 破招=%.1f（期望 true/1.5）" % [_player._k_sealed.has(sword_id), sword_target.stunned])
+	_player._on_build_hit(sword_target, "skill02-")
+	p("藏锋引爆 封脉残留=%s 近敌定身=%.1f（期望 false/0.8）" % [_player._k_sealed.has(sword_id), nearby.rooted])
+	_player.state = 2
+	_player.global_position.y = 420.0
+	await get_tree().create_timer(0.08).timeout
+	_player._on_build_hit(sword_target, "attack3")
+	p("回锋空中第四段 砸落次数=%d（期望 1）" % sword_target.slams)
+	_player.global_position = Vector2(500, 560)
+	_player.state = 0
+	sword_target.airborne = false
+	sword_target.global_position = Vector2(420, 560)
+	nearby.global_position = Vector2(590, 560)
+	_player._sword_dash_sweep()
+	p("游身回身横扫 身后命中=%s 挑飞=%d 身前误伤=%d（期望 true/1/0）" % [
+		sword_target.damage_taken > 0, sword_target.launches, nearby.damage_taken])
+	_player._skill_cancel_ready = true
+	_player._wind_final = true
+	_player.swap_skull("c021")
+	p("剑仙换头清理 段数=%d 封脉=%d 取消=%s 四段起手=%s（期望 0/0/false/false）" % [
+		_player._edge_k_hits.size(), _player._k_sealed.size(), _player._skill_cancel_ready, _player._wind_final])
+	sword_target.queue_free()
+	nearby.queue_free()
+	await get_tree().process_frame
+
+	# 分裂匕只由真正的分裂段触发控制；终点留匕与影饵到期定身走真实回调。
+	_player.set_upgrades({"c021_return_1": 1, "c021_feather_3": 1, "c021_bait_1": 1, "c021_bait_2": 1})
+	var dagger_target := Trainer.new()
+	dagger_target.add_to_group("enemies")
+	add_child(dagger_target)
+	dagger_target.global_position = _player.global_position + Vector2(100, 0)
+	_player.on_projectile_expire(dagger_target.global_position + Vector2(40, 0), "dagger")
+	_player.on_dagger_hit(dagger_target, dagger_target.global_position, true)
+	p("归刃/绯羽回调 落匕=%d 分裂定身=%.1f（期望 2/1.2）" % [_player._daggers.size(), dagger_target.rooted])
+	_player._spawn_bait()
+	dagger_target._target = _player._bait
+	_player._expire_bait()
+	p("影饵到期 残影清理=%s 追饵定身=%.1f（期望 true/1.5）" % [not is_instance_valid(_player._bait), dagger_target.rooted])
+	dagger_target.queue_free()
+	await get_tree().process_frame
+
+	# 漏刻只记不同招式；三刻自然结束触发定身和余滞。去来返程不重复扣血。
+	_player.swap_skull("z003")
+	Meta.form_nodes = {}
+	_player.set_upgrades({
+		"z003_clock_1": 1, "z003_clock_2": 1, "z003_clock_3": 1,
+		"z003_returning_1": 1, "z003_returning_2": 1, "z003_returning_3": 1,
+	})
+	var silver_target := Trainer.new()
+	silver_target.add_to_group("enemies")
+	add_child(silver_target)
+	silver_target._stop_timer = 1.0
+	for move_id in ["attack0", "skill02", "skill06", "attack0"]:
+		_player._on_build_hit(silver_target, move_id)
+	var silver_id := silver_target.get_instance_id()
+	p("漏刻不同招式计数=%d（期望 3，重复普攻不叠）" % (_player._time_marks[silver_id]["moves"] as Array).size())
+	_player.on_time_stop_end(silver_target)
+	p("漏刻自然结束 定身=%.1f 余滞=%.1f/%.2f（期望 1.8 / 4.0/0.45）" % [
+		silver_target.rooted, silver_target.slowed, silver_target.slow_scale])
+	_player.global_position = Vector2(600, 560)
+	_player._return_mark = Vector2(400, 560)
+	_player._return_time = 6.0
+	_player._outbound_hits[silver_id] = true
+	silver_target.global_position = Vector2(500, 560)
+	_player._return_dash()
+	p("去来返程 位置=%.0f 流血=%d 破招=%.1f 伤害=%d 闪避CD=%.1f（期望 400/1/1.5/0/0）" % [
+		_player.global_position.x, silver_target.bleeds, silver_target.stunned, silver_target.damage_taken, _player._dash_cd])
+	silver_target.queue_free()
+	p("NEW BUILD DONE")
 
 
 func _physics_process(_delta: float) -> void:

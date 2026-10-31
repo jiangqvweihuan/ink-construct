@@ -191,6 +191,11 @@ func _physics_process(delta: float) -> void:
 	_charge_cd = maxf(0.0, _charge_cd - delta)
 	_turn_cd = maxf(0.0, _turn_cd - delta)
 	if state >= S_ENTER:
+		# 自定义状态不走父类主循环，余滞要在这里独立计时；常规追击仍由父类处理。
+		if _slow_timer > 0.0:
+			_slow_timer = maxf(0.0, _slow_timer - delta)
+			if _slow_timer <= 0.0:
+				_slow_scale = 1.0
 		_find_target()
 		_custom_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
@@ -225,7 +230,7 @@ func _custom_tick(delta: float) -> void:
 				_apply_facing()
 				_set_state(State.CHASE)
 		S_CHARGING:
-			velocity.x = _charge_dir * float(_charge.get("speed", 640.0))
+			velocity.x = _charge_dir * float(_charge.get("speed", 640.0)) * _slow_scale
 			# 冲锋拖尾：按间隔在身后甩速度线
 			_trail_timer -= delta
 			var trail: Dictionary = _fx.get("charge_trail", {})
@@ -395,6 +400,11 @@ func root(dur: float) -> void:
 ## 晕眩（力僧 L）：与定身同一规则，Boss 时长减半
 func stun(dur: float) -> void:
 	super(dur * 0.5)
+
+
+## 余滞同样缩短，避免四秒减速覆盖 Boss 的完整出招循环。
+func slow(dur: float, scale: float) -> void:
+	super(dur * 0.5, scale)
 
 
 ## 流血 / 中毒等非打击伤害：直扣血，但要同步阶段判定与 HUD 大血条；变身无敌期不吃跳血

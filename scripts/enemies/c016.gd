@@ -71,6 +71,8 @@ var _enrage_speed := 1.2
 var _enraged := false
 var _elite := false # 精英标记（时停分档用：杂兵 3s / 精英 2s / Boss 1s）
 var _stop_timer := 0.0 # 时间暂停（银夜 U）剩余
+var _slow_timer := 0.0 # 余滞剩余：时停期间冻结，其余状态照常计时
+var _slow_scale := 1.0 # 余滞横向速度倍率：只缩放移动目标，不改形态参数
 # ---------- 定身 / 流血（双刺 L/U 的机制接口，Boss 继承后按体型覆盖） ----------
 var _root_timer := 0.0 # 定身剩余：不能移动，但可以照常出手
 var _stun_timer := 0.0 # 晕眩剩余：不能移动、也不能出手（力僧 L）
@@ -87,6 +89,7 @@ const POISON_COLOR := Color(0.36, 0.6, 0.32) # 竹青：中毒飘字与掉血数
 const POISON_LABEL_COLOR := Color(0.45, 0.7, 0.4)
 var _fly_impact := 0 # 击退（银夜 L）撞人/撞墙的组合伤害，0=纯击飞无碰撞伤害
 var _fly_hit := {} # 本次击退已撞过的同伴（一只只撞一次）
+var _slam_pending := false # 仅 slam 的落地待回报；普通击飞/击退必须清除
 var _bar_w := 44.0
 var _bar_y := -120.0
 var _number_y := -105.0
@@ -248,6 +251,10 @@ func _physics_process(delta: float) -> void:
 		if _stop_timer <= 0.0:
 			_end_stop(true)
 		return
+	if _slow_timer > 0.0:
+		_slow_timer = maxf(0.0, _slow_timer - delta)
+		if _slow_timer <= 0.0:
+			_slow_scale = 1.0
 	_attack_cd = maxf(0.0, _attack_cd - delta)
 	_chase_block = maxf(0.0, _chase_block - delta)
 	_find_target()
@@ -314,16 +321,17 @@ func _patrol_tick(delta: float) -> void:
 		_patrol_dir = 1
 	facing = _patrol_dir
 	_apply_facing()
-	velocity.x = move_toward(velocity.x, _patrol_dir * patrol_speed, accel * delta)
+	velocity.x = move_toward(velocity.x, _patrol_dir * patrol_speed * _slow_scale, accel * delta)
 
 
 func _chase_tick(delta: float) -> void:
-	if _target == null:
+	if _target == null or not is_instance_valid(_target):
 		_set_state(State.PATROL)
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
-	if absf(dx) > lose_range:
+	var max_range := 520.0 if _target.is_in_group("player_decoy") else lose_range
+	if absf(dx) > max_range:
 		_target = null
 		_set_state(State.PATROL)
 		return
@@ -334,10 +342,10 @@ func _chase_tick(delta: float) -> void:
 		return
 	# 贴太近但还在冷却：先退开一点保持站位，别和同伴挤在同一格
 	if absf(dx) < keep_dist and _attack_cd > 0.0:
-		velocity.x = move_toward(velocity.x, -facing * 80.0, accel * delta)
+		velocity.x = move_toward(velocity.x, -facing * 80.0 * _slow_scale, accel * delta)
 		return
 	var acc := turn_accel if signf(velocity.x) != 0.0 and signf(velocity.x) != signf(dx) else accel
-	velocity.x = move_toward(velocity.x, facing * chase_speed, acc * delta)
+	velocity.x = move_toward(velocity.x, facing * chase_speed * _slow_scale, acc * delta)
 
 
 func _attack_tick(delta: float) -> void:
@@ -409,7 +417,7 @@ func _start_attack() -> void:
 	for i in ha_list.size():
 		_attack_hits_left.append({"t": _attack_dur - float(ha_list[i]), "i": i})
 	_attack_hits_left.sort_custom(func(a, b): return float(a["t"]) > float(b["t"]))
-	velocity.x = facing * attack_lunge * float(_lunge_map.get(anim, 1.0)) # 出手带一段前冲
+	velocity.x = facing * attack_lunge * float(_lunge_map.get(anim, 1.0)) * _slow_scale # 出手带一段前冲
 	var hop := float(_hop_map.get(anim, 0.0))
 	if hop > 0.0:
 		velocity.y = -hop # 跳斩腾空：配合动画的跃起视觉，重力会自然把他带回地面
@@ -436,7 +444,7 @@ func _telegraph() -> void:
 
 
 func _deal_hit(seg := 0) -> void:
-	if _target == null:
+	if _target == null or not is_instance_valid(_target):
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
@@ -444,7 +452,8 @@ func _deal_hit(seg := 0) -> void:
 	var dmg := Run.enemy_damage(int(_damage_map.get(_current_anim, 1)))
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_current_anim, false))
-	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height:
+	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height \
+			and _target.has_method("hurt"):
 		_target.call("hurt", dmg, Vector2(facing * 220.0, -80.0), self, _replay_move(seg))
 
 
@@ -520,6 +529,21 @@ func root(dur: float) -> void:
 	get_tree().current_scene.add_child(dn)
 
 
+## 枝界持续约束：每帧只延续定身计时，不重复控制反馈。
+func contain(dur: float) -> void:
+	if state == State.DEAD or dur <= 0.0:
+		return
+	_root_timer = maxf(_root_timer, dur)
+
+
+## 余滞：最新一次有效调用覆盖时长与倍率；只影响常规横向移动和出手前冲。
+func slow(dur: float, scale: float) -> void:
+	if state == State.DEAD or dur <= 0.0:
+		return
+	_slow_timer = dur
+	_slow_scale = clampf(scale, 0.0, 1.0)
+
+
 ## 晕眩（力僧 L）：dur 秒内不能移动、也不能出手——比定身更强。
 ## 立即打断正在起的招（前摇直接掐掉，交还出手令牌），站桩发愣到时间结束；
 ## 被打飞/受击照样推进各自状态，落地后仍保持晕眩。
@@ -592,6 +616,17 @@ func apply_bleed(layers: int) -> void:
 	_bleed_time = BLEED_DUR
 
 
+## 一次性收走当前流血层数，供绯羽等机制转化；后续不会继续跳这次流血。
+func consume_bleed() -> int:
+	if state == State.DEAD or _bleed_stacks <= 0:
+		return 0
+	var stacks := _bleed_stacks
+	_bleed_stacks = 0
+	_bleed_time = 0.0
+	_bleed_acc = 0.0
+	return stacks
+
+
 func _bleed_tick(delta: float) -> void:
 	if _bleed_stacks <= 0 or state == State.DEAD:
 		return
@@ -649,6 +684,25 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 		die()
 
 
+## 砸落（银夜空中派生）：直线下坠，落地只向玩家回报一次，再接原有落地硬直。
+func slam() -> void:
+	if state == State.DEAD:
+		return
+	_enter_fly(Vector2(0.0, 900.0), 0)
+	_slam_pending = true
+	if is_on_floor():
+		_fly_tick(0.0) # 地面立即落地：与空中落地共用同一结算分支
+
+
+func _report_slam_landing() -> void:
+	if not _slam_pending:
+		return
+	_slam_pending = false
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl != null and pl.has_method("on_enemy_slammed"):
+		pl.call("on_enemy_slammed", self, global_position)
+
+
 ## 击飞（银夜普攻二段 / 剑仙 U 飞脚）：向上挑起，落地短暂硬直。无视出手霸体（跳劈也照挑）
 ## ignore_armor：剑仙 U 的规则级击飞标记——小怪/精英本来就吃击飞，这里无需额外分支
 func launch(dir: int, vx: float, vy: float, _ignore_armor := false) -> void:
@@ -667,6 +721,7 @@ func knock_back(dir: int, force: float, impact: int, _ignore_armor := false) -> 
 
 func _enter_fly(v: Vector2, impact: int) -> void:
 	_release_token()
+	_slam_pending = false # 普通 launch / knock_back 不继承上一次砸落回报
 	_root_timer = 0.0 # 被轰飞时解除定身：物理级控制在定身之上（同一套规则，和时停一致）
 	if _stop_timer > 0.0:
 		_end_stop() # 定身中被打飞：解除定身让抛物线成立（时停不挡位移类控制）
@@ -692,6 +747,9 @@ func _fly_tick(delta: float) -> void:
 				_fly_hit[e] = true
 				e.call("take_damage", _fly_impact, global_position.x)
 				Feel.shake(4.0, 0.12)
+				var pl = get_tree().get_first_node_in_group("player")
+				if pl != null and pl.has_method("on_knock_collision"):
+					pl.call("on_knock_collision", self, e)
 				var self_dmg := _fly_impact
 				_fly_impact = 0 # 撞到第一只就卸力，自己吃组合伤害并坠地
 				take_damage(self_dmg, e.global_position.x)
@@ -702,11 +760,15 @@ func _fly_tick(delta: float) -> void:
 			_fly_impact = 0
 			velocity.x = 0.0
 			Feel.shake(5.0, 0.15)
+			var pl = get_tree().get_first_node_in_group("player")
+			if pl != null and pl.has_method("on_knock_wall"):
+				pl.call("on_knock_wall", self, global_position)
 			take_damage(wall_dmg, global_position.x + wall_dir * 10.0)
 			return
 	velocity.x = move_toward(velocity.x, 0.0, 400.0 * delta)
 	# 落地：短暂硬直再起身（重力与 move_and_slide 在主循环末尾统一走）
 	if is_on_floor() and velocity.y >= 0.0:
+		_report_slam_landing()
 		state = State.HURT
 		_hurt_timer = 0.3
 
@@ -816,7 +878,24 @@ func _drop_bone() -> void:
 # ---------- 工具 ----------
 
 func _find_target() -> void:
-	if _target != null and is_instance_valid(_target):
+	var nearest: Node2D = null
+	var nearest_dist := INF
+	for node in get_tree().get_nodes_in_group("player_decoy"):
+		var decoy := node as Node2D
+		if decoy == null or not is_instance_valid(decoy) or decoy.is_queued_for_deletion():
+			continue
+		var dx := absf(decoy.global_position.x - global_position.x)
+		var dy := absf(decoy.global_position.y - global_position.y)
+		if dx > 520.0 or dy > 160.0:
+			continue
+		var dist := global_position.distance_squared_to(decoy.global_position)
+		if dist < nearest_dist:
+			nearest = decoy
+			nearest_dist = dist
+	if nearest != null:
+		_target = nearest # 诱饵优先于已经锁定的玩家，并始终改追最近的一只
+		return
+	if _target != null and is_instance_valid(_target) and not _target.is_in_group("player_decoy"):
 		return
 	_target = get_tree().get_first_node_in_group("player") as Node2D
 
@@ -883,10 +962,12 @@ func _update_peer_ghosts() -> void:
 
 
 func _sees_player(radius: float) -> bool:
-	if _target == null:
+	if _target == null or not is_instance_valid(_target):
 		return false
 	var dx: float = absf(_target.global_position.x - global_position.x)
 	var dy: float = absf(_target.global_position.y - global_position.y)
+	if _target.is_in_group("player_decoy"):
+		return dx <= maxf(radius, 520.0) and dy <= 160.0
 	return dx <= radius and dy <= 90.0
 
 

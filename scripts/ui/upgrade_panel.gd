@@ -19,6 +19,8 @@ var _bones_label: Label
 var _bought := false
 var _rerolls_left := 0
 var _reroll_button: TextureButton
+var title_text := "" # 试炼场等复用入口可覆盖标题；正式房间留空
+var proceed_text := "继续前进"
 
 
 func _ready() -> void:
@@ -41,23 +43,24 @@ func _ready() -> void:
 	win.texture = InkTex.load("res://art/ui/menu/window_large.png")
 	win.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	win.stretch_mode = TextureRect.STRETCH_SCALE
-	win.size = Vector2(960, 430)
-	win.position = Vector2(160, 145)
+	win.size = Vector2(1140, 610)
+	win.position = Vector2(70, 52)
 	win.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(win)
 
-	_make_label(Run.room_label() + "  " + Run.room_no() + "  已清", 175, 40, PAPER)
-	_make_label("取一样墨骨强化 —— 同一条流派连选三级可推到「极」", 235, 20, Color(0.75, 0.72, 0.66))
+	var heading := title_text if not title_text.is_empty() else Run.room_label() + "  " + Run.room_no() + "  已清"
+	_make_label(heading, 76, 36, PAPER)
+	_make_label("取一样墨骨强化 —— 同一条流派连选三级可推到「极」", 130, 20, Color(0.75, 0.72, 0.66))
 
-	_bones_label = _make_label("", 285, 22, PAPER)
+	_bones_label = _make_label("", 166, 22, PAPER)
 	_update_bones()
 
 	_card_root = Node.new()
 	add_child(_card_root)
 	_build_cards()
 
-	_make_button("继续前进", 505, func(): proceed.emit())
-	_reroll_button = _make_button("", 510, _reroll, 800.0)
+	_make_button(proceed_text, 584, func(): proceed.emit(), 380.0)
+	_reroll_button = _make_button("", 584, _reroll, 660.0)
 	_update_reroll()
 
 
@@ -87,8 +90,8 @@ func _update_reroll() -> void:
 func _make_label(text: String, y: float, font_size: int, color: Color) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.size = Vector2(960, 44)
-	l.position = Vector2(160, y)
+	l.size = Vector2(1140, 50)
+	l.position = Vector2(70, y)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_font_size_override("font_size", font_size)
@@ -105,9 +108,9 @@ func _update_bones() -> void:
 ## 流派配色：0 朱砂 / 1 墨青 / 2 赭金（与 run_state.FORM_UPGRADES 的 theme 对齐）
 func _theme_color(theme: int) -> Color:
 	match theme:
-		1: return Color(0.42, 0.64, 0.66)
-		2: return Color(0.82, 0.64, 0.32)
-		_: return Color(0.80, 0.34, 0.28)
+		1: return Color(0.18, 0.38, 0.40)
+		2: return Color(0.52, 0.34, 0.12)
+		_: return Color(0.55, 0.16, 0.13)
 
 
 func _build_cards() -> void:
@@ -117,13 +120,15 @@ func _build_cards() -> void:
 		var key := str(_cards[i])
 		var info: Dictionary = Run.card_info(key)
 		var cost := Run.upgrade_cost(key)
+		var is_form := info.has("tier")
+		var accent := _theme_color(int(info.get("theme", 0)))
 		var b := TextureButton.new()
 		b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 		b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 		b.ignore_texture_size = true
 		b.stretch_mode = TextureButton.STRETCH_SCALE
-		b.size = Vector2(230, 170)
-		b.position = Vector2(225 + i * 265, 330)
+		b.size = Vector2(330, 350)
+		b.position = Vector2(115 + i * 360, 208)
 		if _bought or Score.bones < cost:
 			b.modulate = Color(1, 1, 1, 0.4)
 			b.disabled = true
@@ -135,61 +140,71 @@ func _build_cards() -> void:
 				s.play()
 				_on_card(key))
 
-		# 卡牌图标：水墨 UI 素材（art/ui/icons/），形态专属统一用勋章区分
+		# 顶部：图标、流派名、层级各自占位，长标题不会再顶到层级标签。
 		var icon := TextureRect.new()
 		icon.texture = InkTex.load("res://art/ui/icons/" + str(info.get("icon", "icon_medal")) + ".png")
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.size = Vector2(36, 36)
-		icon.position = Vector2(97, 12)
+		icon.size = Vector2(42, 42)
+		icon.position = Vector2(22, 16)
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(icon)
 
-		# 流派卡：标题只写流派名并按流派配色（0 朱砂 / 1 墨青 / 2 赭金），右上角标当前层级
-		# 通用卡：标题带上「本次购买后的等级」，右上角标 已拥有/上限
-		var is_form := info.has("tier")
-		var title := Label.new()
-		if is_form:
-			title.text = str(info.get("path", info["label"]))
-			title.add_theme_color_override("font_color", _theme_color(int(info.get("theme", 0))))
-		else:
-			title.text = "%s  Lv%d" % [str(info["label"]), Run.level(key) + 1]
-			title.add_theme_color_override("font_color", PAPER)
-		title.size = Vector2(230, 40)
-		title.position = Vector2(0, 50)
-		title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		title.add_theme_font_size_override("font_size", 30)
-		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		b.add_child(title)
+		var path := Label.new()
+		path.text = str(info.get("path", "通用强化"))
+		path.size = Vector2(160, 28)
+		path.position = Vector2(76, 20)
+		path.add_theme_color_override("font_color", accent if is_form else Color(0.32, 0.30, 0.26))
+		path.add_theme_font_size_override("font_size", 17)
+		path.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(path)
 
 		var tag := Label.new()
 		tag.text = ("%d / 3" % int(info.get("tier", 1))) if is_form else ("%d / %d" % [Run.level(key) + 1, int(info.get("max", 1))])
-		tag.size = Vector2(82, 24)
-		tag.position = Vector2(138, 10)
+		tag.size = Vector2(70, 26)
+		tag.position = Vector2(236, 20)
 		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		tag.add_theme_color_override("font_color", _theme_color(int(info.get("theme", 0))).darkened(0.3) if is_form else Color(0.4, 0.38, 0.34))
-		tag.add_theme_font_size_override("font_size", 15)
+		tag.add_theme_color_override("font_color", accent if is_form else Color(0.32, 0.30, 0.26))
+		tag.add_theme_font_size_override("font_size", 16)
 		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(tag)
 
+		var title := Label.new()
+		title.text = str(info["label"]) if is_form else "%s  Lv%d" % [str(info["label"]), Run.level(key) + 1]
+		title.size = Vector2(286, 44)
+		title.position = Vector2(22, 62)
+		title.add_theme_color_override("font_color", accent if is_form else INK)
+		title.add_theme_font_size_override("font_size", 28)
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(title)
+
+		var divider := ColorRect.new()
+		divider.color = Color(accent, 0.55) if is_form else Color(0.2, 0.18, 0.15, 0.35)
+		divider.size = Vector2(286, 2)
+		divider.position = Vector2(22, 114)
+		divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(divider)
+
+		# 正文使用独立固定区域；底部价格另起一行，任何换行都不会与价格重叠。
 		var desc := Label.new()
 		desc.text = str(info["desc"])
-		desc.size = Vector2(210, 46)
-		desc.position = Vector2(10, 80)
-		desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		desc.size = Vector2(282, 140)
+		desc.position = Vector2(24, 132)
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc.add_theme_color_override("font_color", Color(0.82, 0.79, 0.72))
-		desc.add_theme_font_size_override("font_size", 16)
+		desc.clip_text = true
+		desc.max_lines_visible = 6
+		desc.add_theme_color_override("font_color", Color(0.16, 0.15, 0.13))
+		desc.add_theme_font_size_override("font_size", 18)
 		desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(desc)
 
 		var price := Label.new()
 		price.text = "%d 墨骨" % cost
-		price.size = Vector2(230, 30)
-		price.position = Vector2(0, 130)
+		price.size = Vector2(286, 36)
+		price.position = Vector2(22, 292)
 		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		price.add_theme_color_override("font_color", Color(0.66, 0.2, 0.16))
-		price.add_theme_font_size_override("font_size", 19)
+		price.add_theme_color_override("font_color", Color(0.58, 0.16, 0.12))
+		price.add_theme_font_size_override("font_size", 20)
 		price.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(price)
 

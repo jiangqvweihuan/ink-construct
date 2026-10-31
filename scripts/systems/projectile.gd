@@ -25,6 +25,7 @@ var _from_skill := false
 var _cast_id := 0
 var _root_time := 0.0 # 命中定身秒数（双刺 U：无法移动但可以攻击）
 var _split_left := 0 # 命中后还要分裂出去的第二把数量（双刺 U）
+var _from_split := false # 是否由另一把匕命中后分裂而来
 var _style := "qi" # 视觉：qi=朱砂剑气弧 / dagger=短匕
 var _bleed := 0 # 命中叠流血层数（剑仙月华斩）
 var _size := 1.0 # 剑气视觉与判定尺寸倍率（巨大剑气）
@@ -114,6 +115,8 @@ func _physics_process(delta: float) -> void:
 			# 命中计数与永久效果优先回报给实际来源；旧测试场景没有来源时保留原入口。
 			if is_instance_valid(_source) and _source.has_method("on_projectile_hit"):
 				_source.call("on_projectile_hit", p, _from_skill, _cast_id)
+				if _style == "dagger" and _source.has_method("on_dagger_hit"):
+					_source.call("on_dagger_hit", p, global_position, _from_split)
 			else:
 				var pl = get_tree().get_first_node_in_group("player")
 				if pl != null and pl.has_method("hit_scored"):
@@ -135,6 +138,7 @@ func _physics_process(delta: float) -> void:
 				child.setup(_dir, _speed, _range, _damage, _sfx, _pierce, _root_time, _split_left, _style, _bleed, _size,
 					_pierce_left, _source, _from_skill, _cast_id)
 				child._hit_list = _hit_list.duplicate()
+				child._from_split = true
 				child._hit_list.append(e.get_instance_id())
 				child.global_position = global_position + Vector2(_dir * 34.0 * _size, 0.0)
 				get_tree().current_scene.add_child(child)
@@ -158,4 +162,6 @@ func _physics_process(delta: float) -> void:
 				queue_free()
 			return
 	if _travel >= _range:
+		if is_instance_valid(_source) and _source.has_method("on_projectile_expire"):
+			_source.call("on_projectile_expire", global_position, _style)
 		queue_free()

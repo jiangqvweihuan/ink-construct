@@ -156,8 +156,6 @@ var _skill_tick_acc := 0.0 # 技能持续伤害段的计时累计（每 interval
 # ---------- 局外永久修炼的运行时状态（配置在 Meta.FORM_NODES） ----------
 var _attack_range_scale := 1.0 # 梅剑·鞭势：只放大普攻，不影响技能
 var _skill_range_scale := 1.0 # 力僧·震岳：只放大 K
-var _skill_proj_extra := 0 # 剑仙·万剑：只增加技能剑气
-var _proj_pierce_charges := 0 # 剑仙·剑气：有限穿透次数，与原有无限穿透并存
 var _blink_bonus_dist := 0.0 # 银夜·无还：O 固定位移增量
 var _perm_lifesteal_cd := 0.0 # 双刺·血舞：独立 8 秒回血计时
 var _shield_heal_used := false # 力僧·金刚：每房一次护盾回血
@@ -168,9 +166,34 @@ var _attack_dodge_bonus := false # 本段普攻是否已拿到上述加伤
 var _final_wave_done := false # 双刺·连刃：末段追加剑气每段普攻至多一次
 var _dance_kills := 0 # 双刺·血舞：每三次击杀回血
 var _o_kill_window := 0.0 # 银夜·无还：O 命中后的击杀归属窗口
-var _skill_cast_id := 0 # 每次技能递增，供多道剑气识别同一次释放
-var _volley_target_hits: Dictionary = {}
-var _volley_procced := false
+var _skill_cast_id := 0 # 每次技能递增，供投射物识别来源
+var _edge_k_hits: Dictionary = {} # 藏锋：本次 K 对每个目标的命中段数
+var _k_sealed: Dictionary = {} # 藏锋：三段封脉目标
+var _skill_cancel_ready := false # 回锋：L 命中后的闪避取消窗口
+var _wind_final := false # 游身：完美闪避后的第四段起手
+# ---------- 局内流派机制：只存运行状态，是否解锁统一由 _own(卡键) 判断 ----------
+var _feathers := 0 # 冷红绫·绯羽
+var _daggers: Array = [] # 归刃：{pos, time}
+var _bait: Node2D = null # 影饵：可被敌人暂时代替玩家追踪的残影
+var _bait_time := 0.0
+var _bait_root := false
+var _branch_zones: Array = [] # 白疏影·枝界：{x, radius, time}
+var _plum_marks: Dictionary = {} # 梅烙：目标 id -> {target, hits, marked}
+var _parry_ready := false # 回环：每次 K 只格挡首次近战
+var _bell_shell := false # 定山·碎钟后的一次反震壳
+var _precepts := 0 # 苦行戒印
+var _openings: Dictionary = {} # 洛惊鸿·破绽：目标 id -> {target, time}
+var _air_follow := 0.0 # 挑月 / 踏霄的空中追身窗口
+var _air_floats := 0 # 挑月每次起跳的续浮空次数
+var _air_slam := false # 银夜空中第三段是否按砸落结算
+var _air_combo_reset := false # 砸落反弹后可再接二段挑飞
+var _sword_seals: Dictionary = {} # 惊鸿谱自身 K/L/U 三诀
+var _seal_targets: Dictionary = {} # 带诀敌人：id -> {target, seals}
+var _outbound_hits: Dictionary = {} # 银夜 O 去程命中者，返程交叉判破招
+var _return_mark := Vector2.ZERO # 去来归痕
+var _return_time := 0.0
+var _time_marks: Dictionary = {} # 漏刻：id -> {target, moves}
+var _delayed: Array = [] # 轻量延迟动作：{time, kind, pos, target}
 # ---------- 剑仙·洛惊鸿专属机制（形态表注入，其他形态全为默认值=关闭） ----------
 var _dash_pool: Dictionary = {} # 双闪避：still=站定原地闪 / move=移动中随机段（逐项 anim/time/speed/cd）
 var _dash_speed_now := 0.0 # 本次闪避的实际速度（0 = 原地闪避，不产生位移）
@@ -279,15 +302,13 @@ func _apply_profile(id: String) -> void:
 	_apply_form_mods()
 
 
-## 局内强化注入：通用卡（伤害/冷却/生命/换头/冲刺/闪避）+ 当前形态的流派卡。换房间时由 Run.apply_to 重新调用
+## 局内强化注入：通用卡（伤害/冷却/生命/冲刺/闪避）+ 当前形态的流派卡。换房间时由 Run.apply_to 重新调用
 func set_upgrades(up: Dictionary) -> void:
 	_upgrades = up.duplicate()
 	var cd := int(up.get("cooldown", 0))
-	var sw := int(up.get("swap", 0))
 	damage_bonus = int(up.get("damage", 0))
 	run_speed = 240.0 # 上一房间石碑的"疾风"随换房清掉（原位漂移不跨房）
 	cooldown_scale = maxf(0.55, 1.0 - 0.15 * cd)
-	swap_cost = maxi(2, SWAP_COST - 3 * sw)
 	max_hp = 8 + int(up.get("hp", 0))
 	# 疾影：冲刺时长/距离 +20%，完美闪避判定窗口同步变长；冷却 -10%
 	var dash_lv := int(up.get("dash", 0))
@@ -337,75 +358,7 @@ func _apply_form_mods() -> void:
 	_dodge_cd_refund = 0.0
 	_attack_range_scale = 1.0
 	_skill_range_scale = 1.0
-	_skill_proj_extra = 0
-	_proj_pierce_charges = 0
 	_blink_bonus_dist = 0.0
-	for k in _upgrades:
-		var info: Dictionary = Run.card_info(str(k))
-		var forms: Array = info.get("forms", [])
-		if forms.is_empty() or not forms.has(skull_id):
-			continue # 通用卡已在 set_upgrades 处理；别的形态的卡休眠
-		match str(k):
-			# 双刺·血饮：续航流派
-			"c021_blood_1": skill_lifesteal = true
-			"c021_blood_2": _lifesteal_heal = 2; _lifesteal_cd_max = 4.0
-			"c021_blood_3": _lifesteal_buff = 1
-			# 双刺·锋扫：群战范围
-			"c021_sweep_1": range_scale *= 1.3
-			"c021_sweep_2": range_scale *= 1.25; _attack_damage_bonus += 1
-			"c021_sweep_3": range_scale *= 1.2; _attack_damage_bonus += 1
-			# 双刺·疾刃：冲刺输出
-			"c021_dash_1": _dash_attack_dmg = 1
-			"c021_dash_2": _dash_attack_dmg = 2; _dash_attack_refund = true
-			"c021_dash_3": _dash_attack_dmg = 3; _dash_attack_refund = true; _dash_attack_bones = 1
-			# 梅剑·鞭术
-			"c023_whip_1": range_scale *= 1.25
-			"c023_whip_2": range_scale *= 1.25; _attack_damage_bonus += 1
-			"c023_whip_3": range_scale *= 1.25; _attack_damage_bonus += 1
-			# 梅剑·内劲：转鞭持续段
-			"c023_force_1": _tick_damage_bonus = 1
-			"c023_force_2": _tick_interval_scale = 0.7
-			"c023_force_3": _tick_range_scale = 1.4; _skill_cd_mod["skill02"] = _skill_cd_mod.get("skill02", 1.0) * 0.75
-			# 梅剑·铁骨：站桩减伤
-			"c023_iron_1": _damage_reduce = 1
-			"c023_iron_2": _skill_cd_mod["skill02"] = _skill_cd_mod.get("skill02", 1.0) * 0.8
-			"c023_iron_3": _damage_reduce = 2
-			# 力僧·金刚：定山反伤
-			"c013_vajra_1": _reflect_bonus = 2
-			"c013_vajra_2": _heal_bonus = 2
-			"c013_vajra_3": _reflect_bonus += 2; _skill_cd_mod["skill02"] = _skill_cd_mod.get("skill02", 1.0) * 0.7
-			# 力僧·震地：范围
-			"c013_quake_1": range_scale *= 1.35
-			"c013_quake_2": range_scale *= 1.25; _attack_damage_bonus += 1
-			"c013_quake_3": range_scale *= 1.25; _attack_damage_bonus += 1
-			# 力僧·禅定：减伤
-			"c013_zen_1": _damage_reduce = 1
-			"c013_zen_2": _hurt_bones = 1
-			"c013_zen_3": _damage_reduce = 2
-			# 剑仙·剑气：弹道强度
-			"z000_qi_1": _proj_damage_bonus = 1
-			"z000_qi_2": _proj_damage_bonus = 2; _proj_speed_scale = 1.3
-			"z000_qi_3": proj_pierce = true
-			# 剑仙·双发：数量
-			"z000_twin_1": proj_extra = 1
-			"z000_twin_2": proj_extra = 2
-			"z000_twin_3": proj_extra = 3
-			# 剑仙·御剑：冷却与射程
-			"z000_calm_1": _form_cd_scale *= 0.75
-			"z000_calm_2": _proj_range_scale = 1.3
-			"z000_calm_3": _form_cd_scale *= 0.85; _proj_damage_bonus += 1
-			# 银夜·轻功：闪避流
-			"z003_qinggong_1": _qg_jump_bonus = 0.15; _qg_hover_bonus = 0.2
-			"z003_qinggong_2": _dodge_cd_refund = 2.0
-			"z003_qinggong_3": _dodge_cd_refund = 4.0
-			# 银夜·时停：时停流
-			"z003_stop_1": _stop_bonus = 1.0
-			"z003_stop_2": _stop_buff_damage = 2
-			"z003_stop_3": _skill_cd_mod["skill06"] = _skill_cd_mod.get("skill06", 1.0) * 0.7
-			# 银夜·杀阵：位移斩杀流
-			"z003_kill_1": _blink_dist_scale = 1.33
-			"z003_kill_2": _skill_damage_mod["skill11"] = 2 # O 伤害 +2
-			"z003_kill_3": _skill_hit_refund = 3.0
 	# 永久修炼与局内流派叠加；按当前形态装配，换头后不会串效果。
 	match skull_id:
 		"c013":
@@ -413,12 +366,6 @@ func _apply_form_mods() -> void:
 			_skill_range_scale = 1.15 if Meta.has_form_node("c013_seismic_1") else 1.0
 		"c023":
 			_attack_range_scale = 1.15 if Meta.has_form_node("c023_lash_1") else 1.0
-		"z000":
-			_proj_damage_bonus += int(Meta.has_form_node("z000_edge_1"))
-			_proj_speed_scale *= 1.2 if Meta.has_form_node("z000_edge_2") else 1.0
-			_proj_pierce_charges = int(Meta.has_form_node("z000_edge_3"))
-			_skill_proj_extra = int(Meta.has_form_node("z000_volley_1")) + int(Meta.has_form_node("z000_volley_2"))
-			_form_cd_scale *= 0.95 if Meta.has_form_node("z000_wind_1") else 1.0
 		"z003":
 			_stop_bonus += 0.25 if Meta.has_form_node("z003_time_1") else 0.0
 			if Meta.has_form_node("z003_time_2"):
@@ -427,6 +374,89 @@ func _apply_form_mods() -> void:
 	# 轻功：形态表原值 + 流派加成（跳跃更高、悬停更久）
 	_qg_jump_mul = _qg_jump_mul_base * (1.0 + _qg_jump_bonus)
 	_qg_hover = _qg_hover_base + _qg_hover_bonus
+
+
+## 当前形态是否拥有某张局内卡。卡键按形态唯一，换头后旧卡自然休眠。
+func _own(key: String) -> bool:
+	return int(_upgrades.get(key, 0)) > 0
+
+
+## 流派状态计时。节点本身不另开 Timer，换房/死亡时随玩家实例一起销毁。
+func _build_tick(delta: float) -> void:
+	_air_follow = maxf(0.0, _air_follow - delta)
+	if _return_time > 0.0:
+		_return_time = maxf(0.0, _return_time - delta)
+		if _return_time <= 0.0:
+			_outbound_hits.clear()
+	if is_on_floor():
+		_air_floats = 0
+		_air_combo_reset = false
+	for i in range(_daggers.size() - 1, -1, -1):
+		_daggers[i]["time"] = float(_daggers[i]["time"]) - delta
+		if float(_daggers[i]["time"]) <= 0.0:
+			_daggers.remove_at(i)
+	for i in range(_branch_zones.size() - 1, -1, -1):
+		_branch_zones[i]["time"] = float(_branch_zones[i]["time"]) - delta
+		if float(_branch_zones[i]["time"]) <= 0.0:
+			_branch_zones.remove_at(i)
+	for id in _openings.keys():
+		var mark: Dictionary = _openings[id]
+		mark["time"] = float(mark["time"]) - delta
+		if float(mark["time"]) <= 0.0 or not is_instance_valid(mark["target"]):
+			_openings.erase(id)
+	for id in _k_sealed.keys():
+		if not is_instance_valid(_k_sealed[id]) or int(_k_sealed[id].get("hp")) <= 0:
+			_k_sealed.erase(id)
+	for id in _plum_marks.keys():
+		if not is_instance_valid(_plum_marks[id]["target"]) or int(_plum_marks[id]["target"].get("hp")) <= 0:
+			_plum_marks.erase(id)
+	for id in _seal_targets.keys():
+		if not is_instance_valid(_seal_targets[id]["target"]) or int(_seal_targets[id]["target"].get("hp")) <= 0:
+			_seal_targets.erase(id)
+	for id in _time_marks.keys():
+		if not is_instance_valid(_time_marks[id]["target"]) or int(_time_marks[id]["target"].get("hp")) <= 0:
+			_time_marks.erase(id)
+	if _bait_time > 0.0:
+		_bait_time -= delta
+		if _bait_time <= 0.0:
+			_expire_bait()
+	for zone in _branch_zones:
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var p := e as Node2D
+			if p == null or int(e.get("hp")) <= 0:
+				continue
+			if absf(p.global_position.x - float(zone["x"])) <= float(zone["radius"]) + _radius_of(p) \
+					and absf(p.global_position.y - global_position.y) <= 150.0 and e.has_method("contain"):
+				var dur := 0.12 if not e.has_method("stop_tier") or str(e.call("stop_tier")) != "boss" else 0.06
+				e.call("contain", dur)
+
+
+## 影饵只是一段可被敌人索敌的墨影，不是第二个玩家，也不承受伤害。
+func _spawn_bait() -> void:
+	if is_instance_valid(_bait):
+		_expire_bait()
+	_bait = Node2D.new()
+	_bait.add_to_group("player_decoy")
+	_bait.global_position = global_position
+	get_tree().current_scene.add_child(_bait)
+	FX.spawn(_bait, "vanish", Vector2.ZERO, {"loop": true, "scale": 0.8, "mod": Color(0.45, 0.65, 0.7, 0.55)})
+	_bait_time = 1.5
+	_bait_root = _own("c021_bait_2")
+
+
+func _expire_bait() -> void:
+	if not is_instance_valid(_bait):
+		_bait = null
+		_bait_time = 0.0
+		return
+	if _bait_root:
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if int(e.get("hp")) > 0 and e.get("_target") == _bait:
+				e.call("root", 1.5)
+	_bait.queue_free()
+	_bait = null
+	_bait_time = 0.0
+	_bait_root = false
 
 
 func _setup_sfx() -> void:
@@ -517,6 +547,7 @@ func _setup_spine() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_build_tick(delta)
 	_coyote = maxf(0.0, _coyote - delta)
 	_jump_buf = maxf(0.0, _jump_buf - delta)
 	_dash_cd = maxf(0.0, _dash_cd - delta)
@@ -548,8 +579,6 @@ func _physics_process(delta: float) -> void:
 		_coyote = coyote_time
 	if Input.is_action_just_pressed("jump"):
 		_jump_buf = jump_buffer
-	if Input.is_action_just_pressed("swap_skull"):
-		_try_swap_skull()
 
 	match state:
 		State.IDLE, State.RUN:
@@ -619,7 +648,33 @@ func _air_move(delta: float) -> void:
 	else:
 		# 空中松油门轻微制动，比地面刹得慢（不锁死空中控制）
 		velocity.x = move_toward(velocity.x, 0.0, brake * 0.4 * delta)
+	if Input.is_action_just_pressed("attack") and _air_follow > 0.0:
+		if skull_id == "z000" and (_own("z000_moon_1") or Meta.has_form_node("z000_volley_2")):
+			_chase_air_target()
+			_start_attack(0)
+			return
+		if skull_id == "z003" and _own("z003_sky_1"):
+			_chase_air_target()
+			_start_attack(1 if _air_combo_reset else 2)
+			_air_combo_reset = false
+			return
 	_try_dash()
+
+
+func _chase_air_target() -> void:
+	var best: Node2D = null
+	var best_dist := 420.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or int(e.get("hp")) <= 0:
+			continue
+		var d := global_position.distance_to(p.global_position)
+		if d < best_dist and absf(p.global_position.y - global_position.y) <= 260.0:
+			best = p
+			best_dist = d
+	if best != null:
+		global_position = best.global_position + Vector2(-facing * 75.0, 0.0)
+		velocity = Vector2.ZERO
 
 
 func _dash_tick(delta: float) -> void:
@@ -627,9 +682,42 @@ func _dash_tick(delta: float) -> void:
 	velocity = Vector2(facing * _dash_speed_now, 0.0)
 	if _dash_timer <= 0.0:
 		var cut := _dash_attack() # 疾刃：冲刺收尾斩身前一刀
+		_sword_dash_sweep()
 		_dash_cd = 0.0 if (cut and _dash_attack_refund) else _dash_cd_set * _dash_cd_scale
 		velocity.x = facing * run_speed * 0.5
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
+
+
+## 游身：闪避结束回身扫身后；极阶把浮空者砸落、地面者挑飞，Boss 只受短破招。
+func _sword_dash_sweep() -> void:
+	if skull_id != "z000" or not Meta.has_form_node("z000_wind_2"):
+		return
+	var did_hit := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or int(e.get("hp")) <= 0:
+			continue
+		var dx: float = p.global_position.x - global_position.x
+		var behind := dx != 0.0 and (dx > 0.0) != (facing > 0)
+		if not behind or absf(dx) > 150.0 + _radius_of(p) or absf(p.global_position.y - global_position.y) > 100.0:
+			continue
+		p.call("take_damage", 1 + damage_bonus + _mastery_dmg + _buff_now() + _target_damage_bonus(p), global_position.x)
+		hit_scored()
+		if int(e.get("hp")) > 0 and Meta.has_form_node("z000_wind_3"):
+			var boss := p.has_method("stop_tier") and str(p.call("stop_tier")) == "boss"
+			var airborne := p.has_method("is_on_floor") and not bool(p.call("is_on_floor"))
+			if boss:
+				p.call("stun", 0.8)
+			elif airborne and p.has_method("slam"):
+				p.call("slam")
+			else:
+				p.call("launch", -facing, 120.0, 430.0)
+		FX.spawn(get_tree().current_scene, "slash", p.global_position + Vector2(0, -60), {"scale": 0.5, "flip": facing > 0})
+		did_hit = true
+	if did_hit:
+		_play_sfx("skill_blade")
+		Feel.hitstop(0.05)
+		Feel.shake(5.0, 0.15)
 
 
 ## 疾刃（双刺流派）：冲刺终点斩身前敌人；返回是否命中（供"命中即回满冲刺"判定）
@@ -740,9 +828,14 @@ func _deal_hit(h = null) -> void:
 		var mx := (global_position.x + p.global_position.x) * 0.5
 		p.call("take_damage", dmg + _target_damage_bonus(p), global_position.x)
 		hit_scored() # 命中一只算一次连击
+		_on_build_hit(p, "attack%d" % _attack_idx)
+		if skull_id == "z003" and _attack_idx == 1 and _own("z003_sky_1"):
+			_air_follow = 4.0
 		# 击飞（银夜段2）：敌人往空中挑起，落地硬直；打死的尸体不再挑
 		var lc: Dictionary = spec.get("launch", {})
-		if not lc.is_empty() and int(e.get("hp")) > 0:
+		var silver_slam := skull_id == "z003" and _attack_idx == 2 and not is_on_floor() and _own("z003_sky_2")
+		var sword_slam := skull_id == "z000" and _attack_idx == 3 and not is_on_floor() and Meta.has_form_node("z000_volley_3")
+		if not lc.is_empty() and int(e.get("hp")) > 0 and not silver_slam and not sword_slam:
 			p.call("launch", facing, float(lc.get("vx", 150.0)), float(lc.get("vy", 520.0)))
 		# 击退（银夜 L）：往攻击方向轰飞，撞同伴/墙壁产生组合伤害
 		var kb: Dictionary = spec.get("knockback", {})
@@ -752,14 +845,26 @@ func _deal_hit(h = null) -> void:
 		var stun := float(spec.get("stun", 0.0))
 		if stun > 0.0 and int(e.get("hp")) > 0 and p.has_method("stun"):
 			p.call("stun", stun)
-		if pull > 0.0:
+		if pull > 0.0 and int(e.get("hp")) > 0:
 			# 只朝玩家方向收，已经贴脸的敌人不往前推
 			var want_x := global_position.x + float(facing) * (pull + pulled * 34.0)
-			p.global_position.x = minf(p.global_position.x, want_x) if facing > 0 else maxf(p.global_position.x, want_x)
+			want_x = minf(p.global_position.x, want_x) if facing > 0 else maxf(p.global_position.x, want_x)
+			_pull_enemy(p, want_x)
+			if skull_id == "c023" and _own("c023_bind_1"):
+				for other_e in get_tree().get_nodes_in_group("enemies"):
+					var other := other_e as Node2D
+					if other == null or other == p or int(other_e.get("hp")) <= 0:
+						continue
+					if other.global_position.distance_to(p.global_position) <= _radius_of(p) + _radius_of(other) + 45.0:
+						p.call("root", 1.2)
+						other.call("root", 1.2)
+						break
 			pulled += 1
 		FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.45, "flip": facing < 0})
 		did_hit = true
 	if did_hit:
+		if final_attack:
+			_try_unification()
 		_play_sfx(str(spec.get("sfx", "voice_sword_hit")))
 		Feel.hitstop(0.045) # 命中一僵，普攻比技能轻
 		Feel.shake(4.0, 0.13)
@@ -824,6 +929,203 @@ func hit_scored() -> void:
 		_awaken_stacks += 1
 
 
+## 把敌人直接牵到指定横坐标；所有"拉回/牵引"共用同一个视觉与站位规则。
+func _pull_enemy(p: Node2D, want_x: float) -> void:
+	if int(p.get("hp")) <= 0:
+		return
+	var boss := p.has_method("stop_tier") and str(p.call("stop_tier")) == "boss"
+	if boss:
+		p.call("stun", 0.6) # Boss 不被强制搬运，牵引转换为短破招
+	else:
+		p.global_position.x = want_x
+	FX.spawn(get_tree().current_scene, "slash", p.global_position + Vector2(0, -60), {"scale": 0.35})
+
+
+## 击退撞人 / 撞墙后的搬山联动。
+func on_knock_collision(victim: Node2D, other: Node2D) -> void:
+	if skull_id != "c013" or not _own("c013_mountain_1"):
+		return
+	if int(victim.get("hp")) > 0:
+		victim.call("root", 1.5)
+	if is_instance_valid(other) and int(other.get("hp")) > 0:
+		other.call("root", 1.5)
+
+
+func on_knock_wall(_victim: Node2D, pos: Vector2) -> void:
+	if skull_id == "c013" and _own("c013_mountain_3"):
+		_slam_aoe(pos)
+
+
+## 被砸落敌人的落地回报：银夜本人借反作用力再起，洛惊鸿只结算落点冲击。
+func on_enemy_slammed(p: Node2D, pos: Vector2) -> void:
+	_slam_aoe(pos, skull_id == "z003", p)
+	if skull_id == "z003" and _air_slam:
+		_air_slam = false
+		if _own("z003_sky_3"):
+			velocity.y = -520.0
+			state = State.JUMP
+			_air_follow = 4.0
+			_air_combo_reset = true
+
+
+## 砸落的落点效果。Boss 不被普通击飞，改为短硬直；已落地者不再被自己的冲击二次击飞。
+func _slam_aoe(pos: Vector2, stun_only := false, exclude: Node2D = null) -> void:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or p == exclude or int(e.get("hp")) <= 0:
+			continue
+		if absf(p.global_position.x - pos.x) > 180.0 + _radius_of(p) or absf(p.global_position.y - pos.y) > 150.0:
+			continue
+		var boss := e.has_method("stop_tier") and str(e.call("stop_tier")) == "boss"
+		if stun_only or boss:
+			p.call("stun", 1.5 if not boss else 0.8)
+		else:
+			p.call("launch", 1 if p.global_position.x >= pos.x else -1, 130.0, 430.0)
+	FX.spawn(get_tree().current_scene, "ink_hit", pos + Vector2(0, -40), {"scale": 1.0})
+	Feel.shake(7.0, 0.2)
+
+
+## 每次近战/技能命中后的流派钩子：标记、回收、破招与空中派生都从这里进入。
+func _on_build_hit(p: Node2D, move_id: String) -> void:
+	if int(p.get("hp")) <= 0:
+		return
+	var id := p.get_instance_id()
+	if skull_id == "c021":
+		if move_id == "skill01" and _own("c021_feather_1") and p.has_method("consume_bleed"):
+			var layers := int(p.call("consume_bleed"))
+			if layers > 0:
+				_feathers = mini(3, _feathers + layers)
+				var dn := DAMAGE_NUMBER.new()
+				dn.setup("绯羽 %d/3" % _feathers, Color(0.9, 0.55, 0.55))
+				dn.global_position = global_position + Vector2(0, -150)
+				get_tree().current_scene.add_child(dn)
+	elif skull_id == "c023":
+		var poison_left = p.get("_poison_time")
+		if move_id.begins_with("attack") and _own("c023_plum_1") and poison_left != null and float(poison_left) > 0.0:
+			var mark: Dictionary = _plum_marks.get(id, {"target": p, "hits": 0, "marked": false})
+			mark["hits"] = mini(2, int(mark["hits"]) + 1)
+			mark["marked"] = int(mark["hits"]) >= 2
+			_plum_marks[id] = mark
+		if move_id == "skill02" and _own("c023_plum_2") and bool(_plum_marks.get(id, {}).get("marked", false)):
+			_plum_marks.erase(id)
+			p.call("root", 2.0)
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var other := e as Node2D
+				if other != null and other != p and int(e.get("hp")) > 0 and other.global_position.distance_to(p.global_position) <= 280.0:
+					other.call("apply_poison", 4.0)
+	elif skull_id == "c013":
+		if move_id.begins_with("attack") and _own("c013_mountain_2"):
+			var stun_left = p.get("_stun_timer")
+			if stun_left != null and float(stun_left) > 0.0:
+				p.call("knock_back", facing, 480.0, 1)
+	elif skull_id == "z000":
+		if move_id == "atk04" and Meta.has_form_node("z000_edge_1"):
+			_pull_enemy(p, global_position.x + facing * 105.0)
+			if Meta.has_form_node("z000_edge_2"):
+				_edge_k_hits[id] = int(_edge_k_hits.get(id, 0)) + 1
+				if int(_edge_k_hits[id]) >= 3 and not _k_sealed.has(id):
+					_k_sealed[id] = p
+					p.call("stun", 1.5) # 封招：三段打全立即断招，并留下一次 L 引爆机会
+					var dn := DAMAGE_NUMBER.new()
+					dn.setup("封脉", Color(0.85, 0.72, 0.42))
+					dn.global_position = p.global_position + Vector2(0, -140)
+					get_tree().current_scene.add_child(dn)
+		if move_id == "skill02-" and _k_sealed.has(id):
+			_k_sealed.erase(id)
+			p.call("stun", 1.2)
+			if Meta.has_form_node("z000_edge_3"):
+				for e in get_tree().get_nodes_in_group("enemies"):
+					var other := e as Node2D
+					if other == null or other == p or int(e.get("hp")) <= 0:
+						continue
+					if other.global_position.distance_to(p.global_position) <= 280.0:
+						var side := 1.0 if other.global_position.x >= p.global_position.x else -1.0
+						_pull_enemy(other, p.global_position.x + side * 55.0)
+						other.call("root", 0.8)
+			FX.spawn(get_tree().current_scene, "ink_hit", p.global_position + Vector2(0, -60), {"scale": 0.7})
+		if _own("z000_listen_2") and _openings.has(id):
+			_openings.erase(id)
+			p.call("stun", 1.5)
+			if _own("z000_listen_3"):
+				global_position.x -= facing * 90.0
+				_dash_cd = 0.0
+				_hurt_invincible = maxf(_hurt_invincible, 0.45)
+		if state == State.SKILL and _own("z000_score_1"):
+			var action := str(skill_config.get(_skill_name, {}).get("action", ""))
+			var seal: String = {"skill": "K", "skill_sweep": "L", "skill_ult": "U"}.get(action, "")
+			if seal != "":
+				var entry: Dictionary = _seal_targets.get(id, {"target": p, "seals": {}})
+				(entry["seals"] as Dictionary)[seal] = true
+				_seal_targets[id] = entry
+		var final_slam := move_id == "attack3" and not is_on_floor() and Meta.has_form_node("z000_volley_3")
+		if final_slam:
+			var boss := p.has_method("stop_tier") and str(p.call("stop_tier")) == "boss"
+			if boss:
+				p.call("stun", 0.8)
+				_slam_aoe(p.global_position, true)
+			elif p.has_method("slam"):
+				p.call("slam")
+		elif move_id.begins_with("attack") and not is_on_floor() and _own("z000_moon_2") and _air_floats < 2:
+			_air_floats += 1
+			velocity.y = -300.0
+			p.call("launch", facing, 80.0, 260.0)
+	elif skull_id == "z003":
+		var stopped = p.get("_stop_timer")
+		if _own("z003_clock_1") and stopped != null and float(stopped) > 0.0:
+			var entry: Dictionary = _time_marks.get(id, {"target": p, "moves": []})
+			if not (entry["moves"] as Array).has(move_id) and (entry["moves"] as Array).size() < 3:
+				(entry["moves"] as Array).append(move_id)
+			_time_marks[id] = entry
+		if move_id == "skill11" and _own("z003_returning_1"):
+			_outbound_hits[id] = true
+		if move_id == "attack2" and not is_on_floor() and _own("z003_sky_2"):
+			velocity.y = 820.0
+			_air_slam = true
+			var boss := p.has_method("stop_tier") and str(p.call("stop_tier")) == "boss"
+			if boss:
+				p.call("stun", 0.8)
+				_slam_aoe(p.global_position, true)
+				_air_slam = false
+				if _own("z003_sky_3"):
+					velocity.y = -520.0
+					state = State.JUMP
+					_air_follow = 4.0
+					_air_combo_reset = true
+			elif p.has_method("slam"):
+				p.call("slam")
+
+
+## 惊鸿谱·归一：三诀齐备，或觉醒中的极阶免诀归一。
+func _try_unification() -> void:
+	if skull_id != "z000" or not _own("z000_score_2"):
+		return
+	var awaken_free := _awaken_time > 0.0 and _own("z000_score_3")
+	var ready := _sword_seals.has("K") and _sword_seals.has("L") and _sword_seals.has("U")
+	if not ready and not awaken_free:
+		return
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or int(e.get("hp")) <= 0:
+			continue
+		if absf(p.global_position.x - global_position.x) <= 420.0 + _radius_of(p) \
+				and absf(p.global_position.y - global_position.y) <= 150.0:
+			_pull_enemy(p, global_position.x + facing * 95.0)
+			p.call("root", 2.0)
+	if _own("z000_score_3"):
+		var longest := ""
+		for n in _skill_cds:
+			if longest == "" or float(_skill_cds[n]) > float(_skill_cds[longest]):
+				longest = str(n)
+		if longest != "":
+			_skill_cds[longest] = 0.0
+	if not awaken_free:
+		_sword_seals.clear()
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("归一", Color(0.9, 0.75, 0.3))
+	dn.global_position = global_position + Vector2(0, -160)
+	get_tree().current_scene.add_child(dn)
+
+
 func _skill_tick(delta: float) -> void:
 	_skill_timer -= delta
 	if _mix_restore:
@@ -831,6 +1133,17 @@ func _skill_tick(delta: float) -> void:
 		_mix_restore = false
 		sprite.get("skeleton_data_res").call("set_default_mix", 0.2)
 	var cfg: Dictionary = skill_config[_skill_name]
+	if _skill_cancel_ready and _dash_cd <= 0.0 and Input.is_action_just_pressed("dash"):
+		_skill_cancel_ready = false
+		_skill_hits.clear()
+		_skill_poise = false
+		_skill_reflect = false
+		_skill_ranged_guard = false
+		_invincible = false
+		_set_blink(false)
+		_try_dash()
+		if state == State.DASH:
+			return
 	var t: float = (_skill_dur - _skill_timer) * _skill_speed # 动画时间：慢放技能的时刻表按动画帧标定，与 cfg 的 at/blink 对齐
 	# 根骨跟随（root_motion）：动画把根骨挪了多远，节点就跟着挪多远，再用 sprite 反向抵消同一份量——
 	# 画面看到的动作与原来一模一样，但人物真的走到了动画终点（命中判定 / 投射物出手点也都在正确位置）
@@ -930,6 +1243,19 @@ func _skill_tick(delta: float) -> void:
 			_awaken_time = _awaken_pending
 			_awaken_pending = 0.0
 			_awaken_stacks = 0
+		if skull_id == "c023" and _skill_name == "skill02" and _own("c023_plum_3"):
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var p := e as Node2D
+				if p != null and int(e.get("hp")) > 0 and absf(p.global_position.x - global_position.x) <= 520.0 + _radius_of(p) \
+						and absf(p.global_position.y - global_position.y) <= 170.0:
+					_pull_enemy(p, global_position.x + facing * 100.0)
+		if skull_id == "z000" and _skill_name == "skill04":
+			if _own("z000_moon_1"):
+				_air_follow = 4.0
+			elif Meta.has_form_node("z000_volley_2"):
+				_air_follow = 2.0
+		_skill_cancel_ready = false
+		_parry_ready = false
 		_set_state(State.IDLE if is_on_floor() else State.FALL)
 
 
@@ -971,8 +1297,12 @@ func _deal_skill_hit(h: Dictionary) -> void:
 	# 远程技能：发投射物，命中由投射物自己结算
 	if h.has("projectile"):
 		var shot_damage := int(h["damage"]) + damage_bonus + _proj_damage_bonus + _buff_now() + int(low_hp_skill)
-		for i in proj_extra + _skill_proj_extra + 1: # 局内双发 + 永久万剑齐射
-			_spawn_projectile(h["projectile"], shot_damage, str(h.get("sfx", "")), i * 26.0)
+		var shot_spec: Dictionary = (h["projectile"] as Dictionary).duplicate(true)
+		if skull_id == "c021" and _skill_name == "skill02-cankao" and _own("c021_feather_2") and _feathers > 0:
+			shot_spec["split"] = int(shot_spec.get("split", 0)) + _feathers
+			_feathers = 0
+		for i in proj_extra + 1:
+			_spawn_projectile(shot_spec, shot_damage, str(h.get("sfx", "")), i * 26.0)
 		return
 	# 免伤护罩段（力僧 K 第二段）：不打伤害，给自己挂金钟罩
 	if h.has("self_shield"):
@@ -1031,10 +1361,26 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			_apply_hit_poison(p, h)
 			_skill_kinetic(p, h)
 			_apply_hit_control(p, h)
+			_on_build_hit(p, _skill_name)
+			if skull_id == "c023" and _skill_name == "skill02" and _own("c023_bind_2") and int(e.get("hp")) > 0:
+				_pull_enemy(p, global_position.x + facing * 110.0)
 			var mx := (global_position.x + p.global_position.x) * 0.5
 			FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
 			did_hit = true
 	if did_hit:
+		if skull_id == "z000" and _skill_name == "skill02-" and Meta.has_form_node("z000_volley_1"):
+			_skill_cancel_ready = true
+		if skull_id == "c023" and _skill_name == "skill02" and _own("c023_bind_3"):
+			_branch_zones.append({"x": global_position.x, "radius": 260.0, "time": 5.0})
+			FX.spawn(get_tree().current_scene, "telegraph", global_position, {"scale": 1.4, "mod": Color(0.5, 0.8, 0.55, 0.7)})
+		if skull_id == "c021" and _skill_name == "skill5-" and _own("c021_bait_3") and _bait_time > 0.0 and is_instance_valid(_bait):
+			var left := minf(global_position.x, _bait.global_position.x) - 35.0
+			var right := maxf(global_position.x, _bait.global_position.x) + 35.0
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var p := e as Node2D
+				if p != null and int(e.get("hp")) > 0 and p.global_position.x >= left and p.global_position.x <= right \
+						and absf(p.global_position.y - global_position.y) <= 120.0:
+					p.call("apply_bleed", 1)
 		if h.has("sfx"):
 			_play_sfx(h["sfx"])
 		_skill_hit_sustain()
@@ -1072,19 +1418,73 @@ func _restore_hp(amount: int) -> void:
 	_spawn_number(heal, Color(0.45, 0.75, 0.5), 130.0)
 
 
-## 投射物统一回报：连击、技能回血与万剑·极的同目标多道命中。
-func on_projectile_hit(p: Node2D, from_skill: bool, cast_id: int) -> void:
+## 投射物统一回报：连击与技能回血；具体流派派生由各自的命中回调处理。
+func on_projectile_hit(_p: Node2D, from_skill: bool, _cast_id: int) -> void:
 	hit_scored()
 	if from_skill:
 		_skill_hit_sustain()
-	if not from_skill or cast_id != _skill_cast_id or skull_id != "z000" \
-			or not Meta.has_form_node("z000_volley_3") or _volley_procced or int(p.get("hp")) <= 0:
+
+
+## 双刺掷匕命中：落匕与分裂匕的牵引都依赖真实命中点。
+func on_dagger_hit(p: Node2D, pos: Vector2, from_split := false) -> void:
+	if skull_id != "c021":
 		return
-	var key := str(p.get_instance_id())
-	_volley_target_hits[key] = int(_volley_target_hits.get(key, 0)) + 1
-	if int(_volley_target_hits[key]) >= 2:
-		_volley_procced = true
-		p.call("take_damage", 2, global_position.x)
+	if _own("c021_return_1"):
+		_leave_dagger(pos)
+	if from_split and _own("c021_feather_3") and int(p.get("hp")) > 0:
+		p.call("root", 1.2)
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var other := e as Node2D
+			if other == null or other == p or int(e.get("hp")) <= 0:
+				continue
+			if other.global_position.distance_to(p.global_position) <= 240.0:
+				_pull_enemy(other, p.global_position.x + signf(other.global_position.x - p.global_position.x) * 45.0)
+				other.call("root", 0.8)
+
+
+func on_projectile_expire(pos: Vector2, style: String) -> void:
+	if skull_id == "c021" and style == "dagger" and _own("c021_return_1"):
+		_leave_dagger(pos)
+
+
+func _leave_dagger(pos: Vector2) -> void:
+	if _daggers.size() >= 6:
+		_daggers.pop_front()
+	_daggers.append({"pos": pos, "time": 8.0})
+	FX.spawn(get_tree().current_scene, "ink_hit", pos, {"scale": 0.25})
+
+
+func _recall_daggers() -> void:
+	if _daggers.is_empty():
+		return
+	var nearest: Vector2 = _daggers[0]["pos"]
+	for dagger in _daggers:
+		var pos: Vector2 = dagger["pos"]
+		if absf(pos.x - global_position.x) < absf(nearest.x - global_position.x):
+			nearest = pos
+	if _own("c021_return_3"):
+		var targets: Array = []
+		for dagger in _daggers:
+			var pos: Vector2 = dagger["pos"]
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var p := e as Node2D
+				if p != null and int(e.get("hp")) > 0 and not targets.has(p) \
+						and absf(p.global_position.x - pos.x) <= 150.0 + _radius_of(p):
+					targets.append(p)
+		if targets.size() == 1:
+			_pull_enemy(targets[0], nearest.x)
+			targets[0].call("root", 2.5)
+		elif targets.size() >= 2:
+			var mid: float = (targets[0].global_position.x + targets[1].global_position.x) * 0.5
+			_pull_enemy(targets[0], mid - 20.0)
+			_pull_enemy(targets[1], mid + 20.0)
+			targets[0].call("stun", 1.2)
+			targets[1].call("stun", 1.2)
+			for i in range(2, targets.size()):
+				targets[i].call("root", 1.2)
+	global_position.x = nearest.x
+	_daggers.clear()
+	FX.spawn(get_tree().current_scene, "pillar", global_position, {"scale": 0.35})
 
 
 ## 敌人死亡回报由 c016（Boss 继承）发出；永久效果只归属于当前化身。
@@ -1122,7 +1522,16 @@ func on_poison_kill(victim: Node2D) -> void:
 
 ## 止时·极：只响应自然计时结束；死亡、击飞等提前解除不会触发。
 func on_time_stop_end(p: Node2D) -> void:
-	if skull_id == "z003" and Meta.has_form_node("z003_time_3") and int(p.get("hp")) > 0:
+	if skull_id != "z003":
+		return
+	var id := p.get_instance_id()
+	if int(p.get("hp")) > 0 and _own("z003_clock_2") and _time_marks.has(id):
+		var count := (_time_marks[id]["moves"] as Array).size()
+		p.call("root", 0.6 * count)
+		if count >= 3 and _own("z003_clock_3") and p.has_method("slow"):
+			p.call("slow", 4.0, 0.45)
+	_time_marks.erase(id)
+	if Meta.has_form_node("z003_time_3") and int(p.get("hp")) > 0:
 		p.call("take_damage", 1, global_position.x)
 		hit_scored()
 
@@ -1130,6 +1539,15 @@ func on_time_stop_end(p: Node2D) -> void:
 ## 技能命中的位移效果（与普攻 _deal_hit 同规则）：launch=击飞挑空，knockback=击退轰飞；打死的尸体不动
 func _skill_kinetic(p: Node2D, h: Dictionary) -> void:
 	if int(p.get("hp")) <= 0:
+		return
+	var airborne := int(p.get("state")) == 6 or (p.has_method("is_on_floor") and not bool(p.call("is_on_floor")))
+	if skull_id == "z000" and _skill_name == "skill04" and _own("z000_moon_3") and airborne:
+		var boss := p.has_method("stop_tier") and str(p.call("stop_tier")) == "boss"
+		if boss:
+			p.call("stun", 0.8)
+			_slam_aoe(p.global_position, true)
+		elif p.has_method("slam"):
+			p.call("slam")
 		return
 	var lc: Dictionary = h.get("launch", {})
 	if not lc.is_empty():
@@ -1176,12 +1594,37 @@ func _apply_self_shield(spec: Dictionary) -> void:
 	if Meta.has_form_node("c013_guard_2"):
 		duration += 2.0
 	_shield_time = maxf(_shield_time, duration)
+	if skull_id == "c013" and _own("c013_bell_1"):
+		var pulled := 0
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var p := e as Node2D
+			if p != null and int(e.get("hp")) > 0 and absf(p.global_position.x - global_position.x) <= 340.0 + _radius_of(p) \
+					and absf(p.global_position.y - global_position.y) <= 160.0:
+				_pull_enemy(p, global_position.x + facing * (105.0 + pulled * 34.0))
+				pulled += 1
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("金钟罩", Color(0.9, 0.75, 0.3)) # 金：护体成功提示
 	dn.global_position = global_position + Vector2(0, -150)
 	get_tree().current_scene.add_child(dn)
 	_play_sfx("skill_boom")
 	Feel.hitstop(0.05)
+
+
+## 钟鸣·续：主动碎钟，剩余护罩越久，震缚越久；极阶留下一次性反震壳。
+func _shatter_bell() -> void:
+	var dur := clampf(_shield_time * 0.25, 0.6, 2.5)
+	_shield_hits = 0
+	_shield_time = 0.0
+	_bell_shell = _own("c013_bell_3")
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p != null and int(e.get("hp")) > 0 and absf(p.global_position.x - global_position.x) <= 360.0 + _radius_of(p) \
+				and absf(p.global_position.y - global_position.y) <= 170.0:
+			p.call("root", dur)
+	_shield_heal_once()
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 1.0})
+	_play_sfx("gold")
+	Feel.shake(7.0, 0.2)
 
 
 ## 技能命中附加流血：双刺 L「裂帛」用，每次命中叠一层（敌人侧 apply_bleed 结算，直扣血不进硬直）
@@ -1218,15 +1661,27 @@ func _apply_skill_heal(h: Dictionary) -> void:
 	var heal_amt := int(h.get("heal", 0))
 	if h.has("heal_ratio") and _skill_damage_total > 0:
 		heal_amt += int(round(float(_skill_damage_total) * float(h["heal_ratio"])))
-	if heal_amt > 0 and hp < max_hp:
-		var heal := mini(heal_amt + _heal_bonus, max_hp - hp) # 金刚·续：回血量 +2
-		hp += heal
-		hp_changed.emit(hp, max_hp)
-		var dn := DAMAGE_NUMBER.new()
-		# 飘字用通用文案：技能回血跟具体形态/招式无关，不能写死某个技能名
-		dn.setup("回血 +%d" % heal, Color(0.45, 0.75, 0.5))
-		dn.global_position = global_position + Vector2(0, -130)
-		get_tree().current_scene.add_child(dn)
+	var used_precepts := 0
+	if skull_id == "c013" and _skill_name == "skill02" and h.has("heal") and _own("c013_ascetic_1"):
+		used_precepts = _precepts
+		heal_amt += used_precepts
+	if heal_amt > 0:
+		var total_heal := heal_amt + _heal_bonus
+		var missing := maxi(0, max_hp - hp)
+		var heal := mini(total_heal, missing)
+		if heal > 0:
+			hp += heal
+			hp_changed.emit(hp, max_hp)
+			var dn := DAMAGE_NUMBER.new()
+			dn.setup("回血 +%d" % heal, Color(0.45, 0.75, 0.5))
+			dn.global_position = global_position + Vector2(0, -130)
+			get_tree().current_scene.add_child(dn)
+		if used_precepts > 0:
+			_precepts = 0
+			var overflow := maxi(0, total_heal - missing)
+			var shields := mini(used_precepts, overflow)
+			if shields > 0 and _own("c013_ascetic_2"):
+				_apply_self_shield({"hits": shields, "time": 6.0})
 
 
 ## 技能持续伤害段（梅剑·转鞭）：每 interval 秒对前后方范围内的所有敌人各打一次。
@@ -1247,6 +1702,7 @@ func _deal_skill_tick(tick: Dictionary) -> void:
 			continue
 		p.call("take_damage", int(tick["damage"]) + _tick_damage_bonus + damage_bonus + _buff_now() + _target_damage_bonus(p), global_position.x)
 		hit_scored()
+		_on_build_hit(p, _skill_name)
 		_apply_hit_poison(p, tick) # 转鞭每一跳也挂毒：只要长鞭剑打中就有中毒，不是只认尾端
 		did_hit = true
 	if did_hit:
@@ -1288,15 +1744,12 @@ func try_reflect_ranged(damage: int, from_x: float, attacker: Node = null) -> bo
 ## 发一颗投射物：从胸口高度出手，沿朝向直线飞
 func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0) -> void:
 	var pr = PROJECTILE.new()
-	if skull_id == "z000" and Meta.has_form_node("z000_wind_3") and not is_on_floor():
-		damage += 1 # 御风·极：出手时位于空中的剑气加伤
 	var from_skill := state == State.SKILL
-	# root=命中定身秒数；split=命中后分裂出的第二把数量；style=dagger 画短匕（默认剑气弧）
-	# pierce=无限穿透；pierce_charges=永久剑气额外穿透人数；source 用于目标状态加伤与命中回报
+	# root=命中定身秒数；split=命中后分裂数量；source 用于状态加伤与流派命中回报。
 	pr.setup(facing, float(spec.get("speed", 520.0)) * _proj_speed_scale, float(spec.get("range", 420.0)) * _proj_range_scale,
 		damage, sfx, proj_pierce or bool(spec.get("pierce", false)), float(spec.get("root", 0.0)),
 		int(spec.get("split", 0)), str(spec.get("style", "qi")),
-		int(spec.get("bleed", 0)), float(spec.get("scale", 1.0)), _proj_pierce_charges,
+		int(spec.get("bleed", 0)), float(spec.get("scale", 1.0)), 0,
 		self, from_skill, _skill_cast_id)
 	pr.global_position = global_position + Vector2(facing * 36.0, -52.0 + y_off)
 	get_tree().current_scene.add_child(pr)
@@ -1405,6 +1858,9 @@ func _try_jump() -> void:
 func _try_dash() -> void:
 	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0:
 		return
+	if skull_id == "z003" and _own("z003_returning_2") and _return_time > 0.0:
+		_return_dash()
+		return
 	var anim := str(anim_map["dash"])
 	var dur := _dash_time_base
 	var speed := _dash_speed_base
@@ -1434,7 +1890,37 @@ func _try_dash() -> void:
 	_play_sfx("dash_step") # 冲刺踏地声，补上原本只有画面没有声音的空档
 
 
+## 去来：归痕中闪避沿原路返回，只留状态不重复结算 O 的伤害。
+func _return_dash() -> void:
+	var start := global_position
+	var left := minf(start.x, _return_mark.x) - 30.0
+	var right := maxf(start.x, _return_mark.x) + 30.0
+	var did_hit := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or int(e.get("hp")) <= 0:
+			continue
+		if p.global_position.x < left or p.global_position.x > right or absf(p.global_position.y - start.y) > 170.0:
+			continue
+		did_hit = true
+		p.call("apply_bleed", 1)
+		p.call("root", 1.2)
+		if _own("z003_returning_3") and _outbound_hits.has(p.get_instance_id()):
+			p.call("stun", 1.5) # 去程与返程交叉命中：破招
+	global_position = _return_mark
+	_return_time = 0.0
+	_outbound_hits.clear()
+	_hurt_invincible = maxf(_hurt_invincible, 0.35)
+	_dash_cd = 0.0 if did_hit and _own("z003_returning_3") else dash_cooldown * _dash_cd_scale
+	FX.spawn(get_tree().current_scene, "speedline", (start + global_position) * 0.5, {"scale": 0.8})
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -60), {"scale": 0.45})
+	_play_sfx("dash_step")
+
+
 func _start_attack(idx: int) -> void:
+	if skull_id == "z000" and _wind_final and Meta.has_form_node("z000_wind_1"):
+		idx = attacks.size() - 1
+		_wind_final = false
 	if idx < 0 or idx >= attacks.size():
 		return
 	var atk: Dictionary = attacks[idx]
@@ -1477,6 +1963,9 @@ func _start_attack(idx: int) -> void:
 
 
 func _try_skill() -> void:
+	if skull_id == "c013" and _own("c013_bell_2") and _shield_hits > 0 and Input.is_action_just_pressed("skill"):
+		_shatter_bell()
+		return
 	for n in skill_config:
 		var cfg: Dictionary = skill_config[n]
 		if not Input.is_action_just_pressed(cfg["action"]) or _skill_cds.get(n, 0.0) > 0.0:
@@ -1489,12 +1978,29 @@ func _try_skill() -> void:
 
 
 func _start_skill(n: String) -> void:
+	if skull_id == "c021" and n == "skill01" and _own("c021_return_2"):
+		_recall_daggers()
 	state = State.SKILL
 	_skill_name = n
 	_skill_cast_id += 1
-	_volley_target_hits.clear()
-	_volley_procced = false
+	_skill_cancel_ready = false
+	if skull_id == "z000" and n == "atk04":
+		_edge_k_hits.clear()
 	var cfg: Dictionary = skill_config[n]
+	_parry_ready = skull_id == "c023" and n == "skill02" and _own("c023_counter_1")
+	if skull_id == "z000" and _own("z000_score_1"):
+		var seal: String = {"skill": "K", "skill_sweep": "L", "skill_ult": "U"}.get(str(cfg.get("action", "")), "")
+		if seal != "":
+			_sword_seals[seal] = true
+	if skull_id == "z000" and n == "skill09" and _awaken_time > 0.0 and _own("z000_score_3"):
+		for id in _seal_targets:
+			var p: Node2D = _seal_targets[id]["target"]
+			if is_instance_valid(p) and int(p.get("hp")) > 0:
+				_pull_enemy(p, global_position.x + facing * 120.0)
+	if skull_id == "z003" and n == "skill11" and _own("z003_returning_1"):
+		_return_mark = global_position
+		_return_time = 6.0
+		_outbound_hits.clear()
 	# 随机池技能（银夜 I/O）：每次从池里抽一种动画，时长按抽中的走；冷却/命中段全技能统一
 	_skill_anim = n
 	if cfg.has("pool"):
@@ -1546,6 +2052,9 @@ func _start_skill(n: String) -> void:
 	_stop_done = false
 	_skill_cd_set = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd * _form_cd_scale * float(_skill_cd_mod.get(n, 1.0))
 	_skill_cds[n] = _skill_cd_set
+	if skull_id == "c013" and n == "skill02" and _precepts >= 3 and _own("c013_ascetic_3"):
+		_skill_cds[n] = 0.0
+		_apply_self_shield({"hits": 1, "time": 6.0})
 	_skill_damage_total = 0 # O 第三段按本次技能总伤害比例回血
 	_awaken_pending = float(cfg.get("awaken_time", 0.0)) # I 觉醒：动画播完才开始计时
 	if _awaken_pending > 0.0:
@@ -1569,19 +2078,6 @@ func _start_skill(n: String) -> void:
 	# 排队 stand 紧跟技能之后：非循环动画播完瞬间轨道空窗会闪回 setup pose
 	_queue(anim_map["idle"], true)
 	_idle_queued = true
-
-
-## 换头：Q 键打开化身面板（暂停时间选形态），扣墨骨由面板在选中时结算
-func _try_swap_skull() -> void:
-	if state == State.DEAD or get_tree().paused:
-		return
-	var scene := get_tree().current_scene
-	if scene == null or scene.get_node_or_null("SwapPanel") != null:
-		return
-	var panel = load("res://scenes/ui/swap_panel.tscn").instantiate()
-	panel.name = "SwapPanel"
-	panel.setup(self) # 必须在 add_child 前：面板的 _ready 要读当前形态
-	scene.add_child(panel)
 
 
 ## 立刻换成指定形态：拆旧骨架 → 重装形态数据 → 重建骨架
@@ -1609,6 +2105,32 @@ func swap_skull(id: String) -> void:
 	_skill_damage_total = 0
 	_stop_buff_timer = 0.0 # 时停加伤同理
 	_hover_left = 0.0
+	_feathers = 0
+	_daggers.clear()
+	if is_instance_valid(_bait):
+		_bait.queue_free()
+	_bait = null
+	_bait_time = 0.0
+	_branch_zones.clear()
+	_plum_marks.clear()
+	_parry_ready = false
+	_bell_shell = false
+	_precepts = 0
+	_openings.clear()
+	_edge_k_hits.clear()
+	_k_sealed.clear()
+	_skill_cancel_ready = false
+	_wind_final = false
+	_air_follow = 0.0
+	_air_floats = 0
+	_air_slam = false
+	_air_combo_reset = false
+	_delayed.clear()
+	_sword_seals.clear()
+	_seal_targets.clear()
+	_outbound_hits.clear()
+	_return_time = 0.0
+	_time_marks.clear()
 	_apply_profile(id)
 	_setup_spine()
 	Run.skull_id = id # 局外养成的击杀/通关记账按当前形态归属，换头后立刻同步
@@ -1624,13 +2146,60 @@ func swap_skull(id: String) -> void:
 	skull_changed.emit(id)
 
 
+## 回环：收鞭挡下首次近战；初/续会收招，极阶保持花域并续缚。
+func _counter_attack(attacker: Node) -> bool:
+	var p := attacker as Node2D
+	if p == null or int(attacker.get("hp")) <= 0:
+		return false
+	_parry_ready = false
+	var boss := attacker.has_method("stop_tier") and str(attacker.call("stop_tier")) == "boss"
+	if boss:
+		p.call("stun", 0.8)
+	elif _own("c023_counter_2"):
+		var old_pos := global_position
+		global_position = p.global_position
+		p.global_position = old_pos
+		_hurt_invincible = maxf(_hurt_invincible, 0.6)
+	else:
+		_pull_enemy(p, global_position.x + facing * 90.0)
+	if _own("c023_counter_3"):
+		p.call("root", 2.5)
+	else:
+		_skill_hits.clear()
+		_skill_poise = false
+		_skill_reflect = false
+		_skill_ranged_guard = false
+		_invincible = false
+		_idle_queued = false
+		_set_state(State.IDLE)
+	_hurt_invincible = maxf(_hurt_invincible, 0.25)
+	FX.spawn(get_tree().current_scene, "slash", (global_position + p.global_position) * 0.5 + Vector2(0, -65), {"scale": 0.55})
+	_play_sfx("voice_fan_hit")
+	Feel.hitstop(0.06)
+	return true
+
+
 func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null, move: Dictionary = {}) -> void:
 	if state == State.DEAD or _invincible:
 		return
 	# 完美闪避：冲刺途中碰到"本应命中"的伤害——全部闪掉并发收益
 	# （小怪/Boss/投射物的伤害都走 hurt 这一个入口，挂这里全覆盖）
 	if state == State.DASH:
-		_perfect_dodge()
+		_perfect_dodge(attacker)
+		return
+	if _parry_ready and attacker != null and is_instance_valid(attacker) and _counter_attack(attacker):
+		return
+	if _bell_shell:
+		_bell_shell = false
+		_hurt_invincible = maxf(_hurt_invincible, 0.35)
+		if attacker != null and is_instance_valid(attacker) and int(attacker.get("hp")) > 0:
+			attacker.call("stun", 1.2)
+			var ap := attacker as Node2D
+			if ap != null:
+				FX.spawn(get_tree().current_scene, "ink_hit", ap.global_position + Vector2(0, -70), {"scale": 0.55})
+		_play_sfx("gold")
+		Feel.hitstop(0.06)
+		Feel.shake(5.0, 0.16)
 		return
 	# 定山·反伤：技能期间自身无敌，挨多少就原样弹回攻击者多少
 	# 放在 _hurt_invincible 之前——刚受过伤的 0.8s 无敌期内照样反弹
@@ -1652,8 +2221,9 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		return
 	# 金钟罩（力僧 K 第二段）：免疫这一下，挡完即散（8 秒没挨打也会自动消失）
 	if _shield_hits > 0:
-		_shield_hits = 0
-		_shield_time = 0.0
+		_shield_hits -= 1 # 苦行可把多枚戒印转成多层护盾，一次攻击只挡一层
+		if _shield_hits <= 0:
+			_shield_time = 0.0
 		var shield_dn := DAMAGE_NUMBER.new()
 		shield_dn.setup("金钟罩", Color(0.9, 0.75, 0.3)) # 金：与完美闪避同色系
 		shield_dn.global_position = global_position + Vector2(0, -150)
@@ -1689,6 +2259,12 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
 	_reset_root_follow() # 技能被受击打断：把根骨位移结算进节点，别把骨架留在偏移位置
 	hp -= amount
+	if skull_id == "c013" and _own("c013_ascetic_1"):
+		_precepts = mini(3, _precepts + 1)
+		var precept_dn := DAMAGE_NUMBER.new()
+		precept_dn.setup("戒印 %d/3" % _precepts, Color(0.9, 0.75, 0.3))
+		precept_dn.global_position = global_position + Vector2(0, -165)
+		get_tree().current_scene.add_child(precept_dn)
 	if _hurt_bones > 0:
 		Score.add_bones(_hurt_bones) # 禅定·续：挨打也赚墨骨
 	hp_changed.emit(hp, max_hp)
@@ -1784,20 +2360,25 @@ func _spawn_number(amount: int, color: Color, height: float) -> void:
 ## 完美闪避：冲刺中"本应命中"的伤害全部闪掉，并给收益——
 ## 冲刺冷却立刻回零（能接着连闪）、4s 全伤害 +2（与觉醒共用 buff 槽，取高者）、
 ## 0.5s 短无敌防同一轮攻击的后段在冲刺结束后立刻命中。
-func _perfect_dodge() -> void:
+func _perfect_dodge(attacker: Node = null) -> void:
 	_dash_cd = 0.0 # 收益一：冷却回零
 	_hurt_invincible = maxf(_hurt_invincible, 0.5 + _dodge_time_bonus) # 冲刺窗口只有 0.16s，垫一层防后续段
 	_buff_damage = maxi(_buff_damage, 2 + _dodge_bonus) # 收益二：限时加伤（掠影加档）
 	_buff_timer = maxf(_buff_timer, 4.0 + _dodge_time_bonus)
-	# 轻功与无影共用冷却返还入口；御风·续额外发一道剑气。
 	var cd_refund := _dodge_cd_refund
 	if skull_id == "c021" and Meta.has_form_node("c021_shadow_2"):
 		cd_refund += 1.0
 	if cd_refund > 0.0:
 		for n in _skill_cds:
 			_skill_cds[n] = maxf(0.0, float(_skill_cds[n]) - cd_refund)
-	if skull_id == "z000" and Meta.has_form_node("z000_wind_2"):
-		_spawn_projectile({}, 1 + damage_bonus + _proj_damage_bonus + _buff_now(), "voice_sword_hit")
+	if skull_id == "c021" and _own("c021_bait_1"):
+		_spawn_bait()
+	if skull_id == "z000" and Meta.has_form_node("z000_wind_1"):
+		_wind_final = true
+	if skull_id == "z000" and _own("z000_listen_1") and attacker != null and is_instance_valid(attacker):
+		var p := attacker as Node2D
+		if p != null and int(attacker.get("hp")) > 0:
+			_openings[p.get_instance_id()] = {"target": p, "time": 5.0}
 	_play_sfx("weapon_sword") # 侧身擦过的嗖声当闪避音
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("完美闪避", Color(0.9, 0.75, 0.3)) # 金：奖励时刻

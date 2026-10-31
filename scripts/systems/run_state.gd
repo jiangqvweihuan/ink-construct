@@ -5,7 +5,6 @@ extends Node
 ## 墨骨由 Score 管（跨房间不清空），只有开新一局才 reset。
 
 const BASE_HP := 8
-const SWAP_FROM := 8 # 换头基础消耗（与 player.gd 的 SWAP_COST 对齐）
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 
 ## 两种模式：冒险 = 三关 + Boss 通关；无尽 = 每层都是「三小关 + 一个 Boss」，Boss 倒下进下一层
@@ -55,7 +54,6 @@ const UPGRADES := {
 	"damage": {"label": "锋锐", "desc": "全部伤害 +1", "max": 5, "icon": "icon_sword"},
 	"cooldown": {"label": "静心", "desc": "技能冷却 -15%", "max": 3, "icon": "icon_undo"},
 	"hp": {"label": "铁骨", "desc": "生命上限 +1，并回满", "max": 3, "icon": "icon_potion"},
-	"swap": {"label": "轻骨", "desc": "换头消耗 -3 墨骨", "max": 2, "icon": "icon_currency"},
 	# 疾影：闪避时长 +20% —— 闪避距离与"完美闪避"判定窗口同步变长，回收闪避冷却 -10%
 	"dash": {"label": "疾影", "desc": "闪避更远，完美闪避窗口更长", "max": 3, "icon": "icon_arrow_up"},
 	# 掠影：完美闪避的收益直接加档（加伤与垫底无敌一起抬）
@@ -67,56 +65,56 @@ const UPGRADES := {
 ## theme 给面板配色用（0 朱砂 / 1 墨青 / 2 赭金）。
 ## 只对当前形态生效：换头后旧形态的卡休眠，换回来再生效（player._apply_form_mods 过滤 forms）。
 const FORM_UPGRADES := {
-	# ---------- 双刺·冷红绫：吸血续航 / 群战范围 / 闪避输出 ----------
-	"c021_blood_1": {"label": "血饮 · 初", "desc": "技能命中回 1 生命（6 秒一次）", "max": 1, "icon": "icon_potion", "forms": ["c021"], "path": "血饮", "tier": 1, "theme": 0},
-	"c021_blood_2": {"label": "血饮 · 续", "desc": "回血升到 2，间隔缩到 4 秒", "max": 1, "icon": "icon_potion", "forms": ["c021"], "path": "血饮", "tier": 2, "theme": 0, "req": "c021_blood_1"},
-	"c021_blood_3": {"label": "血饮 · 极", "desc": "回血同时 4 秒内全伤害 +1", "max": 1, "icon": "icon_potion", "forms": ["c021"], "path": "血饮", "tier": 3, "theme": 0, "req": "c021_blood_2"},
-	"c021_sweep_1": {"label": "锋扫 · 初", "desc": "攻击范围 +30%", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "锋扫", "tier": 1, "theme": 1},
-	"c021_sweep_2": {"label": "锋扫 · 续", "desc": "范围再 +25%，普攻伤害 +1", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "锋扫", "tier": 2, "theme": 1, "req": "c021_sweep_1"},
-	"c021_sweep_3": {"label": "锋扫 · 极", "desc": "范围再 +20%，普攻伤害再 +1", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "锋扫", "tier": 3, "theme": 1, "req": "c021_sweep_2"},
-	"c021_dash_1": {"label": "疾刃 · 初", "desc": "闪避终点斩身前敌人，1 伤", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 1, "theme": 2},
-	"c021_dash_2": {"label": "疾刃 · 续", "desc": "闪避斩 2 伤，命中即回满闪避", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 2, "theme": 2, "req": "c021_dash_1"},
-	"c021_dash_3": {"label": "疾刃 · 极", "desc": "闪避斩 3 伤，命中回 1 墨骨", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "疾刃", "tier": 3, "theme": 2, "req": "c021_dash_2"},
-	# ---------- 梅剑·白疏影：鞭术范围 / 内劲转鞭 / 铁骨站桩 ----------
-	"c023_whip_1": {"label": "鞭术 · 初", "desc": "攻击范围 +25%", "max": 1, "icon": "icon_sword", "forms": ["c023"], "path": "鞭术", "tier": 1, "theme": 0},
-	"c023_whip_2": {"label": "鞭术 · 续", "desc": "范围再 +25%，普攻伤害 +1", "max": 1, "icon": "icon_sword", "forms": ["c023"], "path": "鞭术", "tier": 2, "theme": 0, "req": "c023_whip_1"},
-	"c023_whip_3": {"label": "鞭术 · 极", "desc": "范围再 +25%，普攻伤害再 +1", "max": 1, "icon": "icon_sword", "forms": ["c023"], "path": "鞭术", "tier": 3, "theme": 0, "req": "c023_whip_2"},
-	"c023_force_1": {"label": "内劲 · 初", "desc": "转鞭每跳伤害 +1", "max": 1, "icon": "icon_undo", "forms": ["c023"], "path": "内劲", "tier": 1, "theme": 1},
-	"c023_force_2": {"label": "内劲 · 续", "desc": "转鞭出鞭更快（0.5→0.35 秒）", "max": 1, "icon": "icon_undo", "forms": ["c023"], "path": "内劲", "tier": 2, "theme": 1, "req": "c023_force_1"},
-	"c023_force_3": {"label": "内劲 · 极", "desc": "转鞭范围 +40%，技能冷却 -25%", "max": 1, "icon": "icon_undo", "forms": ["c023"], "path": "内劲", "tier": 3, "theme": 1, "req": "c023_force_2"},
-	"c023_iron_1": {"label": "铁骨 · 初", "desc": "受到的伤害 -1（最低仍吃 1）", "max": 1, "icon": "icon_potion", "forms": ["c023"], "path": "铁骨", "tier": 1, "theme": 2},
-	"c023_iron_2": {"label": "铁骨 · 续", "desc": "减伤保持，技能冷却 -20%", "max": 1, "icon": "icon_potion", "forms": ["c023"], "path": "铁骨", "tier": 2, "theme": 2, "req": "c023_iron_1"},
-	"c023_iron_3": {"label": "铁骨 · 极", "desc": "受到的伤害 -2（最低仍吃 1）", "max": 1, "icon": "icon_potion", "forms": ["c023"], "path": "铁骨", "tier": 3, "theme": 2, "req": "c023_iron_2"},
-	# ---------- 力僧·定山：金刚反伤 / 震地范围 / 禅定减伤 ----------
-	"c013_vajra_1": {"label": "金刚 · 初", "desc": "定山反弹伤害 +2", "max": 1, "icon": "icon_medal", "forms": ["c013"], "path": "金刚", "tier": 1, "theme": 0},
-	"c013_vajra_2": {"label": "金刚 · 续", "desc": "定山砸地回血 +2", "max": 1, "icon": "icon_potion", "forms": ["c013"], "path": "金刚", "tier": 2, "theme": 0, "req": "c013_vajra_1"},
-	"c013_vajra_3": {"label": "金刚 · 极", "desc": "反弹再 +2，定山冷却 -30%", "max": 1, "icon": "icon_medal", "forms": ["c013"], "path": "金刚", "tier": 3, "theme": 0, "req": "c013_vajra_2"},
-	"c013_quake_1": {"label": "震地 · 初", "desc": "攻击范围 +35%", "max": 1, "icon": "icon_sword", "forms": ["c013"], "path": "震地", "tier": 1, "theme": 1},
-	"c013_quake_2": {"label": "震地 · 续", "desc": "范围再 +25%，普攻伤害 +1", "max": 1, "icon": "icon_sword", "forms": ["c013"], "path": "震地", "tier": 2, "theme": 1, "req": "c013_quake_1"},
-	"c013_quake_3": {"label": "震地 · 极", "desc": "范围再 +25%，普攻伤害再 +1", "max": 1, "icon": "icon_sword", "forms": ["c013"], "path": "震地", "tier": 3, "theme": 1, "req": "c013_quake_2"},
-	"c013_zen_1": {"label": "禅定 · 初", "desc": "受到伤害 -1（最低仍吃 1）", "max": 1, "icon": "icon_potion", "forms": ["c013"], "path": "禅定", "tier": 1, "theme": 2},
-	"c013_zen_2": {"label": "禅定 · 续", "desc": "每次受伤回 1 墨骨", "max": 1, "icon": "icon_currency", "forms": ["c013"], "path": "禅定", "tier": 2, "theme": 2, "req": "c013_zen_1"},
-	"c013_zen_3": {"label": "禅定 · 极", "desc": "受到伤害 -2（最低仍吃 1）", "max": 1, "icon": "icon_potion", "forms": ["c013"], "path": "禅定", "tier": 3, "theme": 2, "req": "c013_zen_2"},
-	# ---------- 剑仙·洛惊鸿：剑气强度 / 齐发数量 / 御剑冷却 ----------
-	"z000_qi_1": {"label": "剑气 · 初", "desc": "剑气伤害 +1", "max": 1, "icon": "icon_sword", "forms": ["z000"], "path": "剑气", "tier": 1, "theme": 0},
-	"z000_qi_2": {"label": "剑气 · 续", "desc": "剑气伤害再 +1，飞行快 30%", "max": 1, "icon": "icon_sword", "forms": ["z000"], "path": "剑气", "tier": 2, "theme": 0, "req": "z000_qi_1"},
-	"z000_qi_3": {"label": "剑气 · 极", "desc": "剑气穿透敌人，命中后继续飞", "max": 1, "icon": "icon_sword", "forms": ["z000"], "path": "剑气", "tier": 3, "theme": 0, "req": "z000_qi_2"},
-	"z000_twin_1": {"label": "双发 · 初", "desc": "剑气齐发 +1 道", "max": 1, "icon": "icon_arrow_up", "forms": ["z000"], "path": "双发", "tier": 1, "theme": 1},
-	"z000_twin_2": {"label": "双发 · 续", "desc": "剑气齐发 +1 道（共三道）", "max": 1, "icon": "icon_arrow_up", "forms": ["z000"], "path": "双发", "tier": 2, "theme": 1, "req": "z000_twin_1"},
-	"z000_twin_3": {"label": "双发 · 极", "desc": "剑气齐发 +1 道（共四道）", "max": 1, "icon": "icon_arrow_up", "forms": ["z000"], "path": "双发", "tier": 3, "theme": 1, "req": "z000_twin_2"},
-	"z000_calm_1": {"label": "御剑 · 初", "desc": "技能冷却 -25%", "max": 1, "icon": "icon_undo", "forms": ["z000"], "path": "御剑", "tier": 1, "theme": 2},
-	"z000_calm_2": {"label": "御剑 · 续", "desc": "剑气射程 +30%", "max": 1, "icon": "icon_undo", "forms": ["z000"], "path": "御剑", "tier": 2, "theme": 2, "req": "z000_calm_1"},
-	"z000_calm_3": {"label": "御剑 · 极", "desc": "技能冷却再 -15%，剑气伤害 +1", "max": 1, "icon": "icon_undo", "forms": ["z000"], "path": "御剑", "tier": 3, "theme": 2, "req": "z000_calm_2"},
-	# ---------- 银夜·将去未还：轻功闪避流 / 时停流 / 位移斩杀流 ----------
-	"z003_qinggong_1": {"label": "轻功 · 初", "desc": "跳得更高，空中悬停更久", "max": 1, "icon": "icon_arrow_up", "forms": ["z003"], "path": "轻功", "tier": 1, "theme": 0},
-	"z003_qinggong_2": {"label": "轻功 · 续", "desc": "完美闪避额外减全部技能 2 秒", "max": 1, "icon": "icon_arrow_up", "forms": ["z003"], "path": "轻功", "tier": 2, "theme": 0, "req": "z003_qinggong_1"},
-	"z003_qinggong_3": {"label": "轻功 · 极", "desc": "完美闪避减全部技能 4 秒", "max": 1, "icon": "icon_arrow_up", "forms": ["z003"], "path": "轻功", "tier": 3, "theme": 0, "req": "z003_qinggong_2"},
-	"z003_stop_1": {"label": "时停 · 初", "desc": "时停时长 +1 秒（全档位）", "max": 1, "icon": "icon_undo", "forms": ["z003"], "path": "时停", "tier": 1, "theme": 1},
-	"z003_stop_2": {"label": "时停 · 续", "desc": "时停期间全伤害 +2", "max": 1, "icon": "icon_undo", "forms": ["z003"], "path": "时停", "tier": 2, "theme": 1, "req": "z003_stop_1"},
-	"z003_stop_3": {"label": "时停 · 极", "desc": "时停冷却 -30%", "max": 1, "icon": "icon_undo", "forms": ["z003"], "path": "时停", "tier": 3, "theme": 1, "req": "z003_stop_2"},
-	"z003_kill_1": {"label": "杀阵 · 初", "desc": "O 位移距离 +200px", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "杀阵", "tier": 1, "theme": 2},
-	"z003_kill_2": {"label": "杀阵 · 续", "desc": "O 伤害 +2", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "杀阵", "tier": 2, "theme": 2, "req": "z003_kill_1"},
-	"z003_kill_3": {"label": "杀阵 · 极", "desc": "O 命中返还 3 秒冷却", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "杀阵", "tier": 3, "theme": 2, "req": "z003_kill_2"},
+	# ---------- 双刺·冷红绫：绯羽 / 归刃 / 影饵 ----------
+	"c021_feather_1": {"label": "绯羽 · 初", "desc": "K 命中剥离全部流血，每层凝一羽（最多 3 羽）", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "绯羽", "tier": 1, "theme": 0},
+	"c021_feather_2": {"label": "绯羽 · 续", "desc": "U 消耗全部绯羽，每羽让掷匕多分裂一次", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "绯羽", "tier": 2, "theme": 0, "req": "c021_feather_1"},
+	"c021_feather_3": {"label": "绯羽 · 极", "desc": "分裂匕命中时牵引周围敌人并定身", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "绯羽", "tier": 3, "theme": 0, "req": "c021_feather_2"},
+	"c021_return_1": {"label": "归刃 · 初", "desc": "U 掷匕在命中点或终点留匕 8 秒", "max": 1, "icon": "icon_undo", "forms": ["c021"], "path": "归刃", "tier": 1, "theme": 1},
+	"c021_return_2": {"label": "归刃 · 续", "desc": "留匕期间 K 先回闪至最近落匕处并收匕", "max": 1, "icon": "icon_undo", "forms": ["c021"], "path": "归刃", "tier": 2, "theme": 1, "req": "c021_return_1"},
+	"c021_return_3": {"label": "归刃 · 极", "desc": "收匕牵动落点敌人：多匕拉撞，单目标续缚", "max": 1, "icon": "icon_undo", "forms": ["c021"], "path": "归刃", "tier": 3, "theme": 1, "req": "c021_return_2"},
+	"c021_bait_1": {"label": "影饵 · 初", "desc": "完美闪避留下 1.5 秒残影，引诱附近敌人", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "影饵", "tier": 1, "theme": 2},
+	"c021_bait_2": {"label": "影饵 · 续", "desc": "残影消失时定身仍在追逐它的敌人", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "影饵", "tier": 2, "theme": 2, "req": "c021_bait_1"},
+	"c021_bait_3": {"label": "影饵 · 极", "desc": "残影存在时，L 让人影交叉处只叠加流血", "max": 1, "icon": "icon_arrow_up", "forms": ["c021"], "path": "影饵", "tier": 3, "theme": 2, "req": "c021_bait_2"},
+	# ---------- 梅剑·白疏影：缠枝 / 梅烙 / 回环 ----------
+	"c023_bind_1": {"label": "缠枝 · 初", "desc": "普攻首段把拉回者撞向近敌，双方定身", "max": 1, "icon": "icon_sword", "forms": ["c023"], "path": "缠枝", "tier": 1, "theme": 0},
+	"c023_bind_2": {"label": "缠枝 · 续", "desc": "K 尾鞭将命中者统一拉至身前", "max": 1, "icon": "icon_sword", "forms": ["c023"], "path": "缠枝", "tier": 2, "theme": 0, "req": "c023_bind_1"},
+	"c023_bind_3": {"label": "缠枝 · 极", "desc": "尾鞭留下 5 秒枝界，界内敌人无法走出", "max": 1, "icon": "icon_sword", "forms": ["c023"], "path": "缠枝", "tier": 3, "theme": 0, "req": "c023_bind_2"},
+	"c023_plum_1": {"label": "梅烙 · 初", "desc": "普攻两段命中同一中毒目标，结成梅烙", "max": 1, "icon": "icon_potion", "forms": ["c023"], "path": "梅烙", "tier": 1, "theme": 1},
+	"c023_plum_2": {"label": "梅烙 · 续", "desc": "K 命中梅烙目标会催花：定身并向周围传毒", "max": 1, "icon": "icon_potion", "forms": ["c023"], "path": "梅烙", "tier": 2, "theme": 1, "req": "c023_plum_1"},
+	"c023_plum_3": {"label": "梅烙 · 极", "desc": "K 花域结束时，把域内敌人全部拉回", "max": 1, "icon": "icon_potion", "forms": ["c023"], "path": "梅烙", "tier": 3, "theme": 1, "req": "c023_plum_2"},
+	"c023_counter_1": {"label": "回环 · 初", "desc": "K 期间首次近战攻击被收鞭格挡并拉近攻击者", "max": 1, "icon": "icon_medal", "forms": ["c023"], "path": "回环", "tier": 1, "theme": 2},
+	"c023_counter_2": {"label": "回环 · 续", "desc": "格挡后与攻击者换位，并获得短暂无敌", "max": 1, "icon": "icon_medal", "forms": ["c023"], "path": "回环", "tier": 2, "theme": 2, "req": "c023_counter_1"},
+	"c023_counter_3": {"label": "回环 · 极", "desc": "反制不中断 K，并缚住攻击者 2.5 秒", "max": 1, "icon": "icon_medal", "forms": ["c023"], "path": "回环", "tier": 3, "theme": 2, "req": "c023_counter_2"},
+	# ---------- 力僧·定山：搬山 / 钟鸣 / 苦行 ----------
+	"c013_mountain_1": {"label": "搬山 · 初", "desc": "击退撞人时双方定身，碰撞即控制", "max": 1, "icon": "icon_sword", "forms": ["c013"], "path": "搬山", "tier": 1, "theme": 0},
+	"c013_mountain_2": {"label": "搬山 · 续", "desc": "普攻可以击退被 L 眩晕的目标", "max": 1, "icon": "icon_sword", "forms": ["c013"], "path": "搬山", "tier": 2, "theme": 0, "req": "c013_mountain_1"},
+	"c013_mountain_3": {"label": "搬山 · 极", "desc": "击退撞墙时，以落点为中心范围击飞", "max": 1, "icon": "icon_sword", "forms": ["c013"], "path": "搬山", "tier": 3, "theme": 0, "req": "c013_mountain_2"},
+	"c013_bell_1": {"label": "钟鸣 · 初", "desc": "金钟罩展开时，把周围敌人拉到身前", "max": 1, "icon": "icon_medal", "forms": ["c013"], "path": "钟鸣", "tier": 1, "theme": 1},
+	"c013_bell_2": {"label": "钟鸣 · 续", "desc": "盾中再按 K 主动碎钟，按剩余时间定身周围敌人", "max": 1, "icon": "icon_medal", "forms": ["c013"], "path": "钟鸣", "tier": 2, "theme": 1, "req": "c013_bell_1"},
+	"c013_bell_3": {"label": "钟鸣 · 极", "desc": "碎钟留下一次钟壳，挡下攻击并反震敌人", "max": 1, "icon": "icon_medal", "forms": ["c013"], "path": "钟鸣", "tier": 3, "theme": 1, "req": "c013_bell_2"},
+	"c013_ascetic_1": {"label": "苦行 · 初", "desc": "受击叠戒印（最多 3），U 砸地每层额外回血", "max": 1, "icon": "icon_potion", "forms": ["c013"], "path": "苦行", "tier": 1, "theme": 2},
+	"c013_ascetic_2": {"label": "苦行 · 续", "desc": "戒印回血溢出时，每层转为一次护身盾", "max": 1, "icon": "icon_potion", "forms": ["c013"], "path": "苦行", "tier": 2, "theme": 2, "req": "c013_ascetic_1"},
+	"c013_ascetic_3": {"label": "苦行 · 极", "desc": "三戒释放 U 不进入冷却，并同时展开钟鸣", "max": 1, "icon": "icon_potion", "forms": ["c013"], "path": "苦行", "tier": 3, "theme": 2, "req": "c013_ascetic_2"},
+	# ---------- 剑仙·洛惊鸿：听锋 / 挑月 / 惊鸿谱 ----------
+	"z000_listen_1": {"label": "听锋 · 初", "desc": "完美闪避给攻击者留下 5 秒破绽", "max": 1, "icon": "icon_medal", "forms": ["z000"], "path": "听锋", "tier": 1, "theme": 0},
+	"z000_listen_2": {"label": "听锋 · 续", "desc": "近战命中消耗破绽，破招并打断敌人", "max": 1, "icon": "icon_medal", "forms": ["z000"], "path": "听锋", "tier": 2, "theme": 0, "req": "z000_listen_1"},
+	"z000_listen_3": {"label": "听锋 · 极", "desc": "破招后回身步，闪避立即冷却且短暂无敌", "max": 1, "icon": "icon_medal", "forms": ["z000"], "path": "听锋", "tier": 3, "theme": 0, "req": "z000_listen_2"},
+	"z000_moon_1": {"label": "挑月 · 初", "desc": "U 后 4 秒内可在空中普攻，追身浮空目标", "max": 1, "icon": "icon_arrow_up", "forms": ["z000"], "path": "挑月", "tier": 1, "theme": 1},
+	"z000_moon_2": {"label": "挑月 · 续", "desc": "空中普攻命中可续浮空，每次起跳最多两次", "max": 1, "icon": "icon_arrow_up", "forms": ["z000"], "path": "挑月", "tier": 2, "theme": 1, "req": "z000_moon_1"},
+	"z000_moon_3": {"label": "挑月 · 极", "desc": "U 对浮空目标改为砸落，落点范围击飞", "max": 1, "icon": "icon_arrow_up", "forms": ["z000"], "path": "挑月", "tier": 3, "theme": 1, "req": "z000_moon_2"},
+	"z000_score_1": {"label": "惊鸿谱 · 初", "desc": "K/L/U 各留一种剑诀，命中为敌人留诀", "max": 1, "icon": "icon_sword", "forms": ["z000"], "path": "惊鸿谱", "tier": 1, "theme": 2},
+	"z000_score_2": {"label": "惊鸿谱 · 续", "desc": "三诀齐备后普攻第四段归一：拉人并定身", "max": 1, "icon": "icon_sword", "forms": ["z000"], "path": "惊鸿谱", "tier": 2, "theme": 2, "req": "z000_score_1"},
+	"z000_score_3": {"label": "惊鸿谱 · 极", "desc": "归一重置最长技能冷却；觉醒中归一免诀，O 先拉带诀敌人", "max": 1, "icon": "icon_sword", "forms": ["z000"], "path": "惊鸿谱", "tier": 3, "theme": 2, "req": "z000_score_2"},
+	# ---------- 银夜·将去未还：踏霄 / 漏刻 / 去来 ----------
+	"z003_sky_1": {"label": "踏霄 · 初", "desc": "二段挑飞后 4 秒内可空中 J 追身", "max": 1, "icon": "icon_arrow_up", "forms": ["z003"], "path": "踏霄", "tier": 1, "theme": 0},
+	"z003_sky_2": {"label": "踏霄 · 续", "desc": "空中第三段改为砸落，落地眩晕周围敌人", "max": 1, "icon": "icon_arrow_up", "forms": ["z003"], "path": "踏霄", "tier": 2, "theme": 0, "req": "z003_sky_1"},
+	"z003_sky_3": {"label": "踏霄 · 极", "desc": "砸落让自己反弹，可再接一次挑飞", "max": 1, "icon": "icon_arrow_up", "forms": ["z003"], "path": "踏霄", "tier": 3, "theme": 0, "req": "z003_sky_2"},
+	"z003_clock_1": {"label": "漏刻 · 初", "desc": "时停中用不同招式命中，各留一枚时刻（最多 3）", "max": 1, "icon": "icon_undo", "forms": ["z003"], "path": "漏刻", "tier": 1, "theme": 1},
+	"z003_clock_2": {"label": "漏刻 · 续", "desc": "时停自然结束，每枚时刻使目标定身 0.6 秒", "max": 1, "icon": "icon_undo", "forms": ["z003"], "path": "漏刻", "tier": 2, "theme": 1, "req": "z003_clock_1"},
+	"z003_clock_3": {"label": "漏刻 · 极", "desc": "集齐三刻的目标，时停后余滞减速 4 秒", "max": 1, "icon": "icon_undo", "forms": ["z003"], "path": "漏刻", "tier": 3, "theme": 1, "req": "z003_clock_2"},
+	"z003_returning_1": {"label": "去来 · 初", "desc": "O 起手留下 6 秒归痕，并记住路径命中者", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "去来", "tier": 1, "theme": 2},
+	"z003_returning_2": {"label": "去来 · 续", "desc": "归痕中闪避返程，只叠流血与定身、不伤血", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "去来", "tier": 2, "theme": 2, "req": "z003_returning_1"},
+	"z003_returning_3": {"label": "去来 · 极", "desc": "交叉命中触发破招；返程命中免除闪避冷却", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "去来", "tier": 3, "theme": 2, "req": "z003_returning_2"},
 }
 
 ## 开局赐福：每局出发前三选一（blessing_panel 弹出），效果只在本局生效
