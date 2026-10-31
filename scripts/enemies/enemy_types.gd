@@ -7,7 +7,7 @@ extends RefCounted
 const DEFAULT_ID := "c016"
 
 const TYPES := {
-	# ---------- 普通刀客：小怪，5 种挥砍，轻击就打断 ----------
+	# ---------- 普通刀客：小怪，四种招式；三刀蓄势、升龙贴身，轻击就打断 ----------
 	"c016": {
 		"label": "刀客",
 		"data": "res://art/characters/enemies/c016/c016_data.tres",
@@ -15,12 +15,26 @@ const TYPES := {
 		"body_radius": 30.0,
 		"elite": false,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "dead"},
-		"attacks": ["skill01", "skill02", "skill03", "skill04", "skill05"],
-		# 出手后多少秒判定命中，按动画里武器完全伸到最远端的时刻（range_probe 逐帧标定）
-		"hit_at": {"skill01": 1.33, "skill02": 1.01, "skill03": 0.87, "skill04": 0.84, "skill05": 1.46},
-		# 判定范围 = 动画里武器伸到的真实像素（×世界缩放）：钩子甩满 400px，砍刀 144px……
-		"ranges": {"skill01": 144.0, "skill02": 400.0, "skill03": 109.0, "skill04": 164.0, "skill05": 155.0},
-		"hp": 3,
+		"attacks": ["skill01", "skill02", "skill03", "skill04"],
+		# 亡命三刀：三次伸展峰值 0.36 / 0.88 / 1.33；前两刀只给受击反馈，末刀才扣血。
+		"hit_at": {"skill01": [0.36, 0.88, 1.33], "skill02": 1.01, "skill03": 0.87, "skill04": 0.84},
+		"ranges": {"skill01": [125.0, 100.0, 144.0], "skill02": 400.0, "skill03": 109.0, "skill04": 164.0},
+		"feedback_only": {"skill01": [0, 1]},
+		"damage": {"skill03": 2},
+		# 升龙刀：追击中 100~260px 可直接起手，先瞬到身前 72px，保留 0.87s 飞行前摇供闪避。
+		"blink_strike": {"anim": "skill03", "min": 100.0, "max": 260.0, "offset": 72.0},
+		# 普攻为主：特殊招式有独立冷却与触发窗口，不在近身池里等权随机。
+		"attack_rules": {
+			"skill01": {"weight": 6.0},
+			"skill02": {"trigger": "distance", "min": 180.0, "max": 400.0, "cooldown": 8.0, "random": false},
+			"skill03": {"cooldown": 12.0, "random": false},
+			"skill04": {"weight": 1.0, "max": 164.0, "cooldown": 6.0},
+		},
+		# 高伤倒地：第 1 → 2 → 5 → 10 号动画；链中照常吃伤害，但不重触发其他受击动画。
+		"knock_at": 2,
+		"knock_chain": ["atked", "atked_air", "atked_fall_end", "getup"],
+		"regen": {"interval": 5.0, "amount": 1}, # 山民：每 5 秒恢复 1 点，不超过生命上限
+		"hp": 6,
 		"patrol_speed": 60.0,
 		"chase_speed": 150.0,
 		"patrol_range": 120.0,
@@ -55,7 +69,7 @@ const TYPES := {
 		"hit_at": {"atk01": 0.24, "atk02": 0.23, "atk03": 0.24},
 		"ranges": {"atk01": 72.0, "atk02": 78.0, "atk03": 57.0},
 		"both": {"atk01": true, "atk02": true, "atk03": true},
-		"hp": 3,
+		"hp": 6,
 		"patrol_speed": 60.0,
 		"chase_speed": 150.0,
 		"patrol_range": 120.0,
@@ -90,7 +104,7 @@ const TYPES := {
 		"ranges": {"skill01": 112.0, "skill03_1": 116.0, "skill03_2": 143.0},
 		# 巨斧横扫有半圈在身后，判 both
 		"both": {"skill01": true, "skill03_1": true},
-		"hp": 4,
+		"hp": 8,
 		"patrol_speed": 40.0,
 		"chase_speed": 105.0,
 		"patrol_range": 90.0,
@@ -123,7 +137,7 @@ const TYPES := {
 		# 探针实测：skill01 前侧 280@0.94、skill02 前侧 306@1.38
 		"hit_at": {"skill01": 0.94, "skill02": 1.38},
 		"ranges": {"skill01": 118.0, "skill02": 129.0},
-		"hp": 2,
+		"hp": 4,
 		"patrol_speed": 90.0,
 		"chase_speed": 195.0,
 		"patrol_range": 150.0,
@@ -158,7 +172,7 @@ const TYPES := {
 		"ranges": {"skill01": 164.0, "skill03": 168.0, "skill05": 176.0, "skill06": 159.0},
 		# 大剑横抡带大片身后弧线，判 both
 		"both": {"skill01": true, "skill03": true},
-		"hp": 12,
+		"hp": 24,
 		"patrol_speed": 45.0,
 		"chase_speed": 100.0,
 		"patrol_range": 150.0,
@@ -193,7 +207,7 @@ const TYPES := {
 		"ranges": {"skill01": 209.0, "skill02": 154.0, "skill03": 218.0},
 		# 双持镰刀左右开弓，前后都扫得到，判 both
 		"both": {"skill01": true, "skill02": true, "skill03": true},
-		"hp": 9,
+		"hp": 18,
 		"patrol_speed": 60.0,
 		"chase_speed": 135.0,
 		"patrol_range": 160.0,
@@ -235,7 +249,7 @@ const TYPES := {
 		"hop": {"skill02": 260.0}, # 跳斩腾空（视觉配合动画，重力自然落地）
 		# 背水：血量跌破一半狂暴——出手更密、追得更紧，弥补他底子偏弱
 		"enrage": {"below": 0.5, "cd": 0.65, "speed": 1.2},
-		"hp": 10,
+		"hp": 20,
 		"patrol_speed": 65.0,
 		"chase_speed": 170.0, # 快剑游侠，比别的精英追得紧
 		"patrol_range": 150.0,

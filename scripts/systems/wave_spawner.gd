@@ -26,9 +26,9 @@ const MAX_CONCURRENT := 6 # 屏上同时存活上限
 
 ## 每波一项：{count=本波总数, hp=每只血量, speed=速度倍率, elite=其中的精英数量}
 var waves: Array = [
-	{"count": 5, "hp": 3, "speed": 1.0},
-	{"count": 7, "hp": 3, "speed": 1.05, "elite": 1},
-	{"count": 9, "hp": 4, "speed": 1.12, "elite": 2},
+	{"count": 5, "hp": 6, "speed": 1.0},
+	{"count": 7, "hp": 6, "speed": 1.05, "elite": 1},
+	{"count": 9, "hp": 8, "speed": 1.12, "elite": 2},
 ]
 var spawn_xs: Array = [820.0, 1120.0, 1440.0, 1720.0] # 候选出生点 x（会随机挑，避开玩家附近）
 var spawn_y := 560.0
@@ -98,7 +98,7 @@ func _spawn_one() -> void:
 	else:
 		# 每只怪的站位距离与出手节奏都错开：不会几只挤在同一格，也不会整齐划一地同时挥刀
 		e.configure({
-			"hp": int(cfg.get("hp", 3)),
+			"hp": int(cfg.get("hp", 6)),
 			"speed": float(cfg.get("speed", 1.0)),
 			"attack_range": randf_range(140.0, 205.0),
 			"keep_dist": randf_range(70.0, 110.0),

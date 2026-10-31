@@ -24,22 +24,22 @@ const ROOMS := [
 	{
 		"label": "残卷山谷 · 外院",
 		"waves": [
-			{"count": 5, "hp": 2, "speed": 1.0},
-			{"count": 6, "hp": 2, "speed": 1.02},
+			{"count": 5, "hp": 4, "speed": 1.0},
+			{"count": 6, "hp": 4, "speed": 1.02},
 		],
 	},
 	{
 		"label": "残卷山谷 · 中庭",
 		"waves": [
-			{"count": 6, "hp": 3, "speed": 1.0, "elite": 1},
-			{"count": 7, "hp": 3, "speed": 1.05},
+			{"count": 6, "hp": 6, "speed": 1.0, "elite": 1},
+			{"count": 7, "hp": 6, "speed": 1.05},
 		],
 	},
 	{
 		"label": "残卷山谷 · 墨堂",
 		"waves": [
-			{"count": 6, "hp": 3, "speed": 1.1, "elite": 1},
-			{"count": 4, "hp": 4, "speed": 1.05, "elite": 1},
+			{"count": 6, "hp": 6, "speed": 1.1, "elite": 1},
+			{"count": 4, "hp": 8, "speed": 1.05, "elite": 1},
 		],
 	},
 ]
@@ -233,14 +233,14 @@ func _roll_bosses() -> void:
 ## 精英血量为「形态表基础血量 × hp_mul」，每层 +30%
 func endless_waves(i: int) -> Array:
 	var d := depth
-	var hp := 2 + (d - 1) + i
+	var hp := 2 * (2 + (d - 1) + i)
 	var spd := minf(1.55, 1.0 + 0.05 * float(d - 1))
 	var total := mini(12, 5 + i + mini(d - 1, 5))
 	var elite := int((d - 1) / 2) + (1 if i >= 2 else 0)
 	var mul := 1.0 + 0.3 * float(d - 1)
 	return [
 		{"count": maxi(3, total - 1), "hp": hp, "speed": spd, "elite": maxi(0, elite - 1), "hp_mul": mul},
-		{"count": total + 1, "hp": hp + 1, "speed": minf(1.6, spd + 0.05), "elite": elite, "hp_mul": mul},
+		{"count": total + 1, "hp": hp + 2, "speed": minf(1.6, spd + 0.05), "elite": elite, "hp_mul": mul},
 	]
 
 

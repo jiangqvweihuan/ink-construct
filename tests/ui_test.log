@@ -27,8 +27,11 @@
 [UI] 图鉴打开=true（期望 true）
 [UI] saved 05_codex_enemy err=0
 [UI] 点击招式 1 -> 演示动画 skill01（点击前 stand，期望不同）
-[UI] 简介含击败次数=true 词条数=4（期望 true / >0）
+[UI] 简介含击败次数=true 词条数=5（期望 true / >0）
 [UI] saved 06_codex_pick err=0
+[UI] 刀客四招=["亡命三刀", "螺旋鞭", "升龙刀", "双镰"] 来历完整=true（期望 亡命三刀/螺旋鞭/升龙刀/双镰，true）
+[UI] 刀客被动=山 民 山民资料完整=true（期望 山 民 / true）
+[UI] 图鉴同动作重播保护 0.104 -> 0.104（期望不倒退）
 [UI] saved 07_codex_boss err=0
 [UI] 切到化身页 -> 选中=c021（期望 c021）
 [UI] saved 08_codex_form err=0

@@ -2188,6 +2188,24 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	if state == State.DASH:
 		_perfect_dodge(attacker)
 		return
+	# 刀客「亡命三刀」前两刀：只演受击、不扣血，也不进入受伤无敌/消耗护盾，
+	# 这样三刀能各自重播受击动画，最后的实伤不会被前两刀的无敌窗口吞掉。
+	if bool(move.get("feedback_only", false)):
+		_set_blink(false)
+		_reset_root_follow()
+		state = State.HURT
+		_hurt_phase = ""
+		_hurt_getup_dur = 0.0
+		var feedback_anim := str(anim_map["hurt"])
+		_hurt_timer = maxf(hurt_time, float(_anim_durations.get(feedback_anim, hurt_time)))
+		velocity = knockback
+		_idle_queued = false
+		_play_sfx("hit_fist")
+		FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.35, "flip": knockback.x > 0.0})
+		Feel.hitstop(0.025)
+		Feel.shake(2.0, 0.08)
+		_play(feedback_anim, false)
+		return
 	if _parry_ready and attacker != null and is_instance_valid(attacker) and _counter_attack(attacker):
 		return
 	if _bell_shell:

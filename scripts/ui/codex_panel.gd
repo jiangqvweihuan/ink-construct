@@ -10,6 +10,7 @@ extends CanvasLayer
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
+const SpinePoseMixer = preload("res://scripts/systems/spine_pose_mixer.gd")
 const BossTypes = preload("res://scripts/enemies/boss_types.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 
@@ -50,7 +51,7 @@ const TAG_COLORS := {
 
 ## 人物词条：键 = 形态 / 敌人 id，值 = 词条数组（2~5 条）
 const TAGS := {
-	"c016": ["近战", "爆发", "山野", "杂兵"],
+	"c016": ["近战", "爆发", "回血", "山野", "杂兵"],
 	"z002": ["近战", "机动", "剑门", "杂兵"],
 	"c017": ["近战", "站桩", "霸体", "山野", "杂兵"],
 	"c035": ["近战", "机动", "爆发", "妖异", "杂兵"],
@@ -67,6 +68,34 @@ const TAGS := {
 	"c023": ["近战", "控场", "中毒", "剑门", "化身"],
 	"z000": ["近战", "连段", "机动", "剑门", "化身"],
 	"z003": ["近战", "机动", "时停", "剑门", "化身"],
+}
+
+## 刀客正式招式资料；其余敌人仍沿用「招式 N」与待定来历，后续逐个补齐。
+const ENEMY_ATTACK_NAMES := {
+	"c016": {"skill01": "亡命三刀", "skill02": "螺旋鞭", "skill03": "升龙刀", "skill04": "双镰"},
+}
+const ENEMY_ATTACK_MECH := {
+	"c016": {
+		"skill01": "默认普攻；三刀均有受击反馈，前两刀不扣血，末刀造成 1 点伤害",
+		"skill02": "180～400px 内主动释放，独立冷却 8 秒；命中造成 1 点伤害",
+		"skill03": "追击窗口内瞬至身前，独立冷却 12 秒；保留 0.87 秒前摇，命中造成 2 点伤害",
+		"skill04": "164px 内低权重释放，独立冷却 6 秒；命中造成 1 点伤害",
+	},
+}
+const ENEMY_ATTACK_LORE := {
+	"c016": {
+		"skill01": "他替商队挡过三次劫刀：第一刀断粮，第二刀断路，第三刀才明白命不是自己的。此后前两刀只逼破绽，最后一刀连旧账一起讨。",
+		"skill02": "早年他在山口套惊马，绳索绕臂三周，借旋劲把畜生拉回。后来绳换成鞭，马没套住几匹，过路人倒是一个也没走远。",
+		"skill03": "山民追崖羊练出一口憋气劲：先贴到猎物身前，再借上冲之势出刀。刀未必能升龙，人至少先离了泥地。",
+		"skill04": "左手镰收麦，右手镰收债。丰年是农具，荒年就是兵器；他说两样都算收成，只看地里长的是谷子还是人。",
+	},
+}
+const ENEMY_PASSIVES := {
+	"c016": {
+		"name": "山 民",
+		"desc": "每 5 秒恢复 1 点生命，不超过生命上限",
+		"lore": "山里跌打损伤没人替你看，采苦草、嚼根茎，熬过几夜就算捡回来。他不懂医术，只知道山不会主动救谁，却总会给人留一口气。",
+	},
 }
 
 ## 条目卡：左栏 2 列 × 6 行（当前最多 12 条）
@@ -142,6 +171,8 @@ var _sel := "" # 当前选中的条目 id
 var _sfx: AudioStreamPlayer
 
 var _preview = null # 演示台用的 SpineSprite
+var _pose_mixer = null
+var _pending_anim := ""
 var _idle_anim := "" # 待机动画名（默认演示 / 取消选中时回到这里）
 var _current_anim := "" # 测试用：当前正在演的动作名
 var _desc_rt: RichTextLabel # 技能解析面板
@@ -216,6 +247,8 @@ func _refresh() -> void:
 		remove_child(c)
 		c.queue_free()
 	_preview = null
+	_pose_mixer = null
+	_pending_anim = ""
 	_desc_rt = null
 	_current_anim = ""
 	_acts = []
@@ -445,7 +478,7 @@ func _model(id: String) -> Dictionary:
 			"data": str(t["data"]),
 			"view_scale": _enemy_scale(t, is_boss),
 			"idle": str(t["anim"]["idle"]),
-			"actions": _enemy_actions(t, is_boss),
+			"actions": _enemy_actions(t, is_boss, id),
 		}
 
 	var p: Dictionary = Skulls.get_profile(id)
@@ -509,7 +542,7 @@ func _form_actions(p: Dictionary) -> Array:
 	return out
 
 
-func _enemy_actions(t: Dictionary, is_boss: bool) -> Array:
+func _enemy_actions(t: Dictionary, is_boss: bool, id: String) -> Array:
 	var out: Array = []
 	var names: Array = []
 	if is_boss:
@@ -523,7 +556,8 @@ func _enemy_actions(t: Dictionary, is_boss: bool) -> Array:
 
 	for i in names.size():
 		var n := str(names[i])
-		out.append({"label": "招式 %d" % (i + 1), "anims": [n], "kind": "enemy_atk", "src": t})
+		var attack_names: Dictionary = ENEMY_ATTACK_NAMES.get(id, {})
+		out.append({"label": str(attack_names.get(n, "招式 %d" % (i + 1))), "anims": [n], "kind": "enemy_atk", "src": t, "id": id})
 
 	var map: Dictionary = t.get("anim", {})
 	for act in ENEMY_ACT_ORDER:
@@ -536,7 +570,8 @@ func _enemy_actions(t: Dictionary, is_boss: bool) -> Array:
 			if tf != "":
 				out.append({"label": "变身", "anims": [tf], "kind": "transform", "src": st})
 				break
-	out.append({"label": "被 动", "anims": [], "kind": "passive", "src": {}})
+	var passive: Dictionary = ENEMY_PASSIVES.get(id, {})
+	out.append({"label": str(passive.get("name", "被 动")), "anims": [], "kind": "passive", "src": {"id": id}})
 	return out
 
 
@@ -734,7 +769,8 @@ func _mech_for(a: Dictionary) -> String:
 		"skill":
 			return _skill_desc(a["src"])
 		"enemy_atk":
-			return "出招时刻即判定命中"
+			var anim := str((a["anims"] as Array)[0])
+			return str((ENEMY_ATTACK_MECH.get(str(a.get("id", "")), {}) as Dictionary).get(anim, "出招时刻即判定命中"))
 		"transform":
 			return "血量跌破阶段阈值时的变身演出"
 	return ""
@@ -752,10 +788,12 @@ func _make_preview(data, view_scale: float, idle: String) -> void:
 	var sprite = ClassDB.instantiate("SpineSprite")
 	add_child(sprite)
 	sprite.set("skeleton_data_res", data)
-	data.call("set_default_mix", 0.2)
+	data.call("set_default_mix", 0.0 if _tab == TAB_ENEMY and _sel == "c016" else 0.2)
 	sprite.scale = Vector2(view_scale, view_scale)
 	sprite.position = Vector2(SPRITE_X, SPRITE_Y)
 	_preview = sprite
+	if _tab == TAB_ENEMY and _sel == "c016":
+		_pose_mixer = SpinePoseMixer.new(sprite)
 	_idle_anim = idle
 	_play(idle)
 
@@ -867,8 +905,14 @@ func _desc_text(a: Dictionary, anim: String) -> String:
 
 	var kind := str(a["kind"])
 	if kind == "passive":
-		lines.append("[color=#a8332a]被动技能 · 【待定】[/color]")
-		lines.append("[color=#8a857a]每个角色预留一格，内容等第 6 阶段统一设计。[/color]")
+		var passive: Dictionary = ENEMY_PASSIVES.get(str((a["src"] as Dictionary).get("id", "")), {})
+		if not passive.is_empty():
+			lines.append("[color=#a8332a]被动技能 · 山民[/color]")
+			lines.append("[color=#8a857a]机制：[/color]" + str(passive["desc"]))
+			lines.append("[color=#8a857a]来历：[/color]" + str(passive["lore"]))
+		else:
+			lines.append("[color=#a8332a]被动技能 · 【待定】[/color]")
+			lines.append("[color=#8a857a]每个角色预留一格，内容等第 6 阶段统一设计。[/color]")
 		return "\n".join(lines)
 	if kind == "act":
 		lines.append("[color=#8a857a]角色通用动作，仅作演示。[/color]")
@@ -887,16 +931,38 @@ func _desc_text(a: Dictionary, anim: String) -> String:
 	var cd := _cd_for(a)
 	if cd > 0.0:
 		lines.append("[color=#8a857a]冷却：[/color]%.1f 秒" % cd)
-	lines.append("[color=#8a857a]来历：[/color]【待定】")
+	var origin := "【待定】"
+	if kind == "enemy_atk":
+		origin = str((ENEMY_ATTACK_LORE.get(str(a.get("id", "")), {}) as Dictionary).get(anim, origin))
+	lines.append("[color=#8a857a]来历：[/color]" + origin)
 	return "\n".join(lines)
 
 
+func _process(delta: float) -> void:
+	if _pose_mixer == null or _preview == null or not is_instance_valid(_preview):
+		return
+	var step := delta
+	if not _pending_anim.is_empty():
+		var st = _preview.call("get_animation_state")
+		st.call("set_animation", _pending_anim, true, 0)
+		_pending_anim = ""
+		step = 0.0
+	_pose_mixer.update(step)
+
+
 func _play(anim: String) -> void:
-	_current_anim = anim
 	if _preview == null or not is_instance_valid(_preview) or anim == "":
 		return
+	# 重复点击同一动作不重开轨道，避免循环动画回到第 0 帧造成肉眼可见的一抽。
+	if anim == _current_anim:
+		return
+	_current_anim = anim
 	var st = _preview.call("get_animation_state")
 	if st == null:
+		return
+	if _pose_mixer != null:
+		_pose_mixer.capture()
+		_pending_anim = anim
 		return
 	st.call("set_animation", anim, true, 0) # 循环播：停在该动作上就一直演
 

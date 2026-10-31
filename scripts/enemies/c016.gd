@@ -7,6 +7,7 @@ extends CharacterBody2D
 const Types := preload("res://scripts/enemies/enemy_types.gd")
 const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")
 const FX := preload("res://scripts/systems/fx.gd")
+const SpinePoseMixer := preload("res://scripts/systems/spine_pose_mixer.gd")
 const DMG_COLOR := Color(0.66, 0.2, 0.16) # 朱砂：敌人受伤数字
 const SFX_HIT_QI := preload("res://audio/sfx/hit_qi.wav")
 const SFX_TELEGRAPH := preload("res://audio/sfx/telegraph.wav")
@@ -62,6 +63,17 @@ var _damage_map: Dictionary = {} # 每招伤害（默认 1；精英重招可写 
 var _poise_anims: Dictionary = {} # 出手霸体：该招出手期间挨打只掉血、不断招（青笠跳斩）
 var _lunge_map: Dictionary = {} # 该招前冲倍率（跳斩跨步更大）
 var _hop_map: Dictionary = {} # 该招起手向上跃起的速度（跳斩腾空的视觉配合）
+var _feedback_segments: Dictionary = {} # 只播受击反馈、不实际扣血的招式段（刀客前两刀）
+var _blink_strike: Dictionary = {} # 追击中瞬到目标身前再出招（刀客升龙刀）
+var _attack_rules: Dictionary = {} # 特殊招式的独立冷却、触发窗口与随机权重
+var _attack_rule_cds: Dictionary = {}
+var _knock_at := 999 # 高伤倒地阈值；未配置时保持原受击逻辑
+var _knock_chain: Array = [] # 高伤倒地动画链
+var _hurt_chain: Array = [] # 当前尚未播完的倒地链
+var _hurt_chain_active := false # 链中照常吃伤害，但受击动画不得重入
+var _regen_interval := 0.0 # 山民被动：回血间隔，0=无被动
+var _regen_amount := 0
+var _regen_timer := 0.0
 # 半血狂暴：血量跌破 below 比例时触发一次——出手冷却 ×cd、追击速度 ×speed
 var _enrage_below := 0.0
 var _enrage_cd := 0.65
@@ -110,6 +122,10 @@ var _ghosts: Dictionary = {} # 已互相关闭碰撞的同伴（对穿状态）
 
 var sprite: Node2D # SpineSprite
 var _anim_state
+var _pose_mixer = null # 刀客：手动同帧更新并补齐缺 key 骨骼的视觉混合
+var _pending_anim := ""
+var _pending_loop := false
+var _pending_queue: Array = []
 var _current_anim := "" # 防同名循环动画重放抽搐
 var _hp_bar: Node2D
 var _hp_fill: ColorRect
@@ -120,6 +136,7 @@ func _ready() -> void:
 	add_to_group("enemies")
 	_apply_type()
 	hp = max_hp
+	_regen_timer = _regen_interval
 	_home_x = global_position.x
 	_idle_timer = idle_time
 	_setup_spine()
@@ -143,6 +160,17 @@ func _apply_type() -> void:
 	_poise_anims = t.get("poise_atk", {})
 	_lunge_map = t.get("lunge_mul", {})
 	_hop_map = t.get("hop", {})
+	_feedback_segments = t.get("feedback_only", {})
+	_blink_strike = t.get("blink_strike", {})
+	_attack_rules = t.get("attack_rules", {})
+	_attack_rule_cds.clear()
+	for anim in _attack_rules:
+		_attack_rule_cds[anim] = 0.0
+	_knock_at = int(t.get("knock_at", 999))
+	_knock_chain = (t.get("knock_chain", []) as Array).duplicate()
+	var regen: Dictionary = t.get("regen", {})
+	_regen_interval = float(regen.get("interval", 0.0))
+	_regen_amount = int(regen.get("amount", 0))
 	var en: Dictionary = t.get("enrage", {})
 	_enrage_below = float(en.get("below", 0.0))
 	_enrage_cd = float(en.get("cd", 0.65))
@@ -223,12 +251,20 @@ func _setup_spine() -> void:
 	sprite = ClassDB.instantiate("SpineSprite")
 	add_child(sprite)
 	sprite.set("skeleton_data_res", data)
-	data.call("set_default_mix", 0.2) # 混合从 0.1 加到 0.2：收招/起步的姿态过渡更柔，消除"一走动就闪一下"
+	# 刀客由 SpinePoseMixer 独立混合；原生混合会在旧轨道销毁时再次写入缺 key 骨骼。
+	data.call("set_default_mix", 0.0 if type_id == "c016" else 0.2)
 	sprite.scale = Vector2(_scale * facing, _scale)
 	_anim_state = sprite.call("get_animation_state")
+	if type_id == "c016":
+		_pose_mixer = SpinePoseMixer.new(sprite)
 	# 缓存攻击动画真实时长：比想象中长得多，攻击锁定必须按实际时长走，
 	# 否则收招段被切掉 + 0.1s 交叉淡化 = 抽搐
 	for n in _attack_anims:
+		var a = data.call("find_animation", n)
+		if a != null:
+			_anim_durations[n] = a.call("get_duration")
+	# 倒地链也按真实时长逐段接续，不能拿固定 hurt_time 截断起身。
+	for n in _knock_chain:
 		var a = data.call("find_animation", n)
 		if a != null:
 			_anim_durations[n] = a.call("get_duration")
@@ -237,6 +273,20 @@ func _setup_spine() -> void:
 	if da != null:
 		_anim_durations[str(_anim_map["dead"])] = da.call("get_duration")
 	_play(str(_anim_map["idle"]), true)
+
+
+func _process(delta: float) -> void:
+	if _pose_mixer == null or _anim_state == null:
+		return
+	var step := 0.0 if _stop_timer > 0.0 else delta
+	if not _pending_anim.is_empty():
+		_anim_state.call("set_animation", _pending_anim, _pending_loop, 0)
+		for queued in _pending_queue:
+			_anim_state.call("add_animation", queued["anim"], 0.0, queued["loop"], 0)
+		_pending_anim = ""
+		_pending_queue.clear()
+		step = 0.0 # 新轨道先应用，再恢复旧姿势；不把未补偿的第 0 帧送去渲染
+	_pose_mixer.update(step)
 
 
 func _physics_process(delta: float) -> void:
@@ -253,10 +303,13 @@ func _physics_process(delta: float) -> void:
 		if _slow_timer <= 0.0:
 			_slow_scale = 1.0
 	_attack_cd = maxf(0.0, _attack_cd - delta)
+	for anim in _attack_rule_cds:
+		_attack_rule_cds[anim] = maxf(0.0, float(_attack_rule_cds[anim]) - delta)
 	_chase_block = maxf(0.0, _chase_block - delta)
 	_find_target()
 	_bleed_tick(delta) # 流血照常跳（时停里不动，所以放在 stop 分支之后）
 	_poison_tick(delta) # 中毒同理：时停期间不跳毒
+	_regen_tick(delta) # 山民：时停冻结，其他状态照常计时
 
 	# 晕眩（力僧 L）：比定身更强——站桩发愣，不出手也不移动（放在定身之前结算）
 	if _stun_timer > 0.0:
@@ -334,6 +387,21 @@ func _chase_tick(delta: float) -> void:
 		return
 	facing = 1 if dx > 0.0 else -1
 	_apply_facing()
+	# 升龙刀有独立追击窗口与冷却：中距离直接贴身，但完整保留动画前摇供玩家闪避。
+	if not _blink_strike.is_empty() and _attack_cd <= 0.0 and _can_attack() and dy <= 60.0:
+		var blink_min := float(_blink_strike.get("min", 0.0))
+		var blink_max := float(_blink_strike.get("max", attack_range))
+		var blink_anim := str(_blink_strike.get("anim", ""))
+		if absf(dx) >= blink_min and absf(dx) <= blink_max and _rule_allows(blink_anim, absf(dx)):
+			_start_attack(blink_anim)
+			return
+	# 中远距招式只在各自窗口内主动触发，不进近身随机池。
+	if _attack_cd <= 0.0 and _can_attack() and dy <= 60.0:
+		for n in _attack_anims:
+			var rule: Dictionary = _attack_rules.get(n, {})
+			if str(rule.get("trigger", "")) == "distance" and _rule_allows(str(n), absf(dx)):
+				_start_attack(str(n))
+				return
 	if absf(dx) <= attack_range and dy <= 60.0 and _attack_cd <= 0.0 and _can_attack():
 		_start_attack()
 		return
@@ -367,25 +435,70 @@ func _attack_tick(delta: float) -> void:
 func _hurt_tick(delta: float) -> void:
 	_hurt_timer -= delta
 	velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+	if _hurt_chain_active:
+		if _hurt_timer <= 0.0:
+			_advance_hurt_chain()
+		return
 	if _hurt_timer <= 0.0:
 		_set_state(State.CHASE if _target != null else State.IDLE)
 
 
+## 高伤倒地链：每段都播满真实时长；链中再次受伤只掉血/白闪，不从这里重入。
+func _start_hurt_chain(dir: float) -> void:
+	state = State.HURT
+	_hurt_chain_active = true
+	_hurt_chain = _knock_chain.duplicate()
+	_idle_queued = false
+	velocity = Vector2(dir * 200.0, -70.0)
+	_hurt_timer = 0.0
+	_advance_hurt_chain()
+
+
+func _advance_hurt_chain() -> void:
+	if _hurt_chain.is_empty():
+		_hurt_chain_active = false
+		_hurt_timer = 0.0
+		_set_state(State.CHASE if _target != null else State.IDLE)
+		return
+	var anim := str(_hurt_chain.pop_front())
+	_hurt_timer = maxf(0.05, float(_anim_durations.get(anim, hurt_time)))
+	_play(anim, false)
+	if _hurt_chain.is_empty():
+		# 起身后直接接待机，避免最后一帧落回 setup pose 造成瞬时抽搐。
+		_queue(str(_anim_map["idle"]), true)
+		_idle_queued = true
+
+
 # ---------- 动作 ----------
 
-func _start_attack() -> void:
-	state = State.ATTACK
-	_attacker = self # 占住出手令牌
-	# 按当前距离挑招式：打得着的才起手，避免距离 90 却甩 400px 的长鞭、或者反过来够不着
+func _rule_allows(anim: String, dist: float) -> bool:
+	var rule: Dictionary = _attack_rules.get(anim, {})
+	if float(_attack_rule_cds.get(anim, 0.0)) > 0.0:
+		return false
+	return dist >= float(rule.get("min", 0.0)) and dist <= float(rule.get("max", INF))
+
+
+func _start_attack(forced_anim := "") -> void:
+	# 按当前距离、独立冷却与权重挑招式；未配置规则的敌人保持原有随机/最近逻辑。
 	var dist := 0.0
 	if _target != null:
 		dist = absf(_target.global_position.x - global_position.x)
 	var pool: Array = []
+	var weights: Array = []
+	var total_weight := 0.0
 	for n in _attack_anims:
+		var rule: Dictionary = _attack_rules.get(n, {})
+		if not bool(rule.get("random", true)) or not _rule_allows(str(n), dist):
+			continue
 		if _range_of(n, 0) >= dist - 10.0:
 			pool.append(n)
-	var anim := ""
-	if pool.is_empty():
+			var weight := float(rule.get("weight", 1.0))
+			weights.append(weight)
+			total_weight += weight
+	var anim := forced_anim
+	if anim == "" and pool.is_empty():
+		if not _attack_rules.is_empty():
+			return # 特殊招全在冷却或不在窗口时继续贴近，不拿远招违规兜底
 		# 所有招都够不着：用最远那招（至少方向对、范围最大）
 		var far_r := -1.0
 		for n in _attack_anims:
@@ -393,7 +506,7 @@ func _start_attack() -> void:
 			if fr > far_r:
 				far_r = fr
 				anim = str(n)
-	elif _pick_nearest:
+	elif anim == "" and _pick_nearest:
 		# 精英：挑"刚好够得着"的最近一招，近身不会甩 580px 的大招
 		var best_r := INF
 		for n in pool:
@@ -401,8 +514,26 @@ func _start_attack() -> void:
 			if br < best_r:
 				best_r = br
 				anim = str(n)
-	else:
-		anim = str(pool[randi() % pool.size()])
+	elif anim == "":
+		var roll := randf() * total_weight
+		for i in pool.size():
+			roll -= float(weights[i])
+			if roll <= 0.0:
+				anim = str(pool[i])
+				break
+		if anim == "":
+			anim = str(pool.back())
+	state = State.ATTACK
+	_attacker = self # 占住出手令牌
+	if _attack_rules.has(anim):
+		_attack_rule_cds[anim] = float((_attack_rules[anim] as Dictionary).get("cooldown", 0.0))
+	# 升龙刀只能由追击窗口强制选出，近身随机池不会再抽到它。
+	if forced_anim != "" and not _blink_strike.is_empty() and anim == str(_blink_strike.get("anim", "")) \
+			and _target != null and is_instance_valid(_target):
+		var dx: float = _target.global_position.x - global_position.x
+		facing = 1 if dx > 0.0 else -1
+		global_position.x = _target.global_position.x - facing * float(_blink_strike.get("offset", 72.0))
+		_apply_facing()
 	_attack_dur = _anim_durations.get(anim, 1.5)
 	_attack_timer = _attack_dur
 	# hit_at 由 range_probe 标定的是骨架伸展峰值时刻（武器最远端 = 动画打到人的那一帧），
@@ -446,12 +577,14 @@ func _deal_hit(seg := 0) -> void:
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
 	var rng := _range_of(_current_anim, seg)
-	var dmg := Run.enemy_damage(int(_damage_map.get(_current_anim, 1)))
+	var move := _replay_move(seg)
+	# 纯反馈段不能走 Run.enemy_damage：该入口会把 0 也抬成最低 1 伤。
+	var dmg := 0 if bool(move.get("feedback_only", false)) else Run.enemy_damage(int(_damage_map.get(_current_anim, 1)))
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_current_anim, false))
 	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height \
 			and _target.has_method("hurt"):
-		_target.call("hurt", dmg, Vector2(facing * 220.0, -80.0), self, _replay_move(seg))
+		_target.call("hurt", dmg, Vector2(facing * 220.0, -80.0), self, move)
 
 
 ## 把本次真实招式与命中段交给玩家记录，结算可按同一时刻重演最后一击。
@@ -459,7 +592,11 @@ func _replay_move(seg: int) -> Dictionary:
 	var at = _hit_at_map.get(_current_anim, 0.8)
 	if at is Array:
 		at = at[mini(seg, (at as Array).size() - 1)]
-	return {"anim": _current_anim, "hit_at": float(at)}
+	var move := {"anim": _current_anim, "hit_at": float(at)}
+	var feedback: Array = _feedback_segments.get(_current_anim, [])
+	if feedback.has(seg):
+		move["feedback_only"] = true
+	return move
 
 
 ## 目标的受击半径：体型越大挨打面越大；没有该属性的测试替身按 30 兜底
@@ -669,6 +806,24 @@ func _poison_tick(delta: float) -> void:
 		_poison_acc = 0.0
 
 
+## 山民：计时始终推进，到点有伤才回血；满血不会越界，也不会囤出额外治疗次数。
+func _regen_tick(delta: float) -> void:
+	if _regen_interval <= 0.0 or _regen_amount <= 0 or state == State.DEAD:
+		return
+	_regen_timer -= delta
+	if _regen_timer > 0.0:
+		return
+	_regen_timer = _regen_interval
+	if hp >= max_hp:
+		return
+	hp = mini(max_hp, hp + _regen_amount)
+	_update_hp_bar()
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("+%d" % _regen_amount, POISON_LABEL_COLOR)
+	dn.global_position = global_position + Vector2(0, _number_y)
+	get_tree().current_scene.add_child(dn)
+
+
 ## 非打击伤害（流血/中毒等）：直接扣血，不进硬直，但仍走死亡流程；Boss 覆盖以同步阶段/大血条
 func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 	if state == State.DEAD or amount <= 0:
@@ -723,6 +878,8 @@ func _enter_fly(v: Vector2, impact: int) -> void:
 	if _stop_timer > 0.0:
 		_end_stop() # 定身中被打飞：解除定身让抛物线成立（时停不挡位移类控制）
 	state = State.FLY
+	_hurt_chain_active = false # 击飞/击退是独立物理控制，落地后不能续播旧倒地链
+	_hurt_chain.clear()
 	_fly_impact = impact
 	_fly_hit.clear()
 	velocity = v
@@ -799,16 +956,24 @@ func take_damage(amount: int, source_x: float) -> void:
 		_enraged = true
 		attack_cooldown *= _enrage_cd
 		chase_speed *= _enrage_speed
+	# 倒地链没播完：伤害、数字、墨花和死亡全都正常结算，只锁住受击动画防重入。
+	if _hurt_chain_active:
+		_flash()
+		return
 	# 受击硬直分层：普通怪轻击就断招；精英霸体，只有重击（damage >= armor）才打断；
 	# 出手霸体的招（青笠跳斩）出手期间挨多重都不断，只掉血
 	if amount < _armor or (state == State.ATTACK and bool(_poise_anims.get(_current_anim, false))):
 		_flash()
 		return
 	_release_token() # 被打断的出手要交还令牌，否则其他怪永远等不到出手机会
+	var dir := 1.0 if global_position.x >= source_x else -1.0
+	if not _knock_chain.is_empty() and amount >= _knock_at:
+		_start_hurt_chain(dir)
+		_flash()
+		return
 	state = State.HURT
 	_hurt_timer = hurt_time
 	_idle_queued = false # set_animation 已清掉队列里的 stand
-	var dir := 1.0 if global_position.x >= source_x else -1.0
 	velocity = Vector2(dir * 200.0, -70.0) # 加重击退：命中要"打得动"
 	_play(str(_anim_map["hurt"]), false)
 	_flash() # 受击白闪
@@ -833,6 +998,8 @@ func _spawn_number(amount: int, color: Color = DMG_COLOR) -> void:
 func die() -> void:
 	_end_stop() # 时停中被打死：先解冻，死亡动画才播得出来
 	state = State.DEAD
+	_hurt_chain_active = false
+	_hurt_chain.clear()
 	_release_token()
 	velocity = Vector2.ZERO
 	_update_hp_bar()
@@ -968,7 +1135,9 @@ func _set_state(new_state: int) -> void:
 		State.IDLE:
 			_idle_timer = idle_time
 			if _idle_queued:
-				# stand 已被 Spine 自动接续播放，只同步记录，不重复 set（重开会重开淡化）
+				# 自动接续不会经过 _play，也要在轨道换代前保存完整旧姿势。
+				if _pose_mixer != null:
+					_pose_mixer.capture()
 				_current_anim = str(_anim_map["idle"])
 			else:
 				_play(str(_anim_map["idle"]), true)
@@ -991,10 +1160,22 @@ func _play(anim: String, loop: bool) -> void:
 		return
 	if loop and anim == _current_anim:
 		return
+	if _pose_mixer != null:
+		if _pending_anim.is_empty():
+			_pose_mixer.capture()
+		_current_anim = anim
+		_pending_anim = anim
+		_pending_loop = loop
+		_pending_queue.clear()
+		return
 	_current_anim = anim
 	_anim_state.call("set_animation", anim, loop, 0)
 
 
 func _queue(anim: String, loop: bool) -> void:
-	if _anim_state:
-		_anim_state.call("add_animation", anim, 0.0, loop, 0)
+	if _anim_state == null:
+		return
+	if _pose_mixer != null and not _pending_anim.is_empty():
+		_pending_queue.append({"anim": anim, "loop": loop})
+		return
+	_anim_state.call("add_animation", anim, 0.0, loop, 0)

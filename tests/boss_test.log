@@ -1,12 +1,12 @@
-[B] boss=墨堂守将 hp=26/26 stage=0
+[B] boss=墨堂守将 hp=52/52 stage=0
 [B] saved 00_entrance err=0
 [B] boss slow timer=2.0 scale=0.45（期望 2.0/0.45）
 [B] boss slowed charge vx=288.0（期望 288.0）
-[B] stage2 entered, hp=16
+[B] stage2 entered, hp=34
 [B] saved 01_stage2 err=0
-[B] final stage entered, stage=2 hp=8
+[B] final stage entered, stage=2 hp=18
 [B] saved 02_stage3 err=0
-[B] charge seen=false
+[B] charge seen=true
 [B] saved 03_charge err=0
 [B] boss dead, settlement visible=true
 [B] saved 04_clear err=0

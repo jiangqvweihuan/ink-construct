@@ -1,44 +1,62 @@
-[ET] created player=@SpineSprite@9:<SpineSprite#44375737898> enemy=@SpineSprite@76:<SpineSprite#48502933128>
+[ET] created player=@SpineSprite@9:<SpineSprite#44962940459> enemy=@SpineSprite@76:<SpineSprite#49090135689>
 [ET] player state -> 0
 [ET] enemy state -> 0 x=980.0
-[ET] enemy hp -> 3
+[ET] enemy hp -> 6
 [ET] player state -> 3
 [ET] player state -> 0
 [ET] enemy state -> 1 x=980.0
 [ET] saved 01_patrol err=0
 [ET] player state -> 1
 [ET] enemy state -> 2 x=1052.66662597656
-[ET] approach done, dist=214.900085449219
-[ET] saved 02_chase err=0
+[ET] approach done, dist=67.0
+[ET] enemy state -> 3 x=885.15576171875
 [ET] player state -> 0
-[ET] enemy state -> 3 x=1007.55554199219
+[ET] player state -> 7
+[ET] player state -> 0
+[ET] enemy state -> 0 x=851.825622558594
+[ET] enemy state -> 2 x=851.825622558594
+[ET] enemy state -> 3 x=902.960205078125
 [ET] saved 03_enemy_attack err=0
 [ET] player state -> 7
 [ET] player state -> 0
-[ET] enemy state -> 0 x=957.097412109375
+[ET] player state -> 7
+[ET] player state -> 0
+[ET] player state -> 7
+[ET] player state -> 0
 [ET] player state -> 5
-[ET] enemy state -> 2 x=957.097412109375
-[ET] enemy state -> 5 x=949.514465332031
+[ET] enemy state -> 0 x=852.502136230469
+[ET] enemy state -> 4 x=855.364990234375
+[ET] enemy hp -> 3
+[ET] enemy state -> 5 x=862.642700195313
 [ET] enemy hp -> 0
 [ET] saved 04_enemy_dead err=0
 [ET] player state -> 0
 [ET] saved 05_corpse err=0
-[ET] elite c012 spawned hp=10 scale=0.563
+[ET] elite c012 spawned hp=20 scale=0.563
 [ET] elite attack anim=skill01 hits_left=2（两连击应为 2）
 [ET] player state -> 7
 [ET] player state -> 0
 [ET] saved 06_c012_attack err=0
-[ET] elite 两连击后 player_hp=6（前 7；第二段落在 0.8s 受击无敌内应被吞，净掉 1）
+[ET] elite 两连击后 player_hp=4（前 5；第二段落在 0.8s 受击无敌内应被吞，净掉 1）
 [ET] elite attack2 anim=skill02 hits_left=1（跳斩应为 1）
 [ET] player state -> 7
 [ET] saved 07_c012_leap err=0
-[ET] elite 跳斩后 player_hp=4
+[ET] elite 跳斩后 player_hp=2
 [ET] player state -> 0
-[ET] elite enrage hp=5/10 cooldown=1.11（基础 1.70，狂暴后应约 1.11）
+[ET] elite enrage hp=10/20 cooldown=1.11（基础 1.70，狂暴后应约 1.11）
 [ET] saved 08_c012_dead err=0
 [ET] consume_bleed 收走=2 剩余=0（期望 2/0）
 [ET] 影饵索敌 优先残影=true（期望 true）
 [ET] 残影消失 回到玩家=true（期望 true）
 [ET] 余滞追击速度=67.5 期望=67.5
 [ET] 地面砸落 待回报=false 状态=4（期望 false/HURT=4）
-[ET] ALL DONE, enemy state=freed hp=- player state=0
+[ET] 刀客四招=4 无招式5=true（期望 4 / true）
+[ET] 刀客移动动画 巡逻=run 追击=speed_run（期望 run / speed_run）
+[ET] 三刀命中段=3 时刻=[0.36, 0.88, 1.33]（期望 3 / [0.36, 0.88, 1.33]）
+[ET] 三刀结算 首段=true 次段=true 末段=true 净伤害=1（期望 true/true/true/1）
+[ET] player state -> 7
+[ET] 升龙刀 瞬移贴身=true 前摇=0.87s 实伤=true 独立CD=12.0s 冷却禁重入=true 到点可放=true（期望 true / 0.87 / true / >=10 / true / true）
+[ET] 出手规则 普攻占比=0.89 近身池合规=true 螺旋鞭距离窗=true 特殊招冷却普攻兜底=true（期望 >=0.75 / true / true / true）
+[ET] 高伤倒地链 顺序与防重入=true 链中受伤后HP=17（期望 true / 17）
+[ET] 山民回血 间隔与上限=true 当前HP=20/20（期望 true / 满血）
+[ET] ALL DONE, enemy state=freed hp=- player state=7

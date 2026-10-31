@@ -18,7 +18,7 @@ const BOSSES := {
 		"scale": 0.62, # 骨架 365.7px -> 约 227px，比精英大一半
 		"body_radius": 55.0,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
-		"hp": 26,
+		"hp": 52,
 		"patrol_speed": 50.0,
 		"chase_speed": 110.0,
 		"patrol_range": 160.0,
@@ -65,7 +65,7 @@ const BOSSES := {
 		"body_radius": 100.0, # 骑手 + 巨兽，宽体
 		# 骨架无 hurt/dead 实动画（stun/dead 均为 0 帧）：倒地用 atked_fall_end，受击位借 def_break
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
-		"hp": 30,
+		"hp": 60,
 		"patrol_speed": 60.0,
 		"chase_speed": 130.0,
 		"patrol_range": 180.0,
@@ -115,7 +115,7 @@ const BOSSES := {
 		"scale": 0.5, # 765.7px -> 约 383px，三 Boss 里最高
 		"body_radius": 90.0,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
-		"hp": 34,
+		"hp": 68,
 		"patrol_speed": 40.0,
 		"chase_speed": 95.0,
 		"patrol_range": 150.0,
@@ -161,7 +161,7 @@ const BOSSES := {
 		"scale": 0.5, # 742.9px -> 约 371px 高、711px 宽，小半个房间的钢铁巨物
 		"body_radius": 300.0, # 车体超宽：站在马屁股后面也该能砍到
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "dead"},
-		"hp": 32,
+		"hp": 64,
 		"patrol_speed": 50.0,
 		"chase_speed": 110.0,
 		"patrol_range": 160.0,
@@ -214,7 +214,7 @@ const BOSSES := {
 		"body_radius": 95.0,
 		# 骨架 dead/stun 为 0 帧空动画：倒地借 atked_fall_end，受击/变身借 def_break
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
-		"hp": 32,
+		"hp": 64,
 		"patrol_speed": 45.0,
 		"chase_speed": 85.0,
 		"patrol_range": 150.0,
@@ -264,7 +264,7 @@ const BOSSES := {
 		"body_radius": 75.0, # 瘦高个，半径别给过头
 		# 骨架 dead/stun 为空动画（0.083 / 0 帧）：倒地借 atked_fall_end，受击借 atked_heavy
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
-		"hp": 34,
+		"hp": 68,
 		"patrol_speed": 50.0,
 		"chase_speed": 100.0,
 		"patrol_range": 160.0,

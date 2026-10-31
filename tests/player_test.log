@@ -1,4 +1,4 @@
-[PT] player created, sprite=@SpineSprite@9:<SpineSprite#48033170983>
+[PT] player created, sprite=@SpineSprite@9:<SpineSprite#48167388711>
 [PT] state -> 0 pos=(300.0, 560.0)
 [PT] state -> 3 pos=(300.0, 560.5555)
 [PT] state -> 0 pos=(300.0, 599.9999)
@@ -88,12 +88,12 @@
 [PT] ult_after skull=z003 hp=7/8
 [PT] saved 14_ult_after_z003 err=0 state=0 pos=(965.6467, 599.9337)
 [PT] SWAP DONE skull=z003
-[PT] roll0 银夜三选一：["z003_returning_1[流派1]", "cooldown[通用]", "dash[通用]"]
+[PT] roll0 银夜三选一：["dodge[通用]", "z003_returning_1[流派1]", "hp[通用]"]
 [PT] claim z003_clock_1 ok=true level=1
-[PT] roll1（已拿漏刻·初）含漏刻·续=true → ["z003_clock_2", "damage", "z003_returning_1"]
+[PT] roll1（已拿漏刻·初）含漏刻·续=true → ["cooldown", "z003_returning_1", "z003_clock_2"]
 [PT] claim z003_clock_2 ok=true level=1
 [PT] claim z003_clock_3 ok=true level=1
-[PT] roll2 跨形态泄漏=[]（期望 []） → ["z003_returning_1", "hp", "cooldown"]
+[PT] roll2 跨形态泄漏=[]（期望 []） → ["damage", "hp", "z003_sky_1"]
 [PT] build 生效：漏刻=true/true/true dash_time=1.20 dash_cd=0.90（期望 true/true/true / 1.20 / 0.90）
 [PT] 换到 c021：当前形态=c021 银夜卡保留=true（机制按形态分支休眠）
 [PT] 切回 z003：漏刻可用=true（期望 true）
@@ -114,8 +114,8 @@
 [PT] 问境页点「上一步」-> step=0（期望 0）
 [PT] 点「返回」-> 面板已释放=true（期望 true）
 [PT] 二次打开后点「返回」-> 已释放=true（期望 true）
-[PT] 无尽第1层 怪血=2 精英倍率=1.00 Boss血倍率=1.00 冷却倍率=1.00（期望 原数值）
-[PT] 无尽第6层 怪血=7 精英倍率=2.50 Boss血倍率=3.00 冷却倍率=0.70（期望全部更狠）
+[PT] 无尽第1层 怪血=4 精英倍率=1.00 Boss血倍率=1.00 冷却倍率=1.00（期望 原数值）
+[PT] 无尽第6层 怪血=14 精英倍率=2.50 Boss血倍率=3.00 冷却倍率=0.70（期望全部更狠）
 [PT] HUD 模式文本（第6层第1间）：无尽 · 第 6 层 · 1/3
 [PT] 永久节点总数=45 各角色={ "c021": 9, "c013": 9, "c023": 9, "z000": 9, "z003": 9 }（期望 45，五人各 9）
 [PT] 顺序修炼=true/true 有后继时初阶可退=false（期望 true/true/false）

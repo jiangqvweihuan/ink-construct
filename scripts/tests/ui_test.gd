@@ -148,6 +148,30 @@ func _ready() -> void:
 		p("简介含击败次数=%s 词条数=%d（期望 true / >0）" % [
 			str(str(em["stat"]).contains("已击败")), (em["tags"] as Array).size()])
 		await _shot("06_codex_pick")
+		# 刀客正式资料：四个命名招式均有来历，山民被动有机制与来历，技能 5 不再出现。
+		var sword_labels: Array = []
+		var sword_lore_ok := true
+		for i in mini(4, codex._acts.size()):
+			var action: Dictionary = codex._acts[i]
+			sword_labels.append(str(action["label"]))
+			var text: String = codex._desc_text(action, str(action["anims"][0]))
+			sword_lore_ok = sword_lore_ok and text.contains("来历：") and not text.contains("【待定】")
+		p("刀客四招=%s 来历完整=%s（期望 亡命三刀/螺旋鞭/升龙刀/双镰，true）" % [str(sword_labels), sword_lore_ok])
+		var passive_action: Dictionary = {}
+		for action in codex._acts:
+			if str(action["kind"]) == "passive":
+				passive_action = action
+		var passive_text: String = codex._desc_text(passive_action, "") if not passive_action.is_empty() else ""
+		p("刀客被动=%s 山民资料完整=%s（期望 山 民 / true）" % [str(passive_action.get("label", "")), passive_text.contains("每 5 秒恢复 1 点") and passive_text.contains("来历：") and not passive_text.contains("【待定】")])
+		# 重复点击同一动作不得把 Spine 轨道重置到第 0 帧。
+		var preview_state = codex._preview.call("get_animation_state")
+		var track = preview_state.call("get_current", 0)
+		var track_before := float(track.call("get_track_time")) if track != null else -1.0
+		codex._pick(0)
+		await get_tree().process_frame
+		track = preview_state.call("get_current", 0)
+		var track_after := float(track.call("get_track_time")) if track != null else -1.0
+		p("图鉴同动作重播保护 %.3f -> %.3f（期望不倒退）" % [track_before, track_after])
 		# 已收录的 Boss 详情（c032 三段变身）
 		codex._select("c032")
 		await get_tree().create_timer(0.3).timeout
