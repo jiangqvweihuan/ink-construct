@@ -87,6 +87,9 @@ var _attack_queued := false
 var _attack_hits: Array = [] # 本段普攻剩余待结算的命中时刻（动画秒），按升序弹出
 var _hurt_timer := 0.0
 var _hurt_invincible := 0.0 # 受伤后的短暂无敌：被围殴时不会一帧连掉好几血
+var _hurt_cast_key := "" # 最近一次实伤的敌人出手编号；只允许同招后续段穿过上述无敌
+var _cuts: Array = [] # 刺客割伤：每次镖去独立保存 3/6 秒两次结算，不刷新、不合并
+var _cut_casts: Dictionary = {} # 同一次出手至多挂一组割伤
 var _jump_seal := 0.0 # 辟地实伤附加：封跳剩余秒数，不影响闪避与其他动作
 # ---------- 通用动作接口（形态表按需开启；未配 = 退回旧行为，新角色照抄这组字段即可） ----------
 var _dash_time_base := 0.0 # 闪避时长 = 闪避动画长度（完美闪避判定窗口）
@@ -546,6 +549,7 @@ func _physics_process(delta: float) -> void:
 	_jump_buf = maxf(0.0, _jump_buf - delta)
 	_dash_cd = maxf(0.0, _dash_cd - delta)
 	_hurt_invincible = maxf(0.0, _hurt_invincible - delta)
+	_cut_tick(delta) # 割伤是延迟直扣：不吃受击无敌，也不触发受击硬直或阴影
 	_jump_seal = maxf(0.0, _jump_seal - delta)
 	_lifesteal_cd = maxf(0.0, _lifesteal_cd - delta) # 饮血内置冷却
 	_perm_lifesteal_cd = maxf(0.0, _perm_lifesteal_cd - delta)
@@ -2185,6 +2189,29 @@ func _counter_attack(attacker: Node) -> bool:
 	return true
 
 
+## 同招连段钥匙必须同时匹配攻击者实例与起手编号，不能凭相同动画名穿透无敌。
+func _enemy_cast_key(attacker: Node, move: Dictionary) -> String:
+	if attacker == null or not is_instance_valid(attacker):
+		return ""
+	var cast_id := int(move.get("cast_id", 0))
+	if cast_id <= 0:
+		return ""
+	return "%d:%d" % [attacker.get_instance_id(), cast_id]
+
+
+func _record_last_hit(attacker: Node, move: Dictionary, amount: int) -> void:
+	Run.last_hit = {}
+	if attacker != null and is_instance_valid(attacker):
+		var enemy_type = attacker.get("type_id")
+		if enemy_type != null:
+			Run.last_hit = {
+				"type_id": str(enemy_type),
+				"anim": str(move.get("anim", attacker.get("_current_anim"))),
+				"hit_at": maxf(0.05, float(move.get("hit_at", 0.65))),
+				"damage": amount,
+			}
+
+
 func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null, move: Dictionary = {}) -> void:
 	if state == State.DEAD or _invincible:
 		return
@@ -2241,8 +2268,11 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		_play_sfx("voice_fan_hit")
 		Feel.shake(3.0, 0.1)
 		return
+	var cast_key := _enemy_cast_key(attacker, move)
 	if _hurt_invincible > 0.0:
-		return
+		# 只放行同一名攻击者、同一次起手且明确配置的后续段；其他防御仍在各自分支结算。
+		if not bool(move.get("pierce_hurt_invincible", false)) or cast_key.is_empty() or cast_key != _hurt_cast_key:
+			return
 	# 金钟罩（力僧 K 第二段）：免疫这一下，挡完即散（8 秒没挨打也会自动消失）
 	if _shield_hits > 0:
 		_shield_hits -= 1 # 苦行可把多枚戒印转成多层护盾，一次攻击只挡一层
@@ -2264,25 +2294,19 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		Run.guard_available = false # 护砚只在实际扣血时消耗，闪避/护盾不会浪费
 	amount = maxi(1, amount - _damage_reduce - temporary_reduce) # 所有减伤都遵守最低 1 伤
 	# 只记录真正扣血的一击：闪避、护盾、受伤无敌与反伤都不会污染终局对演。
-	Run.last_hit = {}
-	if attacker != null and is_instance_valid(attacker):
-		var enemy_type = attacker.get("type_id")
-		if enemy_type != null:
-			Run.last_hit = {
-				"type_id": str(enemy_type),
-				"anim": str(move.get("anim", attacker.get("_current_anim"))),
-				"hit_at": maxf(0.05, float(move.get("hit_at", 0.65))),
-				"damage": amount,
-			}
+	_record_last_hit(attacker, move, amount)
 	if skull_id == "c013" and Meta.has_form_node("c013_meditation_2"): 
 		_hurt_guard_timer = 2.0
 	if skull_id == "c023" and Meta.has_form_node("c023_patience_3") and _hurt_cd_refund_cd <= 0.0:
 		_hurt_cd_refund_cd = 5.0
 		_skill_cds["skill02"] = maxf(0.0, float(_skill_cds.get("skill02", 0.0)) - 2.0)
 	_hurt_invincible = 0.8
+	_hurt_cast_key = cast_key
 	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
 	_reset_root_follow() # 技能被受击打断：把根骨位移结算进节点，别把骨架留在偏移位置
 	hp -= amount
+	if hp > 0 and bool(move.get("cut", false)):
+		_apply_cut(attacker, move, cast_key)
 	if skull_id == "c013" and _own("c013_ascetic_1"):
 		_precepts = mini(3, _precepts + 1)
 		var precept_dn := DAMAGE_NUMBER.new()
@@ -2336,6 +2360,57 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	_idle_queued = false # set_animation 已清掉队列里的 stand
 	_invincible = false
 	_play(hurt_anim, false)
+
+
+## 镖去实伤后登记一组割伤；同招第二段只扣直伤，不会重复登记。
+func _apply_cut(attacker: Node, move: Dictionary, cast_key: String) -> void:
+	if cast_key.is_empty() or _cut_casts.has(cast_key):
+		return
+	_cut_casts[cast_key] = true
+	_cuts.append({
+		"left": [3.0, 6.0],
+		"attacker": attacker,
+		"move": move.duplicate(),
+		"key": cast_key,
+	})
+
+
+## 每组割伤各自倒计时：3 秒、6 秒各固定失去 1 血，多组之间不刷新也不合并。
+func _cut_tick(delta: float) -> void:
+	for i in range(_cuts.size() - 1, -1, -1):
+		if _cuts.is_empty() or state == State.DEAD:
+			return
+		var cut: Dictionary = _cuts[i]
+		var left: Array = cut["left"]
+		for j in left.size():
+			left[j] = float(left[j]) - delta
+		while not left.is_empty() and float(left[0]) <= 0.0:
+			left.pop_front()
+			_cut_damage(cut)
+			if _cuts.is_empty() or state == State.DEAD:
+				return
+		if left.is_empty():
+			_cut_casts.erase(str(cut["key"]))
+			_cuts.remove_at(i)
+
+
+## 割伤是流血的细分结算：无硬直、无受击无敌、无击退，也不重新进入 hurt/阴影。
+func _cut_damage(cut: Dictionary) -> void:
+	if state == State.DEAD:
+		return
+	hp -= 1
+	hp_changed.emit(hp, max_hp)
+	_spawn_number(1, DMG_COLOR, 130.0)
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.22})
+	if hp > 0:
+		return
+	var attacker = cut.get("attacker") as Node
+	_record_last_hit(attacker, cut.get("move", {}), 1)
+	if _try_revive(Vector2.ZERO):
+		_cuts.clear()
+		_cut_casts.clear()
+		return
+	die()
 
 
 ## 赐福与复活墨符相互独立；优先消耗赐福，两者齐备时一局可以起身两次。
@@ -2427,6 +2502,8 @@ func die() -> void:
 	_reset_root_follow() # 死亡时收掉根骨补偿，尸体倒在实际站位
 	_shield_hits = 0 # 死了金钟罩也散
 	_shield_time = 0.0
+	_cuts.clear()
+	_cut_casts.clear()
 	velocity = Vector2.ZERO
 	_idle_queued = false
 	_invincible = false

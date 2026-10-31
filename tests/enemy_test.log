@@ -1,4 +1,4 @@
-[ET] created player=@SpineSprite@9:<SpineSprite#44962940459> enemy=@SpineSprite@76:<SpineSprite#49090135689>
+[ET] created player=@SpineSprite@9:<SpineSprite#45248153126> enemy=@SpineSprite@76:<SpineSprite#49375348356>
 [ET] player state -> 0
 [ET] enemy state -> 0 x=980.0
 [ET] enemy hp -> 6
@@ -55,8 +55,25 @@
 [ET] 三刀命中段=3 时刻=[0.36, 0.88, 1.33]（期望 3 / [0.36, 0.88, 1.33]）
 [ET] 三刀结算 首段=true 次段=true 末段=true 净伤害=1（期望 true/true/true/1）
 [ET] player state -> 7
-[ET] 升龙刀 瞬移贴身=true 前摇=0.87s 实伤=true 独立CD=12.0s 冷却禁重入=true 到点可放=true（期望 true / 0.87 / true / >=10 / true / true）
-[ET] 出手规则 普攻占比=0.89 近身池合规=true 螺旋鞭距离窗=true 特殊招冷却普攻兜底=true（期望 >=0.75 / true / true / true）
+[ET] 升龙刀 瞬移贴身=true 前摇=0.87s 实伤=true 短击飞=true 独立CD=12.0s 冷却禁重入=true 到点可放=true 闪避不击飞=true（期望全 true / 0.87 / >=10）
+[ET] player state -> 4
+[ET] 出手规则 普攻占比=0.84 近身池合规=true 螺旋鞭距离窗=true 特殊招冷却普攻兜底=true（期望 >=0.75 / true / true / true）
 [ET] 高伤倒地链 顺序与防重入=true 链中受伤后HP=17（期望 true / 17）
 [ET] 山民回血 间隔与上限=true 当前HP=20/20（期望 true / 满血）
+[ET] 蛮兵体型 身高=129.7px 最大杂兵且小于精英=true 碰撞/受击/UI同步=true（期望约130 / true / true）
+[ET] 蛮兵移动 共用walk2且不重启轨道=true 巡逻/追击=40/52 动画倍率=1.2（期望 true / 40/52 / 1.2）
+[ET] 蛮兵出手池 开天占比=0.88 连段不入随机池=true（期望 >=0.75 / true）
+[ET] 开天 蓄力无判=true 0.64秒时刻/2伤/81px=true 短击退=true 背向无伤=true 超程无伤=true（期望全 true）
+[ET] 辟地 2伤/9秒CD/8秒封跳=true 封跳禁跳=true 解禁可跳=true 闪避/护盾/无敌不附加=true/true/true（期望全 true）
+[ET] player state -> 0
+[ET] 赶山三斧 追击触发不瞬移=true 蓄力无判=true 三劈实伤=true/true/true 前半推进=true 后半原地=true 力竭3秒=true（期望全 true）
+[ET] 赶山三斧 16秒冷却禁重入=true 到点可放=true（期望 true / true）
+[ET] player state -> 7
+[ET] 蛮力霸体 受击不断招=true 普通控制免疫=true 牵引免疫=true 无视霸体击飞/时停/击退=true/true/true（期望全 true）
+[ET] player state -> 0
+[ET] 镖去 动画别名/两段=true 首段实伤=true 同招次段穿无敌=true 整招一组割伤=true 新起手不穿=true（期望全 true）
+[ET] player state -> 7
+[ET] 阴影 背后直伤双倍=true 净伤害=2（期望 true / 2）
+[ET] 偷袭 11号动画/绕背72px/12秒CD=true 前摇无判=true 0.94秒背刺4伤=true 无割伤=true 冷却禁重入=true 到点可放=true（期望全 true）
+[ET] 刺客高伤倒地链 顺序与防重入=true 链中受伤后HP=17（期望 true / 17）
 [ET] ALL DONE, enemy state=freed hp=- player state=7

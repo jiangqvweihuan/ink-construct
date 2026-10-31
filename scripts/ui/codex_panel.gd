@@ -54,7 +54,7 @@ const TAGS := {
 	"c016": ["近战", "爆发", "回血", "山野", "杂兵"],
 	"z002": ["近战", "机动", "剑门", "杂兵"],
 	"c017": ["近战", "霸体", "山野", "杂兵"],
-	"c035": ["近战", "机动", "爆发", "妖异", "杂兵"],
+	"c035": ["近战", "机动", "流血", "妖异", "杂兵"],
 	"c037": ["近战", "站桩", "霸体", "击飞", "精英"],
 	"c018": ["近战", "机动", "流血", "戏班", "精英"],
 	"c012": ["近战", "机动", "反击", "剑门", "精英"],
@@ -70,10 +70,11 @@ const TAGS := {
 	"z003": ["近战", "机动", "时停", "剑门", "化身"],
 }
 
-## 刀客与蛮兵正式招式资料；其余敌人仍沿用「招式 N」与待定来历，后续逐个补齐。
+## 已正式定名的普通敌人招式资料；逻辑招式键与演示动画名可以不同。
 const ENEMY_ATTACK_NAMES := {
 	"c016": {"skill01": "亡命三刀", "skill02": "螺旋鞭", "skill03": "升龙刀", "skill04": "双镰"},
 	"c017": {"skill01": "开天", "skill02": "辟地", "skill03_2": "赶山三斧"},
+	"c035": {"dart": "镖去", "sneak": "偷袭"},
 }
 const ENEMY_ATTACK_MECH := {
 	"c016": {
@@ -86,6 +87,10 @@ const ENEMY_ATTACK_MECH := {
 		"skill01": "默认普攻；0.64 秒斧刃扫入身前才结算，身前 81px 造成 2 点伤害并短击退",
 		"skill02": "近身低权重释放，独立冷却 9 秒；1.58 秒落斧造成 2 点伤害，实伤后 8 秒无法跳跃",
 		"skill03_2": "追击 120～260px 窗口触发，独立冷却 16 秒；行进间两劈各 1 伤，接原地大劈 2 伤，随后力竭 3 秒",
+	},
+	"c035": {
+		"dart": "默认普攻；0.50/1.36 秒两段各 1 点直伤，同招第二段可穿过首段受击无敌；整招命中后仅附一组割伤，3/6 秒各固定失去 1 点生命，多组独立计时",
+		"sneak": "使用 11 号动画；追击 100～260px 且非冷却时瞬至目标身后 72px，独立冷却 12 秒；0.94 秒砸击造成基础 2 点直伤，可触发阴影",
 	},
 }
 const ENEMY_ATTACK_LORE := {
@@ -100,6 +105,10 @@ const ENEMY_ATTACK_LORE := {
 		"skill02": "他少年时抡斧开山取石，一斧只能裂开薄薄一层。族人说地硬，他便练到斧落时连地底的根也震麻；中斧的人纵有轻功，也会一时忘了怎样跃起。",
 		"skill03_2": "蛮人赶山，不靠快，靠不肯停。前两斧赶碎脚边的石头，最后一斧把余力全送进山里；斧落之后，他总得扶着膝盖喘口气，再拖着巨斧继续赶路。",
 	},
+	"c035": {
+		"dart": "他小时候在镖局扫地，学不来趟子手的亮镖喝号，只会把断镖磨成薄片。第一记挑衣，第二记认肉；细伤像镖局的旧账，第三息记起，第六息再催，分文不少。",
+		"sneak": "剃头匠的第一课不是动刀，而是绕到椅后，屏住呼吸，等客人垂下眼皮。他把剃刀换成短镖后仍守这条规矩：客人没有察觉，手艺才算做完。",
+	},
 }
 const ENEMY_PASSIVES := {
 	"c016": {
@@ -111,6 +120,11 @@ const ENEMY_PASSIVES := {
 		"name": "蛮 力",
 		"desc": "每段实伤都会短距离击退目标；全程霸体，普通控制与受击硬直无效，无视霸体的规则级控制仍有效",
 		"lore": "他不信借力，也不懂收劲，只信斧头够沉、脊梁够直。山里倒下的树要靠自己扛回去，久了便养出一身不肯弯的蛮力；唯有真正压住他的规矩，才能让这把骨头低头。",
+	},
+	"c035": {
+		"name": "阴 影",
+		"desc": "从伤害目标身后造成直接伤害时双倍暴击；割伤等持续伤害不参与判定",
+		"lore": "剃头铺的镜子照正面，椅后的影子只归他。多年替人修鬓，他知道后颈哪一寸最薄；离店后这份手艺没有浪费，只是不再收铜钱。",
 	},
 }
 
@@ -166,7 +180,7 @@ const LORE := {
 	"c016": "山野间最常见的亡命刀客，一柄卷刃长刀便是全部家当。死后连名字都没人记得，只有崖边的乱刀还在等下一场雨。",
 	"z002": "黑袍裹身，剑不出鞘便已言明来意。传闻他曾是某位剑仙门下的弃徒，如今只在残卷里磨剑。",
 	"c017": "身高逾丈的蛮族力士，巨斧拖地，走一步便有石屑翻飞。他走得不快，却从不停在原地等人；一旦认准猎物，便拖着巨斧一步步赶上去。",
-	"c035": "瘦小、沉默、出手极快。没有人见过他的正脸，只见过他离场时扬起的一线沙。",
+	"c035": "他曾是城门边的剃头匠，听遍过路人的秘密，却从不接话。后来有人花钱让他割掉一个叛徒的舌头，他收了钱，仍把那人的头发剃得很齐整。此后铺子没了，椅上多了另一种客人；他仍旧沉默，仍旧从椅后下刀。",
 	"c018": "双镰交错成一轮银月，出手密不透风。旧时是戏班里的双刀伶人，戏散了，刀却没收。",
 	"c012": "斗笠压得很低，快剑藏在雨里。他是唯一一个会在危及性命时反而笑出声的人。",
 	"c037": "披重甲、执阔剑，一步一顿。剑落之处地面塌陷，轻巧的刀在他身上只留下一道白印。",
@@ -582,7 +596,8 @@ func _enemy_actions(t: Dictionary, is_boss: bool, id: String) -> Array:
 		if chained.has(n):
 			continue # 连段收尾不是独立招式，不额外生成第四个按钮
 		var attack_names: Dictionary = ENEMY_ATTACK_NAMES.get(id, {})
-		var action := {"label": str(attack_names.get(n, "招式 %d" % (i + 1))), "anims": [n], "kind": "enemy_atk", "src": t, "id": id}
+		var visual := str((t.get("move_anims", {}) as Dictionary).get(n, n))
+		var action := {"label": str(attack_names.get(n, "招式 %d" % (i + 1))), "anims": [visual], "key": n, "kind": "enemy_atk", "src": t, "id": id}
 		if chains.has(n):
 			var next_anim := str((chains[n] as Dictionary).get("anim", ""))
 			if not next_anim.is_empty():
@@ -805,7 +820,7 @@ func _num_for(a: Dictionary, anim: String) -> String:
 		"skill":
 			return _skill_num(a["src"])
 		"enemy_atk":
-			return _enemy_num(a["src"], anim, a.get("sequence", []))
+			return _enemy_num(a["src"], str(a.get("key", anim)), a.get("sequence", []))
 	return ""
 
 
@@ -816,8 +831,8 @@ func _mech_for(a: Dictionary) -> String:
 		"skill":
 			return _skill_desc(a["src"])
 		"enemy_atk":
-			var anim := str((a["anims"] as Array)[0])
-			return str((ENEMY_ATTACK_MECH.get(str(a.get("id", "")), {}) as Dictionary).get(anim, "出招时刻即判定命中"))
+			var key := str(a.get("key", str((a["anims"] as Array)[0])))
+			return str((ENEMY_ATTACK_MECH.get(str(a.get("id", "")), {}) as Dictionary).get(key, "出招时刻即判定命中"))
 		"transform":
 			return "血量跌破阶段阈值时的变身演出"
 	return ""
@@ -827,9 +842,9 @@ func _cd_for(a: Dictionary) -> float:
 	if str(a["kind"]) == "skill":
 		return float((a["src"] as Dictionary).get("cooldown", 0.0))
 	if str(a["kind"]) == "enemy_atk":
-		var anim := str((a["anims"] as Array)[0])
+		var key := str(a.get("key", str((a["anims"] as Array)[0])))
 		var rules: Dictionary = (a["src"] as Dictionary).get("attack_rules", {})
-		return float((rules.get(anim, {}) as Dictionary).get("cooldown", 0.0))
+		return float((rules.get(key, {}) as Dictionary).get("cooldown", 0.0))
 	return 0.0
 
 
@@ -984,7 +999,8 @@ func _desc_text(a: Dictionary, anim: String) -> String:
 		lines.append("[color=#8a857a]冷却：[/color]%.1f 秒" % cd)
 	var origin := "【待定】"
 	if kind == "enemy_atk":
-		origin = str((ENEMY_ATTACK_LORE.get(str(a.get("id", "")), {}) as Dictionary).get(anim, origin))
+		var key := str(a.get("key", anim))
+		origin = str((ENEMY_ATTACK_LORE.get(str(a.get("id", "")), {}) as Dictionary).get(key, origin))
 	lines.append("[color=#8a857a]来历：[/color]" + origin)
 	return "\n".join(lines)
 

@@ -29,9 +29,16 @@
 [UI] 点击招式 1 -> 演示动画 skill01（点击前 stand，期望不同）
 [UI] 简介含击败次数=true 词条数=5（期望 true / >0）
 [UI] saved 06_codex_pick err=0
-[UI] 刀客四招=["亡命三刀", "螺旋鞭", "升龙刀", "双镰"] 来历完整=true（期望 亡命三刀/螺旋鞭/升龙刀/双镰，true）
+[UI] 刀客四招=["亡命三刀", "螺旋鞭", "升龙刀", "双镰"] 来历完整=true 升龙刀短击飞文案=true（期望 亡命三刀/螺旋鞭/升龙刀/双镰，全 true）
 [UI] 刀客被动=山 民 山民资料完整=true（期望 山 民 / true）
-[UI] 图鉴同动作重播保护 0.104 -> 0.104（期望不倒退）
+[UI] 图鉴同动作重播保护 0.109 -> 0.109（期望不倒退）
+[UI] 蛮兵三招=["开天", "辟地", "赶山三斧"] 数量正确=true 来历完整=true 独立冷却=true 开天新判定=true 连段数值=true（期望 开天/辟地/赶山三斧，全 true）
+[UI] 蛮兵背景词条=true 蛮力资料=true（期望 true / true）
+[UI] saved 06b_codex_brute_chain err=0
+[UI] 蛮兵连段顺序预览=true/true/true（期望 true/true/true：前两劈 -> 大劈 -> 待机）
+[UI] 刺客图鉴 双招/逻辑键/数值/来历=true 阴影资料=true 背景与流血词条=true（期望全 true）
+[UI] 刺客双招skill02/skill01预览=true（期望 true）
+[UI] saved 06c_codex_assassin err=0
 [UI] saved 07_codex_boss err=0
 [UI] 切到化身页 -> 选中=c021（期望 c021）
 [UI] saved 08_codex_form err=0

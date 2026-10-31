@@ -131,6 +131,7 @@ func _ready() -> void:
 	# 图鉴：先给存档造几条"已击败"记录（persist 关掉，不写进玩家存档），再看两页
 	Meta.add_enemy_kill("c016")
 	Meta.add_enemy_kill("c017")
+	Meta.add_enemy_kill("c035")
 	Meta.add_enemy_kill("c009")
 	Meta.add_enemy_kill("c032")
 	_menu._open_codex()
@@ -236,6 +237,64 @@ func _ready() -> void:
 			brute_track = brute_state.call("get_current", 0)
 			sequence_idle = brute_track != null and str(brute_track.call("get_animation").call("get_name")) == "stand"
 		p("蛮兵连段顺序预览=%s/%s/%s（期望 true/true/true：前两劈 -> 大劈 -> 待机）" % [sequence_first, sequence_second, sequence_idle])
+
+		# 刺客正式资料：两个逻辑招式分别保留名称、机制与来历，预览分别指向 skill02 / skill01。
+		codex._select("c035")
+		await get_tree().create_timer(0.3).timeout
+		var assassin_model: Dictionary = codex._model(codex._sel)
+		var assassin_labels: Array = []
+		var assassin_keys: Array = []
+		var assassin_visuals_ok := true
+		var assassin_lore_ok := true
+		var assassin_dart_ok := false
+		var assassin_sneak_ok := false
+		var assassin_passive: Dictionary = {}
+		var dart_index := -1
+		var sneak_index := -1
+		for i in codex._acts.size():
+			var action: Dictionary = codex._acts[i]
+			if str(action["kind"]) == "enemy_atk":
+				var label := str(action["label"])
+				assassin_labels.append(label)
+				var action_key := str(action.get("key", ""))
+				assassin_keys.append(action_key)
+				var expected_visual := "skill02" if action_key == "dart" else "skill01"
+				assassin_visuals_ok = assassin_visuals_ok and action.get("anims", []) == [expected_visual]
+				var text: String = codex._desc_text(action, str(action["anims"][0]))
+				assassin_lore_ok = assassin_lore_ok and text.contains("来历：") and not text.contains("【待定】")
+				if label == "镖去":
+					dart_index = i
+					assassin_dart_ok = text.contains("2 段") and text.contains("107px") and text.contains("1 伤") \
+						and text.contains("0.50/1.36 秒") and text.contains("3/6 秒") and text.contains("多组独立计时")
+				elif label == "偷袭":
+					sneak_index = i
+					assassin_sneak_ok = is_equal_approx(float(codex._cd_for(action)), 12.0) \
+						and text.contains("身后 72px") and text.contains("基础 2 点直伤") and text.contains("0.94 秒")
+			elif str(action["kind"]) == "passive":
+				assassin_passive = action
+		var assassin_passive_text: String = codex._desc_text(assassin_passive, "") if not assassin_passive.is_empty() else ""
+		var assassin_model_ok: bool = str(assassin_model["lore"]).contains("剃头匠") and (assassin_model["tags"] as Array).has("流血")
+		var assassin_data_ok: bool = assassin_labels == ["镖去", "偷袭"] and assassin_keys == ["dart", "sneak"] \
+			and assassin_visuals_ok and assassin_lore_ok and assassin_dart_ok and assassin_sneak_ok
+		var assassin_passive_ok: bool = str(assassin_passive.get("label", "")) == "阴 影" \
+			and assassin_passive_text.contains("双倍暴击") and assassin_passive_text.contains("割伤等持续伤害不参与判定") \
+			and assassin_passive_text.contains("来历：") and not assassin_passive_text.contains("【待定】")
+		p("刺客图鉴 双招/逻辑键/数值/来历=%s 阴影资料=%s 背景与流血词条=%s（期望全 true）" % [assassin_data_ok, assassin_passive_ok, assassin_model_ok])
+		var assassin_preview_ok := true
+		var assassin_state = codex._preview.call("get_animation_state")
+		var assassin_track = assassin_state.call("get_current", 0)
+		for action_index in [dart_index, sneak_index]:
+			if action_index < 0:
+				assassin_preview_ok = false
+				continue
+			codex._pick(action_index)
+			await get_tree().process_frame
+			var expected_anim := "skill02" if action_index == dart_index else "skill01"
+			assassin_track = assassin_state.call("get_current", 0)
+			assassin_preview_ok = assassin_preview_ok and str(codex._current_anim) == expected_anim \
+				and assassin_track != null and str(assassin_track.call("get_animation").call("get_name")) == expected_anim
+		p("刺客双招skill02/skill01预览=%s（期望 true）" % assassin_preview_ok)
+		await _shot("06c_codex_assassin")
 
 		# 已收录的 Boss 详情（c032 三段变身）
 		codex._select("c032")

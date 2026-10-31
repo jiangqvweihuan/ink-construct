@@ -48,6 +48,16 @@ class Trainer extends Node2D:
 	func is_on_floor() -> bool:
 		return not airborne
 
+## 刺客割伤测试攻击者：提供终局对演读取的形态字段与反伤入口。
+class CutAttacker extends Node2D:
+	var type_id := "c035"
+	var _current_anim := "skill02"
+	var hp := 4
+	var damage_taken := 0
+
+	func take_damage(amount: int, _source_x: float) -> void:
+		damage_taken += amount
+
 const OUT_DIR := "res://tests/out/"
 const PlayerClass := preload("res://scripts/player/player.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
@@ -345,6 +355,7 @@ func _ready() -> void:
 
 	_permanent_progression_check()
 	await _new_build_regression()
+	_assassin_cut_regression()
 	get_tree().quit()
 
 
@@ -541,6 +552,124 @@ func _new_build_regression() -> void:
 		_player.global_position.x, silver_target.bleeds, silver_target.stunned, silver_target.damage_taken, _player._dash_cd])
 	silver_target.queue_free()
 	p("NEW BUILD DONE")
+
+
+## 刺客割伤：同招穿透、独立 3/6 秒计时、防御不挂伤与致死对演。
+func _assassin_cut_regression() -> void:
+	Meta.form_nodes = {}
+	Run.start()
+	Run.guard_available = false
+	_player.swap_skull("c021")
+	_player.set_upgrades({})
+	_player.set_physics_process(false)
+	var attacker := CutAttacker.new()
+	add_child(attacker)
+	var other := CutAttacker.new()
+	add_child(other)
+	var move := {"anim": "skill02", "hit_at": 0.50, "cast_id": 1, "cut": true, "pierce_hurt_invincible": true}
+
+	# 同一次出手的第二段可穿过受击无敌，但整招只登记一组割伤；新编号和其他攻击者不能穿透。
+	_reset_cut_player()
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	var hp_before: int = _player.hp
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	var same_cast_ok: bool = _player.hp == hp_before - 1 and _player._cuts.size() == 1
+	hp_before = _player.hp
+	var new_move: Dictionary = move.duplicate()
+	new_move["cast_id"] = 2
+	_player.hurt(1, Vector2.ZERO, attacker, new_move)
+	var new_cast_blocked: bool = _player.hp == hp_before and _player._cuts.size() == 1
+	_player.hurt(1, Vector2.ZERO, other, move)
+	var other_blocked: bool = _player.hp == hp_before and _player._cuts.size() == 1
+	p("镖去玩家入口 同招次段/单组割伤=%s 新出手被无敌挡住=%s 其他攻击者被挡住=%s（期望全 true）" % [same_cast_ok, new_cast_blocked, other_blocked])
+
+	# 第二组晚 1 秒命中：两组各自结算，第二组绝不刷新第一组。
+	_reset_cut_player()
+	var first: Dictionary = move.duplicate()
+	first["cast_id"] = 11
+	var second: Dictionary = move.duplicate()
+	second["cast_id"] = 12
+	_player.hurt(1, Vector2.ZERO, attacker, first)
+	_player._cut_tick(1.0)
+	_player._hurt_invincible = 0.0
+	_player.hurt(1, Vector2.ZERO, attacker, second)
+	var hp_after_direct: int = _player.hp
+	_player._cut_tick(1.99)
+	var before_three: bool = _player.hp == hp_after_direct and _player._cuts.size() == 2
+	_player.state = _player.State.IDLE
+	_player.velocity = Vector2.ZERO
+	_player._hurt_invincible = 0.0
+	_player._cut_tick(0.02)
+	var first_three: bool = _player.hp == hp_after_direct - 1 and _player.state == _player.State.IDLE \
+		and _player._hurt_invincible == 0.0 and _player.velocity == Vector2.ZERO
+	_player._cut_tick(1.0)
+	var second_three: bool = _player.hp == hp_after_direct - 2
+	_player._cut_tick(1.98)
+	var before_six: bool = _player.hp == hp_after_direct - 2 and _player._cuts.size() == 2
+	_player._cut_tick(0.02)
+	var first_six: bool = _player.hp == hp_after_direct - 3 and _player._cuts.size() == 1
+	_player._cut_tick(1.0)
+	var second_six: bool = _player.hp == hp_after_direct - 4 and _player._cuts.is_empty()
+	p("割伤计时 3秒前不扣=%s 第一组3秒=%s 第二组独立3秒=%s 6秒前不扣=%s 第一组6秒=%s 第二组6秒=%s 无硬直/无敌/击退=%s（期望全 true）" % [before_three, first_three, second_three, before_six, first_six, second_six, first_three])
+
+	# 所有未实伤的防御路径都不能登记割伤。
+	_reset_cut_player()
+	_player.state = _player.State.DASH
+	hp_before = _player.hp
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	var dodge_ok: bool = _player.hp == hp_before and _player._cuts.is_empty()
+	_reset_cut_player()
+	_player._shield_hits = 1
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	var shield_ok: bool = _player.hp == hp_before and _player._cuts.is_empty()
+	_reset_cut_player()
+	_player._skill_reflect = true
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	var reflect_ok: bool = _player.hp == hp_before and _player._cuts.is_empty() and attacker.damage_taken > 0
+	_reset_cut_player()
+	_player._hurt_invincible = 0.8
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	var invincible_ok: bool = _player.hp == hp_before and _player._cuts.is_empty()
+	p("割伤防御 闪避/护盾/反伤/受击无敌不附加=%s/%s/%s/%s（期望全 true）" % [dodge_ok, shield_ok, reflect_ok, invincible_ok])
+
+	# 割伤致死也要记录真正的招式来源，终局对演仍能复现 skill02。
+	_reset_cut_player(2)
+	Run.last_hit = {}
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	_player.state = _player.State.IDLE
+	_player._hurt_invincible = 0.0
+	_player._cut_tick(3.01)
+	var death_ok: bool = _player.hp <= 0 and _player.state == _player.State.DEAD and _player._cuts.is_empty()
+	var replay_ok: bool = str(Run.last_hit.get("type_id", "")) == "c035" \
+		and str(Run.last_hit.get("anim", "")) == "skill02" and int(Run.last_hit.get("damage", 0)) == 1
+	p("割伤致死 死亡并清理=%s 终局对演记录=%s last_hit=%s（期望 true/true/c035+skill02）" % [death_ok, replay_ok, str(Run.last_hit)])
+	attacker.queue_free()
+	other.queue_free()
+
+
+func _reset_cut_player(hp := 20) -> void:
+	_player.max_hp = 20
+	_player.hp = hp
+	_player.state = _player.State.IDLE
+	_player.velocity = Vector2.ZERO
+	_player._invincible = false
+	_player._hurt_invincible = 0.0
+	_player._hurt_cast_key = ""
+	_player._cuts.clear()
+	_player._cut_casts.clear()
+	_player._shield_hits = 0
+	_player._shield_time = 0.0
+	_player._parry_ready = false
+	_player._bell_shell = false
+	_player._skill_reflect = false
+	_player._skill_poise = false
+	_player._damage_reduce = 0
+	_player.poise = false
+	Run.guard_available = false
+	Run.blessing = ""
+	Run.blessing_used = false
+	Run.supply_revive = false
+	Run.supply_revive_used = false
 
 
 func _physics_process(_delta: float) -> void:

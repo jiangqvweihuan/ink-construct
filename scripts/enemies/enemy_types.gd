@@ -138,7 +138,7 @@ const TYPES := {
 		"bar_y": -140.0,
 		"number_y": -123.0,
 	},
-	# ---------- 刺客：C035，血薄但快，贴脸连刺 ----------
+	# ---------- 刺客：C035，镖去叠割伤，偷袭绕背，阴影放大身后直伤 ----------
 	"c035": {
 		"label": "刺客",
 		"data": "res://art/characters/enemies/c035/c035_data.tres",
@@ -146,10 +146,23 @@ const TYPES := {
 		"body_radius": 28.0, # 刺客精瘦，挨打面窄一档
 		"elite": false,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "atked_fall_end"},
-		"attacks": ["skill01", "skill02"],
-		# 探针实测：skill01 前侧 280@0.94、skill02 前侧 306@1.38
-		"hit_at": {"skill01": 0.94, "skill02": 1.38},
-		"ranges": {"skill01": 118.0, "skill02": 129.0},
+		"attacks": ["dart", "sneak"],
+		"move_anims": {"dart": "skill02", "sneak": "skill01"}, # 镖去用 12 号，偷袭用 11 号，逻辑判定完全独立
+		# 定格复核：镖去 skill02 取 0.50/1.36s（254/306px），偷袭 skill01 取 0.94s（280px）；×0.422 = 107/129/118。
+		"hit_at": {"dart": [0.50, 1.36], "sneak": 0.94},
+		"ranges": {"dart": [107.0, 129.0], "sneak": 118.0},
+		"damage": {"dart": 1, "sneak": 2},
+		# 同一次镖去的第二段只穿过第一段造成的受击无敌；整招实伤后只挂一组 3/6 秒割伤。
+		"hit_effects": {"dart": {"cut": true, "pierce_hurt_invincible": true}},
+		"blink_strike": {"anim": "sneak", "min": 100.0, "max": 260.0, "offset": 72.0, "behind": true},
+		"lunge_mul": {"sneak": 0.0}, # 绕背后原地演出，避免前冲穿过目标导致背刺方向翻转
+		"backstab": true,
+		"attack_rules": {
+			"dart": {"weight": 1.0},
+			"sneak": {"cooldown": 12.0, "random": false},
+		},
+		"knock_at": 2,
+		"knock_chain": ["atked", "atked_air", "atked_fall_end", "getup"],
 		"hp": 4,
 		"patrol_speed": 90.0,
 		"chase_speed": 195.0,

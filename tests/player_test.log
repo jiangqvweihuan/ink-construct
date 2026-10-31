@@ -1,4 +1,4 @@
-[PT] player created, sprite=@SpineSprite@9:<SpineSprite#48167388711>
+[PT] player created, sprite=@SpineSprite@9:<SpineSprite#48570041891>
 [PT] state -> 0 pos=(300.0, 560.0)
 [PT] state -> 3 pos=(300.0, 560.5555)
 [PT] state -> 0 pos=(300.0, 599.9999)
@@ -88,12 +88,12 @@
 [PT] ult_after skull=z003 hp=7/8
 [PT] saved 14_ult_after_z003 err=0 state=0 pos=(965.6467, 599.9337)
 [PT] SWAP DONE skull=z003
-[PT] roll0 银夜三选一：["dodge[通用]", "z003_returning_1[流派1]", "hp[通用]"]
+[PT] roll0 银夜三选一：["dodge[通用]", "z003_returning_1[流派1]", "damage[通用]"]
 [PT] claim z003_clock_1 ok=true level=1
-[PT] roll1（已拿漏刻·初）含漏刻·续=true → ["cooldown", "z003_returning_1", "z003_clock_2"]
+[PT] roll1（已拿漏刻·初）含漏刻·续=true → ["damage", "z003_clock_2", "z003_returning_1"]
 [PT] claim z003_clock_2 ok=true level=1
 [PT] claim z003_clock_3 ok=true level=1
-[PT] roll2 跨形态泄漏=[]（期望 []） → ["damage", "hp", "z003_sky_1"]
+[PT] roll2 跨形态泄漏=[]（期望 []） → ["hp", "cooldown", "z003_sky_1"]
 [PT] build 生效：漏刻=true/true/true dash_time=1.20 dash_cd=0.90（期望 true/true/true / 1.20 / 0.90）
 [PT] 换到 c021：当前形态=c021 银夜卡保留=true（机制按形态分支休眠）
 [PT] 切回 z003：漏刻可用=true（期望 true）
@@ -141,3 +141,7 @@
 [PT] 漏刻自然结束 定身=1.8 余滞=4.0/0.45（期望 1.8 / 4.0/0.45）
 [PT] 去来返程 位置=400 流血=1 破招=1.5 伤害=0 闪避CD=0.0（期望 400/1/1.5/0/0）
 [PT] NEW BUILD DONE
+[PT] 镖去玩家入口 同招次段/单组割伤=true 新出手被无敌挡住=true 其他攻击者被挡住=true（期望全 true）
+[PT] 割伤计时 3秒前不扣=true 第一组3秒=true 第二组独立3秒=true 6秒前不扣=true 第一组6秒=true 第二组6秒=true 无硬直/无敌/击退=true（期望全 true）
+[PT] 割伤防御 闪避/护盾/反伤/受击无敌不附加=true/true/true/true（期望全 true）
+[PT] 割伤致死 死亡并清理=true 终局对演记录=true last_hit={ "type_id": "c035", "anim": "skill02", "hit_at": 0.5, "damage": 1 }（期望 true/true/c035+skill02）

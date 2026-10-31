@@ -161,6 +161,9 @@ func _ready() -> void:
 	# 7. 蛮兵专项：三招判定、封跳、连段力竭、追击倍速与蛮力霸体。
 	await _brute_probe()
 
+	# 8. 刺客专项：同动画双招、两段镖去、绕背偷袭、阴影背刺与倒地链。
+	await _assassin_probe()
+
 	# 第一只小怪尸体死后 ~1.7s 就 queue_free，精英段跑完它早没了，访问前必须判活
 	var e_state := "freed"
 	var e_hp := "-"
@@ -520,6 +523,111 @@ func _brute_probe() -> void:
 	await get_tree().process_frame
 
 
+## 刺客专项：镖去 / 偷袭分别映射 skill02 / skill01，手动结算以排除实时 AI 和位移干扰。
+func _assassin_probe() -> void:
+	_reset_brute_player(Vector2(500, 560))
+	_player.facing = 1 # 目标朝右，刺客在其右侧时属于正面
+	var e = load("res://scenes/enemies/c035.tscn").instantiate()
+	e.position = Vector2(580, 560)
+	add_child(e)
+	e.set_physics_process(false)
+	e._target = _player
+	e.facing = -1
+	e._apply_facing()
+
+	# 镖去：12 号普攻与 11 号偷袭的逻辑键、命中段和冷却配置互不串用。
+	e._start_attack("dart")
+	var alias_ok: bool = e._attack_move == "dart" and e._current_anim == "skill02" \
+		and e._attack_hits_left.size() == 2 and str(e._move_anims.get("sneak", "")) == "skill01"
+	var hp_before: int = _player.hp
+	e._deal_hit(0)
+	var first_hit: bool = _player.hp == hp_before - Run.enemy_damage(1) and _player._cuts.size() == 1
+	hp_before = _player.hp
+	e._deal_hit(1) # 同一次起手的第二段穿过首段的 0.8 秒受击无敌
+	var second_hit: bool = _player.hp == hp_before - Run.enemy_damage(1) and _player._cuts.size() == 1
+	hp_before = _player.hp
+	e._start_attack("dart") # 新起手编号不能再穿上一次实伤留下的无敌
+	e._deal_hit(0)
+	var new_cast_blocked: bool = _player.hp == hp_before and _player._cuts.size() == 1
+	p("镖去 动画别名/两段=%s 首段实伤=%s 同招次段穿无敌=%s 整招一组割伤=%s 新起手不穿=%s（期望全 true）" % [alias_ok, first_hit, second_hit, _player._cuts.size() == 1, new_cast_blocked])
+	e._release_token()
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 阴影：同一段镖去在正面只有基础 1 伤，绕到目标背后则双倍为 2 伤。
+	_reset_brute_player(Vector2(500, 560))
+	_player.facing = 1
+	e = load("res://scenes/enemies/c035.tscn").instantiate()
+	e.position = Vector2(420, 560)
+	add_child(e)
+	e.set_physics_process(false)
+	e._target = _player
+	e.facing = 1
+	e._apply_facing()
+	e._start_attack("dart")
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var backstab_ok: bool = _player.hp == hp_before - Run.enemy_damage(1) * 2
+	p("阴影 背后直伤双倍=%s 净伤害=%d（期望 true / %d）" % [backstab_ok, hp_before - _player.hp, Run.enemy_damage(1) * 2])
+	e._release_token()
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 偷袭：200px 追击窗内绕到目标背后 72px，12 秒独立冷却，砸击触发背刺。
+	_reset_brute_player(Vector2(700, 560))
+	_player.facing = 1
+	e = load("res://scenes/enemies/c035.tscn").instantiate()
+	e.position = Vector2(900, 560)
+	add_child(e)
+	e.set_physics_process(false)
+	e._target = _player
+	e._attack_cd = 0.0
+	e._set_state(e.State.CHASE)
+	e._chase_tick(0.0)
+	var blink_ok: bool = e.state == e.State.ATTACK and e._attack_move == "sneak" \
+		and e._current_anim == "skill01" and is_equal_approx(e.global_position.x, 628.0) \
+		and e.facing == 1 and is_equal_approx(float(e._attack_rule_cds["sneak"]), 12.0) \
+		and is_equal_approx(e.velocity.x, 0.0)
+	hp_before = _player.hp
+	e._attack_tick(0.93)
+	var no_early_hit: bool = _player.hp == hp_before
+	e._attack_tick(0.01)
+	var sneak_hit: bool = _player.hp == hp_before - Run.enemy_damage(2) * 2 and _player._cuts.is_empty()
+	e.global_position.x = 900.0
+	e._attack_cd = 0.0
+	e._set_state(e.State.CHASE)
+	e._chase_tick(0.0)
+	var cd_blocks: bool = e.state == e.State.CHASE
+	e._attack_rule_cds["sneak"] = 0.0
+	e._chase_tick(0.0)
+	var cd_ready: bool = e.state == e.State.ATTACK and e._attack_move == "sneak"
+	p("偷袭 11号动画/绕背72px/12秒CD=%s 前摇无判=%s 0.94秒背刺4伤=%s 无割伤=%s 冷却禁重入=%s 到点可放=%s（期望全 true）" % [blink_ok, no_early_hit, sneak_hit, _player._cuts.is_empty(), cd_blocks, cd_ready])
+	e._release_token()
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 高伤链：原受击 → 空中受击 → 倒地 → 9 号 getup，链中掉血但不重播受击。
+	e = load("res://scenes/enemies/c035.tscn").instantiate()
+	e.position = Vector2(620, 560)
+	add_child(e)
+	e.set_physics_process(false)
+	e.configure({"hp": 20})
+	e.take_damage(2, _player.global_position.x)
+	var chain_ok: bool = e._hurt_chain_active and e._current_anim == "atked"
+	var chain_hp: int = e.hp
+	e.take_damage(1, _player.global_position.x)
+	chain_ok = chain_ok and e.hp == chain_hp - 1 and e._current_anim == "atked"
+	for expected in ["atked_air", "atked_fall_end", "getup"]:
+		e._hurt_tick(e._hurt_timer + 0.001)
+		chain_ok = chain_ok and e._current_anim == expected
+	e._hurt_tick(e._hurt_timer + 0.001)
+	chain_ok = chain_ok and not e._hurt_chain_active and e.state == e.State.IDLE
+	p("刺客高伤倒地链 顺序与防重入=%s 链中受伤后HP=%d（期望 true / 17）" % [chain_ok, chain_hp - 1])
+	e._release_token()
+	e.queue_free()
+	await get_tree().process_frame
+
+
 func _spawn_brute(pos: Vector2) -> C016Class:
 	var e = load("res://scenes/enemies/c017.tscn").instantiate()
 	e.position = pos
@@ -540,6 +648,9 @@ func _reset_brute_player(pos := Vector2(500, 560)) -> void:
 	_player.velocity = Vector2.ZERO
 	_player._invincible = false
 	_player._hurt_invincible = 0.0
+	_player._hurt_cast_key = ""
+	_player._cuts.clear()
+	_player._cut_casts.clear()
 	_player._jump_seal = 0.0
 	_player._shield_hits = 0
 	_player._shield_time = 0.0

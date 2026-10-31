@@ -54,7 +54,10 @@ var _pick_nearest := false
 var _base_scale := 0.32
 var _scale := 0.32
 var _anim_map: Dictionary = {}
-var _attack_anims: Array = []
+var _attack_anims: Array = [] # 逻辑招式键；演出动画可经 move_anims 共用同一条 Spine 动画
+var _move_anims: Dictionary = {}
+var _attack_move := "" # 本次出手的逻辑键，判定/伤害/冷却均按它查询
+var _attack_cast_id := 0 # 每次起手递增，同招多段凭它识别，不靠动画名猜测
 var _ranges: Dictionary = {}
 var _hit_at_map: Dictionary = {}
 # both：该招是回身横扫，动画把武器甩到身后，判定不分前后（否则"动画打到却判不上"）
@@ -64,7 +67,8 @@ var _poise_anims: Dictionary = {} # 出手霸体：该招出手期间挨打只�
 var _lunge_map: Dictionary = {} # 该招前冲倍率（跳斩跨步更大）
 var _hop_map: Dictionary = {} # 该招起手向上跃起的速度（跳斩腾空的视觉配合）
 var _feedback_segments: Dictionary = {} # 只播受击反馈、不实际扣血的招式段（刀客前两刀）
-var _blink_strike: Dictionary = {} # 追击窗口强制出招；offset>0 时才瞬到目标身前
+var _blink_strike: Dictionary = {} # 追击窗口强制出招；behind=true 时瞬到目标背后
+var _backstab := false # 阴影：从目标背后造成的直接伤害双倍，持续伤害不经过这里
 var _hit_effects: Dictionary = {} # 实际命中后附加的招式效果（如升龙刀击飞、辟地封跳）
 var _hit_knockback := Vector2(220.0, -80.0)
 var _attack_chain: Dictionary = {} # 同一招内的接续动画与收招后的静默恢复
@@ -164,6 +168,7 @@ func _apply_type() -> void:
 	_scale = _base_scale
 	_anim_map = t["anim"]
 	_attack_anims = t["attacks"]
+	_move_anims = t.get("move_anims", {})
 	_ranges = t["ranges"]
 	_hit_at_map = t["hit_at"]
 	_both_anims = t.get("both", {})
@@ -173,6 +178,7 @@ func _apply_type() -> void:
 	_hop_map = t.get("hop", {})
 	_feedback_segments = t.get("feedback_only", {})
 	_blink_strike = t.get("blink_strike", {})
+	_backstab = bool(t.get("backstab", false))
 	_hit_effects = t.get("hit_effects", {})
 	_hit_knockback = t.get("hit_knockback", Vector2(220.0, -80.0))
 	_attack_chain = t.get("attack_chain", {})
@@ -277,7 +283,7 @@ func _setup_spine() -> void:
 	# 缓存攻击动画真实时长：比想象中长得多，攻击锁定必须按实际时长走，
 	# 否则收招段被切掉 + 0.1s 交叉淡化 = 抽搐
 	for n in _attack_anims:
-		var a = data.call("find_animation", n)
+		var a = data.call("find_animation", str(_move_anims.get(n, n)))
 		if a != null:
 			_anim_durations[n] = a.call("get_duration")
 	# 倒地链也按真实时长逐段接续，不能拿固定 hurt_time 截断起身。
@@ -443,7 +449,7 @@ func _chase_tick(delta: float) -> void:
 
 func _attack_tick(delta: float) -> void:
 	_attack_timer -= delta
-	var advance := float(_advance_map.get(_current_anim, 0.0))
+	var advance := float(_advance_map.get(_attack_move, 0.0))
 	if advance > 0.0:
 		velocity.x = move_toward(velocity.x, facing * advance * _slow_scale, accel * delta)
 	else:
@@ -456,7 +462,7 @@ func _attack_tick(delta: float) -> void:
 	# 收招按真实时长驱动；有后续段时仍属同一次攻击，不交令牌、不进入普通收招。
 	if _attack_timer <= 0.0:
 		if not _chain_next.is_empty():
-			var chain: Dictionary = _attack_chain.get(_current_anim, {})
+			var chain: Dictionary = _attack_chain.get(_attack_move, {})
 			var next_anim := _chain_next
 			_recovery_after_attack = float(chain.get("recovery", 0.0))
 			_start_attack(next_anim, true)
@@ -568,18 +574,26 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 			anim = str(pool.back())
 	state = State.ATTACK
 	_attacker = self # 占住出手令牌
+	_attack_move = anim
+	_attack_cast_id += 1
 	var chain: Dictionary = _attack_chain.get(anim, {})
 	_chain_next = str(chain.get("anim", ""))
 	if _attack_rules.has(anim):
 		_attack_rule_cds[anim] = float((_attack_rules[anim] as Dictionary).get("cooldown", 0.0))
-	# 升龙刀只能由追击窗口强制选出，近身随机池不会再抽到它。
+	# 追击招只能由窗口强制选出；behind=true 时落到目标背后，并立即回身面向目标。
 	if forced_anim != "" and not _blink_strike.is_empty() and anim == str(_blink_strike.get("anim", "")) \
 			and _target != null and is_instance_valid(_target):
 		var dx: float = _target.global_position.x - global_position.x
-		facing = 1 if dx > 0.0 else -1
 		var offset := float(_blink_strike.get("offset", 72.0))
-		if offset > 0.0:
-			global_position.x = _target.global_position.x - facing * offset
+		if bool(_blink_strike.get("behind", false)):
+			var raw_facing = _target.get("facing")
+			var target_facing := float(raw_facing) if raw_facing != null and float(raw_facing) != 0.0 else (1.0 if dx > 0.0 else -1.0)
+			global_position.x = _target.global_position.x - target_facing * offset
+			facing = 1 if target_facing > 0.0 else -1
+		else:
+			facing = 1 if dx > 0.0 else -1
+			if offset > 0.0:
+				global_position.x = _target.global_position.x - facing * offset
 		_apply_facing()
 	_attack_dur = _anim_durations.get(anim, 1.5)
 	_attack_timer = _attack_dur
@@ -596,7 +610,7 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 	var hop := float(_hop_map.get(anim, 0.0))
 	if hop > 0.0:
 		velocity.y = -hop # 跳斩腾空：配合动画的跃起视觉，重力会自然把他带回地面
-	_play(anim, false) # _play 内部会设好 _current_anim
+	_play(str(_move_anims.get(anim, anim)), false) # 逻辑招式与真实演出分开记录
 	# 关键：排队 stand 紧跟技能之后。否则非循环动画播完的瞬间轨道空窗，
 	# 骨架会闪回一帧 setup pose 再被 set_animation 接走 = 收招时"闪现一下"。
 	_queue(str(_anim_map["idle"]), true)
@@ -623,12 +637,17 @@ func _deal_hit(seg := 0) -> void:
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
-	var rng := _range_of(_current_anim, seg)
+	var rng := _range_of(_attack_move, seg)
 	var move := _replay_move(seg)
 	# 纯反馈段不能走 Run.enemy_damage：该入口会把 0 也抬成最低 1 伤。
-	var dmg := 0 if bool(move.get("feedback_only", false)) else Run.enemy_damage(int(_damage_map.get(_current_anim, 1)))
+	var dmg := 0 if bool(move.get("feedback_only", false)) else Run.enemy_damage(int(_damage_map.get(_attack_move, 1)))
+	# 阴影只放大本次直接命中；割伤在玩家侧独立计时，绝不回到这里二次暴击。
+	if dmg > 0 and _backstab:
+		var raw_facing = _target.get("facing")
+		if raw_facing != null and (global_position.x - _target.global_position.x) * float(raw_facing) < 0.0:
+			dmg *= 2
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
-	var side_ok: bool = in_front or bool(_both_anims.get(_current_anim, false))
+	var side_ok: bool = in_front or bool(_both_anims.get(_attack_move, false))
 	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height \
 			and _target.has_method("hurt"):
 		var kb := Vector2(facing * _hit_knockback.x, _hit_knockback.y)
@@ -637,14 +656,14 @@ func _deal_hit(seg := 0) -> void:
 
 ## 把本次真实招式与命中段交给玩家记录，结算可按同一时刻重演最后一击。
 func _replay_move(seg: int) -> Dictionary:
-	var at = _hit_at_map.get(_current_anim, 0.8)
+	var at = _hit_at_map.get(_attack_move, 0.8)
 	if at is Array:
 		at = at[mini(seg, (at as Array).size() - 1)]
-	var move := {"anim": _current_anim, "hit_at": float(at)}
-	var feedback: Array = _feedback_segments.get(_current_anim, [])
+	var move := {"anim": _current_anim, "hit_at": float(at), "cast_id": _attack_cast_id}
+	var feedback: Array = _feedback_segments.get(_attack_move, [])
 	if feedback.has(seg):
 		move["feedback_only"] = true
-	var effects: Dictionary = _hit_effects.get(_current_anim, {})
+	var effects: Dictionary = _hit_effects.get(_attack_move, {})
 	for key in effects:
 		move[key] = effects[key]
 	return move
@@ -1019,7 +1038,7 @@ func take_damage(amount: int, source_x: float) -> void:
 		return
 	# 受击硬直分层：普通怪轻击就断招；精英霸体，只有重击（damage >= armor）才打断；
 	# 出手霸体的招（青笠跳斩）出手期间挨多重都不断，只掉血
-	if _super_armor or amount < _armor or (state == State.ATTACK and bool(_poise_anims.get(_current_anim, false))):
+	if _super_armor or amount < _armor or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false))):
 		_flash()
 		return
 	_clear_attack_chain()
