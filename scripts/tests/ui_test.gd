@@ -130,6 +130,7 @@ func _ready() -> void:
 
 	# 图鉴：先给存档造几条"已击败"记录（persist 关掉，不写进玩家存档），再看两页
 	Meta.add_enemy_kill("c016")
+	Meta.add_enemy_kill("c017")
 	Meta.add_enemy_kill("c009")
 	Meta.add_enemy_kill("c032")
 	_menu._open_codex()
@@ -151,12 +152,16 @@ func _ready() -> void:
 		# 刀客正式资料：四个命名招式均有来历，山民被动有机制与来历，技能 5 不再出现。
 		var sword_labels: Array = []
 		var sword_lore_ok := true
+		var sword_rising_ok := false
 		for i in mini(4, codex._acts.size()):
 			var action: Dictionary = codex._acts[i]
-			sword_labels.append(str(action["label"]))
+			var label := str(action["label"])
+			sword_labels.append(label)
 			var text: String = codex._desc_text(action, str(action["anims"][0]))
 			sword_lore_ok = sword_lore_ok and text.contains("来历：") and not text.contains("【待定】")
-		p("刀客四招=%s 来历完整=%s（期望 亡命三刀/螺旋鞭/升龙刀/双镰，true）" % [str(sword_labels), sword_lore_ok])
+			if label == "升龙刀":
+				sword_rising_ok = text.contains("0.87 秒前摇") and text.contains("2 点伤害并短暂击飞") and text.contains("12 秒")
+		p("刀客四招=%s 来历完整=%s 升龙刀短击飞文案=%s（期望 亡命三刀/螺旋鞭/升龙刀/双镰，全 true）" % [str(sword_labels), sword_lore_ok, sword_rising_ok])
 		var passive_action: Dictionary = {}
 		for action in codex._acts:
 			if str(action["kind"]) == "passive":
@@ -172,6 +177,66 @@ func _ready() -> void:
 		track = preview_state.call("get_current", 0)
 		var track_after := float(track.call("get_track_time")) if track != null else -1.0
 		p("图鉴同动作重播保护 %.3f -> %.3f（期望不倒退）" % [track_before, track_after])
+
+		# 蛮兵正式资料：只有三招，连段收尾不拆成第四招；数值、冷却、来历、被动与背景完整。
+		codex._select("c017")
+		await get_tree().create_timer(0.3).timeout
+		var brute_model: Dictionary = codex._model(codex._sel)
+		var brute_labels: Array = []
+		var brute_lore_ok := true
+		var brute_cd_ok := true
+		var brute_basic_ok := false
+		var brute_chain: Dictionary = {}
+		var brute_chain_text := ""
+		var brute_passive: Dictionary = {}
+		var chain_index := -1
+		for i in codex._acts.size():
+			var action: Dictionary = codex._acts[i]
+			if str(action["kind"]) == "enemy_atk":
+				var label := str(action["label"])
+				brute_labels.append(label)
+				var text: String = codex._desc_text(action, str(action["anims"][0]))
+				brute_lore_ok = brute_lore_ok and text.contains("来历：") and not text.contains("【待定】")
+				if label == "开天":
+					brute_basic_ok = text.contains("0.64s") and text.contains("81px") and text.contains("0.64 秒斧刃扫入身前")
+				elif label == "辟地":
+					brute_cd_ok = brute_cd_ok and is_equal_approx(float(codex._cd_for(action)), 9.0)
+				elif label == "赶山三斧":
+					brute_chain = action
+					brute_chain_text = text
+					chain_index = i
+					brute_cd_ok = brute_cd_ok and is_equal_approx(float(codex._cd_for(action)), 16.0)
+			elif str(action["kind"]) == "passive":
+				brute_passive = action
+		var brute_passive_text: String = codex._desc_text(brute_passive, "") if not brute_passive.is_empty() else ""
+		var brute_three_ok: bool = brute_labels == ["开天", "辟地", "赶山三斧"]
+		var brute_chain_ok: bool = chain_index >= 0 and brute_chain.get("sequence", []) == ["skill03_2", "skill03_3"] \
+			and (brute_chain.get("anims", []) as Array).size() == 1 \
+			and brute_chain_text.contains("连劈 2 段") and brute_chain_text.contains("167/161px") \
+			and brute_chain_text.contains("大劈 0.20s · 150px · 2 伤") and brute_chain_text.contains("力竭 3 秒")
+		var brute_lore_tags: bool = not (brute_model["tags"] as Array).has("站桩") \
+			and str(brute_model["lore"]).contains("拖着巨斧") and not str(brute_model["lore"]).contains("从不追击")
+		p("蛮兵三招=%s 数量正确=%s 来历完整=%s 独立冷却=%s 开天新判定=%s 连段数值=%s（期望 开天/辟地/赶山三斧，全 true）" % [str(brute_labels), brute_three_ok, brute_lore_ok, brute_cd_ok, brute_basic_ok, brute_chain_ok])
+		p("蛮兵背景词条=%s 蛮力资料=%s（期望 true / true）" % [brute_lore_tags, brute_passive_text.contains("被动技能 · 蛮力") and brute_passive_text.contains("每段实伤") and brute_passive_text.contains("来历：") and not brute_passive_text.contains("【待定】")])
+
+		# 连段预览必须按 skill03_2 -> skill03_3 -> stand 顺序走，不能循环第一小段或当成变式。
+		var sequence_first := false
+		var sequence_second := false
+		var sequence_idle := false
+		if chain_index >= 0:
+			codex._pick(chain_index)
+			var brute_state = codex._preview.call("get_animation_state")
+			var brute_track = brute_state.call("get_current", 0)
+			sequence_first = brute_track != null and str(brute_track.call("get_animation").call("get_name")) == "skill03_2"
+			await get_tree().create_timer(1.4).timeout
+			brute_track = brute_state.call("get_current", 0)
+			sequence_second = brute_track != null and str(brute_track.call("get_animation").call("get_name")) == "skill03_3"
+			await _shot("06b_codex_brute_chain")
+			await get_tree().create_timer(1.9).timeout
+			brute_track = brute_state.call("get_current", 0)
+			sequence_idle = brute_track != null and str(brute_track.call("get_animation").call("get_name")) == "stand"
+		p("蛮兵连段顺序预览=%s/%s/%s（期望 true/true/true：前两劈 -> 大劈 -> 待机）" % [sequence_first, sequence_second, sequence_idle])
+
 		# 已收录的 Boss 详情（c032 三段变身）
 		codex._select("c032")
 		await get_tree().create_timer(0.3).timeout

@@ -158,6 +158,9 @@ func _ready() -> void:
 	# 6. 刀客专项：四招配置、三刀反馈、升龙刀、倒地链与山民回血。
 	await _swordsman_probe()
 
+	# 7. 蛮兵专项：三招判定、封跳、连段力竭、追击倍速与蛮力霸体。
+	await _brute_probe()
+
 	# 第一只小怪尸体死后 ~1.7s 就 queue_free，精英段跑完它早没了，访问前必须判活
 	var e_state := "freed"
 	var e_hp := "-"
@@ -203,7 +206,7 @@ func _swordsman_probe() -> void:
 	e.queue_free()
 	await get_tree().process_frame
 
-	# 升龙刀：追击中 200px 起手，瞬至面前 72px，前摇不缩短，命中按基础 2 伤。
+	# 升龙刀：追击中 200px 起手，瞬至面前 72px，前摇不缩短，实伤 2 点并短暂击飞。
 	_player.global_position = Vector2(700, 560)
 	_player.hp = _player.max_hp
 	_player.state = _player.State.IDLE
@@ -221,6 +224,7 @@ func _swordsman_probe() -> void:
 	hp_before = _player.hp
 	e._attack_tick(e._attack_dur)
 	var rising_ok: bool = _player.hp == hp_before - Run.enemy_damage(2)
+	var launch_ok: bool = is_equal_approx(_player.velocity.y, -420.0)
 	var rising_cd: float = e._attack_rule_cds.get("skill03", 0.0)
 	e.global_position.x = 900.0
 	e._attack_cd = 0.0
@@ -231,7 +235,13 @@ func _swordsman_probe() -> void:
 	e._attack_rule_cds["skill03"] = 0.0
 	e._chase_tick(0.0)
 	var cd_ready: bool = e.state == e.State.ATTACK and e._current_anim == "skill03"
-	p("升龙刀 瞬移贴身=%s 前摇=%.2fs 实伤=%s 独立CD=%.1fs 冷却禁重入=%s 到点可放=%s（期望 true / 0.87 / true / >=10 / true / true）" % [blink_ok, windup, rising_ok, rising_cd, cd_blocks, cd_ready])
+	_player.state = _player.State.DASH
+	_player.velocity = Vector2.ZERO
+	_player._hurt_invincible = 0.0
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var dodge_no_launch: bool = _player.hp == hp_before and is_zero_approx(_player.velocity.y)
+	p("升龙刀 瞬移贴身=%s 前摇=%.2fs 实伤=%s 短击飞=%s 独立CD=%.1fs 冷却禁重入=%s 到点可放=%s 闪避不击飞=%s（期望全 true / 0.87 / >=10）" % [blink_ok, windup, rising_ok, launch_ok, rising_cd, cd_blocks, cd_ready, dodge_no_launch])
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame
@@ -309,6 +319,237 @@ func _swordsman_probe() -> void:
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame
+
+
+## 蛮兵专项：固定站位并手动推进攻击帧，逐项核对三招与霸体规则。
+func _brute_probe() -> void:
+	_reset_brute_player()
+	var e := _spawn_brute(Vector2(580, 560))
+	var brute_height := e._scale * 502.9
+	var collider := e.get_node("CollisionShape2D") as CollisionShape2D
+	var capsule := collider.shape as CapsuleShape2D
+	var size_ok: bool = is_equal_approx(e._scale, 0.258) and brute_height > 111.0 and brute_height < 148.0 \
+		and is_equal_approx(e.body_radius, 42.0) and is_equal_approx(e._bar_y, -140.0) \
+		and is_equal_approx(e._number_y, -123.0) and capsule != null \
+		and is_equal_approx(capsule.radius, 28.0) and is_equal_approx(capsule.height, 108.0) \
+		and is_equal_approx(collider.position.y, -54.0)
+	p("蛮兵体型 身高=%.1fpx 最大杂兵且小于精英=%s 碰撞/受击/UI同步=%s（期望约130 / true / true）" % [brute_height, brute_height > 111.0 and brute_height < 148.0, size_ok])
+	e._set_state(e.State.PATROL)
+	var walk_ok: bool = e._anim_map["patrol"] == "walk2" and e._anim_map["chase"] == "walk2" \
+		and is_equal_approx(e.patrol_speed, 40.0) and is_equal_approx(e.chase_speed, 52.0) \
+		and is_equal_approx(e._current_anim_speed, 1.0)
+	var patrol_track = e._anim_state.call("get_current", 0)
+	patrol_track.call("set_track_time", 0.5)
+	e._set_state(e.State.CHASE)
+	var chase_track = e._anim_state.call("get_current", 0)
+	walk_ok = walk_ok and e._current_anim == "walk2" and is_equal_approx(e._current_anim_speed, 1.2) \
+		and is_equal_approx(float(chase_track.call("get_track_time")), 0.5)
+	p("蛮兵移动 共用walk2且不重启轨道=%s 巡逻/追击=%.0f/%.0f 动画倍率=%.1f（期望 true / 40/52 / 1.2）" % [walk_ok, e.patrol_speed, e.chase_speed, e._current_anim_speed])
+
+	# 近身随机池只含开天与低权重辟地，追击连段不会被随机拆出来。
+	var counts := {"skill01": 0, "skill02": 0, "skill03_2": 0, "skill03_3": 0}
+	for i in 210:
+		e._attack_rule_cds["skill02"] = 0.0
+		e._start_attack()
+		counts[e._current_anim] += 1
+		e._release_token()
+	var basic_ratio := float(counts["skill01"]) / 210.0
+	var pool_ok: bool = counts["skill03_2"] == 0 and counts["skill03_3"] == 0 and basic_ratio >= 0.75
+	p("蛮兵出手池 开天占比=%.2f 连段不入随机池=%s（期望 >=0.75 / true）" % [basic_ratio, pool_ok])
+
+	# 开天：0.64 秒斧刃扫入身前才结算，2 伤、81px 身前范围与蛮力短击退。
+	_reset_brute_player()
+	e.global_position.x = 580.0
+	e.facing = -1
+	e._apply_facing()
+	e._start_attack("skill01")
+	var hit_at: float = e._attack_dur - float(e._attack_hits_left[0]["t"])
+	var hp_before: int = _player.hp
+	e._attack_tick(0.63)
+	var no_early_hit: bool = _player.hp == hp_before
+	e._attack_tick(0.02) # 跨过 0.64 秒边界，避免 0.63 + 0.01 的浮点误差停在命中前
+	var basic_ok: bool = is_equal_approx(hit_at, 0.64) and is_equal_approx(e._range_of("skill01", 0), 81.0) \
+		and _player.hp == hp_before - Run.enemy_damage(2)
+	var knock_ok: bool = is_equal_approx(_player.velocity.x, -140.0) and is_equal_approx(_player.velocity.y, 0.0)
+	_reset_brute_player(Vector2(700, 560))
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var behind_ok: bool = _player.hp == hp_before
+	_reset_brute_player(Vector2(440, 560))
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var out_of_range_ok: bool = _player.hp == hp_before
+	p("开天 蓄力无判=%s 0.64秒时刻/2伤/81px=%s 短击退=%s 背向无伤=%s 超程无伤=%s（期望全 true）" % [no_early_hit, basic_ok, knock_ok, behind_ok, out_of_range_ok])
+
+	# 辟地：独立 9 秒冷却，实伤才附加 8 秒封跳；防御路径不误挂。
+	_reset_brute_player()
+	e._start_attack("skill02")
+	hit_at = e._attack_dur - float(e._attack_hits_left[0]["t"])
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var ground_ok: bool = is_equal_approx(hit_at, 1.58) and is_equal_approx(e._range_of("skill02", 0), 152.0) \
+		and _player.hp == hp_before - Run.enemy_damage(2) and is_equal_approx(_player._jump_seal, 8.0) \
+		and is_equal_approx(float(e._attack_rule_cds["skill02"]), 9.0)
+	_player.state = _player.State.IDLE
+	_player.velocity = Vector2.ZERO
+	_player._jump_buf = 0.1
+	_player._coyote = 0.1
+	_player._try_jump()
+	var sealed_jump: bool = _player.state != _player.State.JUMP and is_equal_approx(_player.velocity.y, 0.0)
+	_player._jump_seal = 0.0
+	_player._jump_buf = 0.1
+	_player._coyote = 0.1
+	_player._try_jump()
+	var free_jump: bool = _player.state == _player.State.JUMP and _player.velocity.y < 0.0
+
+	_reset_brute_player()
+	_player.state = _player.State.DASH
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var dodge_ok: bool = _player.hp == hp_before and _player._jump_seal <= 0.0
+	_reset_brute_player()
+	_player._shield_hits = 1
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var shield_ok: bool = _player.hp == hp_before and _player._jump_seal <= 0.0
+	_reset_brute_player()
+	_player._hurt_invincible = 0.8
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var invincible_ok: bool = _player.hp == hp_before and _player._jump_seal <= 0.0
+	p("辟地 2伤/9秒CD/8秒封跳=%s 封跳禁跳=%s 解禁可跳=%s 闪避/护盾/无敌不附加=%s/%s/%s（期望全 true）" % [ground_ok, sealed_jump, free_jump, dodge_ok, shield_ok, invincible_ok])
+	e._release_token()
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 赶山三斧：追击窗口触发但不瞬移，两段连劈接原地大劈，再静默力竭 3 秒。
+	_reset_brute_player(Vector2(700, 560))
+	e = _spawn_brute(Vector2(900, 560))
+	e._set_state(e.State.CHASE)
+	var start_x := e.global_position.x
+	e._chase_tick(0.0)
+	var chain_ok: bool = e.state == e.State.ATTACK and e._current_anim == "skill03_2" \
+		and is_equal_approx(e.global_position.x, start_x) and e._chain_next == "skill03_3" \
+		and is_equal_approx(float(e._attack_rule_cds["skill03_2"]), 16.0) \
+		and is_equal_approx(float(e._advance_map["skill03_2"]), 85.0)
+	hp_before = _player.hp
+	e._attack_tick(0.35)
+	e.global_position.x += e.velocity.x * 0.35 # 手动帧推进也要同步攻击步进，否则首劈仍停在 200px 外
+	var no_early_chain_hit: bool = _player.hp == hp_before
+	e._attack_tick(0.01)
+	e.global_position.x += e.velocity.x * 0.01
+	var first_hit: bool = _player.hp == hp_before - Run.enemy_damage(1)
+	_player._hurt_invincible = 0.0
+	hp_before = _player.hp
+	# 小步同步推进：大步长若先判定再补位移，会在第二劈瞬间制造实战不存在的假超程。
+	for i in 45:
+		e._attack_tick(0.01)
+		e.global_position.x += e.velocity.x * 0.01
+	var second_hit: bool = _player.hp == hp_before - Run.enemy_damage(1)
+	var advance_ok: bool = is_equal_approx(e.velocity.x, -85.0)
+	e._attack_tick(e._attack_timer + 0.001)
+	var second_stage: bool = e.state == e.State.ATTACK and e._current_anim == "skill03_3" \
+		and e._chain_next.is_empty() and is_equal_approx(e._recovery_after_attack, 3.0) \
+		and is_equal_approx(e.velocity.x, 0.0)
+	_player._hurt_invincible = 0.0
+	hp_before = _player.hp
+	e._attack_tick(0.19)
+	var no_early_final: bool = _player.hp == hp_before
+	e._attack_tick(0.01)
+	var final_hit: bool = _player.hp == hp_before - Run.enemy_damage(2)
+	e._attack_tick(e._attack_timer + 0.001)
+	var recovery_ok: bool = e.state == e.State.IDLE and is_equal_approx(e._recovery_timer, 3.0) \
+		and e._attacker != e and e._root_timer <= 0.0 and e._stun_timer <= 0.0
+	_player.global_position.x = 820.0
+	e.velocity.x = 50.0
+	e._attack_cd = 0.0
+	for i in 3:
+		e._physics_process(1.0)
+		recovery_ok = recovery_ok and e.state == e.State.IDLE and is_equal_approx(e.velocity.x, 0.0) \
+			and e._current_anim == "stand" and e._root_timer <= 0.0 and e._stun_timer <= 0.0
+	recovery_ok = recovery_ok and e._recovery_timer <= 0.0
+	p("赶山三斧 追击触发不瞬移=%s 蓄力无判=%s 三劈实伤=%s/%s/%s 前半推进=%s 后半原地=%s 力竭3秒=%s（期望全 true）" % [chain_ok, no_early_chain_hit and no_early_final, first_hit, second_hit, final_hit, advance_ok, second_stage, recovery_ok])
+
+	# 长冷却期间不能再次触发，到点后仍可从同一追击窗口起手。
+	_player.global_position.x = 700.0
+	e.global_position.x = 900.0
+	e._attack_cd = 0.0
+	e._set_state(e.State.CHASE)
+	e._chase_tick(0.0)
+	var cd_blocks: bool = e.state == e.State.CHASE and e._current_anim != "skill03_2"
+	e._attack_rule_cds["skill03_2"] = 0.0
+	e._chase_tick(0.0)
+	var cd_ready: bool = e.state == e.State.ATTACK and e._current_anim == "skill03_2"
+	p("赶山三斧 16秒冷却禁重入=%s 到点可放=%s（期望 true / true）" % [cd_blocks, cd_ready])
+	e._release_token()
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 蛮力霸体：保留伤害与白闪，但普通受击、控制、位移不断招；规则级控制与时停穿透。
+	_reset_brute_player()
+	e = _spawn_brute(Vector2(580, 560))
+	e._start_attack("skill03_2")
+	hp_before = e.hp
+	e.take_damage(1, _player.global_position.x)
+	var armor_hit: bool = e.hp == hp_before - 1 and e.state == e.State.ATTACK \
+		and e._current_anim == "skill03_2" and e._chain_next == "skill03_3"
+	e.root(2.0)
+	e.contain(2.0)
+	e.slow(4.0, 0.45)
+	e.stun(1.0)
+	e.slam()
+	e.launch(1, 150.0, 500.0)
+	e.knock_back(1, 400.0, 0)
+	var control_immune: bool = e.state == e.State.ATTACK and e._root_timer <= 0.0 and e._stun_timer <= 0.0 \
+		and e._slow_timer <= 0.0 and is_equal_approx(e._slow_scale, 1.0) and e._chain_next == "skill03_3"
+	start_x = e.global_position.x
+	_player._pull_enemy(e, 100.0)
+	var pull_immune: bool = is_equal_approx(e.global_position.x, start_x)
+	e.launch(1, 150.0, 500.0, true)
+	var launch_through: bool = e.state == e.State.FLY and e._chain_next.is_empty() and e._attack_hits_left.is_empty()
+	e._start_attack("skill03_2")
+	e.time_stop(1.0)
+	var stop_through: bool = e.state == e.State.IDLE and e._stop_timer > 0.0 and e._chain_next.is_empty()
+	e._end_stop()
+	e._start_attack("skill03_2")
+	e.knock_back(1, 400.0, 0, true)
+	var knock_through: bool = e.state == e.State.FLY and e._chain_next.is_empty() and e._recovery_timer <= 0.0
+	p("蛮力霸体 受击不断招=%s 普通控制免疫=%s 牵引免疫=%s 无视霸体击飞/时停/击退=%s/%s/%s（期望全 true）" % [armor_hit, control_immune, pull_immune, launch_through, stop_through, knock_through])
+	e._release_token()
+	e.queue_free()
+	await get_tree().process_frame
+
+
+func _spawn_brute(pos: Vector2) -> C016Class:
+	var e = load("res://scenes/enemies/c017.tscn").instantiate()
+	e.position = pos
+	add_child(e)
+	e.set_physics_process(false)
+	e._target = _player
+	e._attack_cd = 0.0
+	e.facing = 1 if _player.global_position.x > e.global_position.x else -1
+	e._apply_facing()
+	return e
+
+
+func _reset_brute_player(pos := Vector2(500, 560)) -> void:
+	_player.set_physics_process(false)
+	_player.global_position = pos
+	_player.hp = _player.max_hp
+	_player.state = _player.State.IDLE
+	_player.velocity = Vector2.ZERO
+	_player._invincible = false
+	_player._hurt_invincible = 0.0
+	_player._jump_seal = 0.0
+	_player._shield_hits = 0
+	_player._shield_time = 0.0
+	_player._parry_ready = false
+	_player._bell_shell = false
+	_player._skill_reflect = false
+	_player._skill_poise = false
+	_player._damage_reduce = 0
+	_player.poise = false
+	Run.guard_available = false
 
 
 func _physics_process(_delta: float) -> void:

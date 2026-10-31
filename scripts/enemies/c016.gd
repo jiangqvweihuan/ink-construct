@@ -64,7 +64,13 @@ var _poise_anims: Dictionary = {} # 出手霸体：该招出手期间挨打只�
 var _lunge_map: Dictionary = {} # 该招前冲倍率（跳斩跨步更大）
 var _hop_map: Dictionary = {} # 该招起手向上跃起的速度（跳斩腾空的视觉配合）
 var _feedback_segments: Dictionary = {} # 只播受击反馈、不实际扣血的招式段（刀客前两刀）
-var _blink_strike: Dictionary = {} # 追击中瞬到目标身前再出招（刀客升龙刀）
+var _blink_strike: Dictionary = {} # 追击窗口强制出招；offset>0 时才瞬到目标身前
+var _hit_effects: Dictionary = {} # 实际命中后附加的招式效果（如升龙刀击飞、辟地封跳）
+var _hit_knockback := Vector2(220.0, -80.0)
+var _attack_chain: Dictionary = {} # 同一招内的接续动画与收招后的静默恢复
+var _advance_map: Dictionary = {} # 攻击动画期间持续前进的速度
+var _chase_anim_speed := 1.0
+var _super_armor := false # 全程霸体；规则级 ignore_armor 与时停不受此影响
 var _attack_rules: Dictionary = {} # 特殊招式的独立冷却、触发窗口与随机权重
 var _attack_rule_cds: Dictionary = {}
 var _knock_at := 999 # 高伤倒地阈值；未配置时保持原受击逻辑
@@ -110,6 +116,9 @@ var _idle_timer := 0.0
 var _attack_cd := 0.0
 var _attack_timer := 0.0
 var _attack_dur := 0.0 # 本次出手动画的真实时长
+var _chain_next := "" # 当前攻击段播完后必须接续的动画
+var _recovery_after_attack := 0.0 # 连段末播完后进入静默力竭的时长
+var _recovery_timer := 0.0 # 力竭期间不移动、不出手，也不生成控制提示
 # 本次出手尚未结算的命中段：{t=倒计时阈值, i=段序号}，按阈值从大到小弹出。
 # hit_at 标定的是"动画开始后多少秒"，倒计时阈值 = 时长 - hit_at；支持单段（float）与多段（Array）
 var _attack_hits_left: Array = []
@@ -125,8 +134,10 @@ var _anim_state
 var _pose_mixer = null # 刀客：手动同帧更新并补齐缺 key 骨骼的视觉混合
 var _pending_anim := ""
 var _pending_loop := false
+var _pending_speed := 1.0
 var _pending_queue: Array = []
 var _current_anim := "" # 防同名循环动画重放抽搐
+var _current_anim_speed := 1.0
 var _hp_bar: Node2D
 var _hp_fill: ColorRect
 var _sfx_player: AudioStreamPlayer
@@ -162,6 +173,12 @@ func _apply_type() -> void:
 	_hop_map = t.get("hop", {})
 	_feedback_segments = t.get("feedback_only", {})
 	_blink_strike = t.get("blink_strike", {})
+	_hit_effects = t.get("hit_effects", {})
+	_hit_knockback = t.get("hit_knockback", Vector2(220.0, -80.0))
+	_attack_chain = t.get("attack_chain", {})
+	_advance_map = t.get("advance", {})
+	_chase_anim_speed = float(t.get("chase_anim_speed", 1.0))
+	_super_armor = bool(t.get("super_armor", false))
 	_attack_rules = t.get("attack_rules", {})
 	_attack_rule_cds.clear()
 	for anim in _attack_rules:
@@ -280,7 +297,9 @@ func _process(delta: float) -> void:
 		return
 	var step := 0.0 if _stop_timer > 0.0 else delta
 	if not _pending_anim.is_empty():
-		_anim_state.call("set_animation", _pending_anim, _pending_loop, 0)
+		var entry = _anim_state.call("set_animation", _pending_anim, _pending_loop, 0)
+		if _pending_speed != 1.0 and entry != null and entry.has_method("set_time_scale"):
+			entry.call("set_time_scale", _pending_speed)
 		for queued in _pending_queue:
 			_anim_state.call("add_animation", queued["anim"], 0.0, queued["loop"], 0)
 		_pending_anim = ""
@@ -323,6 +342,15 @@ func _physics_process(delta: float) -> void:
 	if _root_timer > 0.0:
 		_root_tick(delta)
 		_update_peer_ghosts()
+		velocity.y = minf(velocity.y + gravity * delta, 900.0)
+		move_and_slide()
+		return
+
+	# 连段末尾的力竭是招式自身恢复段：静默站桩，不移动、不再出手，也不显示控制文字。
+	if _recovery_timer > 0.0:
+		_recovery_timer = maxf(0.0, _recovery_timer - delta)
+		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+		_play(str(_anim_map["idle"]), true)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
 		move_and_slide()
 		return
@@ -415,20 +443,31 @@ func _chase_tick(delta: float) -> void:
 
 func _attack_tick(delta: float) -> void:
 	_attack_timer -= delta
-	# lunge 用半速制动带惯性（对齐玩家 brake*0.5 的思路）：原来 1500 秒刹，前冲位移几乎为零
-	velocity.x = move_toward(velocity.x, 0.0, brake * 0.5 * delta)
+	var advance := float(_advance_map.get(_current_anim, 0.0))
+	if advance > 0.0:
+		velocity.x = move_toward(velocity.x, facing * advance * _slow_scale, accel * delta)
+	else:
+		# lunge 用半速制动带惯性；持续前进的攻击段则保持自己的慢步节奏。
+		velocity.x = move_toward(velocity.x, 0.0, brake * 0.5 * delta)
 	# 多段命中：到一段弹一段（倒计时阈值大的先弹，即动画里先打出去的那段）
 	while not _attack_hits_left.is_empty() and _attack_timer <= float(_attack_hits_left[0]["t"]):
 		var seg: Dictionary = _attack_hits_left.pop_front()
 		_deal_hit(int(seg["i"]))
-	# 收招按纯时长驱动：_attack_dur 就是动画真实时长，到点的同一帧排队的 stand 恰好自动
-	# 接续，时序严丝合缝。不能看 get_current(0).is_complete——stand 一旦接续，current 就
-	# 变成 loop 的 stand，skill 的完成信号永远观测不到，之前只能靠 -0.3s 超时兜底退出，
-	# 导致收招晚半拍、_chase_block 与 stand 接续错位 = 收招后"闪现抽搐"的根源。
+	# 收招按真实时长驱动；有后续段时仍属同一次攻击，不交令牌、不进入普通收招。
 	if _attack_timer <= 0.0:
+		if not _chain_next.is_empty():
+			var chain: Dictionary = _attack_chain.get(_current_anim, {})
+			var next_anim := _chain_next
+			_recovery_after_attack = float(chain.get("recovery", 0.0))
+			_start_attack(next_anim, true)
+			return
 		_attack_cd = attack_cooldown
-		_chase_block = 0.35 # 收势：让排队的 stand 接续播一小段再起跑
+		_chase_block = 0.35
 		_release_token()
+		if _recovery_after_attack > 0.0:
+			_recovery_timer = _recovery_after_attack
+			_recovery_after_attack = 0.0
+			velocity.x = 0.0
 		_set_state(State.IDLE)
 
 
@@ -478,7 +517,11 @@ func _rule_allows(anim: String, dist: float) -> bool:
 	return dist >= float(rule.get("min", 0.0)) and dist <= float(rule.get("max", INF))
 
 
-func _start_attack(forced_anim := "") -> void:
+func _start_attack(forced_anim := "", continue_chain := false) -> void:
+	if not continue_chain:
+		_chain_next = ""
+		_recovery_after_attack = 0.0
+		_recovery_timer = 0.0
 	# 按当前距离、独立冷却与权重挑招式；未配置规则的敌人保持原有随机/最近逻辑。
 	var dist := 0.0
 	if _target != null:
@@ -525,6 +568,8 @@ func _start_attack(forced_anim := "") -> void:
 			anim = str(pool.back())
 	state = State.ATTACK
 	_attacker = self # 占住出手令牌
+	var chain: Dictionary = _attack_chain.get(anim, {})
+	_chain_next = str(chain.get("anim", ""))
 	if _attack_rules.has(anim):
 		_attack_rule_cds[anim] = float((_attack_rules[anim] as Dictionary).get("cooldown", 0.0))
 	# 升龙刀只能由追击窗口强制选出，近身随机池不会再抽到它。
@@ -532,7 +577,9 @@ func _start_attack(forced_anim := "") -> void:
 			and _target != null and is_instance_valid(_target):
 		var dx: float = _target.global_position.x - global_position.x
 		facing = 1 if dx > 0.0 else -1
-		global_position.x = _target.global_position.x - facing * float(_blink_strike.get("offset", 72.0))
+		var offset := float(_blink_strike.get("offset", 72.0))
+		if offset > 0.0:
+			global_position.x = _target.global_position.x - facing * offset
 		_apply_facing()
 	_attack_dur = _anim_durations.get(anim, 1.5)
 	_attack_timer = _attack_dur
@@ -584,7 +631,8 @@ func _deal_hit(seg := 0) -> void:
 	var side_ok: bool = in_front or bool(_both_anims.get(_current_anim, false))
 	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height \
 			and _target.has_method("hurt"):
-		_target.call("hurt", dmg, Vector2(facing * 220.0, -80.0), self, move)
+		var kb := Vector2(facing * _hit_knockback.x, _hit_knockback.y)
+		_target.call("hurt", dmg, kb, self, move)
 
 
 ## 把本次真实招式与命中段交给玩家记录，结算可按同一时刻重演最后一击。
@@ -596,6 +644,9 @@ func _replay_move(seg: int) -> Dictionary:
 	var feedback: Array = _feedback_segments.get(_current_anim, [])
 	if feedback.has(seg):
 		move["feedback_only"] = true
+	var effects: Dictionary = _hit_effects.get(_current_anim, {})
+	for key in effects:
+		move[key] = effects[key]
 	return move
 
 
@@ -628,9 +679,11 @@ func time_stop(dur: float) -> void:
 	_release_token() # 令牌必须交还，否则定身结束后别的怪永远等不到出手
 	if state == State.ATTACK or state == State.FLY:
 		# 打断前摇/浮空：定身结束从站立重新组织进攻
+		_clear_attack_chain()
 		_attack_hits_left.clear()
 		state = State.IDLE
 		velocity = Vector2.ZERO
+		_idle_queued = false
 		_play(str(_anim_map["idle"]), true)
 	_stop_timer = dur
 	if sprite != null:
@@ -652,8 +705,8 @@ func _end_stop(natural := false) -> void:
 
 ## 定身（双刺 U 掷匕）：dur 秒内不能移动，但可以照常出手攻击。
 ## 打断巡逻/追击移动，已在挥的招照打完（不可以攻击的控制要另开接口，别混用）
-func root(dur: float) -> void:
-	if state == State.DEAD or dur <= 0.0:
+func root(dur: float, _ignore_armor := false) -> void:
+	if state == State.DEAD or dur <= 0.0 or (_super_armor and not _ignore_armor):
 		return
 	_root_timer = maxf(_root_timer, dur)
 	_flash()
@@ -664,15 +717,15 @@ func root(dur: float) -> void:
 
 
 ## 枝界持续约束：每帧只延续定身计时，不重复控制反馈。
-func contain(dur: float) -> void:
-	if state == State.DEAD or dur <= 0.0:
+func contain(dur: float, _ignore_armor := false) -> void:
+	if state == State.DEAD or dur <= 0.0 or (_super_armor and not _ignore_armor):
 		return
 	_root_timer = maxf(_root_timer, dur)
 
 
 ## 余滞：最新一次有效调用覆盖时长与倍率；只影响常规横向移动和出手前冲。
-func slow(dur: float, scale: float) -> void:
-	if state == State.DEAD or dur <= 0.0:
+func slow(dur: float, scale: float, _ignore_armor := false) -> void:
+	if state == State.DEAD or dur <= 0.0 or (_super_armor and not _ignore_armor):
 		return
 	_slow_timer = dur
 	_slow_scale = clampf(scale, 0.0, 1.0)
@@ -681,9 +734,10 @@ func slow(dur: float, scale: float) -> void:
 ## 晕眩（力僧 L）：dur 秒内不能移动、也不能出手——比定身更强。
 ## 立即打断正在起的招（前摇直接掐掉，交还出手令牌），站桩发愣到时间结束；
 ## 被打飞/受击照样推进各自状态，落地后仍保持晕眩。
-func stun(dur: float) -> void:
-	if state == State.DEAD or dur <= 0.0:
+func stun(dur: float, _ignore_armor := false) -> void:
+	if state == State.DEAD or dur <= 0.0 or (_super_armor and not _ignore_armor):
 		return
+	_clear_attack_chain()
 	_stun_timer = maxf(_stun_timer, dur)
 	_root_timer = 0.0 # 晕眩覆盖定身：更强的控制接管
 	_release_token()
@@ -691,6 +745,7 @@ func stun(dur: float) -> void:
 	if state == State.ATTACK:
 		state = State.IDLE
 		velocity = Vector2.ZERO
+		_idle_queued = false
 		_play(str(_anim_map["idle"]), true)
 	_flash()
 	var dn := DAMAGE_NUMBER.new()
@@ -837,8 +892,8 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 
 
 ## 砸落（银夜空中派生）：直线下坠，落地只向玩家回报一次，再接原有落地硬直。
-func slam() -> void:
-	if state == State.DEAD:
+func slam(_ignore_armor := false) -> void:
+	if state == State.DEAD or (_super_armor and not _ignore_armor):
 		return
 	_enter_fly(Vector2(0.0, 900.0), 0)
 	_slam_pending = true
@@ -858,7 +913,7 @@ func _report_slam_landing() -> void:
 ## 击飞（银夜普攻二段 / 剑仙 U 飞脚）：向上挑起，落地短暂硬直。无视出手霸体（跳劈也照挑）
 ## ignore_armor：剑仙 U 的规则级击飞标记——小怪/精英本来就吃击飞，这里无需额外分支
 func launch(dir: int, vx: float, vy: float, _ignore_armor := false) -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or (_super_armor and not _ignore_armor):
 		return
 	_enter_fly(Vector2(dir * vx, -vy), 0)
 
@@ -866,12 +921,14 @@ func launch(dir: int, vx: float, vy: float, _ignore_armor := false) -> void:
 ## 击退（银夜 L / 剑仙 O）：横向轰飞，途中撞到同伴双方各吃 impact 组合伤害，撞墙自己再吃一下
 ## ignore_armor：同上，小怪/精英的击退本就不看霸体
 func knock_back(dir: int, force: float, impact: int, _ignore_armor := false) -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or (_super_armor and not _ignore_armor):
 		return
 	_enter_fly(Vector2(dir * force, -120.0), impact)
 
 
 func _enter_fly(v: Vector2, impact: int) -> void:
+	_clear_attack_chain()
+	_attack_hits_left.clear()
 	_release_token()
 	_slam_pending = false # 普通 launch / knock_back 不继承上一次砸落回报
 	_root_timer = 0.0 # 被轰飞时解除定身：物理级控制在定身之上（同一套规则，和时停一致）
@@ -962,9 +1019,11 @@ func take_damage(amount: int, source_x: float) -> void:
 		return
 	# 受击硬直分层：普通怪轻击就断招；精英霸体，只有重击（damage >= armor）才打断；
 	# 出手霸体的招（青笠跳斩）出手期间挨多重都不断，只掉血
-	if amount < _armor or (state == State.ATTACK and bool(_poise_anims.get(_current_anim, false))):
+	if _super_armor or amount < _armor or (state == State.ATTACK and bool(_poise_anims.get(_current_anim, false))):
 		_flash()
 		return
+	_clear_attack_chain()
+	_attack_hits_left.clear()
 	_release_token() # 被打断的出手要交还令牌，否则其他怪永远等不到出手机会
 	var dir := 1.0 if global_position.x >= source_x else -1.0
 	if not _knock_chain.is_empty() and amount >= _knock_at:
@@ -998,6 +1057,8 @@ func _spawn_number(amount: int, color: Color = DMG_COLOR) -> void:
 func die() -> void:
 	_end_stop() # 时停中被打死：先解冻，死亡动画才播得出来
 	state = State.DEAD
+	_clear_attack_chain()
+	_attack_hits_left.clear()
 	_hurt_chain_active = false
 	_hurt_chain.clear()
 	_release_token()
@@ -1066,6 +1127,13 @@ func _can_attack() -> bool:
 func _release_token() -> void:
 	if _attacker == self:
 		_attacker = null
+
+
+## 规则级打断不能留下半段连招或招式自身的力竭计时。
+func _clear_attack_chain() -> void:
+	_chain_next = ""
+	_recovery_after_attack = 0.0
+	_recovery_timer = 0.0
 
 
 ## 同伴分离力：同向挤在一起时互相推开；迎面相遇则放行，让双方直接对穿过去
@@ -1147,7 +1215,7 @@ func _set_state(new_state: int) -> void:
 			_play(str(_anim_map["patrol"]), true)
 		State.CHASE:
 			_idle_queued = false # set_animation 会清掉队列里的 stand
-			_play(str(_anim_map["chase"]), true)
+			_play(str(_anim_map["chase"]), true, _chase_anim_speed)
 
 
 func _apply_facing() -> void:
@@ -1155,21 +1223,35 @@ func _apply_facing() -> void:
 		sprite.scale.x = _scale * facing
 
 
-func _play(anim: String, loop: bool) -> void:
+func _play(anim: String, loop: bool, spd := 1.0) -> void:
 	if _anim_state == null:
 		return
 	if loop and anim == _current_anim:
+		# 巡逻与追击可共用一份动画：只改当前轨道倍率，不从头重播。
+		if not is_equal_approx(_current_anim_speed, spd):
+			_current_anim_speed = spd
+			if _pending_anim == anim:
+				_pending_speed = spd
+			if _anim_state.has_method("get_current"):
+				var current = _anim_state.call("get_current", 0)
+				if current != null and current.has_method("set_time_scale"):
+					current.call("set_time_scale", spd)
 		return
 	if _pose_mixer != null:
 		if _pending_anim.is_empty():
 			_pose_mixer.capture()
 		_current_anim = anim
+		_current_anim_speed = spd
 		_pending_anim = anim
 		_pending_loop = loop
+		_pending_speed = spd
 		_pending_queue.clear()
 		return
 	_current_anim = anim
-	_anim_state.call("set_animation", anim, loop, 0)
+	_current_anim_speed = spd
+	var entry = _anim_state.call("set_animation", anim, loop, 0)
+	if entry != null and entry.has_method("set_time_scale"):
+		entry.call("set_time_scale", spd)
 
 
 func _queue(anim: String, loop: bool) -> void:

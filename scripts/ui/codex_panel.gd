@@ -53,7 +53,7 @@ const TAG_COLORS := {
 const TAGS := {
 	"c016": ["近战", "爆发", "回血", "山野", "杂兵"],
 	"z002": ["近战", "机动", "剑门", "杂兵"],
-	"c017": ["近战", "站桩", "霸体", "山野", "杂兵"],
+	"c017": ["近战", "霸体", "山野", "杂兵"],
 	"c035": ["近战", "机动", "爆发", "妖异", "杂兵"],
 	"c037": ["近战", "站桩", "霸体", "击飞", "精英"],
 	"c018": ["近战", "机动", "流血", "戏班", "精英"],
@@ -70,16 +70,22 @@ const TAGS := {
 	"z003": ["近战", "机动", "时停", "剑门", "化身"],
 }
 
-## 刀客正式招式资料；其余敌人仍沿用「招式 N」与待定来历，后续逐个补齐。
+## 刀客与蛮兵正式招式资料；其余敌人仍沿用「招式 N」与待定来历，后续逐个补齐。
 const ENEMY_ATTACK_NAMES := {
 	"c016": {"skill01": "亡命三刀", "skill02": "螺旋鞭", "skill03": "升龙刀", "skill04": "双镰"},
+	"c017": {"skill01": "开天", "skill02": "辟地", "skill03_2": "赶山三斧"},
 }
 const ENEMY_ATTACK_MECH := {
 	"c016": {
 		"skill01": "默认普攻；三刀均有受击反馈，前两刀不扣血，末刀造成 1 点伤害",
 		"skill02": "180～400px 内主动释放，独立冷却 8 秒；命中造成 1 点伤害",
-		"skill03": "追击窗口内瞬至身前，独立冷却 12 秒；保留 0.87 秒前摇，命中造成 2 点伤害",
+		"skill03": "追击窗口内瞬至身前，独立冷却 12 秒；保留 0.87 秒前摇，命中造成 2 点伤害并短暂击飞",
 		"skill04": "164px 内低权重释放，独立冷却 6 秒；命中造成 1 点伤害",
+	},
+	"c017": {
+		"skill01": "默认普攻；0.64 秒斧刃扫入身前才结算，身前 81px 造成 2 点伤害并短击退",
+		"skill02": "近身低权重释放，独立冷却 9 秒；1.58 秒落斧造成 2 点伤害，实伤后 8 秒无法跳跃",
+		"skill03_2": "追击 120～260px 窗口触发，独立冷却 16 秒；行进间两劈各 1 伤，接原地大劈 2 伤，随后力竭 3 秒",
 	},
 }
 const ENEMY_ATTACK_LORE := {
@@ -89,12 +95,22 @@ const ENEMY_ATTACK_LORE := {
 		"skill03": "山民追崖羊练出一口憋气劲：先贴到猎物身前，再借上冲之势出刀。刀未必能升龙，人至少先离了泥地。",
 		"skill04": "左手镰收麦，右手镰收债。丰年是农具，荒年就是兵器；他说两样都算收成，只看地里长的是谷子还是人。",
 	},
+	"c017": {
+		"skill01": "族里老人说，天不是劈开的，是弯腰的人把它顶开的。他把这话记在斧上，先沉斧蓄足一身蛮劲，再向上还一记；天未必开得，挡路的人总得让开。",
+		"skill02": "他少年时抡斧开山取石，一斧只能裂开薄薄一层。族人说地硬，他便练到斧落时连地底的根也震麻；中斧的人纵有轻功，也会一时忘了怎样跃起。",
+		"skill03_2": "蛮人赶山，不靠快，靠不肯停。前两斧赶碎脚边的石头，最后一斧把余力全送进山里；斧落之后，他总得扶着膝盖喘口气，再拖着巨斧继续赶路。",
+	},
 }
 const ENEMY_PASSIVES := {
 	"c016": {
 		"name": "山 民",
 		"desc": "每 5 秒恢复 1 点生命，不超过生命上限",
 		"lore": "山里跌打损伤没人替你看，采苦草、嚼根茎，熬过几夜就算捡回来。他不懂医术，只知道山不会主动救谁，却总会给人留一口气。",
+	},
+	"c017": {
+		"name": "蛮 力",
+		"desc": "每段实伤都会短距离击退目标；全程霸体，普通控制与受击硬直无效，无视霸体的规则级控制仍有效",
+		"lore": "他不信借力，也不懂收劲，只信斧头够沉、脊梁够直。山里倒下的树要靠自己扛回去，久了便养出一身不肯弯的蛮力；唯有真正压住他的规矩，才能让这把骨头低头。",
 	},
 }
 
@@ -149,7 +165,7 @@ const HINT_TEXT := "点击招式 / 技能播放演示；多变式用 ↑ / ↓ �
 const LORE := {
 	"c016": "山野间最常见的亡命刀客，一柄卷刃长刀便是全部家当。死后连名字都没人记得，只有崖边的乱刀还在等下一场雨。",
 	"z002": "黑袍裹身，剑不出鞘便已言明来意。传闻他曾是某位剑仙门下的弃徒，如今只在残卷里磨剑。",
-	"c017": "身高逾丈的蛮族力士，巨斧拖地，走一步便有石屑翻飞。他从不追击，只站在原地等你自己撞上来。",
+	"c017": "身高逾丈的蛮族力士，巨斧拖地，走一步便有石屑翻飞。他走得不快，却从不停在原地等人；一旦认准猎物，便拖着巨斧一步步赶上去。",
 	"c035": "瘦小、沉默、出手极快。没有人见过他的正脸，只见过他离场时扬起的一线沙。",
 	"c018": "双镰交错成一轮银月，出手密不透风。旧时是戏班里的双刀伶人，戏散了，刀却没收。",
 	"c012": "斗笠压得很低，快剑藏在雨里。他是唯一一个会在危及性命时反而笑出声的人。",
@@ -513,7 +529,7 @@ func _enemy_scale(t: Dictionary, is_boss: bool) -> float:
 # ---------- 动作清单 ----------
 
 ## 动作条目统一结构：{label, anims(动画池), kind(attack/skill/act/passive/enemy_atk/transform), src}
-## anims 只放一条 = 单变式；放多条 = 点开后用 ↑ / ↓ 手动切换
+## anims 只放一条 = 单变式；放多条 = 点开后用 ↑ / ↓ 手动切换；sequence 只用于顺序连段，不当变式
 func _form_actions(p: Dictionary) -> Array:
 	var out: Array = []
 	var atks: Array = p.get("attacks", [])
@@ -554,10 +570,24 @@ func _enemy_actions(t: Dictionary, is_boss: bool, id: String) -> Array:
 		for n in t.get("attacks", []):
 			names.append(str(n))
 
+	var chains: Dictionary = t.get("attack_chain", {})
+	var chained: Array = []
+	for start in chains:
+		var next_anim := str((chains[start] as Dictionary).get("anim", ""))
+		if not next_anim.is_empty():
+			chained.append(next_anim)
+
 	for i in names.size():
 		var n := str(names[i])
+		if chained.has(n):
+			continue # 连段收尾不是独立招式，不额外生成第四个按钮
 		var attack_names: Dictionary = ENEMY_ATTACK_NAMES.get(id, {})
-		out.append({"label": str(attack_names.get(n, "招式 %d" % (i + 1))), "anims": [n], "kind": "enemy_atk", "src": t, "id": id})
+		var action := {"label": str(attack_names.get(n, "招式 %d" % (i + 1))), "anims": [n], "kind": "enemy_atk", "src": t, "id": id}
+		if chains.has(n):
+			var next_anim := str((chains[n] as Dictionary).get("anim", ""))
+			if not next_anim.is_empty():
+				action["sequence"] = [n, next_anim]
+		out.append(action)
 
 	var map: Dictionary = t.get("anim", {})
 	for act in ENEMY_ACT_ORDER:
@@ -728,11 +758,28 @@ func _skill_desc(cfg: Dictionary) -> String:
 
 
 ## 敌人招式数值：段数 / 命中时刻 / 射程 / 伤害（按 t 的查表逐条取）
-func _enemy_num(t: Dictionary, anim: String) -> String:
+func _enemy_num(t: Dictionary, anim: String, sequence: Array = []) -> String:
 	var parts: Array = []
 	var hit_at: Dictionary = t.get("hit_at", {})
 	var ranges: Dictionary = t.get("ranges", {})
 	var damage: Dictionary = t.get("damage", {})
+	if sequence.size() > 1:
+		var first := str(sequence[0])
+		var last := str(sequence[sequence.size() - 1])
+		var hs = hit_at.get(first, [])
+		var hit_count := (hs as Array).size() if typeof(hs) == TYPE_ARRAY else 1
+		var rs = ranges.get(first, [])
+		var range_values: Array = rs if typeof(rs) == TYPE_ARRAY else [rs]
+		var range_text: Array = []
+		for r in range_values:
+			range_text.append(str(int(r)))
+		parts.append("连劈 %d 段 ｜ 各 %d 伤 ｜ %spx" % [hit_count, int(damage.get(first, 1)), "/".join(range_text)])
+		parts.append("大劈 %.2fs · %dpx · %d 伤" % [float(hit_at.get(last, 0.0)), int(ranges.get(last, 0)), int(damage.get(last, 1))])
+		var chain: Dictionary = (t.get("attack_chain", {}) as Dictionary).get(first, {})
+		var recovery := float(chain.get("recovery", 0.0))
+		if recovery > 0.0:
+			parts.append("力竭 %.0f 秒" % recovery)
+		return " ｜ ".join(parts)
 	if hit_at.has(anim):
 		var h = hit_at[anim]
 		if typeof(h) == TYPE_ARRAY:
@@ -758,7 +805,7 @@ func _num_for(a: Dictionary, anim: String) -> String:
 		"skill":
 			return _skill_num(a["src"])
 		"enemy_atk":
-			return _enemy_num(a["src"], anim)
+			return _enemy_num(a["src"], anim, a.get("sequence", []))
 	return ""
 
 
@@ -779,6 +826,10 @@ func _mech_for(a: Dictionary) -> String:
 func _cd_for(a: Dictionary) -> float:
 	if str(a["kind"]) == "skill":
 		return float((a["src"] as Dictionary).get("cooldown", 0.0))
+	if str(a["kind"]) == "enemy_atk":
+		var anim := str((a["anims"] as Array)[0])
+		var rules: Dictionary = (a["src"] as Dictionary).get("attack_rules", {})
+		return float((rules.get(anim, {}) as Dictionary).get("cooldown", 0.0))
 	return 0.0
 
 
@@ -855,7 +906,7 @@ func _pick(i: int) -> void:
 	var anim := _idle_anim
 	if str(a["kind"]) != "passive" and not _pool.is_empty():
 		anim = str(_pool[0])
-	_play(anim)
+	_play(anim, a.get("sequence", []))
 	_desc_rt.text = _desc_text(a, anim)
 	_refresh_btns()
 
@@ -907,7 +958,7 @@ func _desc_text(a: Dictionary, anim: String) -> String:
 	if kind == "passive":
 		var passive: Dictionary = ENEMY_PASSIVES.get(str((a["src"] as Dictionary).get("id", "")), {})
 		if not passive.is_empty():
-			lines.append("[color=#a8332a]被动技能 · 山民[/color]")
+			lines.append("[color=#a8332a]被动技能 · %s[/color]" % str(passive["name"]).replace(" ", ""))
 			lines.append("[color=#8a857a]机制：[/color]" + str(passive["desc"]))
 			lines.append("[color=#8a857a]来历：[/color]" + str(passive["lore"]))
 		else:
@@ -950,11 +1001,12 @@ func _process(delta: float) -> void:
 	_pose_mixer.update(step)
 
 
-func _play(anim: String) -> void:
+func _play(anim: String, sequence: Array = []) -> void:
 	if _preview == null or not is_instance_valid(_preview) or anim == "":
 		return
-	# 重复点击同一动作不重开轨道，避免循环动画回到第 0 帧造成肉眼可见的一抽。
-	if anim == _current_anim:
+	var chained := sequence.size() > 1
+	# 循环动作重复点击不重开；连段则允许演完后再次点击，从头完整重演。
+	if anim == _current_anim and not chained:
 		return
 	_current_anim = anim
 	var st = _preview.call("get_animation_state")
@@ -964,7 +1016,11 @@ func _play(anim: String) -> void:
 		_pose_mixer.capture()
 		_pending_anim = anim
 		return
-	st.call("set_animation", anim, true, 0) # 循环播：停在该动作上就一直演
+	st.call("set_animation", anim, not chained, 0)
+	if chained:
+		for i in range(1, sequence.size()):
+			st.call("add_animation", str(sequence[i]), 0.0, false, 0)
+		st.call("add_animation", _idle_anim, 0.0, true, 0) # 完整连段演完回待机，不循环第一小段
 
 
 func _select(id: String) -> void:

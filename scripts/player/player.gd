@@ -87,6 +87,7 @@ var _attack_queued := false
 var _attack_hits: Array = [] # 本段普攻剩余待结算的命中时刻（动画秒），按升序弹出
 var _hurt_timer := 0.0
 var _hurt_invincible := 0.0 # 受伤后的短暂无敌：被围殴时不会一帧连掉好几血
+var _jump_seal := 0.0 # 辟地实伤附加：封跳剩余秒数，不影响闪避与其他动作
 # ---------- 通用动作接口（形态表按需开启；未配 = 退回旧行为，新角色照抄这组字段即可） ----------
 var _dash_time_base := 0.0 # 闪避时长 = 闪避动画长度（完美闪避判定窗口）
 var _dash_speed_base := 0.0 # 闪避位移速度（配合时长控制总距离）
@@ -545,6 +546,7 @@ func _physics_process(delta: float) -> void:
 	_jump_buf = maxf(0.0, _jump_buf - delta)
 	_dash_cd = maxf(0.0, _dash_cd - delta)
 	_hurt_invincible = maxf(0.0, _hurt_invincible - delta)
+	_jump_seal = maxf(0.0, _jump_seal - delta)
 	_lifesteal_cd = maxf(0.0, _lifesteal_cd - delta) # 饮血内置冷却
 	_perm_lifesteal_cd = maxf(0.0, _perm_lifesteal_cd - delta)
 	_hurt_guard_timer = maxf(0.0, _hurt_guard_timer - delta)
@@ -923,6 +925,9 @@ func hit_scored() -> void:
 ## 把敌人直接牵到指定横坐标；所有"拉回/牵引"共用同一个视觉与站位规则。
 func _pull_enemy(p: Node2D, want_x: float) -> void:
 	if int(p.get("hp")) <= 0:
+		return
+	var super_armor = p.get("_super_armor")
+	if super_armor != null and bool(super_armor):
 		return
 	var boss := p.has_method("stop_tier") and str(p.call("stop_tier")) == "boss"
 	if boss:
@@ -1845,7 +1850,7 @@ func get_skill_key(n: String) -> String:
 # ---------- 动作入口 ----------
 
 func _try_jump() -> void:
-	if _jump_buf > 0.0 and _coyote > 0.0:
+	if _jump_seal <= 0.0 and _jump_buf > 0.0 and _coyote > 0.0:
 		_jump_buf = 0.0
 		_coyote = 0.0
 		velocity.y = jump_velocity * _qg_jump_mul # 轻功：明显更高的起跳
@@ -2296,6 +2301,17 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 			return
 		die()
 		return
+	# 升龙刀等实伤击飞：在普通受击与倒地链分支前覆盖竖直初速；防御与霸体规则不变。
+	var launch_y := float(move.get("launch_velocity_y", 0.0))
+	if launch_y < 0.0:
+		knockback.y = launch_y
+	var jump_seal := float(move.get("jump_seal", 0.0))
+	if jump_seal > 0.0:
+		_jump_seal = maxf(_jump_seal, jump_seal)
+		var seal_dn := DAMAGE_NUMBER.new()
+		seal_dn.setup("封跳", Color(0.85, 0.72, 0.42))
+		seal_dn.global_position = global_position + Vector2(0, -150)
+		get_tree().current_scene.add_child(seal_dn)
 	# 霸体（力僧形态专属 + 定山技能自带）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
 	if (poise or _skill_poise) and state == State.SKILL:
 		return

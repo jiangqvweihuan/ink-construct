@@ -21,6 +21,7 @@ const TYPES := {
 		"ranges": {"skill01": [125.0, 100.0, 144.0], "skill02": 400.0, "skill03": 109.0, "skill04": 164.0},
 		"feedback_only": {"skill01": [0, 1]},
 		"damage": {"skill03": 2},
+		"hit_effects": {"skill03": {"launch_velocity_y": -420.0}}, # 实伤后短击飞：约 0.42 秒、最高 44px
 		# 升龙刀：追击中 100~260px 可直接起手，先瞬到身前 72px，保留 0.87s 飞行前摇供闪避。
 		"blink_strike": {"anim": "skill03", "min": 100.0, "max": 260.0, "offset": 72.0},
 		# 普攻为主：特殊招式有独立冷却与触发窗口，不在近身池里等权随机。
@@ -90,40 +91,52 @@ const TYPES := {
 		"bar_y": -120.0,
 		"number_y": -105.0,
 	},
-	# ---------- 蛮兵：C017，慢速重身，巨斧横扫，骨架很高（502px） ----------
+	# ---------- 蛮兵：C017，慢行霸体重斧；三招以开天为主，追击三斧后力竭 ----------
 	"c017": {
 		"label": "蛮兵",
 		"data": "res://art/characters/enemies/c017/c017_data.tres",
-		"scale": 0.221, # 骨架 502.9px -> 约 111px
-		"body_radius": 36.0, # 蛮兵块头大，挨打面宽一档
+		"scale": 0.258, # 骨架 502.9px -> 约 130px：最大杂兵，仍低于精英约 148px
+		"body_radius": 42.0, # 体型与受击宽度同步放大
 		"elite": false,
-		"anim": {"idle": "stand", "patrol": "walk2", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
-		"attacks": ["skill01", "skill03_1", "skill03_2"],
-		# 探针实测：skill01 后侧 509@0.52、skill03_1 后侧 586@0.62、skill03_2 前侧 649@0.38
-		"hit_at": {"skill01": 0.52, "skill03_1": 0.62, "skill03_2": 0.38},
-		"ranges": {"skill01": 112.0, "skill03_1": 116.0, "skill03_2": 143.0},
-		# 巨斧横扫有半圈在身后，判 both
-		"both": {"skill01": true, "skill03_1": true},
+		"anim": {"idle": "stand", "patrol": "walk2", "chase": "walk2", "hurt": "def_break", "dead": "atked_fall_end"},
+		"chase_anim_speed": 1.2,
+		"attacks": ["skill01", "skill02", "skill03_2", "skill03_3"],
+		# 逐帧复核：开天斧刃 0.64s 扫入身前（前侧 314），旧 1.20s 是后段举斧；其余按新体型换算。
+		"hit_at": {"skill01": 0.64, "skill02": 1.58, "skill03_2": [0.36, 0.80], "skill03_3": 0.20},
+		"ranges": {"skill01": 81.0, "skill02": 152.0, "skill03_2": [167.0, 161.0], "skill03_3": 150.0},
+		"damage": {"skill01": 2, "skill02": 2, "skill03_2": 1, "skill03_3": 2},
+		"hit_effects": {"skill02": {"jump_seal": 8.0}},
+		"hit_knockback": Vector2(140.0, 0.0), # 蛮力：每段实伤都短击退，不附加浮空
+		"super_armor": true, # 普通控制免疫；ignore_armor 与时停仍可穿透
+		"attack_chain": {"skill03_2": {"anim": "skill03_3", "recovery": 3.0}},
+		"advance": {"skill03_2": 85.0}, # 前两劈边慢步推进边落斧，收尾大劈原地完成
+		"blink_strike": {"anim": "skill03_2", "min": 120.0, "max": 260.0, "offset": 0.0},
+		"attack_rules": {
+			"skill01": {"weight": 7.0},
+			"skill02": {"weight": 1.0, "max": 164.0, "cooldown": 9.0},
+			"skill03_2": {"cooldown": 16.0, "random": false},
+			"skill03_3": {"random": false},
+		},
 		"hp": 8,
 		"patrol_speed": 40.0,
-		"chase_speed": 105.0,
+		"chase_speed": 52.0,
 		"patrol_range": 90.0,
 		"idle_time": 1.2,
 		"detect_range": 230.0,
 		"lose_range": 330.0,
-		"attack_range": 145.0,
-		"keep_dist": 90.0,
-		"attack_cooldown": 2.4,
-		"attack_lunge": 240.0,
-		"hit_height": 95.0,
+		"attack_range": 164.0,
+		"keep_dist": 94.0,
+		"attack_cooldown": 2.6,
+		"attack_lunge": 0.0,
+		"hit_height": 111.0,
 		"hurt_time": 0.4,
-		"armor": 0, # 没有 atked 动作，受击用 def_break
+		"armor": 0,
 		"telegraph": false,
 		"pick": "random",
 		"dead_min": 0.8,
-		"bar_w": 46.0,
-		"bar_y": -120.0,
-		"number_y": -105.0,
+		"bar_w": 54.0,
+		"bar_y": -140.0,
+		"number_y": -123.0,
 	},
 	# ---------- 刺客：C035，血薄但快，贴脸连刺 ----------
 	"c035": {
