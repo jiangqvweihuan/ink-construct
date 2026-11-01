@@ -4,8 +4,8 @@ extends CanvasLayer
 ## 左栏收录列表（敌人 / 化身两页），右栏：上面是动画演示台 + 技能解析面板，右下是角色简介（可滚动）。
 ## 交互一律点击：默认播待机动画；点下方招式 / 技能 / 动作按钮，演示台播该动作并把
 ## 来历 / 机制 / 数值 / 冷却写进解析面板；一条技能带多个变式（pool）时用 ↑ / ↓ 手动切换。
-## 每个角色（含敌人）都按词条分类，并预留一个被动技能占位钮（内容等第 6 阶段补）。
-## 背景故事（LORE）与技能来历目前是占位，之后逐条替换即可；数值由形态表自动生成。
+## 每个角色按词条分类；只有具备正式资料的被动才显示入口。
+## 玩家文案与内部动画键、判定参数分离；没有正式来历的区块直接省略。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
@@ -55,7 +55,7 @@ const TAGS := {
 	"z002": ["近战", "机动", "剑门", "杂兵"],
 	"c017": ["近战", "霸体", "山野", "杂兵"],
 	"c035": ["近战", "机动", "流血", "妖异", "杂兵"],
-	"c037": ["近战", "站桩", "霸体", "击飞", "精英"],
+	"c037": ["近战", "连段", "流血", "妖异", "精英"],
 	"c018": ["近战", "机动", "流血", "戏班", "精英"],
 	"c012": ["近战", "机动", "分身", "剑门", "精英"],
 	"c009": ["近战", "召唤", "击飞", "墨堂", "首领"],
@@ -77,31 +77,38 @@ const ENEMY_ATTACK_NAMES := {
 	"c035": {"dart": "镖去", "sneak": "偷袭"},
 	"c018": {"skill01": "镰舞", "skill02": "镰碎", "skill03": "镰意绽花"},
 	"c012": {"skill01": "双剑斩", "skill02": "旋斩"},
+	"c037": {"skill01": "亭台剑", "skill03": "转", "cangjian": "藏剑式", "jijian": "断楹祭剑"},
 }
 const ENEMY_ATTACK_MECH := {
 	"c016": {
-		"skill01": "默认普攻；三刀均有受击反馈，前两刀不扣血，末刀造成 1 点伤害",
-		"skill02": "180～400px 内主动释放，独立冷却 16 秒；命中造成 1 点伤害",
-		"skill03": "追击窗口内瞬至身前，独立冷却 24 秒；保留 0.87 秒前摇，命中造成 2 点伤害并短暂击飞",
-		"skill04": "164px 内低权重释放，独立冷却 12 秒；命中造成 1 点伤害",
+		"skill01": "普攻，无独立冷却；前两刀只造成受击反馈，末刀造成 1 点伤害",
+		"skill02": "中距离主动释放，冷却 9.6 秒；命中造成 1 点伤害",
+		"skill03": "追击中瞬至身前，冷却 14.4 秒；出刀前有 0.87 秒蓄势，命中造成 2 点伤害并短暂击飞",
+		"skill04": "近身技能，冷却 7.2 秒；命中造成 1 点伤害",
 	},
 	"c017": {
-		"skill01": "默认普攻；0.64 秒斧刃扫入身前才结算，身前 81px 造成 2 点伤害并短击退",
-		"skill02": "近身低权重释放，独立冷却 18 秒；1.58 秒落斧造成 2 点伤害，实伤后 8 秒无法跳跃",
-		"skill03_2": "追击 120～260px 窗口触发，独立冷却 32 秒；行进间两劈各 1 伤，接原地大劈 2 伤，随后力竭 3 秒",
+		"skill01": "普攻，无独立冷却；蓄势 0.64 秒后向上挥斧，造成 2 点伤害并短击退",
+		"skill02": "近身技能，冷却 10.8 秒；1.58 秒后落斧造成 2 点伤害，命中后 8 秒无法跳跃",
+		"skill03_2": "追击时释放，冷却 19.2 秒；行进间两劈各 1 伤，接原地大劈 2 伤，随后力竭 3 秒",
 	},
 	"c035": {
-		"dart": "默认普攻；0.50/1.36 秒两段各 1 点直伤，同招第二段可穿过首段受击无敌；整招命中后仅附一组割伤，3/6 秒各固定失去 1 点生命，多组独立计时",
-		"sneak": "使用 11 号动画；追击 100～260px 且非冷却时瞬至目标身后 72px，独立冷却 24 秒；0.94 秒砸击造成基础 2 点直伤，可触发阴影",
+		"dart": "普攻，无独立冷却；连续两镖各造成 1 点伤害，同一次出手的第二镖可穿过首镖造成的受击无敌；整轮命中只附一组割伤，3 秒与 6 秒时各失去 1 点生命",
+		"sneak": "追击时绕至目标身后，冷却 14.4 秒；蓄势 0.94 秒后砸击，造成 2 点基础伤害，可触发阴影",
 	},
 	"c018": {
-		"skill01": "默认普攻；0.30/0.60 秒两段各 2 点直伤，前侧 107/156px、后侧 174/209px；每段实伤附 1 层普通流血，每秒每层 1 伤、持续 3 秒、最多 5 层，新层刷新",
-		"skill02": "近身重招，独立冷却 16 秒；0.73 秒在落镰侧 146px 造成 5 点伤害，并按目标实际失去的生命等量回复自身",
-		"skill03": "近身特殊招，独立冷却 24 秒；0.83 秒上挑，不造成直伤；有效命中将目标移至正上方并损失 2 点本局生命上限，跨房间保留；自身三招冷却永久缩短 50%，未命中或被防御无效",
+		"skill01": "普攻，无独立冷却；0.30/0.60 秒两段各造成 2 点伤害；每段实际伤害附 1 层普通流血，每层每秒造成 1 伤，持续 3 秒，最多 5 层，新层刷新持续时间",
+		"skill02": "近身重招，冷却 9.6 秒；0.73 秒后落镰造成 5 点伤害，并按目标实际失去的生命等量回复自身",
+		"skill03": "近身技能，冷却 14.4 秒；0.83 秒后上挑，不造成直接伤害；命中将目标移至正上方并损失 2 点本局生命上限，跨房间保留；自身所有招式冷却永久缩短 50%，未命中或被防御时无效",
 	},
 	"c012": {
-		"skill01": "默认普攻；0.80/1.21 秒两段，身前 172/138px，基础 1/2 点直伤，均计入当前剑意加成；首段实伤后获得 1 层剑意，第二段实伤附 1 层普通流血（持续 3 秒，每秒每层 1 伤）",
-		"skill02": "独立冷却 12 秒；0.89 秒腾空旋斩，身前 163px 造成基础 2 点直伤并计入当前剑意；实伤后获得 1 层剑意，并令目标 8 秒无法使用 Shift 闪避，重复实伤刷新；未形成实伤则不触发",
+		"skill01": "普攻，无独立冷却；0.80/1.21 秒两段造成基础 1/2 点伤害，均计入当前剑意加成；首段实际命中后获得 1 层剑意，第二段附 1 层持续 3 秒的普通流血",
+		"skill02": "冷却 12 秒；0.89 秒后腾空旋斩，造成基础 2 点伤害并计入当前剑意；实际命中后获得 1 层剑意，并令目标 8 秒无法使用 Shift 闪避，重复命中刷新持续时间",
+	},
+	"c037": {
+		"skill01": "普攻，无独立冷却；三段伤害 1/1/2。第一剑蓄势约 0.98 秒，后两剑接连落下，挥剑与伤害保持同步",
+		"skill03": "冷却 7.2 秒；造成 2 点伤害并击退。同一目标每次实际受创后，「转」对它的伤害永久 +1；不同目标分别计算",
+		"cangjian": "冷却 9.6 秒；每次随机施展三种藏剑架势之一，三段伤害 1/2/3，末段附一组割伤，在 3 秒与 6 秒时各失去 1 点生命，多组独立计时",
+		"jijian": "生命低于一半时自动触发，每场战斗仅一次；随机施展两种祭剑架势之一并回满生命。此后自身每段实际伤害都额外附一组独立割伤",
 	},
 }
 const ENEMY_ATTACK_LORE := {
@@ -129,8 +136,19 @@ const ENEMY_ATTACK_LORE := {
 		"skill01": "听雨阁的剑仆替主人喂招，第一剑只许问招，不许取胜；等对方露出破绽，第二剑才准作答。他把双剑也取名为「问」与「答」——问剑留三分，答剑见血线，多年忍让不是不会赢，只是在等自己的那一剑。",
 		"skill02": "旧时试剑，剑仆不得追出青石圆坪。他便练到跃起旋身，一剑同时截住坪中所有退路；如今圆坪早已不在，困住他的规矩却化作剑势，轮到对手在八息之内找不到闪避的落点。",
 	},
+	"c037": {
+		"skill01": "青亭待客有三道礼：入门让半席，问剑让三分，临别送一程。他的第一剑替客掸尘，第二剑替客引路，第三剑才把不识趣的人送出门外。亭里的座位早已烂尽，他仍不肯省掉任何一道礼。",
+		"skill03": "初执魔剑时，他每转一周便要削碎一套茶具，索性把桌椅全搬进亭外。后来亭空了，剑却越转越顺；同一个人若肯站在原地多看几转，他便会把对方当成旧客，一剑比一剑招待得隆重。",
+		"cangjian": "三座旧亭各藏一种剑谱：临水亭藏刺，听雨亭藏撩，断山口那座藏回身。亭主只记得自己把剑藏好了，却忘了究竟藏在哪一座；于是每次出手，连他也要等剑现身才知今日行的是哪家的礼。",
+		"jijian": "亭塌那夜，一根主楹先断。他上撩魔剑挑开坠瓦，再把剑插进亭心，以剑代柱撑起旧业。魔剑答应借他一条完整的命，代价是从此每笔人情都要由来客用割伤偿还。",
+	},
 }
 const ENEMY_PASSIVES := {
+	"c037": {
+		"name": "魔 爆",
+		"desc": "死亡后会再次起身，魔化前扑并回斩，对前方大范围内的所有角色造成 3 点伤害。实际受创者仅在本房间受到魔诅：每个有冷却的技能使用后，其下一次冷却永久增加 1 秒",
+		"lore": "青亭旧主以为是自己解封了魔剑，直到咽气后双手再次握剑，才知被解封的分明是剑中的魔。它借旧主的礼法站起，也借旧主的最后一次送客，把这座亭的规矩刻进每个人的招式里。",
+	},
 	"c016": {
 		"name": "山 民",
 		"desc": "每 5 秒恢复 1 点生命，不超过生命上限",
@@ -138,17 +156,17 @@ const ENEMY_PASSIVES := {
 	},
 	"c017": {
 		"name": "蛮 力",
-		"desc": "每段实伤都会短距离击退目标；全程霸体，普通控制与受击硬直无效，无视霸体的规则级控制仍有效",
+		"desc": "每段实际伤害都会短距离击退目标；全程霸体，普通控制与受击硬直无效，专门克制霸体的控制仍然有效",
 		"lore": "他不信借力，也不懂收劲，只信斧头够沉、脊梁够直。山里倒下的树要靠自己扛回去，久了便养出一身不肯弯的蛮力；唯有真正压住他的规矩，才能让这把骨头低头。",
 	},
 	"c035": {
 		"name": "阴 影",
-		"desc": "从伤害目标身后造成直接伤害时双倍暴击；割伤等持续伤害不参与判定",
+		"desc": "从目标身后造成直接伤害时双倍暴击；割伤等持续伤害不触发此效果",
 		"lore": "剃头铺的镜子照正面，椅后的影子只归他。多年替人修鬓，他知道后颈哪一寸最薄；离店后这份手艺没有浪费，只是不再收铜钱。",
 	},
 	"c018": {
 		"name": "嗜 血",
-		"desc": "生命低于 30% 时永久激活：每次有效命中回复 1 点生命，所有技能伤害 -1；虚弱时改用 16/17 号动画并减速，回血后恢复动作与速度，但嗜血效果永不撤销",
+		"desc": "生命低于 30% 时永久激活：每次有效命中回复 1 点生命，所有技能伤害 -1；虚弱时姿态与步伐改变并减速，回血后恢复动作与速度，但嗜血效果永不撤销",
 		"lore": "他为演好将死的夜游神，曾三日不饮，把虚弱练得逼真。直到某次真伤了肺，台下彩声反而最盛。他便记住：越是站不稳，越要把最后一折唱完；只要尝见血，残烛也能烧到谢幕。",
 	},
 	"c012": {
@@ -203,9 +221,9 @@ const BTN_COLS := 8
 const BTN_STEP_Y := 34.0
 const ACT_MAX := 24
 
-const HINT_TEXT := "点击招式 / 技能播放演示；多变式用 ↑ / ↓ 切换；解析含数值 · 机制 · 冷却 · 来历"
+const HINT_TEXT := "点击招式查看演示与机制；多变式用 ↑ / ↓ 切换"
 
-## 占位背景故事：之后逐条替换成正式文案（键 = 形态 / 敌人 id）
+## 人物背景故事（键 = 形态 / 敌人 id）
 const LORE := {
 	"c016": "山野间最常见的亡命刀客，一柄卷刃长刀便是全部家当。死后连名字都没人记得，只有崖边的乱刀还在等下一场雨。",
 	"z002": "黑袍裹身，剑不出鞘便已言明来意。传闻他曾是某位剑仙门下的弃徒，如今只在残卷里磨剑。",
@@ -213,7 +231,7 @@ const LORE := {
 	"c035": "他曾是城门边的剃头匠，听遍过路人的秘密，却从不接话。后来有人花钱让他割掉一个叛徒的舌头，他收了钱，仍把那人的头发剃得很齐整。此后铺子没了，椅上多了另一种客人；他仍旧沉默，仍旧从椅后下刀。",
 	"c018": "他曾是戏班里专演夜游神的双刀伶人，一双银镰在灯影里交错，像一轮不肯缺的月。班主说戏最要紧是懂得收，可他压轴的《血月绽花》从没等到谢幕——戏班欠下血债，那夜台下比台上先见了红。此后他仍按旧锣鼓点出手，只是再没人替他敲响收场那一声。",
 	"c012": "他原是听雨阁替名家喂招的剑仆，只有斗笠，没有题名。阁主说剑意不可过三，免得仆比主先懂剑；阁毁那夜，他第一次使完第三层，雨里便站起另一个自己，替他斩断了那句「不许赢」。从此他带双剑远行，一名「问」，一名「答」——问尽来客，也终于开始回答自己。",
-	"c037": "披重甲、执阔剑，一步一顿。剑落之处地面塌陷，轻巧的刀在他身上只留下一道白印。",
+	"c037": "他原是渡头青亭的主人，青衣迎客，剑只用来裁茶、削笺、替迷路人斩开荆棘。墨堂来夺亭那夜，他拔出了亭基下祖辈封存的绿色魔剑；剑保住了亭，也顺着他的规矩一寸寸吃掉旧主。如今他仍守在原地，见客先施礼，三剑不差分毫，只在生命将尽时以剑代楹、向魔物再赊一命。来客若看见他死后重新站起，便会明白：青魇从来不是那柄剑的名字，而是亭主留在人间的最后一场噩梦。",
 	"c009": "巨兽为骑，雷纹在胸口游走。传闻他是墨堂豢养的守门凶神——兽不死，霆不止。",
 	"c015a1": "紫焰锁链缠身的巨汉，抬手即成火海。鼎早已焚毁，锁链还绑在他身上。",
 	"c001": "双马拖曳的钢铁战车，长枪横扫如墙。它不懂退让，只会掉头再来一次。",
@@ -500,7 +518,7 @@ func _build_detail() -> void:
 		return
 
 	if data == null:
-		_desc_rt.text = "[color=#8a857a]骨架资源缺失，仅显示文字资料。[/color]"
+		_desc_rt.text = "[color=#8a857a]演示暂时不可用，仍可查看文字资料。[/color]"
 		return
 
 	# 动作按钮：先按骨架里真实存在的动画过滤，再铺 8 列网格
@@ -597,8 +615,6 @@ func _form_actions(p: Dictionary) -> Array:
 	for act in ACT_ORDER:
 		if map.has(act):
 			out.append({"label": str(ACT_LABEL.get(act, act)), "anims": [str(map[act])], "kind": "act", "src": {}})
-	# 被动技能栏：每个角色都留一格，内容等第 6 阶段统一设计
-	out.append({"label": "被 动", "anims": [], "kind": "passive", "src": {}})
 	return out
 
 
@@ -627,12 +643,20 @@ func _enemy_actions(t: Dictionary, is_boss: bool, id: String) -> Array:
 			continue # 连段收尾不是独立招式，不额外生成第四个按钮
 		var attack_names: Dictionary = ENEMY_ATTACK_NAMES.get(id, {})
 		var visual := str((t.get("move_anims", {}) as Dictionary).get(n, n))
-		var action := {"label": str(attack_names.get(n, "招式 %d" % (i + 1))), "anims": [visual], "key": n, "kind": "enemy_atk", "src": t, "id": id}
+		var visuals: Array = (t.get("move_pool", {}) as Dictionary).get(n, [visual])
+		var action := {"label": str(attack_names.get(n, "招式 %d" % (i + 1))), "anims": visuals, "key": n, "kind": "enemy_atk", "src": t, "id": id}
 		if chains.has(n):
 			var next_anim := str((chains[n] as Dictionary).get("anim", ""))
 			if not next_anim.is_empty():
 				action["sequence"] = [n, next_anim]
 		out.append(action)
+
+	var limit: Dictionary = t.get("limit", {})
+	if not limit.is_empty():
+		var key := str(limit.get("move", "jijian"))
+		var attack_names: Dictionary = ENEMY_ATTACK_NAMES.get(id, {})
+		out.append({"label": str(attack_names.get(key, "限定技")), "anims": (limit.get("pool", []) as Array).duplicate(),
+			"key": key, "kind": "enemy_atk", "src": t, "id": id})
 
 	var map: Dictionary = t.get("anim", {})
 	for act in ENEMY_ACT_ORDER:
@@ -646,7 +670,13 @@ func _enemy_actions(t: Dictionary, is_boss: bool, id: String) -> Array:
 				out.append({"label": "变身", "anims": [tf], "kind": "transform", "src": st})
 				break
 	var passive: Dictionary = ENEMY_PASSIVES.get(id, {})
-	out.append({"label": str(passive.get("name", "被 动")), "anims": [], "kind": "passive", "src": {"id": id}})
+	var burst: Dictionary = t.get("death_burst", {})
+	var passive_anims: Array = [str(burst.get("anim", "transform"))] if not burst.is_empty() else []
+	var passive_action := {"label": str(passive.get("name", "被 动")), "anims": passive_anims, "kind": "passive", "src": {"id": id}}
+	if not burst.is_empty():
+		passive_action["death_finisher"] = true
+	if not passive.is_empty():
+		out.append(passive_action)
 	return out
 
 
@@ -674,24 +704,15 @@ func _trim_anims(a: Dictionary, anims: Dictionary) -> bool:
 	return true
 
 
-## 普攻数值：伤害 / 射程（形态表里普攻写法有三代：hits 时间数组、hits 字典数组、按动画名查表）
-func _attack_num(a: Dictionary, anim: String) -> String:
+## 普攻数值：只展示玩家需要的伤害与效果，不暴露内部射程参数。
+func _attack_num(a: Dictionary, _anim: String) -> String:
 	var dmg := int(a.get("damage", 1))
-	var rng := 0.0
 	if a.has("hits"):
 		var hits: Array = a["hits"]
 		if not hits.is_empty() and typeof(hits[0]) == TYPE_DICTIONARY:
 			var h: Dictionary = hits[0]
 			dmg = int(h.get("damage", dmg))
-			rng = float(h.get("range", 0.0))
-		else:
-			rng = float(a.get("range", 0.0))
-	elif a.has("range"):
-		var r = a["range"]
-		rng = float(r.get(anim, 0.0)) if typeof(r) == TYPE_DICTIONARY else float(r)
 	var parts: Array = ["%d 伤" % dmg]
-	if rng > 0.0:
-		parts.append("%dpx" % int(rng))
 	if a.has("projectile"):
 		parts.append("远程")
 	if a.has("launch"):
@@ -802,24 +823,18 @@ func _skill_desc(cfg: Dictionary) -> String:
 	return " · ".join(tags)
 
 
-## 敌人招式数值：段数 / 命中时刻 / 射程 / 伤害（按 t 的查表逐条取）
+## 敌人招式数值：只展示段数、伤害与恢复时间；判定时刻和射程留在配置内。
 func _enemy_num(t: Dictionary, anim: String, sequence: Array = []) -> String:
 	var parts: Array = []
 	var hit_at: Dictionary = t.get("hit_at", {})
-	var ranges: Dictionary = t.get("ranges", {})
 	var damage: Dictionary = t.get("damage", {})
 	if sequence.size() > 1:
 		var first := str(sequence[0])
 		var last := str(sequence[sequence.size() - 1])
 		var hs = hit_at.get(first, [])
 		var hit_count := (hs as Array).size() if typeof(hs) == TYPE_ARRAY else 1
-		var rs = ranges.get(first, [])
-		var range_values: Array = rs if typeof(rs) == TYPE_ARRAY else [rs]
-		var range_text: Array = []
-		for r in range_values:
-			range_text.append(str(int(r)))
-		parts.append("连劈 %d 段 ｜ 各 %d 伤 ｜ %spx" % [hit_count, int(damage.get(first, 1)), "/".join(range_text)])
-		parts.append("大劈 %.2fs · %dpx · %d 伤" % [float(hit_at.get(last, 0.0)), int(ranges.get(last, 0)), int(damage.get(last, 1))])
+		parts.append("连劈 %d 段 ｜ 各 %d 伤" % [hit_count, int(damage.get(first, 1))])
+		parts.append("大劈 %d 伤" % int(damage.get(last, 1)))
 		var chain: Dictionary = (t.get("attack_chain", {}) as Dictionary).get(first, {})
 		var recovery := float(chain.get("recovery", 0.0))
 		if recovery > 0.0:
@@ -829,16 +844,6 @@ func _enemy_num(t: Dictionary, anim: String, sequence: Array = []) -> String:
 		var h = hit_at[anim]
 		if typeof(h) == TYPE_ARRAY:
 			parts.append("%d 段" % (h as Array).size())
-		else:
-			parts.append("%.2fs" % float(h))
-	var back_ranges: Dictionary = t.get("back_ranges", {})
-	if ranges.has(anim):
-		var r = ranges[anim]
-		var values: Array = r if typeof(r) == TYPE_ARRAY else [r]
-		var text: Array = []
-		for value in values:
-			text.append(str(int(value)))
-		parts.append(("前 " if back_ranges.has(anim) else "") + "/".join(text) + "px")
 	var d = damage.get(anim, 1)
 	if typeof(d) == TYPE_ARRAY:
 		var damage_text: Array = []
@@ -847,15 +852,6 @@ func _enemy_num(t: Dictionary, anim: String, sequence: Array = []) -> String:
 		parts.append("/".join(damage_text) + " 伤")
 	else:
 		parts.append("%d 伤" % int(d))
-	if back_ranges.has(anim):
-		var r = back_ranges[anim]
-		var values: Array = r if typeof(r) == TYPE_ARRAY else [r]
-		var text: Array = []
-		for value in values:
-			text.append(str(int(value)))
-		parts.append("后 " + "/".join(text) + "px")
-	elif (t.get("both", {}) as Dictionary).has(anim):
-		parts.append("前后判定")
 	return " ｜ ".join(parts)
 
 
@@ -878,9 +874,9 @@ func _mech_for(a: Dictionary) -> String:
 			return _skill_desc(a["src"])
 		"enemy_atk":
 			var key := str(a.get("key", str((a["anims"] as Array)[0])))
-			return str((ENEMY_ATTACK_MECH.get(str(a.get("id", "")), {}) as Dictionary).get(key, "出招时刻即判定命中"))
+			return str((ENEMY_ATTACK_MECH.get(str(a.get("id", "")), {}) as Dictionary).get(key, ""))
 		"transform":
-			return "血量跌破阶段阈值时的变身演出"
+			return "生命降低后改变战斗姿态"
 	return ""
 
 
@@ -965,11 +961,38 @@ func _pick(i: int) -> void:
 	_click_sfx()
 
 	var anim := _idle_anim
-	if str(a["kind"]) != "passive" and not _pool.is_empty():
+	if not _pool.is_empty():
 		anim = str(_pool[0])
-	_play(anim, a.get("sequence", []))
+	_play(anim, a.get("sequence", []), bool(a.get("death_finisher", false)))
+	if bool(a.get("death_finisher", false)):
+		_preview_death_finisher(i)
 	_desc_rt.text = _desc_text(a, anim)
 	_refresh_btns()
+
+
+func _preview_death_finisher(pick: int) -> void:
+	await get_tree().create_timer(3.467).timeout
+	if _preview == null or not is_instance_valid(_preview) or _pick_idx != pick or _current_anim != "transform":
+		return
+	var origin: Vector2 = _preview.position
+	var slash := create_tween()
+	slash.set_parallel(true)
+	slash.tween_property(_preview, "rotation", -0.22, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	slash.tween_property(_preview, "position:x", origin.x + 72.0, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await get_tree().create_timer(0.14).timeout
+	if _preview == null or not is_instance_valid(_preview):
+		return
+	if _pick_idx != pick:
+		_preview.rotation = 0.0
+		_preview.position = origin
+		return
+	var recover := create_tween()
+	recover.set_parallel(true)
+	recover.tween_property(_preview, "rotation", 0.0, 0.26)
+	recover.tween_property(_preview, "position:x", origin.x, 0.26)
+	await get_tree().create_timer(0.30).timeout
+	if _preview != null and is_instance_valid(_preview) and _pick_idx == pick:
+		_play(_idle_anim)
 
 
 ## 上 / 下键在当前动作的变式池中循环选择；不自动跳转，选中的动画持续循环播放
@@ -1022,16 +1045,12 @@ func _desc_text(a: Dictionary, anim: String) -> String:
 			lines.append("[color=#a8332a]被动技能 · %s[/color]" % str(passive["name"]).replace(" ", ""))
 			lines.append("[color=#8a857a]机制：[/color]" + str(passive["desc"]))
 			lines.append("[color=#8a857a]来历：[/color]" + str(passive["lore"]))
-		else:
-			lines.append("[color=#a8332a]被动技能 · 【待定】[/color]")
-			lines.append("[color=#8a857a]每个角色预留一格，内容等第 6 阶段统一设计。[/color]")
 		return "\n".join(lines)
 	if kind == "act":
 		lines.append("[color=#8a857a]角色通用动作，仅作演示。[/color]")
 		return "\n".join(lines)
 	if kind == "transform":
 		lines.append("[color=#8a857a]机制：[/color]" + _mech_for(a))
-		lines.append("[color=#8a857a]来历：[/color]【待定】")
 		return "\n".join(lines)
 
 	var num := _num_for(a, anim)
@@ -1043,11 +1062,12 @@ func _desc_text(a: Dictionary, anim: String) -> String:
 	var cd := _cd_for(a)
 	if cd > 0.0:
 		lines.append("[color=#8a857a]冷却：[/color]%.1f 秒" % cd)
-	var origin := "【待定】"
+	var origin := ""
 	if kind == "enemy_atk":
 		var key := str(a.get("key", anim))
-		origin = str((ENEMY_ATTACK_LORE.get(str(a.get("id", "")), {}) as Dictionary).get(key, origin))
-	lines.append("[color=#8a857a]来历：[/color]" + origin)
+		origin = str((ENEMY_ATTACK_LORE.get(str(a.get("id", "")), {}) as Dictionary).get(key, ""))
+	if not origin.is_empty():
+		lines.append("[color=#8a857a]来历：[/color]" + origin)
 	return "\n".join(lines)
 
 
@@ -1057,13 +1077,13 @@ func _process(delta: float) -> void:
 	var step := delta
 	if not _pending_anim.is_empty():
 		var st = _preview.call("get_animation_state")
-		st.call("set_animation", _pending_anim, true, 0)
+		st.call("set_animation", _pending_anim, not bool(_preview.get_meta("codex_hold_last", false)), 0)
 		_pending_anim = ""
 		step = 0.0
 	_pose_mixer.update(step)
 
 
-func _play(anim: String, sequence: Array = []) -> void:
+func _play(anim: String, sequence: Array = [], hold_last := false) -> void:
 	if _preview == null or not is_instance_valid(_preview) or anim == "":
 		return
 	var chained := sequence.size() > 1
@@ -1074,11 +1094,12 @@ func _play(anim: String, sequence: Array = []) -> void:
 	var st = _preview.call("get_animation_state")
 	if st == null:
 		return
+	_preview.set_meta("codex_hold_last", hold_last)
 	if _pose_mixer != null:
 		_pose_mixer.capture()
 		_pending_anim = anim
 		return
-	st.call("set_animation", anim, not chained, 0)
+	st.call("set_animation", anim, not chained and not hold_last, 0)
 	if chained:
 		for i in range(1, sequence.size()):
 			st.call("add_animation", str(sequence[i]), 0.0, false, 0)

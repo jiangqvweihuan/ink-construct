@@ -16,7 +16,7 @@ const NORMAL_SCENES := [
 	"res://scenes/enemies/c035.tscn", # 刺客
 ]
 const ELITE_SCENES := [
-	"res://scenes/enemies/c037_elite.tscn", # 大剑骑士
+	"res://scenes/enemies/c037_elite.tscn", # 青魇剑主
 	"res://scenes/enemies/c018_elite.tscn", # 双镰
 	"res://scenes/enemies/c012_elite.tscn", # 青笠剑客（前玩家形态，两连击 + 跳斩）
 ]

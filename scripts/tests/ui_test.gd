@@ -134,6 +134,7 @@ func _ready() -> void:
 	Meta.add_enemy_kill("c035")
 	Meta.add_enemy_kill("c018")
 	Meta.add_enemy_kill("c012")
+	Meta.add_enemy_kill("c037")
 	Meta.add_enemy_kill("c009")
 	Meta.add_enemy_kill("c032")
 	_menu._open_codex()
@@ -164,13 +165,13 @@ func _ready() -> void:
 			var text: String = codex._desc_text(action, str(action["anims"][0]))
 			sword_lore_ok = sword_lore_ok and text.contains("来历：") and not text.contains("【待定】")
 			if label == "螺旋鞭":
-				sword_cd_ok = sword_cd_ok and is_equal_approx(float(codex._cd_for(action)), 16.0)
+				sword_cd_ok = sword_cd_ok and is_equal_approx(float(codex._cd_for(action)), 9.6)
 			elif label == "升龙刀":
-				sword_cd_ok = sword_cd_ok and is_equal_approx(float(codex._cd_for(action)), 24.0)
-				sword_rising_ok = text.contains("0.87 秒前摇") and text.contains("2 点伤害并短暂击飞") and text.contains("24 秒")
+				sword_cd_ok = sword_cd_ok and is_equal_approx(float(codex._cd_for(action)), 14.4)
+				sword_rising_ok = text.contains("0.87 秒蓄势") and text.contains("2 点伤害并短暂击飞") and text.contains("14.4 秒")
 			elif label == "双镰":
-				sword_cd_ok = sword_cd_ok and is_equal_approx(float(codex._cd_for(action)), 12.0)
-		p("刀客四招=%s 来历完整=%s 特殊招16/24/12秒冷却=%s 升龙刀短击飞文案=%s（期望 亡命三刀/螺旋鞭/升龙刀/双镰，全 true）" % [str(sword_labels), sword_lore_ok, sword_cd_ok, sword_rising_ok])
+				sword_cd_ok = sword_cd_ok and is_equal_approx(float(codex._cd_for(action)), 7.2)
+		p("刀客四招=%s 来历完整=%s 特殊招9.6/14.4/7.2秒冷却=%s 升龙刀短击飞文案=%s（期望 亡命三刀/螺旋鞭/升龙刀/双镰，全 true）" % [str(sword_labels), sword_lore_ok, sword_cd_ok, sword_rising_ok])
 		var passive_action: Dictionary = {}
 		for action in codex._acts:
 			if str(action["kind"]) == "passive":
@@ -207,26 +208,26 @@ func _ready() -> void:
 				var text: String = codex._desc_text(action, str(action["anims"][0]))
 				brute_lore_ok = brute_lore_ok and text.contains("来历：") and not text.contains("【待定】")
 				if label == "开天":
-					brute_basic_ok = text.contains("0.64s") and text.contains("81px") and text.contains("0.64 秒斧刃扫入身前")
+					brute_basic_ok = text.contains("0.64 秒") and text.contains("2 点伤害") and text.contains("短击退")
 				elif label == "辟地":
-					brute_cd_ok = brute_cd_ok and is_equal_approx(float(codex._cd_for(action)), 18.0)
+					brute_cd_ok = brute_cd_ok and is_equal_approx(float(codex._cd_for(action)), 10.8)
 				elif label == "赶山三斧":
 					brute_chain = action
 					brute_chain_text = text
 					chain_index = i
-					brute_cd_ok = brute_cd_ok and is_equal_approx(float(codex._cd_for(action)), 32.0)
+					brute_cd_ok = brute_cd_ok and is_equal_approx(float(codex._cd_for(action)), 19.2)
 			elif str(action["kind"]) == "passive":
 				brute_passive = action
 		var brute_passive_text: String = codex._desc_text(brute_passive, "") if not brute_passive.is_empty() else ""
 		var brute_three_ok: bool = brute_labels == ["开天", "辟地", "赶山三斧"]
 		var brute_chain_ok: bool = chain_index >= 0 and brute_chain.get("sequence", []) == ["skill03_2", "skill03_3"] \
 			and (brute_chain.get("anims", []) as Array).size() == 1 \
-			and brute_chain_text.contains("连劈 2 段") and brute_chain_text.contains("167/161px") \
-			and brute_chain_text.contains("大劈 0.20s · 150px · 2 伤") and brute_chain_text.contains("力竭 3 秒")
+			and brute_chain_text.contains("连劈 2 段") and brute_chain_text.contains("各 1 伤") \
+			and brute_chain_text.contains("大劈 2 伤") and brute_chain_text.contains("力竭 3 秒")
 		var brute_lore_tags: bool = not (brute_model["tags"] as Array).has("站桩") \
 			and str(brute_model["lore"]).contains("拖着巨斧") and not str(brute_model["lore"]).contains("从不追击")
 		p("蛮兵三招=%s 数量正确=%s 来历完整=%s 独立冷却=%s 开天新判定=%s 连段数值=%s（期望 开天/辟地/赶山三斧，全 true）" % [str(brute_labels), brute_three_ok, brute_lore_ok, brute_cd_ok, brute_basic_ok, brute_chain_ok])
-		p("蛮兵背景词条=%s 蛮力资料=%s（期望 true / true）" % [brute_lore_tags, brute_passive_text.contains("被动技能 · 蛮力") and brute_passive_text.contains("每段实伤") and brute_passive_text.contains("来历：") and not brute_passive_text.contains("【待定】")])
+		p("蛮兵背景词条=%s 蛮力资料=%s（期望 true / true）" % [brute_lore_tags, brute_passive_text.contains("被动技能 · 蛮力") and brute_passive_text.contains("每段实际伤害") and brute_passive_text.contains("普通控制") and brute_passive_text.contains("来历：") and not brute_passive_text.contains("【待定】")])
 
 		# 连段预览必须按 skill03_2 -> skill03_3 -> stand 顺序走，不能循环第一小段或当成变式。
 		var sequence_first := false
@@ -272,12 +273,12 @@ func _ready() -> void:
 				assassin_lore_ok = assassin_lore_ok and text.contains("来历：") and not text.contains("【待定】")
 				if label == "镖去":
 					dart_index = i
-					assassin_dart_ok = text.contains("2 段") and text.contains("107/129px") and text.contains("1 伤") \
-						and text.contains("0.50/1.36 秒") and text.contains("3/6 秒") and text.contains("多组独立计时")
+					assassin_dart_ok = text.contains("2 段") and text.contains("连续两镖各造成 1 点伤害") \
+						and text.contains("3 秒与 6 秒") and text.contains("整轮命中只附一组割伤")
 				elif label == "偷袭":
 					sneak_index = i
-					assassin_sneak_ok = is_equal_approx(float(codex._cd_for(action)), 24.0) \
-						and text.contains("身后 72px") and text.contains("基础 2 点直伤") and text.contains("0.94 秒")
+					assassin_sneak_ok = is_equal_approx(float(codex._cd_for(action)), 14.4) \
+						and text.contains("绕至目标身后") and text.contains("2 点基础伤害") and text.contains("0.94 秒")
 			elif str(action["kind"]) == "passive":
 				assassin_passive = action
 		var assassin_passive_text: String = codex._desc_text(assassin_passive, "") if not assassin_passive.is_empty() else ""
@@ -285,7 +286,7 @@ func _ready() -> void:
 		var assassin_data_ok: bool = assassin_labels == ["镖去", "偷袭"] and assassin_keys == ["dart", "sneak"] \
 			and assassin_visuals_ok and assassin_lore_ok and assassin_dart_ok and assassin_sneak_ok
 		var assassin_passive_ok: bool = str(assassin_passive.get("label", "")) == "阴 影" \
-			and assassin_passive_text.contains("双倍暴击") and assassin_passive_text.contains("割伤等持续伤害不参与判定") \
+			and assassin_passive_text.contains("双倍暴击") and assassin_passive_text.contains("割伤等持续伤害不触发此效果") \
 			and assassin_passive_text.contains("来历：") and not assassin_passive_text.contains("【待定】")
 		p("刺客图鉴 双招/逻辑键/数值/来历=%s 阴影资料=%s 背景与流血词条=%s（期望全 true）" % [assassin_data_ok, assassin_passive_ok, assassin_model_ok])
 		var assassin_preview_ok := true
@@ -327,16 +328,16 @@ func _ready() -> void:
 				var text: String = codex._desc_text(action, expected_visual)
 				dualsickle_lore_ok = dualsickle_lore_ok and text.contains("来历：") and not text.contains("【待定】")
 				if label == "镰舞":
-					dualsickle_dance_ok = text.contains("0.30/0.60 秒") and text.contains("107/156px") \
-						and text.contains("174/209px") and text.contains("普通流血") and text.contains("持续 3 秒") and text.contains("最多 5 层")
+					dualsickle_dance_ok = text.contains("2 段") and text.contains("0.30/0.60 秒") \
+						and text.contains("普通流血") and text.contains("持续 3 秒") and text.contains("最多 5 层")
 				elif label == "镰碎":
-					dualsickle_shatter_ok = is_equal_approx(float(codex._cd_for(action)), 16.0) \
-						and text.contains("0.73 秒") and text.contains("146px") and text.contains("5 点伤害") \
+					dualsickle_shatter_ok = is_equal_approx(float(codex._cd_for(action)), 9.6) \
+						and text.contains("0.73 秒") and text.contains("5 点伤害") \
 						and text.contains("实际失去的生命")
 				elif label == "镰意绽花":
-					dualsickle_bloom_ok = is_equal_approx(float(codex._cd_for(action)), 24.0) \
-						and text.contains("不造成直伤") and text.contains("2 点本局生命上限") \
-						and text.contains("跨房间保留") and text.contains("50%") and text.contains("被防御无效")
+					dualsickle_bloom_ok = is_equal_approx(float(codex._cd_for(action)), 14.4) \
+						and text.contains("不造成直接伤害") and text.contains("2 点本局生命上限") \
+						and text.contains("跨房间保留") and text.contains("50%") and text.contains("被防御时无效")
 			elif str(action["kind"]) == "passive":
 				dualsickle_passive = action
 		var dualsickle_passive_text: String = codex._desc_text(dualsickle_passive, "") if not dualsickle_passive.is_empty() else ""
@@ -345,7 +346,7 @@ func _ready() -> void:
 		var dualsickle_data_ok: bool = dualsickle_labels == ["镰舞", "镰碎", "镰意绽花"] \
 			and dualsickle_visuals_ok and dualsickle_lore_ok and dualsickle_dance_ok and dualsickle_shatter_ok and dualsickle_bloom_ok
 		var dualsickle_passive_ok: bool = str(dualsickle_passive.get("label", "")) == "嗜 血" \
-			and dualsickle_passive_text.contains("永久激活") and dualsickle_passive_text.contains("16/17 号动画") \
+			and dualsickle_passive_text.contains("永久激活") and dualsickle_passive_text.contains("姿态与步伐改变") \
 			and dualsickle_passive_text.contains("永不撤销") and dualsickle_passive_text.contains("来历：") \
 			and not dualsickle_passive_text.contains("【待定】")
 		p("双镰图鉴 三招/动画/数值/来历=%s 嗜血资料=%s 戏班背景与流血词条=%s（期望全 true）" % [
@@ -384,12 +385,12 @@ func _ready() -> void:
 				var text: String = codex._desc_text(action, expected_visual)
 				qingli_lore_ok = qingli_lore_ok and text.contains("来历：") and not text.contains("【待定】")
 				if label == "双剑斩":
-					qingli_dual_ok = text.contains("0.80/1.21 秒") and text.contains("172/138px") \
+					qingli_dual_ok = text.contains("2 段") and text.contains("1/2 伤") \
 						and text.contains("基础 1/2 点") and text.contains("持续 3 秒") and text.contains("剑意")
 				elif label == "旋斩":
 					qingli_spin_ok = is_equal_approx(float(codex._cd_for(action)), 12.0) \
-						and text.contains("0.89 秒") and text.contains("163px") and text.contains("基础 2 点") \
-						and text.contains("独立冷却 12 秒") and text.contains("8 秒无法使用 Shift 闪避") and text.contains("未形成实伤")
+						and text.contains("0.89 秒") and text.contains("基础 2 点") \
+						and text.contains("冷却 12 秒") and text.contains("8 秒无法使用 Shift 闪避")
 			elif str(action["kind"]) == "passive":
 				qingli_passive = action
 		var qingli_passive_text: String = codex._desc_text(qingli_passive, "") if not qingli_passive.is_empty() else ""
@@ -416,7 +417,104 @@ func _ready() -> void:
 		p("青笠双招skill01/skill02预览=%s（期望 true）" % qingli_preview_ok)
 		await _shot("06e_codex_qingli")
 
-		# 已收录的 Boss 详情（c032 三段变身）
+		# 青魇剑主：四招、藏剑三变式、祭剑双演出，以及带完整前扑回斩的魔爆被动。
+		codex._select("c037")
+		await get_tree().create_timer(0.3).timeout
+		var qingyan_model: Dictionary = codex._model(codex._sel)
+		var qingyan_labels: Array = []
+		var qingyan_lore_ok := true
+		var qingyan_mechanics_ok := true
+		var qingyan_cang: Dictionary = {}
+		var qingyan_limit: Dictionary = {}
+		var qingyan_passive: Dictionary = {}
+		var qingyan_cang_index := -1
+		var qingyan_limit_index := -1
+		var qingyan_passive_index := -1
+		for i in codex._acts.size():
+			var action: Dictionary = codex._acts[i]
+			var label := str(action["label"])
+			if str(action["kind"]) == "enemy_atk":
+				qingyan_labels.append(label)
+				var text: String = codex._desc_text(action, str(action["anims"][0]))
+				qingyan_lore_ok = qingyan_lore_ok and text.contains("来历：") and not text.contains("【待定】")
+				if label == "亭台剑":
+					qingyan_mechanics_ok = qingyan_mechanics_ok and text.contains("1/1/2") and text.contains("0.98 秒")
+				elif label == "转":
+					qingyan_mechanics_ok = qingyan_mechanics_ok and text.contains("击退") and text.contains("永久 +1")
+				elif label == "藏剑式":
+					qingyan_cang = action
+					qingyan_cang_index = i
+					qingyan_mechanics_ok = qingyan_mechanics_ok and text.contains("1/2/3") and text.contains("割伤") \
+						and action.get("anims", []) == ["skill05", "skill06", "skill01-cankao"]
+				elif label == "断楹祭剑":
+					qingyan_limit = action
+					qingyan_limit_index = i
+					qingyan_mechanics_ok = qingyan_mechanics_ok and text.contains("回满生命") and text.contains("每段实际伤害") \
+						and action.get("anims", []) == ["skill04", "skill04-cankao"]
+			elif str(action["kind"]) == "passive":
+				qingyan_passive = action
+				qingyan_passive_index = i
+		var qingyan_passive_text: String = codex._desc_text(qingyan_passive, "") if not qingyan_passive.is_empty() else ""
+		var qingyan_data_ok: bool = str(qingyan_model.get("title", "")) == "青魇剑主" \
+			and qingyan_labels == ["亭台剑", "转", "藏剑式", "断楹祭剑"] and qingyan_lore_ok and qingyan_mechanics_ok \
+			and str(qingyan_model.get("lore", "")).contains("青亭") and str(qingyan_model.get("lore", "")).contains("绿色魔剑") \
+			and (qingyan_model.get("tags", []) as Array).has("妖异")
+		var qingyan_passive_ok: bool = str(qingyan_passive.get("label", "")) == "魔 爆" \
+			and qingyan_passive.get("anims", []) == ["transform"] and bool(qingyan_passive.get("death_finisher", false)) \
+			and qingyan_passive_text.contains("魔化前扑并回斩") and qingyan_passive_text.contains("下一次冷却永久增加 1 秒") \
+			and qingyan_passive_text.contains("来历：") and not qingyan_passive_text.contains("【待定】")
+		p("青魇图鉴 新名/背景/四招/数值与来历=%s 魔爆资料与收尾=%s（期望全 true）" % [qingyan_data_ok, qingyan_passive_ok])
+
+		var qingyan_pool_ok: bool = qingyan_cang_index >= 0 and qingyan_limit_index >= 0
+		if qingyan_cang_index >= 0:
+			codex._pick(qingyan_cang_index)
+			await get_tree().process_frame
+			var cang_anims: Array = [str(codex._current_anim)]
+			codex._cycle_pool(1)
+			cang_anims.append(str(codex._current_anim))
+			codex._cycle_pool(1)
+			cang_anims.append(str(codex._current_anim))
+			qingyan_pool_ok = qingyan_pool_ok and cang_anims == ["skill05", "skill06", "skill01-cankao"]
+		if qingyan_limit_index >= 0:
+			codex._pick(qingyan_limit_index)
+			await get_tree().process_frame
+			var limit_first := str(codex._current_anim)
+			codex._cycle_pool(1)
+			qingyan_pool_ok = qingyan_pool_ok and limit_first == "skill04" and str(codex._current_anim) == "skill04-cankao"
+		p("青魇藏剑三变式与祭剑双动画切换=%s（期望 true）" % qingyan_pool_ok)
+
+		var qingyan_finisher_ok := false
+		var qingyan_return_ok := false
+		if qingyan_passive_index >= 0:
+			codex._pick(qingyan_passive_index)
+			await get_tree().process_frame
+			var origin: Vector2 = codex._preview.position
+			var held: bool = bool(codex._preview.get_meta("codex_hold_last", false)) and str(codex._current_anim) == "transform"
+			await get_tree().create_timer(3.50).timeout
+			qingyan_finisher_ok = held and str(codex._current_anim) == "transform" \
+				and absf(codex._preview.rotation) > 0.01 and codex._preview.position.x > origin.x + 1.0
+			await _shot("06f_codex_qingyan_burst")
+			await get_tree().create_timer(0.65).timeout
+			qingyan_return_ok = str(codex._current_anim) == "stand" and is_equal_approx(codex._preview.rotation, 0.0) \
+				and codex._preview.position.distance_to(origin) < 0.1
+		p("青魇魔爆 停末帧并前扑回斩=%s 演完回待机=%s（期望全 true）" % [qingyan_finisher_ok, qingyan_return_ok])
+
+		# 全图鉴玩家文案审计：只检查最终展示文本，内部动画键与判定配置可以继续存在。
+		var forbidden: Array = ["号动画", "号变身", "【待定】", "第 6 阶段", "低权重", "前后判定", "出招时刻即判定命中", "px", "skill01", "skill02", "skill03", "skill04", "skill05", "skill06", "transform", "cankao"]
+		var clean_text := true
+		for id in codex.ENEMY_ORDER + codex.BossTypes.ROSTER:
+			var is_boss: bool = codex.BossTypes.ROSTER.has(id)
+			var data: Dictionary = codex.BossTypes.get_boss(id) if is_boss else codex.EnemyTypes.get_type(id)
+			# 直接生成全部动作资料，未收录的 Boss 也必须接受审计，不能空遍历假通过。
+			for action in codex._enemy_actions(data, is_boss, str(id)):
+				var text: String = codex._desc_text(action, str((action.get("anims", []) as Array)[0]) if not (action.get("anims", []) as Array).is_empty() else "")
+				for term in forbidden:
+					if text.contains(str(term)):
+						clean_text = false
+						p("文案穿帮 %s / %s / %s" % [str(id), str(action.get("label", "")), str(term)])
+		p("全部敌人与Boss图鉴无开发术语/资源键/占位文案=%s（期望 true）" % clean_text)
+
+		# 已收录的 Boss 详情（c032 三段变身）；无正式来历的区块应直接省略。
 		codex._select("c032")
 		await get_tree().create_timer(0.3).timeout
 		await _shot("07_codex_boss")
@@ -425,6 +523,14 @@ func _ready() -> void:
 		await get_tree().create_timer(0.3).timeout
 		p("切到化身页 -> 选中=%s（期望 c021）" % str(codex._sel))
 		await _shot("08_codex_form")
+		for id in codex.Skulls.ORDER:
+			for action in codex._form_actions(codex.Skulls.get_profile(str(id))):
+				var text: String = codex._desc_text(action, str((action.get("anims", []) as Array)[0]) if not (action.get("anims", []) as Array).is_empty() else "")
+				for term in forbidden:
+					if text.contains(str(term)):
+						clean_text = false
+						p("化身文案穿帮 %s / %s / %s" % [str(id), str(action.get("label", "")), str(term)])
+		p("全部化身图鉴无开发术语/资源键/占位文案=%s（期望 true）" % clean_text)
 		# 银夜变式池：普攻 2 与 K 各留 2 条，I 只留 1 条；上 / 下键手动选择且不自动跳转
 		Meta.clears = 3
 		Meta.kills = 150
@@ -441,12 +547,14 @@ func _ready() -> void:
 				k = i
 			elif label == "技能 I":
 				i_skill = i
-		var last_act: Dictionary = codex._acts[codex._acts.size() - 1] if codex._acts.size() > 0 else {}
-		p("银夜变式数：普攻2=%d K=%d I=%d 被动末位=%s（期望 2 / 2 / 1 / true）" % [
+		var has_empty_passive := false
+		for action in codex._acts:
+			has_empty_passive = has_empty_passive or str(action.get("kind", "")) == "passive"
+		p("银夜变式数：普攻2=%d K=%d I=%d 空白被动已隐藏=%s（期望 2 / 2 / 1 / true）" % [
 			(codex._acts[atk2]["anims"] as Array).size() if atk2 >= 0 else 0,
 			(codex._acts[k]["anims"] as Array).size() if k >= 0 else 0,
 			(codex._acts[i_skill]["anims"] as Array).size() if i_skill >= 0 else 0,
-			str(str(last_act.get("kind", "")) == "passive")])
+			str(not has_empty_passive)])
 		if k >= 0:
 			codex._pick(k)
 			await get_tree().create_timer(0.25).timeout
@@ -461,6 +569,12 @@ func _ready() -> void:
 			p("解析面板含切换提示=%s（期望 true）" % str(codex._desc_rt.text.contains("↑ / ↓ 切换")))
 			await _press_key(KEY_DOWN)
 		await _shot("09_codex_pool")
+		# 同一页面按 1920×1080 等比例放大，复核 MSDF 字体在实际拉伸后的清晰度。
+		get_window().size = Vector2i(1920, 1080)
+		await get_tree().create_timer(0.25).timeout
+		await _shot("09b_codex_pool_1920")
+		get_window().size = Vector2i(1280, 720)
+		await get_tree().create_timer(0.2).timeout
 		await _click(Vector2(135, 594)) # 「返回」在左栏下方
 		await get_tree().process_frame
 		p("图鉴点返回 -> 面板=%s（期望 false）" % (_find_panel("codex_panel.gd") != null))

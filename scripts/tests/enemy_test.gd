@@ -5,6 +5,7 @@ extends Node2D
 const OUT_DIR := "res://tests/out/"
 const PlayerClass := preload("res://scripts/player/player.gd")
 const C016Class := preload("res://scripts/enemies/c016.gd")
+const EnemyTypes := preload("res://scripts/enemies/enemy_types.gd")
 
 var _log: FileAccess
 var _player: PlayerClass
@@ -161,6 +162,12 @@ func _ready() -> void:
 	# 10. 青笠专项：剑意结算、同步凝华分身、封闪避、普通流血与严格高伤链。
 	await _qingli_probe()
 
+	# 11. 全部普通怪与精英：首招普攻、其余独立冷却、技能优先与普攻兜底。
+	await _attack_rule_probe()
+
+	# 12. 青魇剑主专项：礼剑连段、藏剑变式、祭剑强化、魔爆与房间诅咒。
+	await _qingyan_probe()
+
 	# 第一只小怪尸体死后 ~1.7s 就 queue_free，精英段跑完它早没了，访问前必须判活
 	var e_state := "freed"
 	var e_hp := "-"
@@ -170,6 +177,59 @@ func _ready() -> void:
 	p("ALL DONE, enemy state=" + e_state + " hp=" + e_hp
 		+ " player state=" + str(_player.state))
 	get_tree().quit()
+
+
+## 全部普通怪与精英共用规则：首招无独立冷却，其余技能就绪优先，全部冷却才回普攻。
+func _attack_rule_probe() -> void:
+	_player.set_physics_process(false)
+	_player.global_position = Vector2(500, 560)
+	var all_ok := true
+	for id in EnemyTypes.TYPES:
+		var e = load("res://scenes/enemies/c016.tscn").instantiate()
+		e.type_id = str(id)
+		e.position = Vector2(540, 560)
+		add_child(e)
+		e.set_physics_process(false)
+		e._target = _player
+		var attacks: Array = e._attack_anims
+		var basic := str(attacks[0])
+		var followups: Array = []
+		for start in e._attack_chain:
+			followups.append(str((e._attack_chain[start] as Dictionary).get("anim", "")))
+		var rules_ok: bool = is_zero_approx(float(e._attack_rules[basic].get("cooldown", -1.0)))
+		var eligible_skill := false
+		for i in range(1, attacks.size()):
+			var move := str(attacks[i])
+			var cd := float(e._attack_rules[move].get("cooldown", 0.0))
+			rules_ok = rules_ok and (is_zero_approx(cd) if followups.has(move) else cd > 0.0)
+			var rule: Dictionary = e._attack_rules[move]
+			if not followups.has(move) and bool(rule.get("random", true)) and e._rule_allows(move, 40.0) and e._max_range_of(move) >= 30.0:
+				eligible_skill = true
+		e._start_attack()
+		var priority_ok: bool = e._attack_move != basic if eligible_skill else e._attack_move == basic
+		e._release_token()
+		for i in range(1, attacks.size()):
+			e._attack_rule_cds[str(attacks[i])] = 99.0
+		e._start_attack()
+		var fallback_ok: bool = e._attack_move == basic
+		e._release_token()
+		for move in e._attack_rule_cds:
+			e._attack_rule_cds[move] = 0.0
+		e._start_attack()
+		var restored_ok: bool = e._attack_move != basic if eligible_skill else e._attack_move == basic
+		if str(id) == "z002":
+			rules_ok = rules_ok and is_equal_approx(float(e._attack_rules["atk02"]["cooldown"]), 7.2) \
+				and is_equal_approx(float(e._attack_rules["atk03"]["cooldown"]), 9.6)
+		elif str(id) == "c037":
+			rules_ok = rules_ok and is_equal_approx(float(e._attack_rules["skill03"]["cooldown"]), 7.2) \
+				and is_equal_approx(float(e._attack_rules["cangjian"]["cooldown"]), 9.6)
+		var one_ok: bool = rules_ok and priority_ok and fallback_ok and restored_ok
+		all_ok = all_ok and one_ok
+		p("统一出手规则 %s 冷却配置=%s 技能优先=%s 普攻兜底=%s 恢复优先=%s（期望全 true）" % [str(id), rules_ok, priority_ok, fallback_ok, restored_ok])
+		e._release_token()
+		e.queue_free()
+		await get_tree().process_frame
+	p("七种敌人统一出手规则=%s（期望 true）" % all_ok)
 
 
 ## 刀客专项用固定站位与手动帧推进，避免随机选招和实时位移干扰数值断言。
@@ -241,26 +301,31 @@ func _swordsman_probe() -> void:
 	hp_before = _player.hp
 	e._deal_hit(0)
 	var dodge_no_launch: bool = _player.hp == hp_before and is_zero_approx(_player.velocity.y)
-	p("升龙刀 瞬移贴身=%s 前摇=%.2fs 实伤=%s 短击飞=%s 独立CD24秒=%s 冷却禁重入=%s 到点可放=%s 闪避不击飞=%s（期望全 true / 0.87）" % [blink_ok, windup, rising_ok, launch_ok, is_equal_approx(rising_cd, 24.0), cd_blocks, cd_ready, dodge_no_launch])
+	p("升龙刀 瞬移贴身=%s 前摇=%.2fs 实伤=%s 短击飞=%s 独立CD14.4秒=%s 冷却禁重入=%s 到点可放=%s 闪避不击飞=%s（期望全 true / 0.87）" % [blink_ok, windup, rising_ok, launch_ok, is_equal_approx(rising_cd, 14.4), cd_blocks, cd_ready, dodge_no_launch])
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame
 
-	# 近身池只含三刀与低权重双镰；远鞭限定中远距，特殊招冷却时普攻兜底。
+	# 双镰就绪时永远优先于普攻；冷却期间回普攻，恢复后再次优先技能。
 	e = load("res://scenes/enemies/c016.tscn").instantiate()
 	e.position = Vector2(820, 560)
 	add_child(e)
 	e.set_physics_process(false)
 	e._target = _player
-	var counts := {"skill01": 0, "skill02": 0, "skill03": 0, "skill04": 0}
-	for i in 210:
-		e._attack_rule_cds["skill01"] = 0.0
+	var skill_priority := true
+	for i in 40:
 		e._attack_rule_cds["skill04"] = 0.0
 		e._start_attack()
-		counts[e._current_anim] += 1
+		skill_priority = skill_priority and e._attack_move == "skill04"
 		e._release_token()
-	var basic_ratio := float(counts["skill01"]) / 210.0
-	var pool_ok: bool = counts["skill02"] == 0 and counts["skill03"] == 0 and basic_ratio >= 0.75
+	e._attack_rule_cds["skill04"] = 99.0
+	e._start_attack()
+	var basic_fallback: bool = e._attack_move == "skill01"
+	e._release_token()
+	e._attack_rule_cds["skill04"] = 0.0
+	e._start_attack()
+	var skill_restored: bool = e._attack_move == "skill04"
+	e._release_token()
 	e.global_position.x = 900.0
 	e._attack_cd = 0.0
 	e._attack_rule_cds["skill03"] = 99.0
@@ -274,14 +339,7 @@ func _swordsman_probe() -> void:
 	e._set_state(e.State.CHASE)
 	e._chase_tick(0.0)
 	whip_window = whip_window and e._current_anim != "skill02"
-	e._release_token()
-	e._attack_rule_cds["skill02"] = 99.0
-	e._attack_rule_cds["skill04"] = 99.0
-	e._attack_cd = 0.0
-	e._set_state(e.State.CHASE)
-	e._chase_tick(0.0)
-	var basic_fallback: bool = e._current_anim == "skill01"
-	p("出手规则 普攻占比=%.2f 近身池合规=%s 螺旋鞭距离窗=%s 特殊招冷却普攻兜底=%s（期望 >=0.75 / true / true / true）" % [basic_ratio, pool_ok, whip_window, basic_fallback])
+	p("出手规则 双镰优先=%s 冷却普攻兜底=%s 冷却结束恢复优先=%s 螺旋鞭距离窗=%s（期望全 true）" % [skill_priority, basic_fallback, skill_restored, whip_window])
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame
@@ -346,16 +404,20 @@ func _brute_probe() -> void:
 		and is_equal_approx(float(chase_track.call("get_track_time")), 0.5)
 	p("蛮兵移动 共用walk2且不重启轨道=%s 巡逻/追击=%.0f/%.0f 动画倍率=%.1f（期望 true / 40/52 / 1.2）" % [walk_ok, e.patrol_speed, e.chase_speed, e._current_anim_speed])
 
-	# 近身随机池只含开天与低权重辟地，追击连段不会被随机拆出来。
-	var counts := {"skill01": 0, "skill02": 0, "skill03_2": 0, "skill03_3": 0}
-	for i in 210:
+	# 辟地就绪优先；追击连段不进入近身随机池，连段收尾也不作为独立技能。
+	var skill_priority := true
+	for i in 40:
 		e._attack_rule_cds["skill02"] = 0.0
 		e._start_attack()
-		counts[e._current_anim] += 1
+		skill_priority = skill_priority and e._attack_move == "skill02"
 		e._release_token()
-	var basic_ratio := float(counts["skill01"]) / 210.0
-	var pool_ok: bool = counts["skill03_2"] == 0 and counts["skill03_3"] == 0 and basic_ratio >= 0.75
-	p("蛮兵出手池 开天占比=%.2f 连段不入随机池=%s（期望 >=0.75 / true）" % [basic_ratio, pool_ok])
+	e._attack_rule_cds["skill02"] = 99.0
+	e._start_attack()
+	var basic_fallback: bool = e._attack_move == "skill01"
+	e._release_token()
+	var pool_ok: bool = skill_priority and basic_fallback and is_zero_approx(float(e._attack_rules["skill01"]["cooldown"])) \
+		and float(e._attack_rules["skill03_2"]["cooldown"]) > 0.0 and is_zero_approx(float(e._attack_rules["skill03_3"]["cooldown"]))
+	p("蛮兵出手池 辟地优先=%s 冷却开天兜底=%s 主招计时/收尾共享=%s（期望全 true）" % [skill_priority, basic_fallback, pool_ok])
 
 	# 开天：0.64 秒斧刃扫入身前才结算，2 伤、81px 身前范围与蛮力短击退。
 	_reset_brute_player()
@@ -381,7 +443,7 @@ func _brute_probe() -> void:
 	var out_of_range_ok: bool = _player.hp == hp_before
 	p("开天 蓄力无判=%s 0.64秒时刻/2伤/81px=%s 短击退=%s 背向无伤=%s 超程无伤=%s（期望全 true）" % [no_early_hit, basic_ok, knock_ok, behind_ok, out_of_range_ok])
 
-	# 辟地：独立 9 秒冷却，实伤才附加 8 秒封跳；防御路径不误挂。
+	# 辟地：独立 10.8 秒冷却，实伤才附加 8 秒封跳；防御路径不误挂。
 	_reset_brute_player()
 	e._start_attack("skill02")
 	hit_at = e._attack_dur - float(e._attack_hits_left[0]["t"])
@@ -389,7 +451,7 @@ func _brute_probe() -> void:
 	e._deal_hit(0)
 	var ground_ok: bool = is_equal_approx(hit_at, 1.58) and is_equal_approx(e._range_of("skill02", 0), 152.0) \
 		and _player.hp == hp_before - Run.enemy_damage(2) and is_equal_approx(_player._jump_seal, 8.0) \
-		and is_equal_approx(float(e._attack_rule_cds["skill02"]), 18.0)
+		and is_equal_approx(float(e._attack_rule_cds["skill02"]), 10.8)
 	_player.state = _player.State.IDLE
 	_player.velocity = Vector2.ZERO
 	_player._jump_buf = 0.1
@@ -417,7 +479,7 @@ func _brute_probe() -> void:
 	hp_before = _player.hp
 	e._deal_hit(0)
 	var invincible_ok: bool = _player.hp == hp_before and _player._jump_seal <= 0.0
-	p("辟地 2伤/9秒CD/8秒封跳=%s 封跳禁跳=%s 解禁可跳=%s 闪避/护盾/无敌不附加=%s/%s/%s（期望全 true）" % [ground_ok, sealed_jump, free_jump, dodge_ok, shield_ok, invincible_ok])
+	p("辟地 2伤/10.8秒CD/8秒封跳=%s 封跳禁跳=%s 解禁可跳=%s 闪避/护盾/无敌不附加=%s/%s/%s（期望全 true）" % [ground_ok, sealed_jump, free_jump, dodge_ok, shield_ok, invincible_ok])
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame
@@ -430,7 +492,7 @@ func _brute_probe() -> void:
 	e._chase_tick(0.0)
 	var chain_ok: bool = e.state == e.State.ATTACK and e._current_anim == "skill03_2" \
 		and is_equal_approx(e.global_position.x, start_x) and e._chain_next == "skill03_3" \
-		and is_equal_approx(float(e._attack_rule_cds["skill03_2"]), 32.0) \
+		and is_equal_approx(float(e._attack_rule_cds["skill03_2"]), 19.2) \
 		and is_equal_approx(float(e._advance_map["skill03_2"]), 85.0)
 	hp_before = _player.hp
 	e._attack_tick(0.35)
@@ -480,7 +542,7 @@ func _brute_probe() -> void:
 	e._attack_rule_cds["skill03_2"] = 0.0
 	e._chase_tick(0.0)
 	var cd_ready: bool = e.state == e.State.ATTACK and e._current_anim == "skill03_2"
-	p("赶山三斧 32秒冷却禁重入=%s 到点可放=%s（期望 true / true）" % [cd_blocks, cd_ready])
+	p("赶山三斧 19.2秒冷却禁重入=%s 到点可放=%s（期望 true / true）" % [cd_blocks, cd_ready])
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame
@@ -570,7 +632,7 @@ func _assassin_probe() -> void:
 	e.queue_free()
 	await get_tree().process_frame
 
-	# 偷袭：200px 追击窗内绕到目标背后 72px，12 秒独立冷却，砸击触发背刺。
+	# 偷袭：200px 追击窗内绕到目标背后 72px，14.4 秒独立冷却，砸击触发背刺。
 	_reset_brute_player(Vector2(700, 560))
 	_player.facing = 1
 	e = load("res://scenes/enemies/c035.tscn").instantiate()
@@ -583,7 +645,7 @@ func _assassin_probe() -> void:
 	e._chase_tick(0.0)
 	var blink_ok: bool = e.state == e.State.ATTACK and e._attack_move == "sneak" \
 		and e._current_anim == "skill01" and is_equal_approx(e.global_position.x, 628.0) \
-		and e.facing == 1 and is_equal_approx(float(e._attack_rule_cds["sneak"]), 24.0) \
+		and e.facing == 1 and is_equal_approx(float(e._attack_rule_cds["sneak"]), 14.4) \
 		and is_equal_approx(e.velocity.x, 0.0)
 	hp_before = _player.hp
 	e._attack_tick(0.93)
@@ -598,7 +660,7 @@ func _assassin_probe() -> void:
 	e._attack_rule_cds["sneak"] = 0.0
 	e._chase_tick(0.0)
 	var cd_ready: bool = e.state == e.State.ATTACK and e._attack_move == "sneak"
-	p("偷袭 11号动画/绕背72px/24秒CD=%s 前摇无判=%s 0.94秒背刺4伤=%s 无割伤=%s 冷却禁重入=%s 到点可放=%s（期望全 true）" % [blink_ok, no_early_hit, sneak_hit, _player._cuts.is_empty(), cd_blocks, cd_ready])
+	p("偷袭 11号动画/绕背72px/14.4秒CD=%s 前摇无判=%s 0.94秒背刺4伤=%s 无割伤=%s 冷却禁重入=%s 到点可放=%s（期望全 true）" % [blink_ok, no_early_hit, sneak_hit, _player._cuts.is_empty(), cd_blocks, cd_ready])
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame
@@ -694,13 +756,13 @@ func _dualsickle_probe() -> void:
 	Run.hp = 5
 	e.global_position.x = 580.0
 	e._attack_cd = 1.9
-	e._attack_rule_cds["skill02"] = 16.0
+	e._attack_rule_cds["skill02"] = 9.6
 	e._start_attack("skill03")
 	e._deal_hit(0)
 	var bloom_ok: bool = _player.hp == 5 and _player.max_hp == Run.max_hp and Run.max_hp_loss == 2 \
 		and _player.global_position.is_equal_approx(e.global_position + Vector2(0, -120)) \
-		and is_equal_approx(e._skill_cooldown_scale, 0.5) and is_equal_approx(float(e._attack_rule_cds["skill03"]), 12.0) \
-		and is_equal_approx(float(e._attack_rule_cds["skill02"]), 8.0) and is_equal_approx(e._attack_cd, 0.95)
+		and is_equal_approx(e._skill_cooldown_scale, 0.5) and is_equal_approx(float(e._attack_rule_cds["skill03"]), 7.2) \
+		and is_equal_approx(float(e._attack_rule_cds["skill02"]), 4.8) and is_equal_approx(e._attack_cd, 0.95)
 	Run.snapshot(_player)
 	Run.apply_to(_player)
 	var bloom_persist_ok: bool = _player.max_hp == Run.max_hp and Run.max_hp_loss == 2 and _player.hp == 5
@@ -901,6 +963,218 @@ func _qingli_probe() -> void:
 	p("青笠高伤倒地链 5伤不触发/6伤穿旋斩霸体/11号起身=%s（期望 true）" % chain_ok)
 	e._release_token()
 	e.queue_free()
+	await get_tree().process_frame
+
+
+## 青魇剑主：首段慢放、三变式藏剑、祭剑强化，以及魔爆后的双侧房间诅咒。
+func _qingyan_probe() -> void:
+	Run.start()
+	Run.apply_to(_player)
+	_reset_brute_player(Vector2(500, 560))
+	_player._room_cd_cursed = false
+	_player._room_cd_uses.clear()
+	var e = load("res://scenes/enemies/c037_elite.tscn").instantiate()
+	e.position = Vector2(580, 560)
+	add_child(e)
+	e.set_physics_process(false)
+	e._target = _player
+	e.facing = -1
+	e._apply_facing()
+
+	# 亭台剑：只拉长首段前摇，后续两剑恢复原速；三段仍按同一次起手穿透受击无敌。
+	e._start_attack("skill01")
+	var real_hits: Array = []
+	for hit in e._attack_hits_left:
+		real_hits.append(snappedf(e._attack_dur - float(hit["t"]), 0.001))
+	var opening_ok: bool = e._attack_visual == "skill01" and e._attack_hits_left.size() == 3 \
+		and is_equal_approx(float(e._current_anim_speed), 0.50) and real_hits == [0.98, 1.68, 1.99] \
+		and e._damage_map["skill01"] == [1, 1, 2]
+	var hp_before: int = _player.hp
+	e._attack_tick(1.01)
+	var first_ok: bool = _player.hp == hp_before - Run.enemy_damage(1) \
+		and is_equal_approx(float(e._current_anim_speed), 1.0) and e._attack_hits_left.size() == 2
+	hp_before = _player.hp
+	e._deal_hit(1)
+	var second_ok: bool = _player.hp == hp_before - Run.enemy_damage(1)
+	hp_before = _player.hp
+	e._deal_hit(2)
+	var third_ok: bool = _player.hp == hp_before - Run.enemy_damage(2) and _player._cuts.is_empty()
+	p("亭台剑 首段半速/真实判定0.98/1.68/1.99=%s 三段1/1/2实伤=%s/%s/%s（期望全 true）" % [opening_ok, first_ok, second_ok, third_ok])
+
+	# 转：首次 2 伤，实伤后才叠层；新起手撞受击无敌不叠，下一记实伤变为 3。
+	_reset_brute_player(Vector2(500, 560))
+	e._set_state(e.State.IDLE)
+	e._start_attack("skill03")
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var player_id: int = _player.get_instance_id()
+	var turn_first: bool = _player.hp == hp_before - Run.enemy_damage(2) \
+		and int(e._turn_stacks.get(player_id, 0)) == 1 and is_equal_approx(_player.velocity.x, -420.0)
+	hp_before = _player.hp
+	e._set_state(e.State.IDLE)
+	e._start_attack("skill03")
+	e._deal_hit(0)
+	var turn_blocked: bool = _player.hp == hp_before and int(e._turn_stacks.get(player_id, 0)) == 1
+	_reset_brute_player(Vector2(500, 560))
+	e._set_state(e.State.IDLE)
+	e._start_attack("skill03")
+	hp_before = _player.hp
+	e._deal_hit(0)
+	var turn_second: bool = _player.hp == hp_before - Run.enemy_damage(3) \
+		and int(e._turn_stacks.get(player_id, 0)) == 2
+	var other = load("res://scenes/player/player.tscn").instantiate()
+	other.position = Vector2(500, 560)
+	add_child(other)
+	other.remove_from_group("player")
+	other.set_physics_process(false)
+	other.hp = 50
+	e._target = other
+	e._set_state(e.State.IDLE)
+	e._start_attack("skill03")
+	hp_before = other.hp
+	e._deal_hit(0)
+	var other_id: int = other.get_instance_id()
+	var turn_independent: bool = other.hp == hp_before - Run.enemy_damage(2) \
+		and int(e._turn_stacks.get(other_id, 0)) == 1 and int(e._turn_stacks.get(player_id, 0)) == 2
+	p("转 首次2伤/击退/二次3伤=%s/%s 受击无敌不叠层=%s 不同目标独立=%s（期望全 true）" % [turn_first, turn_second, turn_blocked, turn_independent])
+	other.queue_free()
+	e._target = _player
+	await get_tree().process_frame
+
+	# 藏剑式：逐条强制抽取三种动画，各自使用自己的时刻与范围，末段只登记一组割伤。
+	e._move_pool = e._move_pool.duplicate(true)
+	var visuals: Array = e._move_pool["cangjian"].duplicate()
+	var expected_hits := {"skill05": [0.40, 1.20, 1.88], "skill06": [0.28, 0.69, 1.62], "skill01-cankao": [0.47, 1.18, 1.47]}
+	var expected_ranges := {"skill05": [128.0, 96.0, 176.0], "skill06": [131.0, 162.0, 164.0], "skill01-cankao": [130.0, 164.0, 161.0]}
+	var cangjian_ok := true
+	for visual in visuals:
+		e._move_pool["cangjian"] = [visual]
+		_reset_brute_player(Vector2(500, 560))
+		e._set_state(e.State.IDLE)
+		e._start_attack("cangjian")
+		var variant_ok: bool = e._attack_move == "cangjian" and e._attack_visual == visual \
+			and e._attack_hits_left.size() == 3 and e._hit_at_map[visual] == expected_hits[visual] \
+			and e._ranges[visual] == expected_ranges[visual]
+		hp_before = _player.hp
+		for seg in 3:
+			e._deal_hit(seg)
+		variant_ok = variant_ok and _player.hp == hp_before - Run.enemy_damage(1) - Run.enemy_damage(2) - Run.enemy_damage(3) \
+			and _player._cuts.size() == 1 and _player._cuts[0]["left"] == [3.0, 6.0]
+		cangjian_ok = cangjian_ok and variant_ok
+	e._move_pool["cangjian"] = visuals
+	p("藏剑式 三变式各自三段1/2/3与判定范围/末段单组3及6秒割伤=%s（期望 true）" % cangjian_ok)
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 半血本身不触发，严格低于一半才祭剑；回满与强化只激活一次。
+	e = load("res://scenes/enemies/c037_elite.tscn").instantiate()
+	e.position = Vector2(580, 560)
+	add_child(e)
+	e.set_physics_process(false)
+	e._target = _player
+	e.take_damage(12, _player.global_position.x)
+	var limit_half: bool = e.hp == 12 and not e._limit_used
+	e.take_damage(1, _player.global_position.x)
+	var limit_ok: bool = limit_half and e._limit_used and e.hp == e.max_hp and e._cut_every_segment \
+		and e._attack_move == "jijian" and ["skill04", "skill04-cankao"].has(e._attack_visual) \
+		and e._attack_hits_left.is_empty() and not e._hurt_chain_active
+	e.take_damage(1, _player.global_position.x)
+	limit_ok = limit_ok and e.hp == e.max_hp - 1
+	_reset_brute_player(Vector2(500, 560))
+	e._set_state(e.State.IDLE)
+	e._start_attack("skill01")
+	for seg in 3:
+		e._deal_hit(seg)
+	var empowered_ok: bool = _player._cuts.size() == 3
+	var cut_keys: Dictionary = {}
+	for cut in _player._cuts:
+		cut_keys[str(cut["key"])] = true
+	empowered_ok = empowered_ok and cut_keys.size() == 3
+	p("断楹祭剑 半血不触发/低于半血回满/每实体一次=%s 强化后每段独立割伤=%s（期望全 true）" % [limit_ok, empowered_ok])
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 高伤链：5 伤不倒，6 伤触发，最后固定使用 9 号 getup。
+	e = load("res://scenes/enemies/c037_elite.tscn").instantiate()
+	e.position = Vector2(580, 560)
+	add_child(e)
+	e.set_physics_process(false)
+	e._limit_used = true
+	e.take_damage(5, _player.global_position.x)
+	var chain_ok: bool = not e._hurt_chain_active and e.hp == 19
+	e.take_damage(6, _player.global_position.x)
+	chain_ok = chain_ok and e._hurt_chain_active and e._current_anim == "atked_heavy"
+	for expected in ["atked_fall_end", "getup"]:
+		e._hurt_tick(e._hurt_timer + 0.001)
+		chain_ok = chain_ok and e._current_anim == expected
+	e._hurt_tick(e._hurt_timer + 0.001)
+	chain_ok = chain_ok and not e._hurt_chain_active and e.state == e.State.IDLE
+	p("青魇高伤链 5伤不倒/6伤倒地/9号起身=%s（期望 true）" % chain_ok)
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 魔爆：死亡信号等最后一击后才发；前方玩家与敌人都实伤并中诅咒，后方不受影响。
+	_reset_brute_player(Vector2(700, 560))
+	_player.hp = 50
+	var caster = load("res://scenes/enemies/c037_elite.tscn").instantiate()
+	caster.position = Vector2(500, 560)
+	add_child(caster)
+	caster.set_physics_process(false)
+	caster.facing = 1
+	caster._apply_facing()
+	var front = load("res://scenes/enemies/c016.tscn").instantiate()
+	front.position = Vector2(700, 560)
+	add_child(front)
+	front.set_physics_process(false)
+	front._target = _player
+	var back = load("res://scenes/enemies/c016.tscn").instantiate()
+	back.position = Vector2(300, 560)
+	add_child(back)
+	back.set_physics_process(false)
+	var burst_done := {"value": false}
+	caster.died.connect(func(): burst_done["value"] = true)
+	hp_before = _player.hp
+	var front_hp: int = front.hp
+	var back_hp: int = back.hp
+	caster.take_damage(caster.hp, caster.global_position.x - 10.0)
+	var delayed_ok: bool = caster.state == caster.State.DEAD and caster._current_anim == "getup" and not burst_done["value"]
+	await get_tree().create_timer(0.9).timeout
+	delayed_ok = delayed_ok and caster._current_anim == "transform" and not burst_done["value"] \
+		and _player.hp == hp_before and front.hp == front_hp and not front._room_cd_cursed
+	await get_tree().create_timer(3.7).timeout
+	var burst_hit_ok: bool = _player.hp == hp_before - 3 and front.hp == front_hp - 3 and back.hp == back_hp \
+		and _player._room_cd_cursed and front._room_cd_cursed and not back._room_cd_cursed and not burst_done["value"]
+	await get_tree().create_timer(0.3).timeout
+	delayed_ok = delayed_ok and burst_done["value"]
+	p("魔爆 起身/22号变身/延迟死亡信号=%s 前方敌我3伤与魔诅/后方无伤=%s（期望全 true）" % [delayed_ok, burst_hit_ok])
+
+	# 玩家与敌人的独立冷却都在每次使用后再 +1；新实例等同于换房，不继承魔诅。
+	front._start_attack("skill02")
+	var enemy_cd1: float = front._attack_rule_cds["skill02"]
+	front._start_attack("skill02")
+	var enemy_cd2: float = front._attack_rule_cds["skill02"]
+	front._start_attack("skill01")
+	var enemy_curse_ok: bool = is_equal_approx(enemy_cd2 - enemy_cd1, 1.0) \
+		and int(front._room_skill_uses.get("skill02", 0)) == 2 and not front._room_skill_uses.has("skill01")
+	_player._start_skill("skill01")
+	var player_cd1: float = _player._skill_cds["skill01"]
+	_player._start_skill("skill01")
+	var player_cd2: float = _player._skill_cds["skill01"]
+	_player._start_skill("skill01")
+	var player_cd3: float = _player._skill_cds["skill01"]
+	var player_curse_ok: bool = is_equal_approx(player_cd2 - player_cd1, 1.0) and is_equal_approx(player_cd3 - player_cd2, 1.0)
+	var fresh_player = load("res://scenes/player/player.tscn").instantiate()
+	add_child(fresh_player)
+	var room_clear_ok: bool = not fresh_player._room_cd_cursed and fresh_player._room_cd_uses.is_empty()
+	fresh_player.queue_free()
+	var fresh_enemy = load("res://scenes/enemies/c016.tscn").instantiate()
+	add_child(fresh_enemy)
+	room_clear_ok = room_clear_ok and not fresh_enemy._room_cd_cursed and fresh_enemy._room_skill_uses.is_empty()
+	fresh_enemy.queue_free()
+	p("魔诅 敌人逐用+1且普攻不受罚=%s 玩家逐用+1=%s 新房间实例清除=%s（期望全 true）" % [enemy_curse_ok, player_curse_ok, room_clear_ok])
+	caster.queue_free()
+	front.queue_free()
+	back.queue_free()
 	await get_tree().process_frame
 
 

@@ -56,8 +56,20 @@ var _scale := 0.32
 var _anim_map: Dictionary = {}
 var _attack_anims: Array = [] # 逻辑招式键；演出动画可经 move_anims 共用同一条 Spine 动画
 var _move_anims: Dictionary = {}
+var _move_pool: Dictionary = {} # 同一逻辑招式的随机演出池；判定按抽中的动画分别标定
 var _attack_move := "" # 本次出手的逻辑键，判定/伤害/冷却均按它查询
+var _attack_visual := "" # 本次实际播放的 Spine 动画
 var _attack_cast_id := 0 # 每次起手递增，同招多段凭它识别，不靠动画名猜测
+var _opening_slow: Dictionary = {} # 只放慢首段前摇，后续动画与判定恢复正常速度
+var _opening_restore_at := 0.0
+var _opening_restored := true
+var _limit: Dictionary = {} # 半血限定技：每个实体仅一次，回满并强化后续命中
+var _limit_used := false
+var _cut_every_segment := false
+var _death_burst: Dictionary = {} # 死亡后延迟结算，先完成起身、变身与最后一击
+var _turn_stacks: Dictionary = {} # 「转」按目标实例独立累积的实伤次数
+var _room_cd_cursed := false
+var _room_skill_uses: Dictionary = {}
 var _ranges: Dictionary = {}
 var _back_ranges: Dictionary = {} # 前后伸展不同的招式单独标定后侧射程
 var _hit_at_map: Dictionary = {}
@@ -188,6 +200,15 @@ func _apply_type() -> void:
 	_anim_map = t["anim"]
 	_attack_anims = t["attacks"]
 	_move_anims = t.get("move_anims", {})
+	_move_pool = t.get("move_pool", {})
+	_opening_slow = t.get("opening_slow", {})
+	_limit = t.get("limit", {})
+	_limit_used = false
+	_cut_every_segment = false
+	_death_burst = t.get("death_burst", {})
+	_turn_stacks.clear()
+	_room_cd_cursed = false
+	_room_skill_uses.clear()
 	_ranges = t["ranges"]
 	_back_ranges = t.get("back_ranges", {})
 	_hit_at_map = t["hit_at"]
@@ -206,7 +227,20 @@ func _apply_type() -> void:
 	_advance_map = t.get("advance", {})
 	_chase_anim_speed = float(t.get("chase_anim_speed", 1.0))
 	_super_armor = bool(t.get("super_armor", false))
-	_attack_rules = t.get("attack_rules", {})
+	# 长期规则：首招是唯一无独立冷却的普攻；其余招式有冷却且就绪优先。
+	# 连段收尾属于主招，不另算技能，也不重复计时。
+	_attack_rules = (t.get("attack_rules", {}) as Dictionary).duplicate(true)
+	var chain_followups: Array = []
+	for start in _attack_chain:
+		chain_followups.append(str((_attack_chain[start] as Dictionary).get("anim", "")))
+	for i in _attack_anims.size():
+		var move := str(_attack_anims[i])
+		var rule: Dictionary = _attack_rules.get(move, {})
+		if i == 0 or chain_followups.has(move):
+			rule["cooldown"] = 0.0
+		elif float(rule.get("cooldown", 0.0)) <= 0.0:
+			rule["cooldown"] = 8.0
+		_attack_rules[move] = rule
 	_attack_rule_cds.clear()
 	for anim in _attack_rules:
 		_attack_rule_cds[anim] = 0.0
@@ -311,6 +345,21 @@ func _setup_spine() -> void:
 		var a = data.call("find_animation", str(_move_anims.get(n, n)))
 		if a != null:
 			_anim_durations[n] = a.call("get_duration")
+	for n in _move_pool:
+		for visual in _move_pool[n]:
+			var a = data.call("find_animation", str(visual))
+			if a != null:
+				_anim_durations[str(visual)] = a.call("get_duration")
+	for visual in _limit.get("pool", []):
+		var a = data.call("find_animation", str(visual))
+		if a != null:
+			_anim_durations[str(visual)] = a.call("get_duration")
+	for key in ["getup", "anim"]:
+		var visual := str(_death_burst.get(key, ""))
+		if not visual.is_empty():
+			var a = data.call("find_animation", visual)
+			if a != null:
+				_anim_durations[visual] = a.call("get_duration")
 	# 倒地链也按真实时长逐段接续，不能拿固定 hurt_time 截断起身。
 	for n in _knock_chain:
 		var a = data.call("find_animation", n)
@@ -479,6 +528,9 @@ func _chase_tick(delta: float) -> void:
 
 func _attack_tick(delta: float) -> void:
 	_attack_timer -= delta
+	if not _opening_restored and _attack_dur - _attack_timer >= _opening_restore_at:
+		_opening_restored = true
+		_set_track_speed(1.0)
 	var advance := float(_advance_map.get(_attack_move, 0.0))
 	if advance > 0.0:
 		velocity.x = move_toward(velocity.x, facing * advance * _slow_scale, accel * delta)
@@ -558,22 +610,32 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		_chain_next = ""
 		_recovery_after_attack = 0.0
 		_recovery_timer = 0.0
-	# 按当前距离、独立冷却与权重挑招式；未配置规则的敌人保持原有随机/最近逻辑。
+	# 就绪且距离合规的技能优先；全部不可用才回首招普攻。
 	var dist := 0.0
 	if _target != null:
 		dist = absf(_target.global_position.x - global_position.x)
-	var pool: Array = []
-	var weights: Array = []
-	var total_weight := 0.0
+	var basic_anim := str(_attack_anims[0]) if not _attack_anims.is_empty() else ""
+	var basic_pool: Array = []
+	var basic_weights: Array = []
+	var skill_pool: Array = []
+	var skill_weights: Array = []
 	for n in _attack_anims:
 		var rule: Dictionary = _attack_rules.get(n, {})
 		if not bool(rule.get("random", true)) or not _rule_allows(str(n), dist):
 			continue
 		if _max_range_of(n) >= dist - 10.0:
-			pool.append(n)
 			var weight := float(rule.get("weight", 1.0))
-			weights.append(weight)
-			total_weight += weight
+			if str(n) == basic_anim:
+				basic_pool.append(n)
+				basic_weights.append(weight)
+			else:
+				skill_pool.append(n)
+				skill_weights.append(weight)
+	var pool: Array = skill_pool if not skill_pool.is_empty() else basic_pool
+	var weights: Array = skill_weights if not skill_pool.is_empty() else basic_weights
+	var total_weight := 0.0
+	for weight in weights:
+		total_weight += float(weight)
 	var anim := forced_anim
 	if anim == "" and pool.is_empty():
 		if not _attack_rules.is_empty():
@@ -607,11 +669,25 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		_attacker = self # 本体占住出手令牌；凝华分身只同步，不阻断其他敌人
 	_sword_hit_damage.clear()
 	_attack_move = anim
+	_attack_visual = str(_move_anims.get(anim, anim))
+	if _move_pool.has(anim):
+		var visuals: Array = _move_pool[anim]
+		_attack_visual = str(visuals[randi() % visuals.size()])
+	elif anim == str(_limit.get("move", "")):
+		var visuals: Array = _limit.get("pool", [])
+		if not visuals.is_empty():
+			_attack_visual = str(visuals[randi() % visuals.size()])
 	_attack_cast_id += 1
 	var chain: Dictionary = _attack_chain.get(anim, {})
 	_chain_next = str(chain.get("anim", ""))
 	if _attack_rules.has(anim):
-		_attack_rule_cds[anim] = float((_attack_rules[anim] as Dictionary).get("cooldown", 0.0)) * _skill_cooldown_scale
+		var rule: Dictionary = _attack_rules[anim]
+		var cd := float(rule.get("cooldown", 0.0)) * _skill_cooldown_scale
+		if cd > 0.0 and _room_cd_cursed:
+			var uses := int(_room_skill_uses.get(anim, 0))
+			cd += uses
+			_room_skill_uses[anim] = uses + 1
+		_attack_rule_cds[anim] = cd
 	# 追击招只能由窗口强制选出；behind=true 时落到目标背后，并立即回身面向目标。
 	if forced_anim != "" and not _blink_strike.is_empty() and anim == str(_blink_strike.get("anim", "")) \
 			and _target != null and is_instance_valid(_target):
@@ -627,22 +703,31 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 			if offset > 0.0:
 				global_position.x = _target.global_position.x - facing * offset
 		_apply_facing()
-	_attack_dur = _anim_durations.get(anim, 1.5)
+	_attack_dur = float(_anim_durations.get(_attack_visual, _anim_durations.get(anim, 1.5)))
+	var play_speed := 1.0
+	_opening_restored = true
+	_opening_restore_at = 0.0
+	var slow: Dictionary = _opening_slow.get(anim, {})
+	var slow_until := float(slow.get("until", 0.0))
+	var slow_scale := float(slow.get("scale", 1.0))
+	if slow_until > 0.0 and slow_scale > 0.0 and not is_equal_approx(slow_scale, 1.0):
+		play_speed = slow_scale
+		_opening_restore_at = slow_until / slow_scale
+		_opening_restored = false
+		_attack_dur += _opening_restore_at - slow_until
 	_attack_timer = _attack_dur
-	# hit_at 由 range_probe 标定的是骨架伸展峰值时刻（武器最远端 = 动画打到人的那一帧），
-	# 直接用该时刻结算：早一帧是"未打到先判定"，晚一帧是"打到却没判定"，都不贴动画。
-	# 值可以是单段（float）或多段（Array，如青笠两连击）；统一转成倒计时阈值队列
+	# hit_at 是动画时间；首段慢放时换算成真实时间，判定仍与剑刃伸展同帧。
 	_attack_hits_left.clear()
-	var ha = _hit_at_map.get(anim, 0.9)
+	var ha = _hit_at_map.get(_hit_key(anim), 0.9)
 	var ha_list: Array = ha if ha is Array else [ha]
 	for i in ha_list.size():
-		_attack_hits_left.append({"t": _attack_dur - float(ha_list[i]), "i": i})
+		_attack_hits_left.append({"t": _attack_dur - _real_hit_at(anim, float(ha_list[i])), "i": i})
 	_attack_hits_left.sort_custom(func(a, b): return float(a["t"]) > float(b["t"]))
 	velocity.x = facing * attack_lunge * float(_lunge_map.get(anim, 1.0)) * _slow_scale # 出手带一段前冲
 	var hop := float(_hop_map.get(anim, 0.0))
 	if hop > 0.0:
 		velocity.y = -hop # 跳斩腾空：配合动画的跃起视觉，重力会自然把他带回地面
-	_play(str(_move_anims.get(anim, anim)), false) # 逻辑招式与真实演出分开记录
+	_play(_attack_visual, false, play_speed) # 逻辑招式与真实演出分开记录
 	# 关键：排队 stand 紧跟技能之后。否则非循环动画播完的瞬间轨道空窗，
 	# 骨架会闪回一帧 setup pose 再被 set_animation 接走 = 收招时"闪现一下"。
 	_queue(str(_anim_map["idle"]), true)
@@ -675,7 +760,8 @@ func _deal_hit(seg := 0) -> void:
 	var no_damage := bool(move.get("feedback_only", false)) or bool(move.get("effect_only", false))
 	# 纯反馈与绽花不能走 Run.enemy_damage：该入口会把 0 也抬成最低 1 伤。
 	# 青笠每段可有独立基础伤害；剑意在本次命中前结算，命中后的叠层只影响后续命中。
-	var dmg := 0 if no_damage else Run.enemy_damage(_damage_of(_attack_move, seg) + _sword_intent_now())
+	var turn_bonus := int(_turn_stacks.get(_target.get_instance_id(), 0)) if bool(move.get("stacking_damage", false)) else 0
+	var dmg := 0 if no_damage else Run.enemy_damage(_damage_of(_attack_move, seg) + _sword_intent_now() + turn_bonus)
 	if dmg > 0 and _bloodthirst_active:
 		dmg = maxi(1, dmg + int(_bloodthirst.get("damage_delta", -1)))
 	# 阴影只放大本次直接命中；割伤在玩家侧独立计时，绝不回到这里二次暴击。
@@ -697,7 +783,35 @@ func _deal_hit(seg := 0) -> void:
 		if not _is_sword_clone:
 			_sword_hit_damage[seg] = dmg
 		var kb := Vector2(facing * _hit_knockback.x, _hit_knockback.y)
+		if move.has("knockback"):
+			var custom: Vector2 = move["knockback"]
+			kb = Vector2(facing * custom.x, custom.y)
 		_target.call("hurt", dmg, kb, self, move)
+
+
+func _hit_key(anim: String) -> String:
+	if anim == _attack_move and _move_pool.has(anim) and not _attack_visual.is_empty():
+		return _attack_visual
+	return anim
+
+
+func _real_hit_at(anim: String, at: float) -> float:
+	var slow: Dictionary = _opening_slow.get(anim, {})
+	var until := float(slow.get("until", 0.0))
+	var scale := float(slow.get("scale", 1.0))
+	if until <= 0.0 or scale <= 0.0 or is_equal_approx(scale, 1.0):
+		return at
+	return at / scale if at <= until else at + until / scale - until
+
+
+func _set_track_speed(spd: float) -> void:
+	_current_anim_speed = spd
+	if _pending_anim == _current_anim:
+		_pending_speed = spd
+	if _anim_state != null and _anim_state.has_method("get_current"):
+		var current = _anim_state.call("get_current", 0)
+		if current != null and current.has_method("set_time_scale"):
+			current.call("set_time_scale", spd)
 
 
 func _damage_of(anim: String, seg: int) -> int:
@@ -729,6 +843,13 @@ func on_player_hit(amount: int, move: Dictionary, _player: Node) -> void:
 		_heal(int(_bloodthirst.get("lifesteal", 1)))
 	if amount > 0 and not _is_sword_clone and int(move.get("sword_intent", 0)) > 0:
 		_gain_sword_intent(int(move.get("sword_intent", 0)))
+	if amount > 0 and bool(move.get("stacking_damage", false)):
+		var id := _player.get_instance_id()
+		_turn_stacks[id] = int(_turn_stacks.get(id, 0)) + 1
+		var dn := DAMAGE_NUMBER.new()
+		dn.setup("转 · 叠剑 %d" % int(_turn_stacks[id]), Color(0.48, 0.72, 0.62))
+		dn.global_position = global_position + Vector2(0, _number_y - 18.0)
+		get_tree().current_scene.add_child(dn)
 
 
 func _gain_sword_intent(amount: int) -> void:
@@ -817,12 +938,37 @@ func _heal(amount: int) -> void:
 	get_tree().current_scene.add_child(dn)
 
 
+func _trigger_limit() -> void:
+	_limit_used = true
+	_cut_every_segment = true
+	_hurt_chain_active = false
+	_hurt_chain.clear()
+	_clear_attack_chain()
+	_attack_hits_left.clear()
+	_release_token()
+	_heal(max_hp)
+	_start_attack(str(_limit.get("move", "jijian")))
+	FX.spawn(get_tree().current_scene, "telegraph", global_position,
+		{"scale": _scale * 1.8, "mod": Color(0.45, 0.9, 0.72, 0.95)})
+
+
+## 魔爆对敌人的房间诅咒：只延长有独立冷却的招式，每次使用后再增加 1 秒。
+func apply_room_cd_curse() -> void:
+	if _room_cd_cursed or state == State.DEAD:
+		return
+	_room_cd_cursed = true
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("魔诅", Color(0.62, 0.38, 0.72))
+	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
+	get_tree().current_scene.add_child(dn)
+
+
 ## 把本次真实招式与命中段交给玩家记录，结算可按同一时刻重演最后一击。
 func _replay_move(seg: int) -> Dictionary:
-	var at = _hit_at_map.get(_attack_move, 0.8)
+	var at = _hit_at_map.get(_hit_key(_attack_move), 0.8)
 	if at is Array:
 		at = at[mini(seg, (at as Array).size() - 1)]
-	var move := {"anim": _current_anim, "hit_at": float(at), "cast_id": _attack_cast_id, "seg": seg}
+	var move := {"anim": _attack_visual, "move_id": _attack_move, "hit_at": float(at), "cast_id": _attack_cast_id, "seg": seg}
 	if _is_sword_clone and is_instance_valid(_sword_owner):
 		move["cast_owner_id"] = _sword_owner.get_instance_id()
 	var feedback: Array = _feedback_segments.get(_attack_move, [])
@@ -835,6 +981,10 @@ func _replay_move(seg: int) -> Dictionary:
 	if seg >= 0 and seg < segments.size():
 		for key in segments[seg]:
 			move[key] = segments[seg][key]
+	if _cut_every_segment:
+		move["cut"] = true
+		move["cut_per_segment"] = true
+		move["pierce_hurt_invincible"] = true
 	return move
 
 
@@ -846,14 +996,15 @@ func _radius_of(t) -> float:
 
 ## 该招第 seg 段的判定范围：ranges 值可以是单段（float）或多段（Array，与 hit_at 一一对应）
 func _range_of(anim: String, seg: int) -> float:
-	var r = _ranges.get(anim, attack_range)
+	var r = _ranges.get(_hit_key(anim), _ranges.get(anim, attack_range))
 	if r is Array:
 		return float(r[mini(seg, (r as Array).size() - 1)])
 	return float(r)
 
 
 func _back_range_of(anim: String, seg: int) -> float:
-	var r = _back_ranges.get(anim, _ranges.get(anim, attack_range))
+	var key := _hit_key(anim)
+	var r = _back_ranges.get(key, _ranges.get(key, _ranges.get(anim, attack_range)))
 	if r is Array:
 		return float(r[mini(seg, (r as Array).size() - 1)])
 	return float(r)
@@ -861,12 +1012,13 @@ func _back_range_of(anim: String, seg: int) -> float:
 
 ## 选招要考虑多段招式真正能打到目标的最远一段，不能只拿第一段射程把整招排除。
 func _max_range_of(anim: String) -> float:
-	var r = _ranges.get(anim, attack_range)
-	if not r is Array:
-		return float(r)
+	var keys: Array = _move_pool.get(anim, [anim])
 	var longest := 0.0
-	for value in r:
-		longest = maxf(longest, float(value))
+	for key in keys:
+		var r = _ranges.get(key, _ranges.get(anim, attack_range))
+		var values: Array = r if r is Array else [r]
+		for value in values:
+			longest = maxf(longest, float(value))
 	return longest
 
 
@@ -1250,6 +1402,10 @@ func take_damage(amount: int, source_x: float) -> void:
 	if hp <= 0:
 		die()
 		return
+	# 断楹祭剑：严格低于半血才触发；回满并取消当前受击/出手，每个实体仅一次。
+	if not _limit.is_empty() and not _limit_used and hp * 2 < max_hp:
+		_trigger_limit()
+		return
 	# 半血狂暴（青笠）：跌破阈值触发一次，出手更密、追得更紧——越残越凶
 	if _enrage_below > 0.0 and not _enraged and float(hp) / float(max_hp) <= _enrage_below:
 		_enraged = true
@@ -1308,18 +1464,79 @@ func die() -> void:
 	velocity = Vector2.ZERO
 	_update_hp_bar()
 	$CollisionShape2D.set_deferred("disabled", true)
-	_play(str(_anim_map["dead"]), false)
-	# 尸体消散时一团墨散开，盖住淡出
-	FX.spawn(get_tree().current_scene, "vanish", global_position,
-		{"scale": _scale * 1.6, "z": 5})
+	var bursting := not _death_burst.is_empty()
+	if not bursting:
+		_play(str(_anim_map["dead"]), false)
+		# 尸体消散时一团墨散开，盖住淡出
+		FX.spawn(get_tree().current_scene, "vanish", global_position,
+			{"scale": _scale * 1.6, "z": 5})
 	Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
 	Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
 	Score.add_kill() # 本局击杀计数（结算战绩用）
 	var pl = get_tree().get_first_node_in_group("player")
 	if pl != null and pl.has_method("on_enemy_killed"):
 		pl.call("on_enemy_killed", self)
+	if bursting:
+		_magic_explosion() # died 必须等最后一击结束，波次才不会提前结算
+	else:
+		died.emit()
+		_cleanup()
+
+
+## 魔爆：起身后完成 22 号变身，再以巨兽整体前扑回斩补齐原动画缺少的最后一击。
+func _magic_explosion() -> void:
+	var getup := str(_death_burst.get("getup", ""))
+	if not getup.is_empty():
+		_play(getup, false)
+		await get_tree().create_timer(float(_anim_durations.get(getup, 0.8))).timeout
+	var transform := str(_death_burst.get("anim", "transform"))
+	_play(transform, false)
+	await get_tree().create_timer(float(_anim_durations.get(transform, 3.467))).timeout
+	var start_x := global_position.x
+	var lunge := float(_death_burst.get("lunge", 96.0))
+	var slash := create_tween()
+	slash.set_parallel(true)
+	slash.tween_property(sprite, "rotation", -facing * 0.22, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	slash.tween_property(self, "global_position:x", start_x + facing * lunge, 0.14).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	await get_tree().create_timer(0.14).timeout
+	_deal_death_burst()
+	var recover := create_tween()
+	recover.set_parallel(true)
+	recover.tween_property(sprite, "rotation", 0.0, 0.26)
+	recover.tween_property(self, "global_position:x", start_x, 0.26)
+	await get_tree().create_timer(0.30).timeout
+	FX.spawn(get_tree().current_scene, "vanish", global_position, {"scale": _scale * 2.4, "z": 5})
 	died.emit()
 	_cleanup()
+
+
+func _death_target_in_front(t: Node2D) -> bool:
+	var dx := t.global_position.x - global_position.x
+	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
+	return in_front and absf(dx) <= float(_death_burst.get("range", 480.0)) + _radius_of(t) \
+		and absf(t.global_position.y - global_position.y) <= float(_death_burst.get("height", 240.0))
+
+
+func _deal_death_burst() -> void:
+	var damage := int(_death_burst.get("damage", 3))
+	_attack_cast_id += 1
+	var move := {"anim": str(_death_burst.get("anim", "transform")), "hit_at": 3.467,
+		"cast_id": _attack_cast_id, "seg": 0, "room_cd_curse": true}
+	var pl = get_tree().get_first_node_in_group("player")
+	if pl != null and pl is Node2D and _death_target_in_front(pl) and pl.has_method("hurt"):
+		pl.call("hurt", damage, Vector2(facing * 420.0, -60.0), self, move)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if e == self or not is_instance_valid(e) or not e is Node2D or int(e.get("hp")) <= 0:
+			continue
+		if not _death_target_in_front(e) or not e.has_method("take_damage"):
+			continue
+		var before := int(e.get("hp"))
+		e.call("take_damage", damage, global_position.x)
+		if int(e.get("hp")) < before and int(e.get("hp")) > 0 and e.has_method("apply_room_cd_curse"):
+			e.call("apply_room_cd_curse")
+	FX.spawn(get_tree().current_scene, "ink_claw", global_position + Vector2(facing * 210.0, -100.0),
+		{"scale": 2.2, "flip": facing < 0, "z": 6})
+	Feel.shake(12.0, 0.35)
 
 
 func _exit_tree() -> void:

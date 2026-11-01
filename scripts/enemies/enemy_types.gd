@@ -24,12 +24,12 @@ const TYPES := {
 		"hit_effects": {"skill03": {"launch_velocity_y": -420.0}}, # 实伤后短击飞：约 0.42 秒、最高 44px
 		# 升龙刀：追击中 100~260px 可直接起手，先瞬到身前 72px，保留 0.87s 飞行前摇供闪避。
 		"blink_strike": {"anim": "skill03", "min": 100.0, "max": 260.0, "offset": 72.0},
-		# 普攻为主：特殊招式有独立冷却与触发窗口，不在近身池里等权随机。
+		# 首招是唯一普攻；特殊招有独立冷却与触发窗口，近身合规技能就绪优先。
 		"attack_rules": {
 			"skill01": {"weight": 6.0},
-			"skill02": {"trigger": "distance", "min": 180.0, "max": 400.0, "cooldown": 16.0, "random": false},
-			"skill03": {"cooldown": 24.0, "random": false},
-			"skill04": {"weight": 1.0, "max": 164.0, "cooldown": 12.0},
+			"skill02": {"trigger": "distance", "min": 180.0, "max": 400.0, "cooldown": 9.6, "random": false},
+			"skill03": {"cooldown": 14.4, "random": false},
+			"skill04": {"weight": 1.0, "max": 164.0, "cooldown": 7.2},
 		},
 		# 高伤倒地：第 1 → 2 → 5 → 10 号动画；链中照常吃伤害，但不重触发其他受击动画。
 		"knock_at": 2,
@@ -70,6 +70,7 @@ const TYPES := {
 		"hit_at": {"atk01": 0.24, "atk02": 0.23, "atk03": 0.24},
 		"ranges": {"atk01": 72.0, "atk02": 78.0, "atk03": 57.0},
 		"both": {"atk01": true, "atk02": true, "atk03": true},
+		"attack_rules": {"atk02": {"cooldown": 7.2}, "atk03": {"cooldown": 9.6}},
 		"hp": 6,
 		"patrol_speed": 60.0,
 		"chase_speed": 150.0,
@@ -113,8 +114,8 @@ const TYPES := {
 		"blink_strike": {"anim": "skill03_2", "min": 120.0, "max": 260.0, "offset": 0.0},
 		"attack_rules": {
 			"skill01": {"weight": 7.0},
-			"skill02": {"weight": 1.0, "max": 164.0, "cooldown": 18.0},
-			"skill03_2": {"cooldown": 32.0, "random": false},
+			"skill02": {"weight": 1.0, "max": 164.0, "cooldown": 10.8},
+			"skill03_2": {"cooldown": 19.2, "random": false},
 			"skill03_3": {"random": false},
 		},
 		"hp": 8,
@@ -159,7 +160,7 @@ const TYPES := {
 		"backstab": true,
 		"attack_rules": {
 			"dart": {"weight": 1.0},
-			"sneak": {"cooldown": 24.0, "random": false},
+			"sneak": {"cooldown": 14.4, "random": false},
 		},
 		"knock_at": 2,
 		"knock_chain": ["atked", "atked_air", "atked_fall_end", "getup"],
@@ -184,20 +185,42 @@ const TYPES := {
 		"bar_y": -120.0,
 		"number_y": -105.0,
 	},
-	# ---------- 精英 · 大剑骑士：C037，慢但重，一刀顶三刀 ----------
+	# ---------- 精英 · 青魇剑主：C037，亭台礼剑与魔剑反噬并存 ----------
 	"c037": {
-		"label": "大剑骑士",
+		"label": "青魇剑主",
 		"data": "res://art/characters/enemies/c037/c037_data.tres",
 		"scale": 0.405, # 骨架 365.7px -> 约 148px
 		"body_radius": 40.0,
 		"elite": true,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
-		"attacks": ["skill01", "skill03", "skill05", "skill06"],
-		# 探针实测（×0.405）：skill01 后侧 406@1.17、skill03 后侧 414@1.01、skill05 前侧 434@1.88、skill06 前侧 391@0.69
-		"hit_at": {"skill01": 1.17, "skill03": 1.01, "skill05": 1.88, "skill06": 0.69},
-		"ranges": {"skill01": 164.0, "skill03": 168.0, "skill05": 176.0, "skill06": 159.0},
-		# 大剑横抡带大片身后弧线，判 both
+		"attacks": ["skill01", "skill03", "cangjian"],
+		"move_pool": {"cangjian": ["skill05", "skill06", "skill01-cankao"]},
+		# 亭台剑逐帧三段：0.49/1.18/1.49；首段前半秒半速演出，真实首击约 0.98 秒。
+		"hit_at": {
+			"skill01": [0.49, 1.18, 1.49], "skill03": 1.01,
+			"skill05": [0.40, 1.20, 1.88], "skill06": [0.28, 0.69, 1.62],
+			"skill01-cankao": [0.47, 1.18, 1.47], "jijian": [],
+		},
+		"ranges": {
+			"skill01": [130.0, 164.0, 164.0], "skill03": 168.0,
+			"skill05": [128.0, 96.0, 176.0], "skill06": [131.0, 162.0, 164.0],
+			"skill01-cankao": [130.0, 164.0, 161.0], "jijian": 0.0,
+		},
 		"both": {"skill01": true, "skill03": true},
+		"damage": {"skill01": [1, 1, 2], "skill03": 2, "cangjian": [1, 2, 3], "jijian": 0},
+		"hit_effects": {
+			"skill01": {"pierce_hurt_invincible": true},
+			"skill03": {"stacking_damage": true, "knockback": Vector2(420.0, -50.0)},
+			"cangjian": {"pierce_hurt_invincible": true},
+		},
+		"segment_effects": {"cangjian": [{}, {}, {"cut": true}]},
+		"opening_slow": {"skill01": {"until": 0.50, "scale": 0.50}},
+		"limit": {"move": "jijian", "pool": ["skill04", "skill04-cankao"], "below": 0.5},
+		"death_burst": {"getup": "getup", "anim": "transform", "damage": 3, "range": 480.0, "height": 240.0, "lunge": 96.0},
+		"attack_rules": {"skill01": {"weight": 5.0}, "skill03": {"weight": 1.0, "cooldown": 7.2}, "cangjian": {"weight": 2.0, "cooldown": 9.6}},
+		"knock_at": 5,
+		"knock_strict": true,
+		"knock_chain": ["atked_heavy", "atked_fall_end", "getup"],
 		"hp": 24,
 		"patrol_speed": 45.0,
 		"chase_speed": 100.0,
@@ -211,9 +234,9 @@ const TYPES := {
 		"attack_lunge": 220.0,
 		"hit_height": 110.0,
 		"hurt_time": 0.35,
-		"armor": 2, # 轻击不打断
+		"armor": 2,
 		"telegraph": true,
-		"pick": "nearest",
+		"pick": "random",
 		"dead_min": 0.8,
 		"bar_w": 64.0,
 		"bar_y": -170.0,
@@ -240,8 +263,8 @@ const TYPES := {
 			"skill03": {"effect_only": true, "bloom": true, "max_hp_loss": 2, "lift_height": 120.0},
 		},
 		"attack_rules": {
-			"skill02": {"cooldown": 16.0},
-			"skill03": {"cooldown": 24.0},
+			"skill02": {"cooldown": 9.6},
+			"skill03": {"cooldown": 14.4},
 		},
 		"bloodthirst": {
 			"below": 0.30, "idle": "swim", "move": "walk",

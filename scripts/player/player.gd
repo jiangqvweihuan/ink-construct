@@ -238,6 +238,8 @@ var _skill_dur := 0.0 # 本次技能动画真实时长
 var _skill_hits: Array = [] # 尚未结算的命中段（按 at 升序，逐个弹出）
 var _skill_start_x := 0.0 # 技能起手 x，path 命中判定的路径起点
 var _skill_cds := {} # 技能名 -> 剩余冷却
+var _room_cd_cursed := false # 魔爆：仅当前玩家所在房间有效，重建玩家即自然清除
+var _room_cd_uses: Dictionary = {} # 诅咒后各技能已使用次数；下次冷却每次再 +1 秒
 var _skill_durations := {} # 技能名 -> 动画真实时长，setup 时缓存
 var _invincible := false # 闪现段无敌
 var _blink_active := false # 闪现段与敌人的碰撞例外已开启
@@ -2066,8 +2068,11 @@ func _start_skill(n: String) -> void:
 	_skill_ranged_guard = bool(cfg.get("ranged_guard", false))
 	_skill_tick_acc = 0.0
 	_stop_done = false
-	_skill_cd_set = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd * _form_cd_scale * float(_skill_cd_mod.get(n, 1.0))
+	var room_penalty := float(_room_cd_uses.get(n, 0)) if _room_cd_cursed else 0.0
+	_skill_cd_set = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd * _form_cd_scale * float(_skill_cd_mod.get(n, 1.0)) + room_penalty
 	_skill_cds[n] = _skill_cd_set
+	if _room_cd_cursed:
+		_room_cd_uses[n] = int(_room_cd_uses.get(n, 0)) + 1
 	if skull_id == "c013" and n == "skill02" and _precepts >= 3 and _own("c013_ascetic_3"):
 		_skill_cds[n] = 0.0
 		_apply_self_shield({"hits": 1, "time": 6.0})
@@ -2223,6 +2228,16 @@ func _record_last_hit(attacker: Node, move: Dictionary, amount: int) -> void:
 			}
 
 
+func _apply_room_cd_curse() -> void:
+	if _room_cd_cursed:
+		return
+	_room_cd_cursed = true
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("魔诅 · 冷却滋长", Color(0.62, 0.38, 0.72))
+	dn.global_position = global_position + Vector2(0, -180)
+	get_tree().current_scene.add_child(dn)
+
+
 func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null, move: Dictionary = {}) -> void:
 	if state == State.DEAD or _invincible:
 		return
@@ -2323,6 +2338,8 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	hp -= amount
 	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
 		attacker.call("on_player_hit", dealt, move, self)
+	if hp > 0 and bool(move.get("room_cd_curse", false)):
+		_apply_room_cd_curse()
 	if hp > 0 and bool(move.get("cut", false)):
 		_apply_cut(attacker, move, cast_key)
 	if hp > 0 and int(move.get("bleed", 0)) > 0:
@@ -2469,6 +2486,8 @@ func _clear_bleed() -> void:
 
 ## 镖去实伤后登记一组割伤；同招第二段只扣直伤，不会重复登记。
 func _apply_cut(attacker: Node, move: Dictionary, cast_key: String) -> void:
+	if bool(move.get("cut_per_segment", false)):
+		cast_key += ":seg:%d" % int(move.get("seg", 0))
 	if cast_key.is_empty() or _cut_casts.has(cast_key):
 		return
 	_cut_casts[cast_key] = true

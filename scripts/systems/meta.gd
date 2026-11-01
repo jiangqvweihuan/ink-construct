@@ -69,7 +69,7 @@ const FORM_NODES := {
 	"z003_time_1": {"form": "z003", "path": "止时", "tier": 1, "desc": "时停各档时长 +0.25 秒"},
 	"z003_time_2": {"form": "z003", "path": "止时", "tier": 2, "desc": "时停期间全部伤害 +1", "req": "z003_time_1"},
 	"z003_time_3": {"form": "z003", "path": "止时", "tier": 3, "desc": "时停自然结束时，对被停敌人追加 1 伤", "req": "z003_time_2"},
-	"z003_return_1": {"form": "z003", "path": "无还", "tier": 1, "desc": "O 位移距离 +100px"},
+	"z003_return_1": {"form": "z003", "path": "无还", "tier": 1, "desc": "O 位移距离 +100"},
 	"z003_return_2": {"form": "z003", "path": "无还", "tier": 2, "desc": "I 觉醒持续时间 +2 秒", "req": "z003_return_1"},
 	"z003_return_3": {"form": "z003", "path": "无还", "tier": 3, "desc": "觉醒中 O 击杀返还 4 秒觉醒", "req": "z003_return_2"},
 }
