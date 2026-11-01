@@ -148,56 +148,38 @@ const BOSSES := {
 			"enter": {"name": "fire_pillar", "scale": 0.7},
 			"transform": {"name": "fire_pillar", "scale": 0.55}},
 	},
-	# ---------- 武车 · 双马战车（C001）：冲撞节奏型 Boss，探针身高 742.9px、身宽 1423px ----------
+	# ---------- 武车 · 双马战车（C001）：耐久波次型 Boss，只保留武撞与召唤 ----------
 	"c001": {
 		"label": "武车",
 		"data": "res://art/characters/enemies/bosses/c001/c001_data.tres",
-		"scale": 0.5, # 742.9px -> 约 371px 高、711px 宽，小半个房间的钢铁巨物
-		"body_radius": 300.0, # 车体超宽：站在马屁股后面也该能砍到
-		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "dead"},
-		"hp": 64,
-		"patrol_speed": 50.0,
-		"chase_speed": 110.0,
-		"patrol_range": 160.0,
-		"idle_time": 1.2,
+		"scale": 0.5,
+		"body_radius": 300.0,
+		"anim": {"idle": "stand", "patrol": "stand", "chase": "stand", "hurt": "atked_heavy", "dead": "atked_fall_end"},
+		"hp": 5,
+		"patrol_speed": 0.0,
+		"chase_speed": 0.0,
+		"patrol_range": 0.0,
+		"idle_time": 0.2,
 		"detect_range": 9999.0,
 		"lose_range": 9999.0,
-		"attack_range": 320.0, # 中距离由冲锋接管，近战只打贴身
-		"keep_dist": 180.0,
-		"attack_cooldown": 2.6,
-		"attack_lunge": 200.0,
-		"hit_height": 150.0,
+		"attack_range": 0.0,
+		"keep_dist": 0.0,
+		"attack_cooldown": 0.0,
+		"attack_lunge": 0.0,
+		"hit_height": 190.0,
 		"hurt_time": 0.3,
 		"armor": 99,
 		"telegraph": true,
 		"pick": "nearest",
 		"dead_min": 2.4,
 		"number_y": -390.0,
-		"stage_at": [0.6],
-		"stages": [
-			{"attacks": ["skill03", "skill01"], "attack_cooldown": 2.6, "chase_speed": 110.0},
-			# P2 直切提速（stagger 僵直窗口照给）：zhuanshen 双马转身已改为绕后转身演出，不再当阶段变身播
-			{"attacks": ["skill01", "skill01-", "skill03"], "attack_cooldown": 1.9, "chase_speed": 135.0, "stagger": 0.5},
-		],
-		# 绕后转身演出：玩家穿裆到背后时播 zhuanshen 双马调头（1.4s），播完才翻转朝向，不瞬转；
-		# 转身期不还手，是穿裆的奖励窗口；4s 冷却防止反复穿裆把 Boss 锁死在转身里
-		"turn": "zhuanshen",
-		"turn_cooldown": 4.0,
-		# 探针实测 @scale1：skill01/skill01- 1154@1.97（长枪横扫）、skill03 峰值在 0 帧（车体本身 817 宽），
-		# 取挥击中段 1.0s 结算，range 按车体实测宽度 817 × 0.5 = 409
-		"ranges": {"skill01": 577.0, "skill01-": 577.0, "skill03": 409.0},
-		"hit_at": {"skill01": 1.97, "skill01-": 1.96, "skill03": 1.0},
-		# 战车车体横跨原点两侧，扫到身后也要判定
-		"both": {"skill03": true},
-		# 战车灵魂技：speed_run 冲锋 / stop 急停蓄力 / stop 兼撞墙自晕（stun 为空帧）
-		"charge": {"anim_run": "speed_run", "anim_stop": "stop", "anim_stun": "stop",
-			"speed": 780.0, "hit_w": 170.0, "hit_h": 160.0, "stun_time": 2.4,
-			"cooldown": 5.0, "min_dist": 400.0, "damage": 2},
-		# 特效：入场/转身拉速度线，冲锋拖更密的速度线，撞墙地裂爆炸
+		"stage_at": [],
+		"stages": [{"attacks": ["skill01"]}],
+		"ranges": {"skill01": 0.0},
+		"hit_at": {"skill01": 0.0},
+		"charge": {"anim_run": "speed_run", "anim_stop": "stop"},
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.5},
 			"enter": {"name": "speedline", "scale": 1.6, "off_y": -170.0},
-			"transform": {"name": "speedline", "scale": 1.2, "off_y": -170.0},
-			"charge_trail": {"name": "speedline", "scale": 1.5, "interval": 0.08, "off_y": 160.0},
 			"charge_wall": {"name": "crack", "scale": 0.8}},
 	},
 	# ---------- 碎岳 · 墨甲巨汉（C008）：重装压场型 Boss，探针身高 674.3px ----------

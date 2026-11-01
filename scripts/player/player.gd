@@ -105,6 +105,7 @@ const FEN_DING_BURN_INTERVALS := [60.0, 58.0, 54.0, 48.0, 40.0, 30.0, 18.0, 10.0
 var _fen_ding_burn_stacks := 0 # 焚鼎怒焰：永久无限叠层，共用一个逐渐加速的扣血计时器
 var _fen_ding_burn_left := 0.0
 var _fen_ding_burn_source: Node = null
+var wu_che_wanted := false # 武车通缉：仅一层，召唤物实伤 +1；闪避武撞或武车死亡解除
 var _mo_ting_grabbed := false # 墨颤抓取：由墨霆显式释放，时停/破招/死亡都不能留下锁定
 # ---------- 通用动作接口（形态表按需开启；未配 = 退回旧行为，新角色照抄这组字段即可） ----------
 var _dash_time_base := 0.0 # 闪避时长 = 闪避动画长度（完美闪避判定窗口）
@@ -2262,7 +2263,11 @@ func _apply_room_cd_curse() -> void:
 
 
 func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null, move: Dictionary = {}) -> void:
-	if state == State.DEAD or _invincible:
+	if state == State.DEAD:
+		return
+	if state == State.DASH and bool(move.get("wu_che_charge", false)):
+		wu_che_wanted = false
+	if _invincible:
 		return
 	# 完美闪避：冲刺途中碰到"本应命中"的伤害——全部闪掉并发收益
 	# （小怪/Boss/投射物的伤害都走 hurt 这一个入口，挂这里全覆盖）
@@ -2344,6 +2349,10 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	if bool(move.get("mo_ting_sunder", false)):
 		_apply_mo_ting_sunder(attacker, move)
 		return
+	# 通缉只强化武车亲自召唤的敌人；闪避、护盾、受伤无敌等未实伤路径不会加伤。
+	var summon_tag = attacker.get("wu_che_summon") if attacker != null and is_instance_valid(attacker) else false
+	if amount > 0 and wu_che_wanted and summon_tag != null and bool(summon_tag):
+		amount += 1
 	var temporary_reduce := int(skull_id == "c013" and Meta.has_form_node("c013_meditation_2") and _hurt_guard_timer > 0.0)
 	if Run.guard_available:
 		temporary_reduce += 1

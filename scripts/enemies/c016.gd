@@ -22,6 +22,7 @@ signal died
 static var _attacker: Node2D = null
 
 var state: int = State.IDLE
+var wu_che_summon := false # 武车召唤物：玩家带通缉时，其实伤由统一入口额外 +1
 var facing := -1
 var hp: int
 
@@ -762,6 +763,8 @@ func _deal_hit(seg := 0) -> void:
 	# 青笠每段可有独立基础伤害；剑意在本次命中前结算，命中后的叠层只影响后续命中。
 	var turn_bonus := int(_turn_stacks.get(_target.get_instance_id(), 0)) if bool(move.get("stacking_damage", false)) else 0
 	var dmg := 0 if no_damage else Run.enemy_damage(_damage_of(_attack_move, seg) + _sword_intent_now() + turn_bonus)
+	if dmg > 0 and wu_che_summon:
+		dmg += 1 # 墨徒信仰：直接攻击始终比当前难度高一档，最高难度也继续提升
 	if dmg > 0 and _bloodthirst_active:
 		dmg = maxi(1, dmg + int(_bloodthirst.get("damage_delta", -1)))
 	# 阴影只放大本次直接命中；割伤在玩家侧独立计时，绝不回到这里二次暴击。

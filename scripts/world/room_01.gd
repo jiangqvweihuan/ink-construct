@@ -226,6 +226,8 @@ func _spawn_boss() -> void:
 		scene_path = "res://scenes/enemies/bosses/mo_ting.tscn"
 	elif Run.boss_id == "c015a1":
 		scene_path = "res://scenes/enemies/bosses/fen_ding.tscn"
+	elif Run.boss_id == "c001":
+		scene_path = "res://scenes/enemies/bosses/wu_che.tscn"
 	_boss = load(scene_path).instantiate()
 	_boss.type_id = Run.boss_id
 	# 无尽缩放必须在 add_child 之前写入（_ready -> _apply_type 会读这两个值）

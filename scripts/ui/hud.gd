@@ -211,6 +211,7 @@ func _on_combo_changed(count: int) -> void:
 
 const BOSS_BAR_W := 480.0
 const BOSS_BAR_H := 26.0
+var _boss: Node2D = null
 
 
 ## Boss 登场时由房间调用：落款先弹出，大血条延迟淡入并挂信号
@@ -218,6 +219,7 @@ func show_boss(boss: Node2D) -> void:
 	if _boss_bar == null:
 		_build_boss_bar(_root)
 	_boss_bar.visible = true
+	_boss = boss
 	_boss_name.text = str(boss.get("boss_label"))
 	boss.hp_changed.connect(_on_boss_hp_changed)
 	boss.died.connect(hide_boss)
@@ -265,6 +267,8 @@ func _on_boss_hp_changed(hp: int, max_hp: int) -> void:
 		return
 	# 墨霆失心疯会把最终一击转化为等量上限损失，死亡瞬间 max_hp 可为 0。
 	_boss_clip.size.x = BOSS_BAR_W * clampf(float(hp) / float(maxi(1, max_hp)), 0.0, 1.0)
+	if is_instance_valid(_boss) and str(_boss.get("type_id")) == "c001":
+		_boss_name.text = "武车 · 耐久 %d/%d" % [hp, max_hp]
 
 
 func _build_boss_bar(root: Control) -> void:

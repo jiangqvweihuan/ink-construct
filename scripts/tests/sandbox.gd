@@ -16,6 +16,7 @@ const C016Class := preload("res://scripts/enemies/c016.gd")
 const GRUNT_SCENE := "res://scenes/enemies/c016.tscn" # 小怪/精英通用壳（type_id 决定形态）
 const BOSS_SCENE := "res://scenes/enemies/bosses/boss.tscn"
 const OUT_DIR := "res://tests/out/"
+const ROOM_W := 1920.0
 const GOD_HP := 999999
 
 var _player # PlayerClass
@@ -33,24 +34,35 @@ func _ready() -> void:
 
 	var bg := ColorRect.new()
 	bg.color = Color(0.949, 0.918, 0.847)
-	bg.size = Vector2(1280, 720)
+	bg.size = Vector2(ROOM_W, 720)
 	bg.z_index = -10
 	add_child(bg)
 
 	# 一块空地：只要一条地面，没任何遮挡
 	var ground := StaticBody2D.new()
-	ground.position = Vector2(640, 640)
+	ground.position = Vector2(ROOM_W * 0.5, 640)
 	add_child(ground)
 	var rect := RectangleShape2D.new()
-	rect.size = Vector2(1280, 80)
+	rect.size = Vector2(ROOM_W, 80)
 	var gs := CollisionShape2D.new()
 	gs.shape = rect
 	ground.add_child(gs)
 	var gc := ColorRect.new()
 	gc.color = Color(0.102, 0.102, 0.102)
-	gc.size = Vector2(1280, 80)
-	gc.position = Vector2(-640, -40)
+	gc.size = Vector2(ROOM_W, 80)
+	gc.position = Vector2(-ROOM_W * 0.5, -40)
 	ground.add_child(gc)
+
+	# 左右空气墙：与正式房间一致，防止角色或冲刺中的敌人离开试炼场。
+	for x in [-20.0, ROOM_W + 20.0]:
+		var wall := StaticBody2D.new()
+		wall.position = Vector2(x, 360)
+		add_child(wall)
+		var wall_shape := CollisionShape2D.new()
+		var wall_rect := RectangleShape2D.new()
+		wall_rect.size = Vector2(40, 720)
+		wall_shape.shape = wall_rect
+		wall.add_child(wall_shape)
 
 	_player = load("res://scenes/player/player.tscn").instantiate()
 	_player.position = Vector2(380, 560)
@@ -59,6 +71,17 @@ func _ready() -> void:
 	_player.hp = GOD_HP
 	_player.cooldown_scale = 0.0 # 技能零冷却：专心试招不用等 CD（冷却 = 表配 × 本倍率 × 契合）
 	_player.dash_cooldown = 0.0 # 冲刺也不卡手
+	var cam := Camera2D.new()
+	cam.position = Vector2(0, -80)
+	cam.limit_left = 0
+	cam.limit_right = int(ROOM_W)
+	cam.limit_top = 0
+	cam.limit_bottom = 720
+	cam.position_smoothing_enabled = true
+	cam.position_smoothing_speed = 8.0
+	_player.add_child(cam)
+	cam.make_current()
+	Feel.register_camera(cam)
 	_skull_ids = Skulls.ids()
 
 	# 轮换表 = 小怪/精英形态表 + Boss 形态表（过滤 _debug 占位与 DEFAULT_ID 重复项）
@@ -72,7 +95,9 @@ func _ready() -> void:
 	_info = Label.new()
 	_info.position = Vector2(24, 18)
 	_info.add_theme_font_size_override("font_size", 20)
-	add_child(_info)
+	var info_layer := CanvasLayer.new()
+	add_child(info_layer)
+	info_layer.add_child(_info)
 
 	_spawn_enemy()
 	_update_info()
@@ -176,14 +201,19 @@ func _spawn_enemy() -> void:
 			scene_path = "res://scenes/enemies/bosses/mo_ting.tscn"
 		elif info["id"] == "c015a1":
 			scene_path = "res://scenes/enemies/bosses/fen_ding.tscn"
+		elif info["id"] == "c001":
+			scene_path = "res://scenes/enemies/bosses/wu_che.tscn"
 		else:
 			scene_path = BOSS_SCENE
 	_enemy = load(scene_path).instantiate()
 	_enemy.type_id = info["id"] # add_child 才跑 _ready/_apply_type，先设形态
+	if info["id"] == "c001":
+		_enemy.arena_right = ROOM_W
 	_enemy.position = Vector2(900, 560)
 	add_child(_enemy)
-	_enemy.max_hp = GOD_HP # _ready 里 hp=max_hp 已跑过，这里双双顶满
-	_enemy.hp = GOD_HP
+	if info["id"] != "c001": # 武车保留耐久，才能试完整个波次与阵亡流程
+		_enemy.max_hp = GOD_HP
+		_enemy.hp = GOD_HP
 
 
 func _update_info() -> void:
