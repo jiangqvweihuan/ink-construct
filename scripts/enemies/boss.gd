@@ -145,10 +145,10 @@ func _setup_spine() -> void:
 
 
 ## 动画守卫：名字不存在就跳过（占位配置下 Boss 照常能动，只是少动作）
-func _play(anim: String, loop: bool) -> void:
+func _play(anim: String, loop: bool, spd := 1.0) -> void:
 	if not _valid.get(anim, false):
 		return
-	super(anim, loop)
+	super(anim, loop, spd)
 
 
 ## Boss 不挂头顶小血条，血量全走 HUD 大血条
@@ -392,18 +392,18 @@ func _charge_hit_wall() -> void:
 # ---------- 受击 / 死亡 ----------
 
 ## 定身（双刺 U）：Boss 体量太大，定身时长减半，同一张卡对 Boss 不至于过界
-func root(dur: float) -> void:
-	super(dur * 0.5)
+func root(dur: float, ignore_armor := false) -> void:
+	super(dur * 0.5, ignore_armor)
 
 
 ## 晕眩（力僧 L）：与定身同一规则，Boss 时长减半
-func stun(dur: float) -> void:
-	super(dur * 0.5)
+func stun(dur: float, ignore_armor := false) -> void:
+	super(dur * 0.5, ignore_armor)
 
 
 ## 余滞同样缩短，避免四秒减速覆盖 Boss 的完整出招循环。
-func slow(dur: float, scale: float) -> void:
-	super(dur * 0.5, scale)
+func slow(dur: float, scale: float, ignore_armor := false) -> void:
+	super(dur * 0.5, scale, ignore_armor)
 
 
 ## 流血 / 中毒等非打击伤害：直扣血，但要同步阶段判定与 HUD 大血条；变身无敌期不吃跳血

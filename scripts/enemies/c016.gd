@@ -59,6 +59,7 @@ var _move_anims: Dictionary = {}
 var _attack_move := "" # 本次出手的逻辑键，判定/伤害/冷却均按它查询
 var _attack_cast_id := 0 # 每次起手递增，同招多段凭它识别，不靠动画名猜测
 var _ranges: Dictionary = {}
+var _back_ranges: Dictionary = {} # 前后伸展不同的招式单独标定后侧射程
 var _hit_at_map: Dictionary = {}
 # both：该招是回身横扫，动画把武器甩到身后，判定不分前后（否则"动画打到却判不上"）
 var _both_anims: Dictionary = {}
@@ -70,6 +71,7 @@ var _feedback_segments: Dictionary = {} # 只播受击反馈、不实际扣血�
 var _blink_strike: Dictionary = {} # 追击窗口强制出招；behind=true 时瞬到目标背后
 var _backstab := false # 阴影：从目标背后造成的直接伤害双倍，持续伤害不经过这里
 var _hit_effects: Dictionary = {} # 实际命中后附加的招式效果（如升龙刀击飞、辟地封跳）
+var _segment_effects: Dictionary = {} # 多段招式的逐段效果；与整招效果合并，段效果优先
 var _hit_knockback := Vector2(220.0, -80.0)
 var _attack_chain: Dictionary = {} # 同一招内的接续动画与收招后的静默恢复
 var _advance_map: Dictionary = {} # 攻击动画期间持续前进的速度
@@ -78,6 +80,7 @@ var _super_armor := false # 全程霸体；规则级 ignore_armor 与时停不�
 var _attack_rules: Dictionary = {} # 特殊招式的独立冷却、触发窗口与随机权重
 var _attack_rule_cds: Dictionary = {}
 var _knock_at := 999 # 高伤倒地阈值；未配置时保持原受击逻辑
+var _knock_strict := false # 指定精英使用严格大于；普通怪仍保持达到阈值即倒地
 var _knock_chain: Array = [] # 高伤倒地动画链
 var _hurt_chain: Array = [] # 当前尚未播完的倒地链
 var _hurt_chain_active := false # 链中照常吃伤害，但受击动画不得重入
@@ -89,6 +92,15 @@ var _enrage_below := 0.0
 var _enrage_cd := 0.65
 var _enrage_speed := 1.2
 var _enraged := false
+var _bloodthirst: Dictionary = {} # 嗜血：低血永久激活；虚弱动画/减速只随当前血量变化
+var _bloodthirst_active := false
+var _skill_cooldown_scale := 1.0 # 镰意绽花命中后永久减半，不重复叠加
+# 青笠剑意：只由本体实伤叠层；凝华分身读取本体层数，但不叠层、不再繁殖。
+var _sword_intent := 0
+var _sword_hit_damage: Dictionary = {} # 本次出手各段已结算伤害，供同步分身保持同伤
+var _sword_clone_node: Node2D = null
+var _is_sword_clone := false
+var _sword_owner: Node2D = null
 var _elite := false # 精英标记（时停分档用：杂兵 3s / 精英 2s / Boss 1s）
 var _stop_timer := 0.0 # 时间暂停（银夜 U）剩余
 var _slow_timer := 0.0 # 余滞剩余：时停期间冻结，其余状态照常计时
@@ -158,6 +170,13 @@ func _ready() -> void:
 	_make_hp_bar()
 	_sfx_player = AudioStreamPlayer.new()
 	add_child(_sfx_player)
+	if _is_sword_clone:
+		# 凝华分身不可选中、不占敌人组与出手令牌；无敌且不会触发击杀/结算逻辑。
+		remove_from_group("enemies")
+		_telegraph_on = false
+		_hp_bar.visible = false
+		$CollisionShape2D.set_deferred("disabled", true)
+		_make_sword_clone_visual()
 
 
 ## 把形态表装到实例上
@@ -170,6 +189,7 @@ func _apply_type() -> void:
 	_attack_anims = t["attacks"]
 	_move_anims = t.get("move_anims", {})
 	_ranges = t["ranges"]
+	_back_ranges = t.get("back_ranges", {})
 	_hit_at_map = t["hit_at"]
 	_both_anims = t.get("both", {})
 	_damage_map = t.get("damage", {})
@@ -180,6 +200,7 @@ func _apply_type() -> void:
 	_blink_strike = t.get("blink_strike", {})
 	_backstab = bool(t.get("backstab", false))
 	_hit_effects = t.get("hit_effects", {})
+	_segment_effects = t.get("segment_effects", {})
 	_hit_knockback = t.get("hit_knockback", Vector2(220.0, -80.0))
 	_attack_chain = t.get("attack_chain", {})
 	_advance_map = t.get("advance", {})
@@ -190,6 +211,7 @@ func _apply_type() -> void:
 	for anim in _attack_rules:
 		_attack_rule_cds[anim] = 0.0
 	_knock_at = int(t.get("knock_at", 999))
+	_knock_strict = bool(t.get("knock_strict", false))
 	_knock_chain = (t.get("knock_chain", []) as Array).duplicate()
 	var regen: Dictionary = t.get("regen", {})
 	_regen_interval = float(regen.get("interval", 0.0))
@@ -198,6 +220,9 @@ func _apply_type() -> void:
 	_enrage_below = float(en.get("below", 0.0))
 	_enrage_cd = float(en.get("cd", 0.65))
 	_enrage_speed = float(en.get("speed", 1.2))
+	_bloodthirst = t.get("bloodthirst", {})
+	_bloodthirst_active = false
+	_skill_cooldown_scale = 1.0
 	max_hp = int(t["hp"])
 	patrol_speed = float(t["patrol_speed"])
 	chase_speed = float(t["chase_speed"])
@@ -317,6 +342,9 @@ func _process(delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
+	if _is_sword_clone:
+		_sword_clone_tick(delta)
+		return
 	# 时间暂停（银夜 U）：彻底定住——不走 AI、不吃重力、动画冻结，到点恢复
 	if _stop_timer > 0.0:
 		_stop_timer -= delta
@@ -375,6 +403,7 @@ func _physics_process(delta: float) -> void:
 		State.FLY:
 			_fly_tick(delta)
 
+	_sync_bloodthirst()
 	# 同伴分离力：同一水平线上靠太近就互相推开，避免几只怪叠成一团互相卡位
 	if state != State.ATTACK and state != State.FLY:
 		velocity.x += _separation_push() * 900.0 * delta
@@ -405,7 +434,7 @@ func _patrol_tick(delta: float) -> void:
 		_patrol_dir = 1
 	facing = _patrol_dir
 	_apply_facing()
-	velocity.x = move_toward(velocity.x, _patrol_dir * patrol_speed * _slow_scale, accel * delta)
+	velocity.x = move_toward(velocity.x, _patrol_dir * _patrol_speed_now() * _slow_scale, accel * delta)
 
 
 func _chase_tick(delta: float) -> void:
@@ -441,10 +470,11 @@ func _chase_tick(delta: float) -> void:
 		return
 	# 贴太近但还在冷却：先退开一点保持站位，别和同伴挤在同一格
 	if absf(dx) < keep_dist and _attack_cd > 0.0:
-		velocity.x = move_toward(velocity.x, -facing * 80.0 * _slow_scale, accel * delta)
+		var retreat_speed := _chase_speed_now() if _bloodthirst_weak() else 80.0
+		velocity.x = move_toward(velocity.x, -facing * retreat_speed * _slow_scale, accel * delta)
 		return
 	var acc := turn_accel if signf(velocity.x) != 0.0 and signf(velocity.x) != signf(dx) else accel
-	velocity.x = move_toward(velocity.x, facing * chase_speed * _slow_scale, acc * delta)
+	velocity.x = move_toward(velocity.x, facing * _chase_speed_now() * _slow_scale, acc * delta)
 
 
 func _attack_tick(delta: float) -> void:
@@ -467,7 +497,7 @@ func _attack_tick(delta: float) -> void:
 			_recovery_after_attack = float(chain.get("recovery", 0.0))
 			_start_attack(next_anim, true)
 			return
-		_attack_cd = attack_cooldown
+		_attack_cd = attack_cooldown * _skill_cooldown_scale
 		_chase_block = 0.35
 		_release_token()
 		if _recovery_after_attack > 0.0:
@@ -539,7 +569,7 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		var rule: Dictionary = _attack_rules.get(n, {})
 		if not bool(rule.get("random", true)) or not _rule_allows(str(n), dist):
 			continue
-		if _range_of(n, 0) >= dist - 10.0:
+		if _max_range_of(n) >= dist - 10.0:
 			pool.append(n)
 			var weight := float(rule.get("weight", 1.0))
 			weights.append(weight)
@@ -551,7 +581,7 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		# 所有招都够不着：用最远那招（至少方向对、范围最大）
 		var far_r := -1.0
 		for n in _attack_anims:
-			var fr := _range_of(n, 0)
+			var fr := _max_range_of(n)
 			if fr > far_r:
 				far_r = fr
 				anim = str(n)
@@ -559,7 +589,7 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		# 精英：挑"刚好够得着"的最近一招，近身不会甩 580px 的大招
 		var best_r := INF
 		for n in pool:
-			var br := _range_of(n, 0)
+			var br := _max_range_of(n)
 			if br < best_r:
 				best_r = br
 				anim = str(n)
@@ -573,13 +603,15 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		if anim == "":
 			anim = str(pool.back())
 	state = State.ATTACK
-	_attacker = self # 占住出手令牌
+	if not _is_sword_clone:
+		_attacker = self # 本体占住出手令牌；凝华分身只同步，不阻断其他敌人
+	_sword_hit_damage.clear()
 	_attack_move = anim
 	_attack_cast_id += 1
 	var chain: Dictionary = _attack_chain.get(anim, {})
 	_chain_next = str(chain.get("anim", ""))
 	if _attack_rules.has(anim):
-		_attack_rule_cds[anim] = float((_attack_rules[anim] as Dictionary).get("cooldown", 0.0))
+		_attack_rule_cds[anim] = float((_attack_rules[anim] as Dictionary).get("cooldown", 0.0)) * _skill_cooldown_scale
 	# 追击招只能由窗口强制选出；behind=true 时落到目标背后，并立即回身面向目标。
 	if forced_anim != "" and not _blink_strike.is_empty() and anim == str(_blink_strike.get("anim", "")) \
 			and _target != null and is_instance_valid(_target):
@@ -617,6 +649,8 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 	_idle_queued = true
 	if _telegraph_on:
 		_telegraph()
+	if not _is_sword_clone and is_instance_valid(_sword_clone_node):
+		_sword_clone_node.call("_sword_sync_attack", anim)
 
 
 ## 精英出手预警：起手瞬间整只怪泛红 + 脚下聚气，给玩家留出躲闪/弹反的读招时间
@@ -637,21 +671,150 @@ func _deal_hit(seg := 0) -> void:
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
-	var rng := _range_of(_attack_move, seg)
 	var move := _replay_move(seg)
-	# 纯反馈段不能走 Run.enemy_damage：该入口会把 0 也抬成最低 1 伤。
-	var dmg := 0 if bool(move.get("feedback_only", false)) else Run.enemy_damage(int(_damage_map.get(_attack_move, 1)))
+	var no_damage := bool(move.get("feedback_only", false)) or bool(move.get("effect_only", false))
+	# 纯反馈与绽花不能走 Run.enemy_damage：该入口会把 0 也抬成最低 1 伤。
+	# 青笠每段可有独立基础伤害；剑意在本次命中前结算，命中后的叠层只影响后续命中。
+	var dmg := 0 if no_damage else Run.enemy_damage(_damage_of(_attack_move, seg) + _sword_intent_now())
+	if dmg > 0 and _bloodthirst_active:
+		dmg = maxi(1, dmg + int(_bloodthirst.get("damage_delta", -1)))
 	# 阴影只放大本次直接命中；割伤在玩家侧独立计时，绝不回到这里二次暴击。
 	if dmg > 0 and _backstab:
 		var raw_facing = _target.get("facing")
 		if raw_facing != null and (global_position.x - _target.global_position.x) * float(raw_facing) < 0.0:
 			dmg *= 2
+	# 本体先结算时记录同段伤害，分身后结算直接复用，避免首段叠层让镜像多打 1 点。
+	if _is_sword_clone and is_instance_valid(_sword_owner) \
+			and int(_sword_owner.get("_attack_cast_id")) == _attack_cast_id:
+		var recorded: Dictionary = _sword_owner.get("_sword_hit_damage")
+		if recorded.has(seg):
+			dmg = int(recorded[seg])
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_attack_move, false))
+	var rng := _range_of(_attack_move, seg) if in_front else _back_range_of(_attack_move, seg)
 	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height \
 			and _target.has_method("hurt"):
+		if not _is_sword_clone:
+			_sword_hit_damage[seg] = dmg
 		var kb := Vector2(facing * _hit_knockback.x, _hit_knockback.y)
 		_target.call("hurt", dmg, kb, self, move)
+
+
+func _damage_of(anim: String, seg: int) -> int:
+	var value = _damage_map.get(anim, 1)
+	if value is Array:
+		return int(value[mini(seg, (value as Array).size() - 1)])
+	return int(value)
+
+
+func _sword_intent_now() -> int:
+	if _is_sword_clone:
+		return int(_sword_owner.get("_sword_intent")) if is_instance_valid(_sword_owner) else 0
+	return _sword_intent
+
+
+## 只有玩家 hurt 真正结算后才回调：闪避、护盾、受击无敌、反伤都不会触发回血或绽花增益。
+func on_player_hit(amount: int, move: Dictionary, _player: Node) -> void:
+	if state == State.DEAD:
+		return
+	var bloom := bool(move.get("bloom", false))
+	if bloom and _skill_cooldown_scale > 0.5:
+		_skill_cooldown_scale = 0.5
+		_attack_cd *= _skill_cooldown_scale
+		for anim in _attack_rule_cds:
+			_attack_rule_cds[anim] = float(_attack_rule_cds[anim]) * _skill_cooldown_scale
+	if amount > 0 and bool(move.get("lifesteal_from_damage", false)):
+		_heal(amount)
+	if _bloodthirst_active and (amount > 0 or bloom):
+		_heal(int(_bloodthirst.get("lifesteal", 1)))
+	if amount > 0 and not _is_sword_clone and int(move.get("sword_intent", 0)) > 0:
+		_gain_sword_intent(int(move.get("sword_intent", 0)))
+
+
+func _gain_sword_intent(amount: int) -> void:
+	_sword_intent = mini(3, _sword_intent + amount)
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("剑意凝华" if _sword_intent >= 3 else "剑意 %d/3" % _sword_intent, Color(0.55, 0.78, 0.82))
+	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
+	get_tree().current_scene.add_child(dn)
+	if _sword_intent >= 3 and not is_instance_valid(_sword_clone_node):
+		_spawn_sword_clone()
+
+
+func _spawn_sword_clone() -> void:
+	var clone = load("res://scenes/enemies/c012_elite.tscn").instantiate()
+	clone.set("_is_sword_clone", true)
+	clone.set("_sword_owner", self)
+	clone.position = global_position + Vector2(-facing * 58.0, 0.0)
+	clone.set("facing", facing)
+	get_tree().current_scene.add_child(clone)
+	_sword_clone_node = clone
+	clone.call("_play", _current_anim, state != State.ATTACK)
+	clone.call("_apply_facing")
+
+
+func _make_sword_clone_visual() -> void:
+	# 剑意虚体：本体保持实色，分身略带青色并半透明，脚下淡墨环跟随脚底。
+	if sprite != null:
+		sprite.modulate = Color(0.72, 0.94, 1.0, 0.60)
+	var ring := Line2D.new()
+	ring.name = "SwordCloneRing"
+	var points := PackedVector2Array()
+	for i in range(33):
+		var angle := TAU * float(i) / 32.0
+		points.append(Vector2(cos(angle) * 44.0, 2.0 + sin(angle) * 10.0))
+	ring.points = points
+	ring.width = 2.0
+	ring.default_color = Color(0.45, 0.78, 0.82, 0.42)
+	ring.antialiased = true
+	ring.z_index = -1
+	add_child(ring)
+
+
+func _sword_sync_attack(anim: String) -> void:
+	if not _is_sword_clone or not is_instance_valid(_sword_owner):
+		return
+	_target = _sword_owner.get("_target") as Node2D
+	facing = int(_sword_owner.get("facing"))
+	_apply_facing()
+	_start_attack(anim)
+	_attack_cast_id = int(_sword_owner.get("_attack_cast_id"))
+
+
+func _sword_clone_tick(delta: float) -> void:
+	if not is_instance_valid(_sword_owner) or int(_sword_owner.get("state")) == State.DEAD:
+		queue_free()
+		return
+	_target = _sword_owner.get("_target") as Node2D
+	if state == State.ATTACK:
+		_attack_tick(delta)
+		global_position.x += velocity.x * delta
+		global_position.y = _sword_owner.global_position.y
+		return
+	facing = int(_sword_owner.get("facing"))
+	_apply_facing()
+	global_position = _sword_owner.global_position + Vector2(-facing * 58.0, 0.0)
+	var owner_state := int(_sword_owner.get("state"))
+	if owner_state == State.IDLE or owner_state == State.PATROL or owner_state == State.CHASE:
+		_play(str(_sword_owner.get("_current_anim")), true)
+
+
+func _dismiss_sword_clone() -> void:
+	if is_instance_valid(_sword_clone_node):
+		_sword_clone_node.queue_free()
+	_sword_clone_node = null
+
+
+func _heal(amount: int) -> void:
+	if amount <= 0 or hp <= 0 or state == State.DEAD or hp >= max_hp:
+		return
+	var actual := mini(amount, max_hp - hp)
+	hp += actual
+	_update_hp_bar()
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("+%d" % actual, POISON_LABEL_COLOR)
+	dn.global_position = global_position + Vector2(0, _number_y)
+	get_tree().current_scene.add_child(dn)
 
 
 ## 把本次真实招式与命中段交给玩家记录，结算可按同一时刻重演最后一击。
@@ -659,13 +822,19 @@ func _replay_move(seg: int) -> Dictionary:
 	var at = _hit_at_map.get(_attack_move, 0.8)
 	if at is Array:
 		at = at[mini(seg, (at as Array).size() - 1)]
-	var move := {"anim": _current_anim, "hit_at": float(at), "cast_id": _attack_cast_id}
+	var move := {"anim": _current_anim, "hit_at": float(at), "cast_id": _attack_cast_id, "seg": seg}
+	if _is_sword_clone and is_instance_valid(_sword_owner):
+		move["cast_owner_id"] = _sword_owner.get_instance_id()
 	var feedback: Array = _feedback_segments.get(_attack_move, [])
 	if feedback.has(seg):
 		move["feedback_only"] = true
 	var effects: Dictionary = _hit_effects.get(_attack_move, {})
 	for key in effects:
 		move[key] = effects[key]
+	var segments: Array = _segment_effects.get(_attack_move, [])
+	if seg >= 0 and seg < segments.size():
+		for key in segments[seg]:
+			move[key] = segments[seg][key]
 	return move
 
 
@@ -681,6 +850,60 @@ func _range_of(anim: String, seg: int) -> float:
 	if r is Array:
 		return float(r[mini(seg, (r as Array).size() - 1)])
 	return float(r)
+
+
+func _back_range_of(anim: String, seg: int) -> float:
+	var r = _back_ranges.get(anim, _ranges.get(anim, attack_range))
+	if r is Array:
+		return float(r[mini(seg, (r as Array).size() - 1)])
+	return float(r)
+
+
+## 选招要考虑多段招式真正能打到目标的最远一段，不能只拿第一段射程把整招排除。
+func _max_range_of(anim: String) -> float:
+	var r = _ranges.get(anim, attack_range)
+	if not r is Array:
+		return float(r)
+	var longest := 0.0
+	for value in r:
+		longest = maxf(longest, float(value))
+	return longest
+
+
+# ---------- 双镰：嗜血永久激活，虚弱外观与速度随当前血量实时切换 ----------
+func _bloodthirst_weak() -> bool:
+	return not _bloodthirst.is_empty() and hp > 0 and float(hp) / float(maxi(1, max_hp)) < float(_bloodthirst.get("below", 0.3))
+
+
+func _idle_anim() -> String:
+	return str(_bloodthirst.get("idle", _anim_map["idle"])) if _bloodthirst_weak() else str(_anim_map["idle"])
+
+
+func _patrol_speed_now() -> float:
+	return float(_bloodthirst.get("patrol_speed", patrol_speed)) if _bloodthirst_weak() else patrol_speed
+
+
+func _chase_speed_now() -> float:
+	return float(_bloodthirst.get("chase_speed", chase_speed)) if _bloodthirst_weak() else chase_speed
+
+
+func _sync_bloodthirst() -> void:
+	if _bloodthirst.is_empty() or state == State.DEAD:
+		return
+	if not _bloodthirst_active and _bloodthirst_weak():
+		_bloodthirst_active = true # 永久被动一旦激活，回血也不会撤销
+	match state:
+		State.IDLE:
+			var anim := _idle_anim()
+			if anim != _current_anim:
+				_idle_queued = false
+				_play(anim, true)
+		State.PATROL:
+			var anim := str(_bloodthirst.get("move", _anim_map["patrol"])) if _bloodthirst_weak() else str(_anim_map["patrol"])
+			_play(anim, true)
+		State.CHASE:
+			var anim := str(_bloodthirst.get("move", _anim_map["chase"])) if _bloodthirst_weak() else str(_anim_map["chase"])
+			_play(anim, true, _chase_anim_speed)
 
 
 # ---------- 银夜机制接口：击飞 / 击退 / 时间暂停 ----------
@@ -1004,7 +1227,7 @@ func _fly_tick(delta: float) -> void:
 
 
 func take_damage(amount: int, source_x: float) -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or _is_sword_clone:
 		return
 	# 时停中挨打：伤害/数字/白闪照给，但不进硬直、不解定身；打死则先解冻再走死亡流程
 	if _stop_timer > 0.0:
@@ -1036,16 +1259,16 @@ func take_damage(amount: int, source_x: float) -> void:
 	if _hurt_chain_active:
 		_flash()
 		return
-	# 受击硬直分层：普通怪轻击就断招；精英霸体，只有重击（damage >= armor）才打断；
-	# 出手霸体的招（青笠跳斩）出手期间挨多重都不断，只掉血
-	if _super_armor or amount < _armor or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false))):
+	# 高伤倒地优先于招式霸体；普通受击仍按抗性分层，未达阈值时只掉血不断招。
+	var knock_hit := not _knock_chain.is_empty() and (amount > _knock_at if _knock_strict else amount >= _knock_at)
+	if not knock_hit and (_super_armor or amount < _armor or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false)))):
 		_flash()
 		return
 	_clear_attack_chain()
 	_attack_hits_left.clear()
 	_release_token() # 被打断的出手要交还令牌，否则其他怪永远等不到出手机会
 	var dir := 1.0 if global_position.x >= source_x else -1.0
-	if not _knock_chain.is_empty() and amount >= _knock_at:
+	if knock_hit:
 		_start_hurt_chain(dir)
 		_flash()
 		return
@@ -1075,6 +1298,7 @@ func _spawn_number(amount: int, color: Color = DMG_COLOR) -> void:
 
 func die() -> void:
 	_end_stop() # 时停中被打死：先解冻，死亡动画才播得出来
+	_dismiss_sword_clone()
 	state = State.DEAD
 	_clear_attack_chain()
 	_attack_hits_left.clear()
@@ -1096,6 +1320,11 @@ func die() -> void:
 		pl.call("on_enemy_killed", self)
 	died.emit()
 	_cleanup()
+
+
+func _exit_tree() -> void:
+	if not _is_sword_clone:
+		_dismiss_sword_clone()
 
 
 ## 尸体自清理：死亡动画播完 → 淡出 → 释放自己，场上不留空壳节点
@@ -1227,14 +1456,16 @@ func _set_state(new_state: int) -> void:
 					_pose_mixer.capture()
 				_current_anim = str(_anim_map["idle"])
 			else:
-				_play(str(_anim_map["idle"]), true)
+				_play(_idle_anim(), true)
 			_idle_queued = false
 		State.PATROL:
 			_idle_queued = false
-			_play(str(_anim_map["patrol"]), true)
+			var anim := str(_bloodthirst.get("move", _anim_map["patrol"])) if _bloodthirst_weak() else str(_anim_map["patrol"])
+			_play(anim, true)
 		State.CHASE:
 			_idle_queued = false # set_animation 会清掉队列里的 stand
-			_play(str(_anim_map["chase"]), true, _chase_anim_speed)
+			var anim := str(_bloodthirst.get("move", _anim_map["chase"])) if _bloodthirst_weak() else str(_anim_map["chase"])
+			_play(anim, true, _chase_anim_speed)
 
 
 func _apply_facing() -> void:

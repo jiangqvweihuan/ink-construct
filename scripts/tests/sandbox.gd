@@ -190,6 +190,12 @@ func _update_info() -> void:
 
 ## 回归自动流程：换一只形态、刷一只精英、刷一只 Boss，各截一张图后退出
 func _auto_tour() -> void:
+	# 首只敌人按逗号会绕到最后一只 Boss，覆盖用户实际切换路径，避免只测首只 Boss。
+	print("[SB] cycle left from first")
+	_cycle_enemy(-1)
+	await get_tree().create_timer(0.5).timeout
+	await _shot("sandbox_cycle_left")
+	print("[SB] cycle left ok enemy=", _roster[_ri]["id"])
 	_open_upgrade()
 	await get_tree().process_frame
 	await get_tree().process_frame

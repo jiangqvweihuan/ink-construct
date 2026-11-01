@@ -90,7 +90,14 @@ var _hurt_invincible := 0.0 # 受伤后的短暂无敌：被围殴时不会一�
 var _hurt_cast_key := "" # 最近一次实伤的敌人出手编号；只允许同招后续段穿过上述无敌
 var _cuts: Array = [] # 刺客割伤：每次镖去独立保存 3/6 秒两次结算，不刷新、不合并
 var _cut_casts: Dictionary = {} # 同一次出手至多挂一组割伤
+var _bleed_stacks := 0 # 普通流血：与割伤完全分离，每层每秒 1 伤
+var _bleed_time := 0.0
+var _bleed_acc := 0.0
+var _bleed_source: Dictionary = {}
+const BLEED_MAX := 5
+const BLEED_DUR := 3.0
 var _jump_seal := 0.0 # 辟地实伤附加：封跳剩余秒数，不影响闪避与其他动作
+var _dash_seal := 0.0 # 旋斩实伤附加：只封 Shift 闪避，不影响移动、跳跃与攻击
 # ---------- 通用动作接口（形态表按需开启；未配 = 退回旧行为，新角色照抄这组字段即可） ----------
 var _dash_time_base := 0.0 # 闪避时长 = 闪避动画长度（完美闪避判定窗口）
 var _dash_speed_base := 0.0 # 闪避位移速度（配合时长控制总距离）
@@ -550,7 +557,9 @@ func _physics_process(delta: float) -> void:
 	_dash_cd = maxf(0.0, _dash_cd - delta)
 	_hurt_invincible = maxf(0.0, _hurt_invincible - delta)
 	_cut_tick(delta) # 割伤是延迟直扣：不吃受击无敌，也不触发受击硬直或阴影
+	_bleed_tick(delta) # 普通流血独立计时，与割伤互不合并且不重复进入 hurt
 	_jump_seal = maxf(0.0, _jump_seal - delta)
+	_dash_seal = maxf(0.0, _dash_seal - delta)
 	_lifesteal_cd = maxf(0.0, _lifesteal_cd - delta) # 饮血内置冷却
 	_perm_lifesteal_cd = maxf(0.0, _perm_lifesteal_cd - delta)
 	_hurt_guard_timer = maxf(0.0, _hurt_guard_timer - delta)
@@ -1863,7 +1872,7 @@ func _try_jump() -> void:
 
 
 func _try_dash() -> void:
-	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0:
+	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0 or _dash_seal > 0.0:
 		return
 	if skull_id == "z003" and _own("z003_returning_2") and _return_time > 0.0:
 		_return_dash()
@@ -2196,7 +2205,9 @@ func _enemy_cast_key(attacker: Node, move: Dictionary) -> String:
 	var cast_id := int(move.get("cast_id", 0))
 	if cast_id <= 0:
 		return ""
-	return "%d:%d" % [attacker.get_instance_id(), cast_id]
+	# 青笠分身与本体同招同段共用出手钥匙，镜像剑才能穿过彼此造成的受击无敌。
+	var cast_owner_id := int(move.get("cast_owner_id", attacker.get_instance_id()))
+	return "%d:%d" % [cast_owner_id, cast_id]
 
 
 func _record_last_hit(attacker: Node, move: Dictionary, amount: int) -> void:
@@ -2288,6 +2299,10 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		Feel.shake(3.0, 0.1)
 		_shield_heal_once()
 		return
+	# 镰意绽花是无直伤的特殊命中：必须先经过闪避、反震、反伤、受击无敌与护盾，全部防御无效后才结算。
+	if bool(move.get("bloom", false)):
+		_apply_bloom(attacker, move)
+		return
 	var temporary_reduce := int(skull_id == "c013" and Meta.has_form_node("c013_meditation_2") and _hurt_guard_timer > 0.0)
 	if Run.guard_available:
 		temporary_reduce += 1
@@ -2304,9 +2319,14 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	_hurt_cast_key = cast_key
 	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
 	_reset_root_follow() # 技能被受击打断：把根骨位移结算进节点，别把骨架留在偏移位置
+	var dealt := mini(amount, hp) # 过量伤害不计入镰碎回血；反伤/护盾/闪避在上方已直接返回
 	hp -= amount
+	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
+		attacker.call("on_player_hit", dealt, move, self)
 	if hp > 0 and bool(move.get("cut", false)):
 		_apply_cut(attacker, move, cast_key)
+	if hp > 0 and int(move.get("bleed", 0)) > 0:
+		_apply_bleed(int(move.get("bleed", 0)), attacker, move)
 	if skull_id == "c013" and _own("c013_ascetic_1"):
 		_precepts = mini(3, _precepts + 1)
 		var precept_dn := DAMAGE_NUMBER.new()
@@ -2336,6 +2356,13 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		seal_dn.setup("封跳", Color(0.85, 0.72, 0.42))
 		seal_dn.global_position = global_position + Vector2(0, -150)
 		get_tree().current_scene.add_child(seal_dn)
+	var dash_seal := float(move.get("dash_seal", 0.0))
+	if dash_seal > 0.0:
+		_dash_seal = maxf(_dash_seal, dash_seal)
+		var seal_dn := DAMAGE_NUMBER.new()
+		seal_dn.setup("封闪", Color(0.85, 0.72, 0.42))
+		seal_dn.global_position = global_position + Vector2(0, -150)
+		get_tree().current_scene.add_child(seal_dn)
 	# 霸体（力僧形态专属 + 定山技能自带）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
 	if (poise or _skill_poise) and state == State.SKILL:
 		return
@@ -2360,6 +2387,84 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	_idle_queued = false # set_animation 已清掉队列里的 stand
 	_invincible = false
 	_play(hurt_anim, false)
+
+
+## 绽花只结算特殊效果：不扣当前生命、不消耗护砚，也不写入普通最后一击。
+func _apply_bloom(attacker: Node, move: Dictionary) -> void:
+	var ap := attacker as Node2D
+	if ap == null:
+		return
+	_set_blink(false)
+	_reset_root_follow()
+	var actual := Run.lose_max_hp(int(move.get("max_hp_loss", 2)), self)
+	global_position = ap.global_position + Vector2(0.0, -float(move.get("lift_height", 120.0)))
+	velocity = Vector2.ZERO
+	state = State.HURT
+	_hurt_phase = ""
+	_hurt_getup_dur = 0.0
+	_hurt_timer = maxf(hurt_time, float(_anim_durations.get(str(anim_map["hurt"]), hurt_time)))
+	_idle_queued = false
+	_play(anim_map["hurt"], false)
+	_play_sfx("hit_fist")
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45})
+	Feel.hitstop(0.05)
+	Feel.shake(6.0, 0.18)
+	if actual > 0:
+		var loss_dn := DAMAGE_NUMBER.new()
+		loss_dn.setup("上限 -%d" % actual, Color(0.85, 0.72, 0.42))
+		loss_dn.global_position = global_position + Vector2(0, -165)
+		get_tree().current_scene.add_child(loss_dn)
+	if attacker.has_method("on_player_hit"):
+		attacker.call("on_player_hit", 0, move, self)
+
+
+## 普通流血：每层每秒 1 伤、持续 3 秒、最多 5 层，新层刷新持续时间；双镰与青笠共用。
+func _apply_bleed(layers: int, attacker: Node, move: Dictionary) -> void:
+	if layers <= 0 or state == State.DEAD:
+		return
+	_bleed_stacks = mini(BLEED_MAX, _bleed_stacks + layers)
+	_bleed_time = BLEED_DUR
+	_bleed_source = {"attacker": attacker, "move": move.duplicate()}
+
+
+func _bleed_tick(delta: float) -> void:
+	if _bleed_stacks <= 0 or state == State.DEAD:
+		return
+	# 只累计仍处在流血期内的时间；结束帧先结算到期的整秒伤害，再清除状态。
+	var active_delta := minf(delta, maxf(0.0, _bleed_time))
+	_bleed_time -= delta
+	_bleed_acc += active_delta
+	while _bleed_acc >= 1.0 and _bleed_stacks > 0:
+		_bleed_acc -= 1.0
+		_bleed_damage()
+		if state == State.DEAD or _bleed_stacks <= 0:
+			return
+	if _bleed_time <= 0.0:
+		_clear_bleed()
+
+
+func _bleed_damage() -> void:
+	if state == State.DEAD:
+		return
+	var dealt := mini(_bleed_stacks, hp)
+	hp -= _bleed_stacks
+	hp_changed.emit(hp, max_hp)
+	_spawn_number(dealt, DMG_COLOR, 130.0)
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.22})
+	if hp > 0:
+		return
+	var attacker = _bleed_source.get("attacker") as Node
+	_record_last_hit(attacker, _bleed_source.get("move", {}), dealt)
+	if _try_revive(Vector2.ZERO):
+		return
+	die()
+
+
+func _clear_bleed() -> void:
+	_bleed_stacks = 0
+	_bleed_time = 0.0
+	_bleed_acc = 0.0
+	_bleed_source.clear()
 
 
 ## 镖去实伤后登记一组割伤；同招第二段只扣直伤，不会重复登记。
@@ -2424,6 +2529,7 @@ func _try_revive(knockback: Vector2) -> bool:
 		can_revive = true
 	if not can_revive:
 		return false
+	_clear_bleed()
 	hp = mini(4, max_hp)
 	_hurt_invincible = 1.5 # 起身喘口气，别立刻又被围殴
 	hp_changed.emit(hp, max_hp)
@@ -2504,6 +2610,7 @@ func die() -> void:
 	_shield_time = 0.0
 	_cuts.clear()
 	_cut_casts.clear()
+	_clear_bleed()
 	velocity = Vector2.ZERO
 	_idle_queued = false
 	_invincible = false

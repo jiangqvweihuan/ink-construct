@@ -27,9 +27,9 @@ const TYPES := {
 		# 普攻为主：特殊招式有独立冷却与触发窗口，不在近身池里等权随机。
 		"attack_rules": {
 			"skill01": {"weight": 6.0},
-			"skill02": {"trigger": "distance", "min": 180.0, "max": 400.0, "cooldown": 8.0, "random": false},
-			"skill03": {"cooldown": 12.0, "random": false},
-			"skill04": {"weight": 1.0, "max": 164.0, "cooldown": 6.0},
+			"skill02": {"trigger": "distance", "min": 180.0, "max": 400.0, "cooldown": 16.0, "random": false},
+			"skill03": {"cooldown": 24.0, "random": false},
+			"skill04": {"weight": 1.0, "max": 164.0, "cooldown": 12.0},
 		},
 		# 高伤倒地：第 1 → 2 → 5 → 10 号动画；链中照常吃伤害，但不重触发其他受击动画。
 		"knock_at": 2,
@@ -113,8 +113,8 @@ const TYPES := {
 		"blink_strike": {"anim": "skill03_2", "min": 120.0, "max": 260.0, "offset": 0.0},
 		"attack_rules": {
 			"skill01": {"weight": 7.0},
-			"skill02": {"weight": 1.0, "max": 164.0, "cooldown": 9.0},
-			"skill03_2": {"cooldown": 16.0, "random": false},
+			"skill02": {"weight": 1.0, "max": 164.0, "cooldown": 18.0},
+			"skill03_2": {"cooldown": 32.0, "random": false},
 			"skill03_3": {"random": false},
 		},
 		"hp": 8,
@@ -159,7 +159,7 @@ const TYPES := {
 		"backstab": true,
 		"attack_rules": {
 			"dart": {"weight": 1.0},
-			"sneak": {"cooldown": 12.0, "random": false},
+			"sneak": {"cooldown": 24.0, "random": false},
 		},
 		"knock_at": 2,
 		"knock_chain": ["atked", "atked_air", "atked_fall_end", "getup"],
@@ -228,11 +228,29 @@ const TYPES := {
 		"elite": true,
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
 		"attacks": ["skill01", "skill02", "skill03"],
-		# 探针实测：skill01 后侧 363@0.60、skill02 后侧 363@0.73、skill03 后侧 380@0.83
-		"hit_at": {"skill01": 0.60, "skill02": 0.73, "skill03": 0.83},
-		"ranges": {"skill01": 209.0, "skill02": 154.0, "skill03": 218.0},
-		# 双持镰刀左右开弓，前后都扫得到，判 both
-		"both": {"skill01": true, "skill02": true, "skill03": true},
+		# 定格逐段标定：镰舞 0.30/0.60s 各展开一次；镰碎只在 0.73s 落镰侧结算；绽花取 0.83s 上挑。
+		"hit_at": {"skill01": [0.30, 0.60], "skill02": 0.73, "skill03": 0.83},
+		"ranges": {"skill01": [107.0, 156.0], "skill02": 146.0, "skill03": 112.0},
+		"back_ranges": {"skill01": [174.0, 209.0], "skill03": 218.0},
+		"both": {"skill01": true, "skill03": true},
+		"damage": {"skill01": 2, "skill02": 5, "skill03": 0},
+		"hit_effects": {
+			"skill01": {"bleed": 1, "pierce_hurt_invincible": true},
+			"skill02": {"lifesteal_from_damage": true},
+			"skill03": {"effect_only": true, "bloom": true, "max_hp_loss": 2, "lift_height": 120.0},
+		},
+		"attack_rules": {
+			"skill02": {"cooldown": 16.0},
+			"skill03": {"cooldown": 24.0},
+		},
+		"bloodthirst": {
+			"below": 0.30, "idle": "swim", "move": "walk",
+			"patrol_speed": 30.0, "chase_speed": 52.0,
+			"damage_delta": -1, "lifesteal": 1,
+		},
+		"knock_at": 5,
+		"knock_strict": true, # 精英高伤倒地：严格大于 5，5 伤本身不触发
+		"knock_chain": ["atked_heavy", "atked_fall_end", "getup"],
 		"hp": 18,
 		"patrol_speed": 60.0,
 		"chase_speed": 135.0,
@@ -254,27 +272,32 @@ const TYPES := {
 		"bar_y": -175.0,
 		"number_y": -185.0,
 	},
-	# ---------- 精英 · 青笠剑客：C012，前玩家形态下放进敌人池；快剑游侠，两连击 + 跳斩 ----------
+	# ---------- 精英 · 青笠剑客：C012，双剑斩养剑意，旋斩封闪，三层凝华同步分身 ----------
 	"c012": {
 		"label": "青笠剑客",
 		"data": "res://art/characters/enemies/c012/c012_data.tres",
 		"scale": 0.563, # 骨架 262.9px -> 约 148px（精英身高）
 		"body_radius": 36.0,
 		"elite": true,
-		# dead 是 0 秒空姿态，倒地用 atked_fall_end（与 z002 同款处理）
 		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "atked_fall_end"},
-		# skill01（1.317s）= 普攻两连击：0.80s 前刺 306px、1.21s 回刺 246px（探针 scale=1 峰值）
-		# skill02（1.617s）= 跳斩：腾空跃起劈落，0.89s 峰值 289px，伤害翻倍
+		# 13 号双剑斩：0.80s 起剑前刺、1.21s 低位平刺；14 号旋斩：0.89s 腾空展开剑刃。
 		"attacks": ["skill01", "skill02"],
 		"hit_at": {"skill01": [0.80, 1.21], "skill02": 0.89},
-		# ×0.563：两连击 172 / 138，跳斩 163；ranges 与 hit_at 按段一一对应
 		"ranges": {"skill01": [172.0, 138.0], "skill02": 163.0},
-		"damage": {"skill02": 2}, # 跳斩伤害翻倍
-		"poise_atk": {"skill02": true}, # 跳斩出手即霸体：腾空后必须让他劈下来
-		"lunge_mul": {"skill02": 2.0}, # 跳斩跨步前冲更远
-		"hop": {"skill02": 260.0}, # 跳斩腾空（视觉配合动画，重力自然落地）
-		# 背水：血量跌破一半狂暴——出手更密、追得更紧，弥补他底子偏弱
-		"enrage": {"below": 0.5, "cd": 0.65, "speed": 1.2},
+		"damage": {"skill01": [1, 2], "skill02": 2},
+		# 首段先按旧剑意结算再叠层；第二段与旋斩都享受当前剑意，层数永不消耗。
+		"segment_effects": {"skill01": [
+			{"sword_intent": 1, "pierce_hurt_invincible": true},
+			{"bleed": 1, "pierce_hurt_invincible": true},
+		]},
+		"hit_effects": {"skill02": {"sword_intent": 1, "dash_seal": 8.0, "pierce_hurt_invincible": true}},
+		"attack_rules": {"skill02": {"cooldown": 12.0}},
+		"poise_atk": {"skill02": true},
+		"lunge_mul": {"skill02": 2.0},
+		"hop": {"skill02": 260.0},
+		"knock_at": 5,
+		"knock_strict": true,
+		"knock_chain": ["atked", "atked_fall_end", "getup"],
 		"hp": 20,
 		"patrol_speed": 65.0,
 		"chase_speed": 170.0, # 快剑游侠，比别的精英追得紧

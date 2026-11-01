@@ -356,6 +356,8 @@ func _ready() -> void:
 	_permanent_progression_check()
 	await _new_build_regression()
 	_assassin_cut_regression()
+	_dualsickle_regression()
+	_qingli_regression()
 	get_tree().quit()
 
 
@@ -647,6 +649,202 @@ func _assassin_cut_regression() -> void:
 	other.queue_free()
 
 
+## 双镰与青笠共用普通流血：与割伤隔离、完整三秒结算、防御不挂伤，以及绽花跨房上限损失。
+func _dualsickle_regression() -> void:
+	Meta.form_nodes = {}
+	Run.start()
+	Run.guard_available = false
+	_player.swap_skull("c021")
+	_player.set_upgrades({})
+	_player.set_physics_process(false)
+	var attacker := CutAttacker.new()
+	attacker.type_id = "c018"
+	attacker._current_anim = "skill01"
+	add_child(attacker)
+	attacker.global_position = Vector2(600, 560)
+	var move := {"anim": "skill01", "hit_at": 0.30, "cast_id": 41, "bleed": 1, "pierce_hurt_invincible": true}
+
+	# 普通流血每层每秒 1 伤，最多 5 层，新层只刷新持续时间，不与刺客割伤共用状态。
+	_reset_cut_player()
+	var hp_before: int = _player.hp
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var applied_ok: bool = _player.hp == hp_before - 2 and _player._bleed_stacks == 1 and _player._cuts.is_empty()
+	_player.state = _player.State.IDLE
+	_player.velocity = Vector2.ZERO
+	_player._hurt_invincible = 0.0
+	hp_before = _player.hp
+	_player._bleed_tick(0.99)
+	var before_tick: bool = _player.hp == hp_before
+	_player._bleed_tick(0.02)
+	var tick_ok: bool = _player.hp == hp_before - 1 and _player.state == _player.State.IDLE \
+		and _player._hurt_invincible == 0.0 and _player.velocity == Vector2.ZERO
+	_player._apply_bleed(4, attacker, move)
+	var cap_ok: bool = _player._bleed_stacks == 5
+	_player._bleed_time = 1.0
+	_player._apply_bleed(1, attacker, move)
+	var refresh_ok: bool = _player._bleed_stacks == 5 and is_equal_approx(_player._bleed_time, 3.0)
+	p("普通流血 实伤附加/非割伤=%s 整秒结算=%s/%s 无硬直/无敌/击退=%s 五层封顶=%s 新层刷新=%s（期望全 true）" % [
+		applied_ok, before_tick, tick_ok, tick_ok, cap_ok, refresh_ok])
+
+	# 三秒完整结算三次；结束帧不能先清状态而漏掉最后一跳。
+	_reset_cut_player()
+	_player._apply_bleed(1, attacker, move)
+	hp_before = _player.hp
+	_player._bleed_tick(3.0)
+	var duration_ok: bool = _player.hp == hp_before - 3 and _player._bleed_stacks == 0
+	# 同场割伤与普通流血各走各的计时器和来源。
+	_reset_cut_player()
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	_player.state = _player.State.IDLE
+	_player._hurt_invincible = 0.0
+	var cut_move: Dictionary = move.duplicate()
+	cut_move["bleed"] = 0
+	cut_move["cut"] = true
+	cut_move["cast_id"] = 42
+	_player.hurt(1, Vector2.ZERO, attacker, cut_move)
+	var isolated_ok: bool = _player._bleed_stacks == 1 and _player._cuts.size() == 1 and _player._cut_casts.size() == 1
+	p("普通流血 三秒三跳=%s 与割伤状态隔离=%s（期望全 true）" % [duration_ok, isolated_ok])
+
+	# 闪避、护盾、受击无敌都没有实伤，因此不能附加普通流血。
+	_reset_cut_player()
+	_player.state = _player.State.DASH
+	hp_before = _player.hp
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var dodge_ok: bool = _player.hp == hp_before and _player._bleed_stacks == 0
+	_reset_cut_player()
+	_player._shield_hits = 1
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var shield_ok: bool = _player.hp == hp_before and _player._bleed_stacks == 0
+	_reset_cut_player()
+	_player._hurt_invincible = 0.8
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var invincible_ok: bool = _player.hp == hp_before and _player._bleed_stacks == 0
+	p("普通流血防御 闪避/护盾/受击无敌不附加=%s/%s/%s（期望全 true）" % [dodge_ok, shield_ok, invincible_ok])
+
+	# 绽花无直伤、不消耗护砚、不污染终局对演；上限损失跨房保留，后续铁骨仍按已损上限计算。
+	attacker._current_anim = "skill03"
+	var bloom := {"anim": "skill03", "hit_at": 0.83, "cast_id": 43, "bloom": true, "max_hp_loss": 2, "lift_height": 120.0}
+	_reset_bloom_player()
+	_player.global_position = Vector2(500, 560)
+	Run.guard_available = true
+	Run.last_hit = {}
+	_player.hurt(0, Vector2.ZERO, attacker, bloom)
+	var bloom_ok: bool = _player.hp == 5 and _player.max_hp == 6 and Run.max_hp_loss == 2 \
+		and _player.global_position.is_equal_approx(attacker.global_position + Vector2(0, -120)) \
+		and Run.guard_available and Run.last_hit.is_empty()
+	Run.snapshot(_player)
+	Run.apply_to(_player)
+	var persist_ok: bool = _player.hp == 5 and _player.max_hp == 6 and Run.max_hp_loss == 2
+	var bought: bool = Run.buy("hp")
+	Run.apply_to(_player)
+	var upgrade_ok: bool = bought and _player.max_hp == 7 and _player.hp == 7 and Run.max_hp_loss == 2
+	p("绽花玩家入口 无直伤/正上方/上限-2/护砚与对演不污染=%s 跨房=%s 后续铁骨=%s（期望全 true）" % [bloom_ok, persist_ok, upgrade_ok])
+
+	# 绽花同样必须被闪避、护盾和受击无敌完整防住。
+	_reset_bloom_player()
+	_player.global_position = Vector2(500, 560)
+	var origin: Vector2 = _player.global_position
+	_player.state = _player.State.DASH
+	_player.hurt(0, Vector2.ZERO, attacker, bloom)
+	var bloom_dodge: bool = Run.max_hp_loss == 0 and _player.global_position == origin
+	_reset_bloom_player()
+	_player.global_position = origin
+	_player._shield_hits = 1
+	_player.hurt(0, Vector2.ZERO, attacker, bloom)
+	var bloom_shield: bool = Run.max_hp_loss == 0 and _player.global_position == origin and _player._shield_hits == 0
+	_reset_bloom_player()
+	_player.global_position = origin
+	_player._hurt_invincible = 0.8
+	_player.hurt(0, Vector2.ZERO, attacker, bloom)
+	var bloom_invincible: bool = Run.max_hp_loss == 0 and _player.global_position == origin
+	p("绽花防御 闪避/护盾/受击无敌无效化=%s/%s/%s（期望全 true）" % [bloom_dodge, bloom_shield, bloom_invincible])
+
+	# 普通流血致死要记录双镰与镰舞，不能沿用其他来源或丢失招式。
+	attacker._current_anim = "skill01"
+	Run.start()
+	_reset_cut_player(2)
+	Run.last_hit = {}
+	_player.hurt(1, Vector2.ZERO, attacker, move)
+	_player.state = _player.State.IDLE
+	_player._hurt_invincible = 0.0
+	_player._bleed_tick(1.01)
+	var death_ok: bool = _player.hp <= 0 and _player.state == _player.State.DEAD and _player._bleed_stacks == 0
+	var replay_ok: bool = str(Run.last_hit.get("type_id", "")) == "c018" \
+		and str(Run.last_hit.get("anim", "")) == "skill01" and int(Run.last_hit.get("damage", 0)) == 1
+	p("普通流血致死 死亡并清理=%s 终局对演记录=%s last_hit=%s（期望 true/true/c018+skill01）" % [death_ok, replay_ok, str(Run.last_hit)])
+	attacker.queue_free()
+
+
+## 青笠旋斩：只有实际扣血才封 Shift 闪避 8 秒，重复实伤刷新，所有防御路径均不触发。
+func _qingli_regression() -> void:
+	Meta.form_nodes = {}
+	Run.start()
+	Run.guard_available = false
+	_player.swap_skull("c021")
+	_player.set_upgrades({})
+	_player.set_physics_process(false)
+	var attacker := CutAttacker.new()
+	attacker.type_id = "c012"
+	attacker._current_anim = "skill02"
+	add_child(attacker)
+	var move := {"anim": "skill02", "hit_at": 0.89, "cast_id": 51, "dash_seal": 8.0, "pierce_hurt_invincible": true}
+
+	_reset_cut_player()
+	var hp_before: int = _player.hp
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var applied_ok: bool = _player.hp == hp_before - 2 and is_equal_approx(_player._dash_seal, 8.0)
+	_player._dash_seal = 2.0
+	hp_before = _player.hp
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var refresh_ok: bool = _player.hp == hp_before - 2 and is_equal_approx(_player._dash_seal, 8.0)
+	p("旋斩封闪 实伤附加/同招重复实伤刷新8秒=%s/%s（期望全 true）" % [applied_ok, refresh_ok])
+
+	# 封锁期间 Shift 不得进入 DASH；解除后同一个输入入口恢复正常。
+	_reset_cut_player()
+	_player._dash_cd = 0.0
+	_player._dash_seal = 8.0
+	Input.action_press("dash")
+	_player._try_dash()
+	Input.action_release("dash")
+	var sealed_ok: bool = _player.state == _player.State.IDLE
+	_player._dash_seal = 0.0
+	_player._dash_cd = 0.0
+	Input.action_press("dash")
+	_player._try_dash()
+	Input.action_release("dash")
+	var recovered_ok: bool = _player.state == _player.State.DASH
+	p("旋斩封闪 封锁禁Shift/解禁恢复=%s/%s（期望全 true）" % [sealed_ok, recovered_ok])
+
+	# 闪避、护盾、受击无敌与反伤均未形成实伤，不得附加或刷新封闪。
+	_reset_cut_player()
+	_player.state = _player.State.DASH
+	hp_before = _player.hp
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var dodge_ok: bool = _player.hp == hp_before and _player._dash_seal == 0.0
+	_reset_cut_player()
+	_player._shield_hits = 1
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var shield_ok: bool = _player.hp == hp_before and _player._dash_seal == 0.0
+	_reset_cut_player()
+	_player._hurt_invincible = 0.8
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var invincible_ok: bool = _player.hp == hp_before and _player._dash_seal == 0.0
+	_reset_cut_player()
+	_player._skill_reflect = true
+	_player.hurt(2, Vector2.ZERO, attacker, move)
+	var reflect_ok: bool = _player.hp == hp_before and _player._dash_seal == 0.0 and attacker.damage_taken > 0
+	p("旋斩封闪防御 闪避/护盾/受击无敌/反伤不触发=%s/%s/%s/%s（期望全 true）" % [dodge_ok, shield_ok, invincible_ok, reflect_ok])
+	attacker.queue_free()
+
+
+func _reset_bloom_player(hp := 5) -> void:
+	Run.start()
+	Run.apply_to(_player)
+	_reset_cut_player(hp)
+	_player.max_hp = Run.max_hp
+	Run.hp = hp
+
+
 func _reset_cut_player(hp := 20) -> void:
 	_player.max_hp = 20
 	_player.hp = hp
@@ -657,6 +855,8 @@ func _reset_cut_player(hp := 20) -> void:
 	_player._hurt_cast_key = ""
 	_player._cuts.clear()
 	_player._cut_casts.clear()
+	_player._clear_bleed()
+	_player._dash_seal = 0.0
 	_player._shield_hits = 0
 	_player._shield_time = 0.0
 	_player._parry_ready = false

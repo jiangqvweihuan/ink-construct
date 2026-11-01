@@ -140,6 +140,7 @@ var blessing_rerolls := 0 # 永久商品提供的每局赐福重随次数
 var supply_revive := false # 复活墨符：与续命赐福相互独立
 var supply_revive_used := false
 var supply_hp := 0 # 生肌散：本局额外生命上限
+var max_hp_loss := 0 # 镰意绽花：本局生命上限损失，跨房间保留
 var supply_upgrade_rerolls := 0 # 重随券：整局共享的额外强化重随次数
 var guard_available := false # 护砚：每局第一次实际受伤减免
 var c021_dance_kills := 0 # 血舞·极：跨房间保留的每三杀回血计数
@@ -159,6 +160,7 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1)
 	depth = 1
 	room_index = 0
 	skull_id = new_skull if new_skull != "" else "c021"
+	max_hp_loss = 0
 	max_hp = BASE_HP + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id)
 	hp = max_hp
 	upgrades = {}
@@ -361,7 +363,7 @@ func buy(key: String) -> bool:
 	upgrades[key] = level(key) + 1
 	if key == "hp":
 		# 与 apply_to 同公式：铁砚护身赐福 + 固元（局外）都要算进上限
-		max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp
+		max_hp = maxi(1, BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp - max_hp_loss)
 		hp = max_hp # 买了加血就回满，下一层的起始血量一并提高
 	return true
 
@@ -388,9 +390,25 @@ func apply_to(player) -> void:
 		push_error("Run.apply_to: 玩家缺少 set_upgrades（脚本未加载？），状态未装回")
 		return
 	player.set_upgrades(upgrades)
-	max_hp = BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp # 铁砚护身赐福 + 固元（局外）
+	max_hp = maxi(1, BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp - max_hp_loss) # 铁砚护身赐福 + 固元（局外）- 绽花损失
 	player.max_hp = max_hp
 	player.hp = clampi(hp, 1, max_hp)
 	if player.skull_id != skull_id:
 		player.swap_skull(skull_id)
 	player.hp_changed.emit(player.hp, player.max_hp)
+
+
+## 镰意绽花：只扣本局上限，不造成普通直伤；实际损失写入 Run，换房与后续强化都不会洗掉。
+func lose_max_hp(amount: int, player = null) -> int:
+	var actual := mini(maxi(0, amount), maxi(0, max_hp - 1))
+	if actual <= 0:
+		return 0
+	max_hp_loss += actual
+	max_hp = maxi(1, max_hp - actual)
+	hp = mini(hp, max_hp)
+	if player != null and is_instance_valid(player):
+		player.max_hp = max_hp
+		player.hp = mini(int(player.hp), max_hp)
+		hp = int(player.hp)
+		player.hp_changed.emit(player.hp, player.max_hp)
+	return actual
