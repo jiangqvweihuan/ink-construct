@@ -1,10 +1,11 @@
 extends CanvasLayer
 
-## 墨霆 Boss 房先导：黑底、双方名字与真实骨架对峙；不改动其他 Boss 的登场方式。
+## 指定 Boss 房先导：黑底、双方名字与真实骨架对峙；其余 Boss 保持旧登场。
 
 signal finished
 
 const Skulls := preload("res://scripts/player/skulls.gd")
+const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.42, 0.40, 0.36)
 
@@ -47,9 +48,11 @@ func _ready() -> void:
 
 	_make_preview(root, load(str(profile["data"])), float(profile.get("scale", 0.394)) * 1.35,
 		Vector2(292, 590), str((profile.get("anim", {}) as Dictionary).get("idle", "stand")), true, false)
-	var duration := float(_boss.get("_anim_durations").get("skill01", 2.2))
+	var intro: Dictionary = BossTypes.get_boss(str(_boss.get("type_id"))).get("intro", {"anim": "skill01", "loop": false})
+	var intro_anim := str(intro.get("anim", "skill01"))
+	var duration := float(_boss.get("_anim_durations").get(intro_anim, 2.2))
 	_make_preview(root, _boss.get("sprite").get("skeleton_data_res"), float(_boss.get("_scale")) * 0.9,
-		Vector2(984, 600), "skill01", false, true)
+		Vector2(984, 600), intro_anim, bool(intro.get("loop", false)), true)
 	await get_tree().create_timer(maxf(1.2, duration)).timeout
 	_finish()
 

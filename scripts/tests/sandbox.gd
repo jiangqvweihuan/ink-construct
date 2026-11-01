@@ -172,7 +172,12 @@ func _spawn_enemy() -> void:
 	var info: Dictionary = _roster[_ri]
 	var scene_path := GRUNT_SCENE
 	if info["boss"]:
-		scene_path = "res://scenes/enemies/bosses/mo_ting.tscn" if info["id"] == "c009" else BOSS_SCENE
+		if info["id"] == "c009":
+			scene_path = "res://scenes/enemies/bosses/mo_ting.tscn"
+		elif info["id"] == "c015a1":
+			scene_path = "res://scenes/enemies/bosses/fen_ding.tscn"
+		else:
+			scene_path = BOSS_SCENE
 	_enemy = load(scene_path).instantiate()
 	_enemy.type_id = info["id"] # add_child 才跑 _ready/_apply_type，先设形态
 	_enemy.position = Vector2(900, 560)

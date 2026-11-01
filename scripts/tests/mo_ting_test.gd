@@ -77,6 +77,8 @@ func _reset_all(player_hp := 99, player_max := 99) -> void:
 	_b._invincible = false
 	_b._attack_cd = 0.0
 	_b._battle_time = 10.0
+	_b._attack_desire = 5.0
+	_b._approach_yield = 0.0
 	_b._recent_hits.clear()
 	_b.cd_scale = 1.0
 	for move in _b.MOVE_ORDER:
@@ -226,6 +228,7 @@ func _test_rush() -> void:
 	_b.facing = 1
 	_p.global_position.x = 900.0
 	_b._start_mo_move(_b.RUSH)
+	_check(is_equal_approx(_b._move_cds[_b.RUSH], 35.0), "墨冲冷却已调整为 35 秒")
 	_b._cast_tick(1.60)
 	_check(_p.hp == 99 and is_zero_approx(_b.velocity.x), "墨冲蓄力期间不位移也不出伤")
 	_b._cast_tick(0.03)
@@ -315,16 +318,43 @@ func _test_laser() -> void:
 func _test_move_selection() -> void:
 	_reset_all()
 	_b._battle_time = 4.99
+	_b._attack_desire = 0.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move != _b.TREMOR, "开局前 5 秒禁止墨颤")
-	_b._cleanup_cast()
-	_b.state = CHASE
+	_check(_b._cast_move.is_empty() and is_zero_approx(_b.velocity.x) and _b._current_anim == "stand", "欲望未满且距离合适时停走待机")
 	_b._battle_time = 5.0
+	_b._attack_desire = 5.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.TREMOR, "开局满 5 秒且冷却完成时优先墨颤")
+	_check(_b._cast_move == _b.TREMOR, "公共欲望满 5 秒且冷却完成时优先墨颤")
+	_check(is_zero_approx(_b._attack_desire) and is_zero_approx(_b._approach_yield), "墨霆每次起手重置公共欲望与忍让计数")
+	_b._finish_cast()
+	_b._attack_desire = 2.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move.is_empty() and is_zero_approx(_b.velocity.x) and _b._current_anim == "stand", "墨霆收招后在保距带内待机而非一直后退")
 	_b.cd_scale = 0.5
 	_b._start_mo_move(_b.TREMOR)
 	_check(is_equal_approx(_b._move_cds[_b.TREMOR], 15.0), "无尽冷却倍率在起手时一次性正确缩放")
+
+	_reset_all()
+	_b._attack_desire = 0.0
+	_b._move_cds[_b.TREMOR] = 1.0
+	_p.global_position.x = 1000.0
+	_p.velocity.x = -200.0
+	_b._chase_tick(1.5)
+	_check(_b._cast_move.is_empty() and _b.velocity.x < 0.0, "墨霆面对逼近先忍让一段距离")
+	_check(is_equal_approx(_b._approach_yield, 120.0), "墨霆单轮忍让最多 120px")
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.LEAP and is_zero_approx(_b._attack_desire), "持续冒进使墨霆立即满欲望并释放当前招")
+
+	_reset_all()
+	_b._attack_desire = 2.0
+	_p.global_position.x = 1400.0
+	_p.velocity.x = 200.0
+	_b._chase_tick(0.5)
+	_check(is_equal_approx(_b._attack_desire, 3.0) and _b.velocity.x > 0.0, "墨霆追击后退玩家时以 2 倍速度累计欲望")
+	_p.global_position.x = 1180.0
+	_p.velocity.x = 0.0
+	_b._chase_tick(0.5)
+	_check(is_equal_approx(_b._attack_desire, 3.5) and is_zero_approx(_b.velocity.x) and _b._current_anim == "stand", "墨霆相持时恢复 1 倍欲望并保持待机")
 
 	_reset_all()
 	_b._move_cds[_b.TREMOR] = 1.0
@@ -353,6 +383,21 @@ func _test_move_selection() -> void:
 	_b.global_position.x = 840.0
 	_b._chase_tick(0.016)
 	_check(_b._cast_move == _b.LASER, "贯昼达到 340 距离后立即释放")
+
+	for case in [
+		{"move": _b.LEAP, "label": "陨构"},
+		{"move": _b.RUSH, "label": "墨冲"},
+		{"move": _b.LASER, "label": "贯昼"},
+	]:
+		_reset_all()
+		_b.global_position.x = 700.0
+		_p.velocity.x = 200.0
+		_b._move_cds[_b.TREMOR] = 1.0
+		for ranged in [_b.LEAP, _b.RUSH, _b.LASER]:
+			_b._move_cds[ranged] = 1.0
+		_b._move_cds[case["move"]] = 0.0
+		_b._chase_tick(0.016)
+		_check(_b._cast_move == case["move"], "%s 后退拉距时被玩家追逼至 260px 内立即释放" % case["label"])
 
 
 func _test_death_cleanup() -> void:

@@ -101,6 +101,10 @@ var _dash_seal := 0.0 # 旋斩实伤附加：只封 Shift 闪避，不影响移�
 var _cripple_time := 0.0 # 墨霆致残：封跳跃、Shift 闪避与所有带位移的技能
 var _mo_ting_burn_stacks := 0 # 贯昼灼烧：只提高墨霆后续激光伤害，不独立跳伤
 var _mo_ting_burn_time := 0.0
+const FEN_DING_BURN_INTERVALS := [60.0, 58.0, 54.0, 48.0, 40.0, 30.0, 18.0, 10.0]
+var _fen_ding_burn_stacks := 0 # 焚鼎怒焰：永久无限叠层，共用一个逐渐加速的扣血计时器
+var _fen_ding_burn_left := 0.0
+var _fen_ding_burn_source: Node = null
 var _mo_ting_grabbed := false # 墨颤抓取：由墨霆显式释放，时停/破招/死亡都不能留下锁定
 # ---------- 通用动作接口（形态表按需开启；未配 = 退回旧行为，新角色照抄这组字段即可） ----------
 var _dash_time_base := 0.0 # 闪避时长 = 闪避动画长度（完美闪避判定窗口）
@@ -558,6 +562,7 @@ func _setup_spine() -> void:
 
 func _physics_process(delta: float) -> void:
 	_mo_ting_burn_tick(delta)
+	_fen_ding_burn_tick(delta)
 	if _mo_ting_grabbed:
 		velocity = Vector2.ZERO
 		return
@@ -2367,6 +2372,8 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		_apply_bleed(int(move.get("bleed", 0)), attacker, move)
 	if hp > 0 and bool(move.get("mo_ting_burn", false)):
 		_apply_mo_ting_burn()
+	if hp > 0 and bool(move.get("fen_ding_burn", false)):
+		_apply_fen_ding_burn(attacker)
 	if skull_id == "c013" and _own("c013_ascetic_1"):
 		_precepts = mini(3, _precepts + 1)
 		var precept_dn := DAMAGE_NUMBER.new()
@@ -2563,6 +2570,55 @@ func _mo_ting_burn_tick(delta: float) -> void:
 		_mo_ting_burn_stacks = 0
 
 
+## 怒焰只在招式真实扣血后叠层；新层按新间隔重启唯一的共享计时器。
+func _apply_fen_ding_burn(attacker: Node) -> void:
+	if attacker == null or not is_instance_valid(attacker):
+		return
+	_fen_ding_burn_stacks += 1
+	_fen_ding_burn_source = attacker
+	_fen_ding_burn_left = fen_ding_burn_interval()
+
+
+func fen_ding_burn_interval() -> float:
+	if _fen_ding_burn_stacks <= 0:
+		return 0.0
+	return float(FEN_DING_BURN_INTERVALS[mini(_fen_ding_burn_stacks, FEN_DING_BURN_INTERVALS.size()) - 1])
+
+
+func clear_fen_ding_burn(boss: Node = null) -> void:
+	if boss != null and _fen_ding_burn_source != boss:
+		return
+	_fen_ding_burn_stacks = 0
+	_fen_ding_burn_left = 0.0
+	_fen_ding_burn_source = null
+
+
+## 固定 1 点真实扣血：不写受伤无敌、不进受击状态，也不被普通减伤吞掉。
+func _fen_ding_burn_tick(delta: float) -> void:
+	if _fen_ding_burn_stacks <= 0 or state == State.DEAD:
+		return
+	if not is_instance_valid(_fen_ding_burn_source) or int(_fen_ding_burn_source.get("hp")) <= 0:
+		clear_fen_ding_burn()
+		return
+	_fen_ding_burn_left -= delta
+	if _fen_ding_burn_left > 0.0:
+		return
+	var dealt := mini(1, hp)
+	hp -= 1
+	hp_changed.emit(hp, max_hp)
+	_spawn_number(dealt, DMG_COLOR, 130.0)
+	FX.spawn(get_tree().current_scene, "fire_hit", global_position + Vector2(0, -70), {"scale": 0.35})
+	var source := _fen_ding_burn_source
+	if is_instance_valid(source) and source.has_method("on_fen_ding_burn_hit"):
+		source.call("on_fen_ding_burn_hit", dealt, self)
+	_fen_ding_burn_left = fen_ding_burn_interval()
+	if hp <= 0:
+		_record_last_hit(source, {"anim": "fen_ding_burn", "hit_at": 0.0}, dealt)
+		if _try_revive(Vector2.ZERO):
+			return
+		die()
+
+
 ## 普通流血：每层每秒 1 伤、持续 3 秒、最多 5 层，新层刷新持续时间；双镰与青笠共用。
 func _apply_bleed(layers: int, attacker: Node, move: Dictionary) -> void:
 	if layers <= 0 or state == State.DEAD:
@@ -2751,6 +2807,7 @@ func _perfect_dodge(attacker: Node = null) -> void:
 
 func die() -> void:
 	_mo_ting_grabbed = false
+	clear_fen_ding_burn()
 	state = State.DEAD
 	_set_blink(false) # 尸体也别穿怪
 	_reset_root_follow() # 死亡时收掉根骨补偿，尸体倒在实际站位

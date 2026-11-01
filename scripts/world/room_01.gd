@@ -221,7 +221,11 @@ func _build_actors() -> void:
 
 ## Boss 登场：墨堂深处只有它一个对手，出场先震屏立威
 func _spawn_boss() -> void:
-	var scene_path := "res://scenes/enemies/bosses/mo_ting.tscn" if Run.boss_id == "c009" else "res://scenes/enemies/bosses/boss.tscn"
+	var scene_path := "res://scenes/enemies/bosses/boss.tscn"
+	if Run.boss_id == "c009":
+		scene_path = "res://scenes/enemies/bosses/mo_ting.tscn"
+	elif Run.boss_id == "c015a1":
+		scene_path = "res://scenes/enemies/bosses/fen_ding.tscn"
 	_boss = load(scene_path).instantiate()
 	_boss.type_id = Run.boss_id
 	# 无尽缩放必须在 add_child 之前写入（_ready -> _apply_type 会读这两个值）
@@ -231,7 +235,7 @@ func _spawn_boss() -> void:
 	_boss.died.connect(_on_boss_died)
 	add_child(_boss)
 	_boss.entrance()
-	if Run.boss_id == "c009":
+	if Run.boss_id == "c009" or Run.boss_id == "c015a1":
 		var intro := BOSS_DUEL_INTRO.new()
 		intro.name = "BossDuelIntro"
 		intro.setup(_player, _boss)

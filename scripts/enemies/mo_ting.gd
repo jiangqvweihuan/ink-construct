@@ -15,7 +15,13 @@ const LEAP := "skill08" # 陨构（按距离选 skill08 / skill08-cankao）
 const LASER := "skill02-01" # 贯昼
 const INTRO_ANIM := "skill01"
 const MOVE_ORDER := [BASIC, TREMOR, RUSH, SLAM, LEAP, LASER]
-const COOLDOWNS := {TREMOR: 30.0, RUSH: 10.0, SLAM: 25.0, LEAP: 40.0, LASER: 16.0}
+const COOLDOWNS := {TREMOR: 30.0, RUSH: 35.0, SLAM: 25.0, LEAP: 40.0, LASER: 16.0}
+const ATTACK_DESIRE_TIME := 5.0
+const HOLD_DISTANCE := 380.0
+const HOLD_TOLERANCE := 45.0
+const YIELD_DISTANCE := 120.0
+const FAST_DESIRE_SCALE := 2.0
+const PURSUIT_COMMIT_DIST := 260.0 # 后退拉距时被持续追逼到此距离内，立即释放当前距离技。
 const RUSH_START := 1.62 # 动画蓄力结束、机体开始前倾后才起步。
 const RUSH_END := 3.60
 const GROUND_IMPACT_X := 240.0 # 断岳 / 陨构的拍地点在骨架原点身前，不在 Boss 脚底。
@@ -24,6 +30,8 @@ const UNBREAKABLE: Array = [] # 当前六招均可被阈值受击打断；时停
 
 var _move_cds: Dictionary = {}
 var _battle_time := 0.0
+var _attack_desire := 0.0
+var _approach_yield := 0.0
 var _recent_hits: Array = []
 var _cast_move := ""
 var _cast_visual := ""
@@ -101,6 +109,8 @@ func finish_entrance() -> void:
 	if state == State.DEAD:
 		return
 	_battle_time = 0.0
+	_attack_desire = 0.0
+	_approach_yield = 0.0
 	_recent_hits.clear()
 	_set_state(State.CHASE)
 
@@ -115,6 +125,8 @@ func _physics_process(delta: float) -> void:
 		return
 	if state != S_ENTER:
 		_battle_time += delta
+	if state != S_ENTER and state != State.CHASE:
+		_attack_desire = minf(ATTACK_DESIRE_TIME, _attack_desire + delta)
 	for move in _move_cds:
 		_move_cds[move] = maxf(0.0, float(_move_cds[move]) - delta)
 	if state == S_CAST or state == S_BREAK:
@@ -133,7 +145,7 @@ func _physics_process(delta: float) -> void:
 	super(delta)
 
 
-## 常驻追击：远程招就绪时主动拉距；墨颤始终优先，近身招只在远程招不可用或无处可退时兜底。
+## 常驻追击：公共欲望满后墨颤优先；远程招就绪时主动拉距，近身招只在远程招不可用或无处可退时兜底。
 func _chase_tick(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
@@ -144,12 +156,44 @@ func _chase_tick(delta: float) -> void:
 	facing = 1 if dx >= 0.0 else -1
 	_apply_facing()
 	var dist := absf(dx)
+	var player_vx := 0.0
+	var target_velocity = _target.get("velocity")
+	if typeof(target_velocity) == TYPE_VECTOR2:
+		player_vx = target_velocity.x
+	var approaching: bool = dx * player_vx < -1.0
+	var retreating: bool = dx * player_vx > 1.0
+	if not approaching:
+		_approach_yield = 0.0
+	var desire_scale := FAST_DESIRE_SCALE if retreating and dist > HOLD_DISTANCE else 1.0
+	_attack_desire = minf(ATTACK_DESIRE_TIME, _attack_desire + delta * desire_scale)
+	if _attack_desire < ATTACK_DESIRE_TIME:
+		if approaching and dist < HOLD_DISTANCE:
+			if _approach_yield < YIELD_DISTANCE:
+				var yield_step := minf(chase_speed * delta, YIELD_DISTANCE - _approach_yield)
+				_approach_yield += yield_step
+				velocity.x = move_toward(velocity.x, -facing * chase_speed, accel * delta)
+				_play(str(_anim_map["chase"]), true)
+				return
+			_attack_desire = ATTACK_DESIRE_TIME
+		elif dist > HOLD_DISTANCE + HOLD_TOLERANCE:
+			velocity.x = move_toward(velocity.x, facing * chase_speed, accel * delta)
+			_play(str(_anim_map["chase"]), true)
+			return
+		elif dist < HOLD_DISTANCE - HOLD_TOLERANCE:
+			velocity.x = move_toward(velocity.x, -facing * chase_speed, accel * delta)
+			_play(str(_anim_map["chase"]), true)
+			return
+		else:
+			velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+			_play(str(_anim_map["idle"]), true)
+			return
 	if dy <= 180.0:
 		if _battle_time >= 5.0 and float(_move_cds[TREMOR]) <= 0.0:
 			if _attack_cd <= 0.0:
 				_start_mo_move(TREMOR)
 			else:
 				velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+				_play(str(_anim_map["idle"]), true)
 			return
 
 		# 三个距离招按既有优先级择一；近身也先向后拉开，不再贴着玩家等距离。
@@ -165,16 +209,19 @@ func _chase_tick(delta: float) -> void:
 			ranged_move = LASER
 			ranged_distance = 340.0
 		if ranged_move != "":
-			if dist >= ranged_distance:
+			var pursuit_close := approaching
+			if dist >= ranged_distance or (dist <= PURSUIT_COMMIT_DIST and pursuit_close):
 				if _attack_cd <= 0.0:
 					_start_mo_move(ranged_move)
 				else:
 					velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+					_play(str(_anim_map["idle"]), true)
 				return
 			var retreat_dir := -facing
 			var retreat_x := global_position.x + retreat_dir * chase_speed * delta
 			if retreat_x >= ARENA_L + 90.0 and retreat_x <= ARENA_R - 90.0:
 				velocity.x = move_toward(velocity.x, retreat_dir * chase_speed, accel * delta)
+				_play(str(_anim_map["chase"]), true)
 				return
 
 		if _attack_cd <= 0.0:
@@ -185,6 +232,7 @@ func _chase_tick(delta: float) -> void:
 				_start_mo_move(BASIC)
 				return
 	velocity.x = move_toward(velocity.x, facing * chase_speed, accel * delta)
+	_play(str(_anim_map["chase"]), true)
 
 
 func _start_mo_move(move: String) -> void:
@@ -194,6 +242,8 @@ func _start_mo_move(move: String) -> void:
 	_cast_move = move
 	_cast_visual = move
 	_cast_elapsed = 0.0
+	_attack_desire = 0.0
+	_approach_yield = 0.0
 	_tick_started = false
 	_tick_acc = 0.0
 	if move == LEAP and _target != null and is_instance_valid(_target):
