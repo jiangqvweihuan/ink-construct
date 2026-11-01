@@ -58,7 +58,7 @@ const TAGS := {
 	"c037": ["近战", "连段", "流血", "妖异", "精英"],
 	"c018": ["近战", "机动", "流血", "戏班", "精英"],
 	"c012": ["近战", "机动", "分身", "剑门", "精英"],
-	"c009": ["近战", "召唤", "击飞", "墨堂", "首领"],
+	"c009": ["近战", "远程", "击飞", "墨堂", "首领"],
 	"c015a1": ["近战", "站桩", "晕眩", "妖异", "首领"],
 	"c001": ["近战", "站桩", "击飞", "墨堂", "首领"],
 	"c008": ["近战", "站桩", "霸体", "墨堂", "首领"],
@@ -72,6 +72,7 @@ const TAGS := {
 
 ## 已正式定名的普通敌人招式资料；逻辑招式键与演示动画名可以不同。
 const ENEMY_ATTACK_NAMES := {
+	"c009": {"skill03": "奋挥", "skill04": "墨颤", "skill05": "墨冲", "skill06": "断岳", "skill08": "陨构", "skill02-01": "贯昼"},
 	"c016": {"skill01": "亡命三刀", "skill02": "螺旋鞭", "skill03": "升龙刀", "skill04": "双镰"},
 	"c017": {"skill01": "开天", "skill02": "辟地", "skill03_2": "赶山三斧"},
 	"c035": {"dart": "镖去", "sneak": "偷袭"},
@@ -80,6 +81,14 @@ const ENEMY_ATTACK_NAMES := {
 	"c037": {"skill01": "亭台剑", "skill03": "转", "cangjian": "藏剑式", "jijian": "断楹祭剑"},
 }
 const ENEMY_ATTACK_MECH := {
+	"c009": {
+		"skill03": "普攻，无独立冷却；前两段各造成 1 点伤害，最后蓄力一击造成 3 点伤害",
+		"skill04": "冷却 30 秒，开局前 5 秒禁用；机关举手时红点跟随目标，垂手后停止跟踪，落地时仍站在点内便被擒至操控者身前。先刺击造成 2 点伤害，后续滑斩把生命上限削至当前生命",
+		"skill05": "冷却 10 秒，仅在拉开距离后释放；高速冲追，进入攻击范围立即造成 2 点伤害，此后每 0.5 秒再造成 2 点伤害直至冲刺结束，并触发拥有倒地动作的角色的倒地效果",
+		"skill06": "冷却 25 秒；机关蓄力后向下砸地方才结算，造成 5 点伤害并附加 5 秒致残：封锁跳跃、Shift 闪避及所有带位移的技能",
+		"skill08": "冷却 40 秒，远距离时按间距施展小跳或大跳；落地仍在范围内才造成 4 点伤害、远距击退与 5 秒致残",
+		"skill02-01": "冷却 16 秒；短蓄力后向正前方发射贯穿整幅地图的激光，进入光束立即造成 1 点基础伤害，此后每 0.5 秒结算一次。灼烧每累计 3 层使后续激光基础伤害 +1，最多 +3，6 秒未再命中则清零",
+	},
 	"c016": {
 		"skill01": "普攻，无独立冷却；前两刀只造成受击反馈，末刀造成 1 点伤害",
 		"skill02": "中距离主动释放，冷却 9.6 秒；命中造成 1 点伤害",
@@ -112,6 +121,14 @@ const ENEMY_ATTACK_MECH := {
 	},
 }
 const ENEMY_ATTACK_LORE := {
+	"c009": {
+		"skill03": "巨兽的前肢原是撑起墨堂门匾的梁柱。门匾早烂了，它仍保留当年扶正牌匾的三下动作：两下试正，最后一下总把东西按进墙里。",
+		"skill04": "操控者修木偶时，会先用朱笔点住关节，再把散件拉回案前。如今朱点落在脚下，机爪认点不认人；那柄修边尖刀，也早从削竹改成了削命数。",
+		"skill05": "这具巨兽曾替墨堂拖运雷车，最懂起步后不能回头。车早散架了，拉车的习性还在；它一旦压低肩颈，沿途无论石墩还是来客，都得让路。",
+		"skill06": "断岳原是墨堂修山门用的打桩式。操控者把整具机关的重量压进一锤，专断落脚之根；他说山岳不能挪窝，便先教会挨锤的人也别乱动。",
+		"skill08": "巨兽报废前最喜欢从屋脊跃回修理工坊，距离近便跨过一道沟，距离远便越过半座院。如今工坊成了战场，它仍把每一次落地当成归家，只是屋里的人承受不起。",
+		"skill02-01": "墨霆怕雷，却亲手给巨兽装了引雷针。某夜雷火灌进机心，他情急下把余威压成一道细光；那线光曾照彻白昼，也把师徒二人最后一点清醒烧得越来越少。",
+	},
 	"c016": {
 		"skill01": "他替商队挡过三次劫刀：第一刀断粮，第二刀断路，第三刀才明白命不是自己的。此后前两刀只逼破绽，最后一刀连旧账一起讨。",
 		"skill02": "早年他在山口套惊马，绳索绕臂三周，借旋劲把畜生拉回。后来绳换成鞭，马没套住几匹，过路人倒是一个也没走远。",
@@ -144,6 +161,18 @@ const ENEMY_ATTACK_LORE := {
 	},
 }
 const ENEMY_PASSIVES := {
+	"c009": [
+		{
+			"name": "机关造物",
+			"desc": "免疫流血、中毒等持续减益与普通控制；时间暂停是规则级能力，仍然生效",
+			"lore": "巨兽没有血肉，操控者也早把自己的痛觉接进了机簧。针扎不进齿轮，喝令也叫不停发条；唯有让整段时光停下，这尊造物才会跟着歇一口气。",
+		},
+		{
+			"name": "失心疯",
+			"desc": "每次对玩家造成真实伤害，自身生命上限 +1；受到任何伤害都会改为失去等量生命上限，因此生命始终等于上限",
+			"lore": "雷火那晚，操控者把自己的心换成一枚会记仇的机心。每伤一人，机心便多刻一道槽；每受一伤，便连槽带肉一起削去。它从不缺损，也再不知道什么叫痊愈。",
+		},
+	],
 	"c037": {
 		"name": "魔 爆",
 		"desc": "死亡后会再次起身，魔化前扑并回斩，对前方大范围内的所有角色造成 3 点伤害。实际受创者仅在本房间受到魔诅：每个有冷却的技能使用后，其下一次冷却永久增加 1 秒",
@@ -232,7 +261,7 @@ const LORE := {
 	"c018": "他曾是戏班里专演夜游神的双刀伶人，一双银镰在灯影里交错，像一轮不肯缺的月。班主说戏最要紧是懂得收，可他压轴的《血月绽花》从没等到谢幕——戏班欠下血债，那夜台下比台上先见了红。此后他仍按旧锣鼓点出手，只是再没人替他敲响收场那一声。",
 	"c012": "他原是听雨阁替名家喂招的剑仆，只有斗笠，没有题名。阁主说剑意不可过三，免得仆比主先懂剑；阁毁那夜，他第一次使完第三层，雨里便站起另一个自己，替他斩断了那句「不许赢」。从此他带双剑远行，一名「问」，一名「答」——问尽来客，也终于开始回答自己。",
 	"c037": "他原是渡头青亭的主人，青衣迎客，剑只用来裁茶、削笺、替迷路人斩开荆棘。墨堂来夺亭那夜，他拔出了亭基下祖辈封存的绿色魔剑；剑保住了亭，也顺着他的规矩一寸寸吃掉旧主。如今他仍守在原地，见客先施礼，三剑不差分毫，只在生命将尽时以剑代楹、向魔物再赊一命。来客若看见他死后重新站起，便会明白：青魇从来不是那柄剑的名字，而是亭主留在人间的最后一场噩梦。",
-	"c009": "巨兽为骑，雷纹在胸口游走。传闻他是墨堂豢养的守门凶神——兽不死，霆不止。",
+	"c009": "墨霆原是墨堂里最会修伞的机关师，怕雷，却偏给巨兽装了引雷针。一个雷夜过后，他和作品一起醒来：巨兽把他认作唯一会拧螺丝的人，他则再也想不起为什么要离开。如今他守在云坪，见客先看脚下——不是讲究礼数，只是在找下一颗能替换旧心的螺丝。",
 	"c015a1": "紫焰锁链缠身的巨汉，抬手即成火海。鼎早已焚毁，锁链还绑在他身上。",
 	"c001": "双马拖曳的钢铁战车，长枪横扫如墙。它不懂退让，只会掉头再来一次。",
 	"c008": "墨甲覆体的巨汉，一拳能碎掉半座山。他与墨霆同出一炉，性子却更沉。",
@@ -660,6 +689,8 @@ func _enemy_actions(t: Dictionary, is_boss: bool, id: String) -> Array:
 
 	var map: Dictionary = t.get("anim", {})
 	for act in ENEMY_ACT_ORDER:
+		if is_boss and act == "patrol":
+			continue # 所有 Boss 均无巡逻，只保留实际追击动作。
 		if map.has(act):
 			out.append({"label": str(ACT_LABEL.get(act, act)), "anims": [str(map[act])], "kind": "act", "src": {}})
 
@@ -669,13 +700,16 @@ func _enemy_actions(t: Dictionary, is_boss: bool, id: String) -> Array:
 			if tf != "":
 				out.append({"label": "变身", "anims": [tf], "kind": "transform", "src": st})
 				break
-	var passive: Dictionary = ENEMY_PASSIVES.get(id, {})
+	var passive_entry = ENEMY_PASSIVES.get(id, {})
+	var passives: Array = passive_entry if typeof(passive_entry) == TYPE_ARRAY else [passive_entry]
 	var burst: Dictionary = t.get("death_burst", {})
 	var passive_anims: Array = [str(burst.get("anim", "transform"))] if not burst.is_empty() else []
-	var passive_action := {"label": str(passive.get("name", "被 动")), "anims": passive_anims, "kind": "passive", "src": {"id": id}}
-	if not burst.is_empty():
-		passive_action["death_finisher"] = true
-	if not passive.is_empty():
+	for passive in passives:
+		if (passive as Dictionary).is_empty():
+			continue
+		var passive_action := {"label": str(passive.get("name", "被 动")), "anims": passive_anims, "kind": "passive", "src": {"id": id, "passive": passive}}
+		if not burst.is_empty():
+			passive_action["death_finisher"] = true
 		out.append(passive_action)
 	return out
 
@@ -824,7 +858,15 @@ func _skill_desc(cfg: Dictionary) -> String:
 
 
 ## 敌人招式数值：只展示段数、伤害与恢复时间；判定时刻和射程留在配置内。
-func _enemy_num(t: Dictionary, anim: String, sequence: Array = []) -> String:
+func _enemy_num(t: Dictionary, anim: String, sequence: Array = [], id: String = "") -> String:
+	if id == "c009":
+		match anim:
+			"skill04":
+				return "刺击 2 伤 ｜ 滑斩削至当前命限"
+			"skill05":
+				return "每 0.5 秒 2 伤 ｜ 倒地"
+			"skill02-01":
+				return "每 0.5 秒 1 伤 ｜ 灼烧递增"
 	var parts: Array = []
 	var hit_at: Dictionary = t.get("hit_at", {})
 	var damage: Dictionary = t.get("damage", {})
@@ -862,7 +904,7 @@ func _num_for(a: Dictionary, anim: String) -> String:
 		"skill":
 			return _skill_num(a["src"])
 		"enemy_atk":
-			return _enemy_num(a["src"], str(a.get("key", anim)), a.get("sequence", []))
+			return _enemy_num(a["src"], str(a.get("key", anim)), a.get("sequence", []), str(a.get("id", "")))
 	return ""
 
 
@@ -1040,7 +1082,7 @@ func _desc_text(a: Dictionary, anim: String) -> String:
 
 	var kind := str(a["kind"])
 	if kind == "passive":
-		var passive: Dictionary = ENEMY_PASSIVES.get(str((a["src"] as Dictionary).get("id", "")), {})
+		var passive: Dictionary = (a["src"] as Dictionary).get("passive", {})
 		if not passive.is_empty():
 			lines.append("[color=#a8332a]被动技能 · %s[/color]" % str(passive["name"]).replace(" ", ""))
 			lines.append("[color=#8a857a]机制：[/color]" + str(passive["desc"]))

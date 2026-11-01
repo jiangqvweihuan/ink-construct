@@ -20,6 +20,9 @@ var _sprite: Node2D
 var _a_state
 var _loaded := false
 var _dir_path := ""
+var _view_scale := 1.0
+var _origin := Vector2(330, 480)
+var _window_size := Vector2i(760, 560)
 
 
 func _ready() -> void:
@@ -42,6 +45,15 @@ func _ready() -> void:
 		print("[SHEET] FAIL params ", PARAM_FILE)
 		get_tree().quit()
 		return
+	_view_scale = float(cfg.get("scale", 1.0))
+	var origin_cfg: Array = cfg.get("origin", [330, 480])
+	if origin_cfg.size() == 2:
+		_origin = Vector2(float(origin_cfg[0]), float(origin_cfg[1]))
+	var window_cfg: Array = cfg.get("window", [760, 560])
+	if window_cfg.size() == 2:
+		_window_size = Vector2i(int(window_cfg[0]), int(window_cfg[1]))
+	get_window().size = _window_size
+	bg.size = Vector2(_window_size)
 	_skull_dir = str(cfg.get("skull", ""))
 	_out_name = str(cfg.get("out", "sheet"))
 	for n in Array(cfg.get("anims", [])):
@@ -51,6 +63,7 @@ func _ready() -> void:
 
 
 func _load(i: int) -> void:
+	_idx = i
 	if i >= _anims.size():
 		print("[SHEET] ALL DONE")
 		get_tree().quit()
@@ -68,8 +81,8 @@ func _load(i: int) -> void:
 	_sprite = ClassDB.instantiate("SpineSprite")
 	add_child(_sprite)
 	_sprite.set("skeleton_data_res", data)
-	_sprite.scale = Vector2(1.0, 1.0)
-	_sprite.position = Vector2(330, 480)
+	_sprite.scale = Vector2(_view_scale, _view_scale)
+	_sprite.position = _origin
 	_a_state = _sprite.call("get_animation_state")
 	var n := str(_anims[i])
 	var a = data.call("find_animation", n)

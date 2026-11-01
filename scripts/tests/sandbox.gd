@@ -170,7 +170,10 @@ func _spawn_enemy() -> void:
 			C016Class._attacker = null
 		_enemy.queue_free()
 	var info: Dictionary = _roster[_ri]
-	_enemy = (load(BOSS_SCENE) if info["boss"] else load(GRUNT_SCENE)).instantiate()
+	var scene_path := GRUNT_SCENE
+	if info["boss"]:
+		scene_path = "res://scenes/enemies/bosses/mo_ting.tscn" if info["id"] == "c009" else BOSS_SCENE
+	_enemy = load(scene_path).instantiate()
 	_enemy.type_id = info["id"] # add_child 才跑 _ready/_apply_type，先设形态
 	_enemy.position = Vector2(900, 560)
 	add_child(_enemy)

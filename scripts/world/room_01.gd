@@ -11,6 +11,7 @@ const GROUND_Y := 640.0 # 地面碰撞顶面 = 石板带顶缘下 20px，对齐�
 const OUT_DIR := "res://tests/out/"
 const WAVE_SPAWNER := preload("res://scripts/systems/wave_spawner.gd")
 const DECOR_INTERACTIVE := preload("res://scripts/world/decor_interactive.gd")
+const BOSS_DUEL_INTRO := preload("res://scripts/ui/boss_duel_intro.gd")
 
 var _player
 var _spawner
@@ -220,7 +221,8 @@ func _build_actors() -> void:
 
 ## Boss 登场：墨堂深处只有它一个对手，出场先震屏立威
 func _spawn_boss() -> void:
-	_boss = load("res://scenes/enemies/bosses/boss.tscn").instantiate()
+	var scene_path := "res://scenes/enemies/bosses/mo_ting.tscn" if Run.boss_id == "c009" else "res://scenes/enemies/bosses/boss.tscn"
+	_boss = load(scene_path).instantiate()
 	_boss.type_id = Run.boss_id
 	# 无尽缩放必须在 add_child 之前写入（_ready -> _apply_type 会读这两个值）
 	_boss.hp_scale = Run.boss_hp_scale()
@@ -229,6 +231,11 @@ func _spawn_boss() -> void:
 	_boss.died.connect(_on_boss_died)
 	add_child(_boss)
 	_boss.entrance()
+	if Run.boss_id == "c009":
+		var intro := BOSS_DUEL_INTRO.new()
+		intro.name = "BossDuelIntro"
+		intro.setup(_player, _boss)
+		add_child(intro)
 
 
 ## 普通房互动物件：随机 2-3 个卷轴（回血）/ 香炉（重随）/ 石碑（本房 buff），站在地面线上

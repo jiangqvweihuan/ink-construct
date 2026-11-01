@@ -57,56 +57,52 @@ const BOSSES := {
 			"charge_trail": {"name": "speedline", "scale": 1.0, "interval": 0.1, "off_y": 100.0},
 			"charge_wall": {"name": "crack", "scale": 0.5}},
 	},
-	# ---------- 墨霆 · 巨兽骑手（C009）：冲锋型 Boss，探针身高 628.6px ----------
+	# ---------- 墨霆 · 机关巨兽与失心操控者（C009）：独立六招，无旧阶段池与通用冲锋 ----------
 	"c009": {
 		"label": "墨霆",
 		"data": "res://art/characters/enemies/bosses/c009/c009_data.tres",
-		"scale": 0.55, # 628.6px -> 约 345px，近两倍玩家身高
-		"body_radius": 100.0, # 骑手 + 巨兽，宽体
-		# 骨架无 hurt/dead 实动画（stun/dead 均为 0 帧）：倒地用 atked_fall_end，受击位借 def_break
+		"scale": 0.55,
+		"body_radius": 100.0,
+		# 动画 3/4：受击 def_break、追击 run；动画 5 skill01 只用于 Boss 房先导。
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
-		"hp": 60,
-		"patrol_speed": 60.0,
-		"chase_speed": 130.0,
-		"patrol_range": 180.0,
-		"idle_time": 1.0,
+		"hp": 120,
+		"patrol_speed": 0.0,
+		"chase_speed": 155.0,
+		"patrol_range": 0.0,
+		"idle_time": 0.0,
 		"detect_range": 9999.0,
 		"lose_range": 9999.0,
-		"attack_range": 300.0,
-		"keep_dist": 170.0,
-		"attack_cooldown": 2.3,
-		"attack_lunge": 260.0,
-		"hit_height": 150.0,
-		"hurt_time": 0.3,
+		"attack_range": 427.0,
+		"keep_dist": 0.0,
+		"attack_cooldown": 0.24, # 只作收招间隔；奋挥本身无独立冷却。
+		"attack_lunge": 0.0,
+		"hit_height": 190.0,
+		"hurt_time": 0.85,
 		"armor": 99,
 		"telegraph": true,
 		"pick": "nearest",
 		"dead_min": 2.2,
 		"number_y": -365.0,
-		"stage_at": [0.65, 0.35],
+		"stage_at": [],
 		"stages": [
-			{"attacks": ["skill01", "skill06", "skill07"], "attack_cooldown": 2.3, "chase_speed": 130.0},
-			{"attacks": ["skill01", "skill03", "skill06", "skill08"], "attack_cooldown": 1.8, "chase_speed": 150.0, "transform": "def_break", "stagger": 0.6},
-			# 三阶段觉醒：雷纹在胸口炸开（off_y 抬到躯干高度）
-			{"attacks": ["skill03", "skill04", "skill05", "skill02"], "attack_cooldown": 1.4, "chase_speed": 175.0, "transform": "def_break", "stagger": 0.5,
-				"fx": {"name": "thunder", "scale": 2.2, "off_y": -170.0}},
+			{"attacks": ["skill03", "skill04", "skill05", "skill06", "skill08", "skill02-01"], "attack_cooldown": 0.24, "chase_speed": 155.0},
 		],
-		# 探针实测 @scale1：skill01 563@1.75、skill03 776@1.61、skill04 674@2.38、
-		# skill05 665@3.12、skill06 554@1.61、skill07 486@0.13、skill08 554@0.15、skill02 537@0.68（×0.55）
-		"ranges": {"skill01": 310.0, "skill03": 427.0, "skill04": 371.0, "skill05": 366.0,
-			"skill06": 305.0, "skill07": 267.0, "skill08": 305.0, "skill02": 295.0},
-		"hit_at": {"skill01": 1.75, "skill03": 1.61, "skill04": 2.38, "skill05": 3.12,
-			"skill06": 1.61, "skill07": 0.6, "skill08": 0.7, "skill02": 0.68},
-		# 冲锋：run 奔跑 + def_break 当急停/撞墙姿势（骨架 stun 为空帧，借格挡崩解的踉跄 pose）
-		"charge": {"anim_run": "run", "anim_stop": "def_break", "anim_stun": "def_break",
-			"speed": 640.0, "hit_w": 150.0, "hit_h": 160.0, "stun_time": 1.8,
-			"cooldown": 6.5, "min_dist": 430.0, "damage": 2},
-		# 特效：登场/变身虎首地裂，冲锋拖水墨速度线，撞墙地裂爆炸
-		"fx": {"hit": {"name": "ink_claw", "scale": 0.5},
-			"enter": {"name": "tiger", "scale": 1.1},
-			"transform": {"name": "tiger", "scale": 0.9},
-			"charge_trail": {"name": "speedline", "scale": 1.3, "interval": 0.1, "off_y": 155.0},
-			"charge_wall": {"name": "crack", "scale": 0.65}},
+		"move_pool": {"skill08": ["skill08", "skill08-cankao"]},
+		"ranges": {"skill03": 427.0, "skill04": 371.0, "skill05": 366.0,
+			"skill06": 370.0, "skill08": 350.0, "skill08-cankao": 350.0, "skill02-01": 1920.0},
+		"hit_at": {"skill03": [0.63, 1.53, 2.61], "skill04": [1.62, 2.48, 2.92, 3.36],
+			"skill05": 1.62, "skill06": 1.48, "skill08": 1.28, "skill08-cankao": 1.28, "skill02-01": 0.85},
+		"damage": {"skill03": [1, 1, 3], "skill04": 2, "skill05": 2, "skill06": 5,
+			"skill08": 4, "skill08-cankao": 4, "skill02-01": 1},
+		"attack_rules": {
+			"skill03": {"cooldown": 0.0, "max": 427.0},
+			"skill04": {"cooldown": 30.0, "random": false},
+			"skill05": {"cooldown": 10.0, "trigger": "distance", "min": 430.0},
+			"skill06": {"cooldown": 25.0, "max": 390.0},
+			"skill08": {"cooldown": 40.0, "trigger": "distance", "min": 520.0},
+			"skill02-01": {"cooldown": 16.0, "trigger": "distance", "min": 340.0},
+		},
+		"fx": {"hit": {"name": "ink_claw", "scale": 0.5}, "enter": {"name": "tiger", "scale": 1.1}},
 	},
 	# ---------- 焚鼎 · 紫焰锁链巨汉（C015_a1）：重装长臂型 Boss，探针身高 765.7px ----------
 	"c015a1": {

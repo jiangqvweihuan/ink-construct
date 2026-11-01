@@ -263,7 +263,8 @@ func hide_boss() -> void:
 func _on_boss_hp_changed(hp: int, max_hp: int) -> void:
 	if _boss_clip == null:
 		return
-	_boss_clip.size.x = BOSS_BAR_W * clampf(float(hp) / float(max_hp), 0.0, 1.0)
+	# 墨霆失心疯会把最终一击转化为等量上限损失，死亡瞬间 max_hp 可为 0。
+	_boss_clip.size.x = BOSS_BAR_W * clampf(float(hp) / float(maxi(1, max_hp)), 0.0, 1.0)
 
 
 func _build_boss_bar(root: Control) -> void:

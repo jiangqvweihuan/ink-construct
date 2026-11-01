@@ -210,7 +210,7 @@ func _custom_tick(delta: float) -> void:
 		S_ENTER:
 			velocity.x = move_toward(velocity.x, 0.0, 1500.0 * delta)
 			if _state_timer <= 0.0:
-				_set_state(State.IDLE)
+				_set_state(State.CHASE if _target != null and is_instance_valid(_target) else State.IDLE)
 		S_TRANSFORM, S_STAGGER:
 			velocity.x = move_toward(velocity.x, 0.0, 1500.0 * delta)
 			if _state_timer <= 0.0:
@@ -301,7 +301,18 @@ func _apply_stage(st: Dictionary) -> void:
 
 # ---------- 冲锋技 ----------
 
+## 所有 Boss 都不巡逻：有房内目标就持续追击，暂时没有目标也只原地等待。
+func _idle_tick(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+	if _target != null and is_instance_valid(_target):
+		_set_state(State.CHASE)
+
+
 func _chase_tick(delta: float) -> void:
+	if _target == null or not is_instance_valid(_target):
+		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+		_set_state(State.IDLE)
+		return
 	# 绕后转身演出：有转身动画的 Boss 被穿裆时先播调头动画再翻转朝向，不瞬转
 	if _turn_anim != "" and _valid.get(_turn_anim, false) \
 			and _target != null and is_instance_valid(_target):

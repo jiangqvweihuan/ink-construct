@@ -98,6 +98,10 @@ const BLEED_MAX := 5
 const BLEED_DUR := 3.0
 var _jump_seal := 0.0 # 辟地实伤附加：封跳剩余秒数，不影响闪避与其他动作
 var _dash_seal := 0.0 # 旋斩实伤附加：只封 Shift 闪避，不影响移动、跳跃与攻击
+var _cripple_time := 0.0 # 墨霆致残：封跳跃、Shift 闪避与所有带位移的技能
+var _mo_ting_burn_stacks := 0 # 贯昼灼烧：只提高墨霆后续激光伤害，不独立跳伤
+var _mo_ting_burn_time := 0.0
+var _mo_ting_grabbed := false # 墨颤抓取：由墨霆显式释放，时停/破招/死亡都不能留下锁定
 # ---------- 通用动作接口（形态表按需开启；未配 = 退回旧行为，新角色照抄这组字段即可） ----------
 var _dash_time_base := 0.0 # 闪避时长 = 闪避动画长度（完美闪避判定窗口）
 var _dash_speed_base := 0.0 # 闪避位移速度（配合时长控制总距离）
@@ -553,6 +557,10 @@ func _setup_spine() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	_mo_ting_burn_tick(delta)
+	if _mo_ting_grabbed:
+		velocity = Vector2.ZERO
+		return
 	_build_tick(delta)
 	_coyote = maxf(0.0, _coyote - delta)
 	_jump_buf = maxf(0.0, _jump_buf - delta)
@@ -562,6 +570,7 @@ func _physics_process(delta: float) -> void:
 	_bleed_tick(delta) # 普通流血独立计时，与割伤互不合并且不重复进入 hurt
 	_jump_seal = maxf(0.0, _jump_seal - delta)
 	_dash_seal = maxf(0.0, _dash_seal - delta)
+	_cripple_time = maxf(0.0, _cripple_time - delta)
 	_lifesteal_cd = maxf(0.0, _lifesteal_cd - delta) # 饮血内置冷却
 	_perm_lifesteal_cd = maxf(0.0, _perm_lifesteal_cd - delta)
 	_hurt_guard_timer = maxf(0.0, _hurt_guard_timer - delta)
@@ -658,7 +667,7 @@ func _air_move(delta: float) -> void:
 	else:
 		# 空中松油门轻微制动，比地面刹得慢（不锁死空中控制）
 		velocity.x = move_toward(velocity.x, 0.0, brake * 0.4 * delta)
-	if Input.is_action_just_pressed("attack") and _air_follow > 0.0:
+	if Input.is_action_just_pressed("attack") and _air_follow > 0.0 and _cripple_time <= 0.0:
 		if skull_id == "z000" and (_own("z000_moon_1") or Meta.has_form_node("z000_volley_2")):
 			_chase_air_target()
 			_start_attack(0)
@@ -1865,7 +1874,7 @@ func get_skill_key(n: String) -> String:
 # ---------- 动作入口 ----------
 
 func _try_jump() -> void:
-	if _jump_seal <= 0.0 and _jump_buf > 0.0 and _coyote > 0.0:
+	if _jump_seal <= 0.0 and _cripple_time <= 0.0 and _jump_buf > 0.0 and _coyote > 0.0:
 		_jump_buf = 0.0
 		_coyote = 0.0
 		velocity.y = jump_velocity * _qg_jump_mul # 轻功：明显更高的起跳
@@ -1874,7 +1883,7 @@ func _try_jump() -> void:
 
 
 func _try_dash() -> void:
-	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0 or _dash_seal > 0.0:
+	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0 or _dash_seal > 0.0 or _cripple_time > 0.0:
 		return
 	if skull_id == "z003" and _own("z003_returning_2") and _return_time > 0.0:
 		_return_dash()
@@ -1991,8 +2000,17 @@ func _try_skill() -> void:
 		# 觉醒限定技（O/P）：剑仙看剑意觉醒窗口 _awaken_time，银夜看觉醒加伤 _buff_timer，都不在则按了也不响应
 		if bool(cfg.get("require_buff", false)) and _awaken_time <= 0.0 and _buff_timer <= 0.0:
 			continue
+		if _cripple_time > 0.0 and _skill_has_displacement(n, cfg):
+			continue
 		_start_skill(n)
 		return
+
+
+## 致残只封带位移的技能；纯伤害、回血、觉醒与时停不受影响。
+func _skill_has_displacement(n: String, cfg: Dictionary) -> bool:
+	return cfg.has("blink_from") or cfg.has("blink_to") or bool(cfg.get("root_motion", false)) \
+		or not cfg.get("teleport_anims", []).is_empty() or float(cfg.get("lunge", 0.0)) != 0.0 \
+		or (skull_id == "z003" and n == "skill11")
 
 
 func _start_skill(n: String) -> void:
@@ -2314,9 +2332,12 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		Feel.shake(3.0, 0.1)
 		_shield_heal_once()
 		return
-	# 镰意绽花是无直伤的特殊命中：必须先经过闪避、反震、反伤、受击无敌与护盾，全部防御无效后才结算。
+	# 镰意绽花与墨颤削上限都是无直伤的特殊命中：先经过全部防御，再结算各自机制。
 	if bool(move.get("bloom", false)):
 		_apply_bloom(attacker, move)
+		return
+	if bool(move.get("mo_ting_sunder", false)):
+		_apply_mo_ting_sunder(attacker, move)
 		return
 	var temporary_reduce := int(skull_id == "c013" and Meta.has_form_node("c013_meditation_2") and _hurt_guard_timer > 0.0)
 	if Run.guard_available:
@@ -2344,6 +2365,8 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		_apply_cut(attacker, move, cast_key)
 	if hp > 0 and int(move.get("bleed", 0)) > 0:
 		_apply_bleed(int(move.get("bleed", 0)), attacker, move)
+	if hp > 0 and bool(move.get("mo_ting_burn", false)):
+		_apply_mo_ting_burn()
 	if skull_id == "c013" and _own("c013_ascetic_1"):
 		_precepts = mini(3, _precepts + 1)
 		var precept_dn := DAMAGE_NUMBER.new()
@@ -2380,9 +2403,31 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		seal_dn.setup("封闪", Color(0.85, 0.72, 0.42))
 		seal_dn.global_position = global_position + Vector2(0, -150)
 		get_tree().current_scene.add_child(seal_dn)
+	var cripple := float(move.get("cripple", 0.0))
+	if cripple > 0.0:
+		_cripple_time = maxf(_cripple_time, cripple)
+		_jump_buf = 0.0
+		var cripple_dn := DAMAGE_NUMBER.new()
+		cripple_dn.setup("致残", Color(0.85, 0.42, 0.32))
+		cripple_dn.global_position = global_position + Vector2(0, -170)
+		get_tree().current_scene.add_child(cripple_dn)
+	# 墨颤定点期间保留站位，由 Boss 在整套滑斩结束后统一释放。
+	if _mo_ting_grabbed:
+		state = State.HURT
+		_hurt_phase = "mo_ting_grab"
+		velocity = Vector2.ZERO
+		return
 	# 霸体（力僧形态专属 + 定山技能自带）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
 	if (poise or _skill_poise) and state == State.SKILL:
 		return
+	# 墨冲明确携带倒地标记；只有当前角色确有倒地链或倒地动画时才强制触发。
+	if bool(move.get("force_knockdown", false)):
+		if not _knock_chain.is_empty():
+			_start_hurt_chain(knockback)
+			return
+		if _fall_anim != "":
+			_start_knockdown(knockback)
+			return
 	# 伤害过阈值直接倒地：播 fall → getup（起身段无敌），重型攻击的惩罚更直观；
 	# 形态表配了 knock_chain（力僧：重受击→浮空重受击→倒地→起身）就走整条链
 	if _knock_at < 999 and amount >= _knock_at:
@@ -2433,6 +2478,89 @@ func _apply_bloom(attacker: Node, move: Dictionary) -> void:
 		get_tree().current_scene.add_child(loss_dn)
 	if attacker.has_method("on_player_hit"):
 		attacker.call("on_player_hit", 0, move, self)
+
+
+## 墨颤命中后把玩家定点在操控者正前方；主动释放前不吃重力、不接受移动输入。
+func mo_ting_hold(pos: Vector2) -> void:
+	if state == State.DEAD:
+		return
+	_set_blink(false)
+	_reset_root_follow()
+	_skill_teleport = 0.0
+	_skill_poise = false
+	_skill_reflect = false
+	_skill_ranged_guard = false
+	_invincible = false
+	_hurt_invincible = 0.0
+	_mo_ting_grabbed = true
+	global_position = pos
+	velocity = Vector2.ZERO
+	state = State.HURT
+	_hurt_phase = "mo_ting_grab"
+	_hurt_timer = 0.0
+	_idle_queued = false
+	_play(anim_map["idle"], true)
+
+
+func mo_ting_release() -> void:
+	if not _mo_ting_grabbed:
+		return
+	_mo_ting_grabbed = false
+	_hurt_phase = ""
+	_invincible = false
+	_hurt_invincible = maxf(_hurt_invincible, 0.35)
+	velocity = Vector2.ZERO
+	_set_state(State.FALL)
+
+
+## 墨颤后续滑斩不再扣当前生命，而是把生命上限削到当前生命；跨房间仍保留。
+func _apply_mo_ting_sunder(attacker: Node, move: Dictionary) -> void:
+	var target_max := maxi(1, hp)
+	var loss := maxi(0, max_hp - target_max)
+	var actual := 0
+	if loss > 0:
+		if Run.active and Run.max_hp == max_hp:
+			actual = Run.lose_max_hp(loss, self)
+		else:
+			actual = mini(loss, max_hp - 1)
+			max_hp -= actual
+			hp = mini(hp, max_hp)
+			hp_changed.emit(hp, max_hp)
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45})
+	Feel.hitstop(0.04)
+	Feel.shake(5.0, 0.16)
+	if actual > 0:
+		var loss_dn := DAMAGE_NUMBER.new()
+		loss_dn.setup("命限削至当前 · -%d" % actual, Color(0.85, 0.42, 0.32))
+		loss_dn.global_position = global_position + Vector2(0, -165)
+		get_tree().current_scene.add_child(loss_dn)
+	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
+		attacker.call("on_player_hit", 0, move, self)
+
+
+## 每累计 3 层灼烧，墨霆后续激光基础伤害 +1，最多 +3；6 秒未再命中则清除。
+func mo_ting_laser_damage() -> int:
+	return 1 + mini(3, int(_mo_ting_burn_stacks / 3))
+
+
+func _apply_mo_ting_burn() -> void:
+	var old_bonus := mini(3, int(_mo_ting_burn_stacks / 3))
+	_mo_ting_burn_stacks = mini(9, _mo_ting_burn_stacks + 1)
+	_mo_ting_burn_time = 6.0
+	var new_bonus := mini(3, int(_mo_ting_burn_stacks / 3))
+	if new_bonus > old_bonus:
+		var burn_dn := DAMAGE_NUMBER.new()
+		burn_dn.setup("灼烧 · 激光 +%d" % new_bonus, Color(0.9, 0.38, 0.2))
+		burn_dn.global_position = global_position + Vector2(0, -175)
+		get_tree().current_scene.add_child(burn_dn)
+
+
+func _mo_ting_burn_tick(delta: float) -> void:
+	if _mo_ting_burn_time <= 0.0:
+		return
+	_mo_ting_burn_time = maxf(0.0, _mo_ting_burn_time - delta)
+	if _mo_ting_burn_time <= 0.0:
+		_mo_ting_burn_stacks = 0
 
 
 ## 普通流血：每层每秒 1 伤、持续 3 秒、最多 5 层，新层刷新持续时间；双镰与青笠共用。
@@ -2622,6 +2750,7 @@ func _perfect_dodge(attacker: Node = null) -> void:
 
 
 func die() -> void:
+	_mo_ting_grabbed = false
 	state = State.DEAD
 	_set_blink(false) # 尸体也别穿怪
 	_reset_root_follow() # 死亡时收掉根骨补偿，尸体倒在实际站位
