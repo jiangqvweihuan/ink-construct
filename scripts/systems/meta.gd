@@ -3,8 +3,8 @@ extends Node
 ## 局外养成 · 化身解锁 + 契合度（形态专精）
 ## 存档：user://meta.json（JSON），只存累计击杀/通关/各形态契合经验，解锁状态由条件推导。
 ##
-## 解锁条件：c021 双刺初始开放；其余按强度梯度（双刺 < 力僧 < 梅剑 < 剑仙 < 银夜）逐步加码。
-## 解锁难度与强度同序：击杀 20 → 击杀 60 → 通关冒险 1 次 → 通关冒险 3 次 + 累计击杀 150。
+## 解锁条件：c021 双刺初始开放；其余形态按各自门槛解锁，绛弦采用更高双条件门槛。
+## 常规梯度：击杀 20 → 击杀 60 → 通关冒险 1 次 → 通关冒险 3 次 + 累计击杀 150；绛弦需通关 5 次 + 累计击杀 300。
 ## 通关计数只记「冒险模式」，无尽模式不计通关（但击杀照常累计，进度靠多打）。
 ## 契合度：用某形态击杀 +1、通关整局 +20；等级加成只作用于该形态：
 ##   Lv1(30) 技能冷却 -10% ｜ Lv2(80) 普攻伤害 +1 ｜ Lv3(150) 技能冷却再 -10%
@@ -16,6 +16,7 @@ const UNLOCKS := {
 	"c013": {"kills": 20, "hint": "累计击杀 20 解锁"},
 	"c023": {"kills": 60, "hint": "累计击杀 60 解锁"},
 	"z000": {"clears": 1, "hint": "通关冒险模式 1 次解锁"},
+	"z002": {"clears": 5, "kills": 300, "hint": "通关冒险模式 5 次\n+ 累计击杀 300 解锁"},
 	"z003": {"clears": 3, "kills": 150, "hint": "通关冒险模式 3 次\n+ 累计击杀 150 解锁"}, # 银夜强度超标，压轴解锁
 }
 
@@ -63,6 +64,16 @@ const FORM_NODES := {
 	"z000_wind_2": {"form": "z000", "path": "游身", "tier": 2, "desc": "闪避结束时回身横扫身后近敌", "req": "z000_wind_1"},
 	"z000_wind_3": {"form": "z000", "path": "游身", "tier": 3, "desc": "回身横扫将浮空目标砸落，否则将其挑飞", "req": "z000_wind_2"},
 
+	"z002_echo_1": {"form": "z002", "path": "余音", "tier": 1, "desc": "普攻末段与 L 的癫狂基础时长 +2 秒"},
+	"z002_echo_2": {"form": "z002", "path": "余音", "tier": 2, "desc": "L 冷却 -1 秒", "req": "z002_echo_1"},
+	"z002_echo_3": {"form": "z002", "path": "余音", "tier": 3, "desc": "L 曲终额外回复 1 生命", "req": "z002_echo_2"},
+	"z002_charm_1": {"form": "z002", "path": "缚心", "tier": 1, "desc": "非 Boss 魅惑时长 +3 秒"},
+	"z002_charm_2": {"form": "z002", "path": "缚心", "tier": 2, "desc": "觉醒 U 全体伤害 +1", "req": "z002_charm_1"},
+	"z002_charm_3": {"form": "z002", "path": "缚心", "tier": 3, "desc": "魅惑结束时目标获得 3 层怨", "req": "z002_charm_2"},
+	"z002_grudge_1": {"form": "z002", "path": "红尘", "tier": 1, "desc": "神伤间隔 -3 秒"},
+	"z002_grudge_2": {"form": "z002", "path": "红尘", "tier": 2, "desc": "心魔引基础伤害 +2", "req": "z002_grudge_1"},
+	"z002_grudge_3": {"form": "z002", "path": "红尘", "tier": 3, "desc": "六感尽失触发时额外造成 1 点固定伤害", "req": "z002_grudge_2"},
+
 	"z003_chase_1": {"form": "z003", "path": "逐影", "tier": 1, "desc": "普攻末段伤害 +1"},
 	"z003_chase_2": {"form": "z003", "path": "逐影", "tier": 2, "desc": "对击飞状态敌人的伤害 +1", "req": "z003_chase_1"},
 	"z003_chase_3": {"form": "z003", "path": "逐影", "tier": 3, "desc": "击杀使全部技能冷却 -1 秒", "req": "z003_chase_2"},
@@ -79,6 +90,7 @@ const INK_SHOP := {
 	"buyout_c013": {"label": "买断 · 力僧", "cost": 40, "form": "c013"},
 	"buyout_c023": {"label": "买断 · 梅剑", "cost": 80, "form": "c023"},
 	"buyout_z000": {"label": "买断 · 剑仙", "cost": 120, "form": "z000"},
+	"buyout_z002": {"label": "买断 · 绛弦", "cost": 280, "form": "z002"},
 	"buyout_z003": {"label": "买断 · 银夜", "cost": 200, "form": "z003"},
 	"start_ink": {"label": "聚墨", "desc": "每局结算墨锭 +2", "costs": [30, 50, 80], "tab": "permanent"},
 	"start_hp": {"label": "固元", "desc": "每局开局生命上限 +1", "costs": [80], "tab": "permanent"},
@@ -97,6 +109,7 @@ var mastery := {} # 形态 id -> 契合经验
 var ink := 0 # 局外货币·墨锭：按每局击杀、房间进度与通关结果结算
 var purchases := {} # 墨锭消费记录：买断 buyout_* -> true；通用强化 -> 等级
 var form_nodes := {} # 永久修炼节点 id -> true（与局内 Run.upgrades 完全分开）
+var battle_passives := {} # 未来图鉴角色战斗被动：注册后可被玩家与佛眼共同查询
 var inventory := {} # 一次性补给 id -> 库存数量
 var selected_supply := "" # 下一局选用的补给；Run.start 时消耗一个
 var seen := {} # 图鉴收录：敌人 / Boss id -> 已击败次数（>0 即收录，图鉴里才不是 ？？？）
@@ -214,6 +227,55 @@ func reset_form(form_id: String) -> int:
 
 func form_hp_bonus(form_id: String) -> int:
 	return int(form_id == "c013" and has_form_node("c013_meditation_1")) + int(form_id == "c023" and has_form_node("c023_patience_2"))
+
+
+## 未来角色的固有战斗被动从这里注册；owned 表示当前形态确实持有，boss_effect 供佛眼复用。
+func register_battle_passive(id: String, info: Dictionary) -> void:
+	if id.is_empty():
+		return
+	battle_passives[id] = info.duplicate(true)
+
+
+func battle_passive_info(id: String) -> Dictionary:
+	if battle_passives.has(id):
+		var registered: Dictionary = battle_passives[id].duplicate(true)
+		registered["id"] = id
+		return registered
+	if not FORM_NODES.has(id):
+		return {}
+	var info: Dictionary = FORM_NODES[id].duplicate(true)
+	info["id"] = id
+	var tiers := ["", "初", "续", "极"]
+	info["name"] = "%s · %s" % [str(info["path"]), tiers[int(info["tier"])]]
+	# 永久修炼在碎岳身上的对应表现；未来被动可直接在自己的注册资料里覆盖 boss_effect。
+	var path := str(info["path"])
+	var tier := int(info["tier"])
+	match path:
+		"血舞": info["boss_effect"] = {"heal_on_hit": 1, "heal_cooldown": maxf(2.0, 9.0 - tier * 2.0)}
+		"连刃": info["boss_effect"] = {"damage": int(ceil(tier * 0.5))}
+		"无影", "游身": info["boss_effect"] = {"speed": 0.08 * tier, "desire": 0.1 * tier}
+		"金刚": info["boss_effect"] = {"bell_charges": tier}
+		"震岳", "鞭势": info["boss_effect"] = {"reach": 0.1 * tier}
+		"禅定": info["boss_effect"] = {"max_hp": tier}
+		"毒梅", "逐影": info["boss_effect"] = {"controlled_damage": 1}
+		"静守": info["boss_effect"] = {"cooldown_recovery": 0.1 * tier}
+		"藏锋": info["boss_effect"] = {"cooldown_on_hit": 0.3 * tier}
+		"回锋": info["boss_effect"] = {"cooldown_on_cast": 0.3 * tier}
+		"止时": info["boss_effect"] = {"desire": 0.15 * tier}
+		"无还": info["boss_effect"] = {"speed": 0.05 * tier, "reach": 0.05 * tier}
+	return info
+
+
+func battle_passive_candidates(form_id: String) -> Array:
+	var out: Array = []
+	for id in FORM_NODES:
+		if str(FORM_NODES[id]["form"]) == form_id and has_form_node(str(id)):
+			out.append(str(id))
+	for id in battle_passives:
+		var info: Dictionary = battle_passives[id]
+		if str(info.get("form", "")) == form_id and bool(info.get("owned", true)):
+			out.append(str(id))
+	return out
 
 
 # ---------- 墨锭商店 ----------

@@ -28,7 +28,6 @@ const CHARGE_HEIGHT := 190.0
 
 const NORMAL_SCENES := [
 	"res://scenes/enemies/c016.tscn",
-	"res://scenes/enemies/z002.tscn",
 	"res://scenes/enemies/c017.tscn",
 	"res://scenes/enemies/c035.tscn",
 ]
@@ -97,6 +96,7 @@ func _physics_process(delta: float) -> void:
 		if _stop_timer <= 0.0:
 			_end_stop(true)
 		return
+	_pipa_status_tick(delta)
 	_record_position(delta)
 	if _slow_timer > 0.0:
 		_slow_timer = maxf(0.0, _slow_timer - delta)
@@ -185,6 +185,9 @@ func _start_charge() -> void:
 	if state == State.DEAD or not _summons.is_empty():
 		return
 	_release_token()
+	_trigger_six_senses()
+	if state == State.DEAD:
+		return
 	state = S_START
 	_wc_charge_dir = facing
 	_charge_elapsed = 0.0
@@ -207,16 +210,17 @@ func _advance_charge(delta: float) -> void:
 
 
 func _charge_hit_check() -> void:
-	if _charge_contact_done or _target == null or not is_instance_valid(_target) or not _target.has_method("hurt"):
+	if _charge_contact_done or _target == null or not is_instance_valid(_target):
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy := absf(_target.global_position.y - global_position.y)
 	if absf(dx) > CHARGE_HALF_WIDTH + _radius_of(_target) or dy > CHARGE_HEIGHT:
 		return
-	# 一次武撞只接触结算一次：无论实伤、闪避或防御都先传送，之后穿过车体不再补判。
+	# 一次武撞只接触结算一次；玩家保留原有回拉，敌人目标直接结算互伤。
 	_charge_contact_done = true
-	_target.global_position = _charge_history_position()
-	_target.call("hurt", Run.enemy_damage(2), Vector2(_wc_charge_dir * 420.0, -120.0), self, {
+	if not _target.is_in_group("enemies"):
+		_target.global_position = _charge_history_position()
+	_hit_status_target(_target, 2, Vector2(_wc_charge_dir * 420.0, -120.0), {
 		"wu_che_charge": true,
 		"anim": START_ANIM,
 		"hit_at": _charge_elapsed,
@@ -268,6 +272,9 @@ func _begin_turn() -> void:
 
 
 func _begin_wave() -> void:
+	_trigger_six_senses()
+	if state == State.DEAD:
+		return
 	_summon_total = max_hp - hp + 3 + _summon_bonus
 	_summon_bonus = 0
 	_summon_index = 0

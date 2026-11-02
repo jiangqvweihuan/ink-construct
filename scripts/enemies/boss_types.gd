@@ -10,6 +10,18 @@ const DEFAULT_ID := "_debug"
 ## 一局随机登场哪一个 Boss（_debug 仅供 boss_test 冒烟，不进随机池）
 const ROSTER := ["c009", "c015a1", "c001", "c008", "c032"]
 
+## 正式房与试炼场共用同一场景 / 专属脚本来源，禁止两边各维护一份映射。
+const DEFAULT_SCENE := "res://scenes/enemies/bosses/boss.tscn"
+const SCENES := {
+	"c009": "res://scenes/enemies/bosses/mo_ting.tscn",
+	"c015a1": "res://scenes/enemies/bosses/fen_ding.tscn",
+	"c001": "res://scenes/enemies/bosses/wu_che.tscn",
+}
+const SCRIPT_OVERRIDES := {
+	"c008": "res://scripts/enemies/sui_yue.gd",
+	"c032": "res://scripts/enemies/ming_zhong.gd",
+}
+
 const BOSSES := {
 	# ---------- 调试占位：墨堂守将（c037 骨架放大版），验证阶段/变身/冲锋/结算全链路 ----------
 	"_debug": {
@@ -178,107 +190,93 @@ const BOSSES := {
 		"ranges": {"skill01": 0.0},
 		"hit_at": {"skill01": 0.0},
 		"charge": {"anim_run": "speed_run", "anim_stop": "stop"},
+		"intro": {"anim": "stand", "loop": true},
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.5},
 			"enter": {"name": "speedline", "scale": 1.6, "off_y": -170.0},
 			"charge_wall": {"name": "crack", "scale": 0.8}},
 	},
-	# ---------- 碎岳 · 墨甲巨汉（C008）：重装压场型 Boss，探针身高 674.3px ----------
+	# ---------- 碎岳 · 邪佛（C008）：独立四招、佛曰金钟与佛眼夺被动 ----------
 	"c008": {
 		"label": "碎岳",
 		"data": "res://art/characters/enemies/bosses/c008/c008_data.tres",
-		"scale": 0.55, # 674.3px -> 约 371px，与墨霆同级的墨甲巨汉
+		"scale": 0.55,
 		"body_radius": 95.0,
-		# 骨架 dead/stun 为 0 帧空动画：倒地借 atked_fall_end，受击/变身借 def_break
+		# 保留原有受击、移动与倒地动画。
 		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "def_break", "dead": "atked_fall_end"},
 		"hp": 64,
-		"patrol_speed": 45.0,
-		"chase_speed": 85.0,
-		"patrol_range": 150.0,
-		"idle_time": 1.3,
+		"patrol_speed": 0.0,
+		"chase_speed": 95.0,
+		"patrol_range": 0.0,
+		"idle_time": 0.0,
 		"detect_range": 9999.0,
 		"lose_range": 9999.0,
-		"attack_range": 300.0,
-		"keep_dist": 160.0,
-		"attack_cooldown": 2.5,
-		"attack_lunge": 220.0,
-		"hit_height": 150.0,
+		"attack_range": 536.0,
+		"keep_dist": 0.0,
+		"attack_cooldown": 0.24,
+		"attack_lunge": 0.0,
+		"hit_height": 190.0,
 		"hurt_time": 0.35,
 		"armor": 99,
 		"telegraph": true,
 		"pick": "nearest",
 		"dead_min": 2.4,
 		"number_y": -390.0,
-		"stage_at": [0.65, 0.35],
-		"stages": [
-			{"attacks": ["skill01", "skill03"], "attack_cooldown": 2.5, "chase_speed": 85.0},
-			{"attacks": ["skill01", "skill03", "skill3"], "attack_cooldown": 1.9, "chase_speed": 105.0, "transform": "def_break", "stagger": 0.6},
-			# 三阶段觉醒：巨突刺（974px 全屏级突进）入池，节奏全面提速
-			{"attacks": ["skill04", "skill3", "skill01"], "attack_cooldown": 1.5, "chase_speed": 125.0, "transform": "def_break", "stagger": 0.5},
-		],
-		# 探针实测 @scale1：skill01 409@1.19（重劈）、skill03/skill3 494@0.71（双侧旋转扫）、
-		# skill04 974@0.92（巨突刺）；skill02 峰值在 0 帧（贴身砸地无前伸），不进招式池（×0.55）
-		"ranges": {"skill01": 225.0, "skill03": 272.0, "skill3": 272.0, "skill04": 536.0},
-		"hit_at": {"skill01": 1.19, "skill03": 0.71, "skill3": 0.71, "skill04": 0.92},
-		# 旋转扫击前后都够得到
-		"both": {"skill03": true, "skill3": true},
-		# 冲锋：run 奔冲 + def_break 急停/撞墙（骨架 stun 为空帧）
-		"charge": {"anim_run": "run", "anim_stop": "def_break", "anim_stun": "def_break",
-			"speed": 620.0, "hit_w": 150.0, "hit_h": 160.0, "stun_time": 1.8,
-			"cooldown": 6.5, "min_dist": 430.0, "damage": 2},
-		# 特效：登场/变身脚下地裂，冲锋拖速度线，撞墙地裂爆炸
-		"fx": {"hit": {"name": "ink_claw", "scale": 0.5},
-			"enter": {"name": "crack", "scale": 0.9},
-			"transform": {"name": "crack", "scale": 0.7},
-			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1, "off_y": 165.0},
-			"charge_wall": {"name": "crack", "scale": 0.7}},
+		"stage_at": [],
+		"stages": [{"attacks": ["skill04", "skill03", "skill02", "skill01"], "attack_cooldown": 0.24, "chase_speed": 95.0}],
+		"intro": {"anim": "stand", "loop": true},
+		# 用户动画编号：9=skill04 双臂，7=skill03 踢落，6=skill02 万佛手，5=skill01 佛眼。
+		"ranges": {"skill04": 536.0, "skill03": 300.0, "skill02": 260.0, "skill01": 225.0},
+		"hit_at": {"skill04": 0.92, "skill03": [0.71, 1.35], "skill02": [2.16, 2.61, 3.06, 3.51, 3.96], "skill01": 1.19},
+		"damage": {"skill04": 3, "skill03": [2, 3], "skill02": [1, 1, 1, 1, 1], "skill01": 0},
+		"attack_rules": {
+			"skill04": {"cooldown": 0.0, "max": 560.0},
+			"skill03": {"cooldown": 24.0, "max": 330.0},
+			"skill02": {"cooldown": 30.0, "max": 290.0},
+			"skill01": {"cooldown": 50.0, "max": 260.0},
+		},
+		"fx": {"hit": {"name": "ink_claw", "scale": 0.5}, "enter": {"name": "crack", "scale": 0.9}},
 	},
-	# ---------- 鸣钟 · 墨甲钟馗（C032）：三段变身型 Boss，探针身高 388.6px ----------
+	# ---------- 鸣钟 · 神骸女武神（C032）：根骨位移四招 + 英勇/格挡/圣光 ----------
 	"c032": {
 		"label": "鸣钟",
 		"data": "res://art/characters/enemies/bosses/c032/c032_data.tres",
-		"scale": 1.15, # 388.6px（含枪尖）-> 约 447px，身形比碎岳瘦但落差不再弱一档
-		"body_radius": 75.0, # 瘦高个，半径别给过头
-		# 骨架 dead/stun 为空动画（0.083 / 0 帧）：倒地借 atked_fall_end，受击借 atked_heavy
-		"anim": {"idle": "stand", "patrol": "run", "chase": "run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
+		"scale": 0.48, # 实战比标准玩家明显高一圈，但仍保持人形 Boss 体型
+		"codex_scale": 0.62, # 独立图鉴倍率：不沿用巨型 Boss 的减半预览
+		"body_radius": 30.0,
+		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
 		"hp": 68,
 		"patrol_speed": 50.0,
-		"chase_speed": 100.0,
+		"chase_speed": 150.0,
 		"patrol_range": 160.0,
-		"idle_time": 1.2,
+		"idle_time": 1.0,
 		"detect_range": 9999.0,
 		"lose_range": 9999.0,
-		"attack_range": 320.0,
-		"keep_dist": 170.0,
-		"attack_cooldown": 2.4,
-		"attack_lunge": 220.0,
-		"hit_height": 150.0,
-		"hurt_time": 0.3,
+		"attack_range": 270.0,
+		"keep_dist": 270.0,
+		"attack_cooldown": 3.2,
+		"attack_lunge": 0.0,
+		"hit_height": 140.0,
+		"hurt_time": 0.5,
 		"armor": 99,
 		"telegraph": true,
 		"pick": "nearest",
 		"dead_min": 2.4,
-		"number_y": -390.0,
-		"stage_at": [0.65, 0.35],
-		# 本骨架自带 transform / transform1 / transform2 三套变身，P2 用 transform、P3 用 transform1
-		"stages": [
-			{"attacks": ["skill05", "skill02"], "attack_cooldown": 2.4, "chase_speed": 100.0},
-			{"attacks": ["skill01", "skill05", "skill02"], "attack_cooldown": 1.9, "chase_speed": 120.0, "transform": "transform", "stagger": 0.6},
-			{"attacks": ["skill03", "skill04", "skill01"], "attack_cooldown": 1.5, "chase_speed": 140.0, "transform": "transform1", "stagger": 0.5},
-		],
-		# 探针实测 @scale1：skill01 357@2.00、skill02 263@0.72、skill03 477@2.47（长扫）、
-		# skill04 323@2.16、skill05 349@0.64（快招）；剪影峰值全在原点右侧，无需 both（×1.15）
-		"ranges": {"skill01": 411.0, "skill02": 302.0, "skill03": 549.0, "skill04": 371.0, "skill05": 401.0},
-		"hit_at": {"skill01": 2.00, "skill02": 0.72, "skill03": 2.47, "skill04": 2.16, "skill05": 0.64},
-		# 冲锋：speed_run 高速奔跑 + stand 急停蓄力，撞墙借倒地姿势（骨架 stun 为空帧）
-		"charge": {"anim_run": "speed_run", "anim_stop": "stand", "anim_stun": "atked_fall_end",
-			"speed": 640.0, "hit_w": 140.0, "hit_h": 150.0, "stun_time": 1.8,
-			"cooldown": 6.5, "min_dist": 430.0, "damage": 2},
-		# 特效：变身动画自带大范围聚气演出，外部特效只作点缀
-		"fx": {"hit": {"name": "ink_claw", "scale": 0.45},
-			"enter": {"name": "pillar", "scale": 1.1},
-			"transform": {"name": "pillar", "scale": 1.0},
-			"charge_trail": {"name": "speedline", "scale": 1.2, "interval": 0.1, "off_y": 175.0},
-			"charge_wall": {"name": "crack", "scale": 0.65}},
+		"number_y": -180.0,
+		"stage_at": [],
+		"stages": [{"attacks": ["skill05-cankao", "skill01-cankao", "skill03-cankao", "transform1"], "attack_cooldown": 3.2, "chase_speed": 150.0}],
+		"intro": {"anim": "skill02", "loop": false},
+		"ranges": {"skill05-cankao": 260.0, "skill01-cankao": 255.0, "skill03-cankao": 285.0, "skill04-cankao": 285.0, "transform1": 9999.0},
+		"hit_at": {"skill05-cankao": 0.64, "skill01-cankao": [0.82, 1.58, 2.24, 2.94], "skill03-cankao": [0.52, 1.65, 2.95], "skill04-cankao": [0.52, 1.65, 2.95], "transform1": 4.32},
+		"damage": {"skill05-cankao": 2, "skill01-cankao": [1, 1, 2, 2], "skill03-cankao": [1, 2, 3], "skill04-cankao": [1, 2, 3], "transform1": 4},
+		"attack_rules": {
+			"skill05-cankao": {"cooldown": 0.0, "max": 270.0},
+			"skill01-cankao": {"cooldown": 24.0, "max": 250.0},
+			"skill03-cankao": {"cooldown": 36.0, "max": 650.0},
+			"skill04-cankao": {"cooldown": 36.0, "max": 650.0},
+			"transform1": {"cooldown": 40.0, "max": 9999.0},
+		},
+		"move_pool": {"skill03-cankao": ["skill03-cankao", "skill04-cankao"]},
+		"fx": {"hit": {"name": "ink_claw", "scale": 0.4}, "enter": {"name": "pillar", "scale": 0.65}},
 	},
 }
 

@@ -10,6 +10,7 @@ const ROOM_W := 1920.0
 const GROUND_Y := 640.0 # 地面碰撞顶面 = 石板带顶缘下 20px，对齐石板的视觉平面
 const OUT_DIR := "res://tests/out/"
 const WAVE_SPAWNER := preload("res://scripts/systems/wave_spawner.gd")
+const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const DECOR_INTERACTIVE := preload("res://scripts/world/decor_interactive.gd")
 const BOSS_DUEL_INTRO := preload("res://scripts/ui/boss_duel_intro.gd")
 
@@ -186,6 +187,8 @@ func _build_actors() -> void:
 	_player.position = Vector2(460.0 if Run.is_boss_room() else 220.0, 560)
 	_player.died.connect(_on_player_died)
 	add_child(_player)
+	if Run.is_boss_room() and Run.boss_id == "c008":
+		_player.set_sui_yue_pressure(true) # 邪佛压场先于状态注入，避免生命与增益被重新写回
 	Run.apply_to(_player) # 继承上一层带过来的血量 / 形态 / 强化
 
 	var cam := Camera2D.new()
@@ -221,14 +224,11 @@ func _build_actors() -> void:
 
 ## Boss 登场：墨堂深处只有它一个对手，出场先震屏立威
 func _spawn_boss() -> void:
-	var scene_path := "res://scenes/enemies/bosses/boss.tscn"
-	if Run.boss_id == "c009":
-		scene_path = "res://scenes/enemies/bosses/mo_ting.tscn"
-	elif Run.boss_id == "c015a1":
-		scene_path = "res://scenes/enemies/bosses/fen_ding.tscn"
-	elif Run.boss_id == "c001":
-		scene_path = "res://scenes/enemies/bosses/wu_che.tscn"
+	var scene_path := str(BossTypes.SCENES.get(Run.boss_id, BossTypes.DEFAULT_SCENE))
 	_boss = load(scene_path).instantiate()
+	var script_path := str(BossTypes.SCRIPT_OVERRIDES.get(Run.boss_id, ""))
+	if not script_path.is_empty():
+		_boss.set_script(load(script_path))
 	_boss.type_id = Run.boss_id
 	# 无尽缩放必须在 add_child 之前写入（_ready -> _apply_type 会读这两个值）
 	_boss.hp_scale = Run.boss_hp_scale()
@@ -237,7 +237,7 @@ func _spawn_boss() -> void:
 	_boss.died.connect(_on_boss_died)
 	add_child(_boss)
 	_boss.entrance()
-	if Run.boss_id == "c009" or Run.boss_id == "c015a1":
+	if BossTypes.ROSTER.has(Run.boss_id):
 		var intro := BOSS_DUEL_INTRO.new()
 		intro.name = "BossDuelIntro"
 		intro.setup(_player, _boss)

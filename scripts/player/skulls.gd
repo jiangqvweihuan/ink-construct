@@ -11,7 +11,7 @@ extends RefCounted
 const DEFAULT_ID := "c021"
 
 ## 形态强度顺序（由弱到强）：选角界面 / 化身谱按此排列，解锁条件也按同一梯度递增
-const ORDER := ["c021", "c013", "c023", "z000", "z003"]
+const ORDER := ["c021", "c013", "c023", "z000", "z002", "z003"]
 
 const SKULLS := {
 	"c021": {
@@ -288,8 +288,76 @@ const SKULLS := {
 		},
 		"hud_skills": ["atk04", "skill02-", "skill04", "skill08", "skill09", "skill20_03"],
 	},
+	# ---------- 绛弦：Z002，黑衣琵琶乐师。四段普攻 + 魔音 / 魅惑 / 癫狂，六技能 ----------
+	"z002": {
+		"label": "绛弦",
+		"name": "苏挽音",
+		"hero": true,
+		"data": "res://art/characters/enemies/z002/z002_data.tres",
+		"scale": 0.415, # 骨架约 308.6px -> 128px，与其他英雄同高
+		"body_radius": 30.0,
+		"anim": {
+			"idle": "block", # 31
+			"run": "run4", # 66
+			"dash": "dash02_front", # 48
+			"air": "jump_up",
+			"hurt": "atked", # 23
+			"hurt_heavy": "atked",
+			"getup": "getup", # 独立起身：27 号实际停在躺姿，不能直接切待机
+			"dead": "atked_fall_end",
+			"dead_hold": "dead",
+			"jump_start": "jump_start", # 60
+			"jump_mid": "jump_up", # 61
+			"jump_down": "jump_mid", # 59
+			"jump_land": "jump_end", # 58
+		},
+		"dash_time": 0.5,
+		"dash_speed": 300.0,
+		# 仅实际伤害严格大于 3 才倒地：23 -> 28 -> 27 -> 独立起身（起身整段无敌）。
+		"hurt_tiers": {"heavy": 999, "knockdown": 4},
+		"knock_chain": ["atked", "atked_fall_end-", "atked_fall_end", "getup"],
+		"attacks": [
+			{"anim": "atk01", "lock": 0.433, "hits": [{"at": 0.24, "damage": 1, "range": 105.0}], "lunge": 70.0},
+			{"anim": "atk02", "lock": 0.467, "hits": [{"at": 0.25, "damage": 2, "range": 115.0}], "lunge": 75.0},
+			{"anim": "atk03", "lock": 0.300, "hits": [{"at": 0.16, "damage": 2, "range": 120.0}], "lunge": 80.0},
+			{"anim": "atk04", "lock": 1.200, "damage": 3, "lunge": 0.0,
+				"hits": [{"at": 0.82, "damage": 3, "projectile": {"speed": 600.0, "range": 430.0, "style": "magic_sound", "frenzy": 12.0}}]},
+		],
+		"skills": {
+			# K 踏弦：67 / 95 随机。跟随素材根位移，只位移、无伤害，全程无敌并穿身。
+			"run-": {"action": "skill", "cooldown": 2.5, "speed": 1.4, "invincible": true, "root_motion": true, "phase": true,
+				"pool": ["run-", "skill13_02-cankao"], "hits": []},
+			# L 黍离：73 / 74 随机，各自在曲终发穿透魔音；翻倍癫狂且至少 12 秒，释放即回 2。
+			"skill03": {"action": "skill_sweep", "cooldown": 8.0, "pool": ["skill03", "skill04"],
+				"hit_at": {"skill03": 0.68, "skill04": 0.84}, "range": {"skill03": 0.0, "skill04": 0.0},
+				"height": 100.0, "damage": 3, "heal": 2, "sfx": "voice_skill_cast",
+				"projectile": {"speed": 650.0, "range": 520.0, "pierce": true, "style": "magic_sound", "frenzy_double": true}},
+			# U 摄心 / 众生同狂：同一配置、同一冷却；觉醒后只换演出与命中逻辑。
+			"skill13-": {"action": "skill_ult", "cooldown": 16.0,
+				"hits": [{"at": 0.72, "charm": true, "sfx": "voice_skill_cast"}],
+				"awaken": {"anim": "skill10", "invincible": true,
+					"hits": [{"at": 5.35, "damage": 1, "full_screen": true, "height": 9999.0, "frenzy": 12.0, "frenzy_empower": true, "sfx": "skill_boom"}]}},
+			# I 红尘劫：霸体而非无敌；曲终恢复已损生命一半并进入 8 秒觉醒。
+			"skill07_02": {"action": "skill_i", "cooldown": 24.0, "poise": true, "awaken_time": 8.0, "hits": []},
+			# O 八音断识：八段独立递减，每觉醒仅一次；六感尽失在命中时逐段结算。
+			"skill10_03": {"action": "skill_o", "cooldown": 1.0, "poise": true, "require_buff": true, "once_per_awaken": true,
+				"hits": [
+					{"at": 0.55, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
+					{"at": 0.95, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
+					{"at": 1.35, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
+					{"at": 1.75, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
+					{"at": 2.15, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
+					{"at": 2.55, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
+					{"at": 2.95, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
+					{"at": 3.65, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true, "sfx": "skill_boom"}]},
+			# P 心魔引：引爆全房状态，再把自身减益分赠所有存活目标。
+			"skill09": {"action": "skill_p", "cooldown": 22.0, "poise": true, "require_buff": true,
+				"hits": [{"at": 0.92, "mind_detonate": true, "sfx": "skill_boom"}]},
+		},
+		"hud_skills": ["run-", "skill03", "skill13-", "skill07_02", "skill10_03", "skill09"],
+	},
 	# 青笠 c012 已下掉玩家形态（动画撑不起招式，强度垫底），转生为精英怪——
-	# 见 scripts/enemies/enemy_types.gd c012；第 5 席由银夜 z003 填补（见下）
+	# 见 scripts/enemies/enemy_types.gd c012；绛弦 z002 位于剑仙与银夜之间。
 	# ---------- 银夜：Z003，轻功剑客。普攻三段随机池 + 六技能（K/L/U/I/O/P，O/P 觉醒限定） ----------
 	"z003": {
 		"label": "银夜",

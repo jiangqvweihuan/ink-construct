@@ -514,24 +514,84 @@ func _ready() -> void:
 						p("文案穿帮 %s / %s / %s" % [str(id), str(action.get("label", "")), str(term)])
 		p("全部敌人与Boss图鉴无开发术语/资源键/占位文案=%s（期望 true）" % clean_text)
 
-		# 已收录的 Boss 详情（c032 三段变身）；无正式来历的区块应直接省略。
+		# 已收录的 Boss 详情（c032 四招与双被动）；无正式来历的区块应直接省略。
 		codex._select("c032")
 		await get_tree().create_timer(0.3).timeout
 		await _shot("07_codex_boss")
+		var mz_labels: Array = []
+		var mz_passives := 0
+		var mz_lore_ok := true
+		for action in codex._acts:
+			if str(action["kind"]) == "enemy_atk":
+				mz_labels.append(str(action["label"]))
+				var text: String = codex._desc_text(action, str(action["anims"][0]))
+				mz_lore_ok = mz_lore_ok and text.contains("来历：") and not text.contains("【待定】")
+			elif str(action["kind"]) == "passive":
+				mz_passives += 1
+				var text: String = codex._desc_text(action, "")
+				mz_lore_ok = mz_lore_ok and text.contains("来历：") and not text.contains("【待定】")
+		var mz_model: Dictionary = codex._model(codex._sel)
+		var mz_model_ok: bool = str(mz_model["lore"]).contains("女武神") and not str(mz_model["lore"]).contains("钟馗")
+		var mz_scale_ok: bool = is_equal_approx(float(mz_model["view_scale"]), 0.62) and is_equal_approx(float(codex._preview.scale.x), 0.62)
+		p("鸣钟图鉴 四招=%s 双被动=%s 来历完整=%s 女武神背景=%s 正常大小=%s（期望 坠锋/四响/旋征/神骸鸣钟，其余全 true）" % [str(mz_labels), mz_passives == 2, mz_lore_ok, mz_model_ok, mz_scale_ok])
 		# 化身页：切页后默认选中双刺
 		codex._switch_tab(1)
 		await get_tree().create_timer(0.3).timeout
 		p("切到化身页 -> 选中=%s（期望 c021）" % str(codex._sel))
 		await _shot("08_codex_form")
+		Meta.clears = 5
+		Meta.kills = 300
+		codex._select("z002")
+		await get_tree().create_timer(0.3).timeout
+		await _shot("08b_codex_pipa")
+		var pipa_passives: Array = []
+		for action in codex._acts:
+			if str(action.get("kind", "")) == "passive":
+				pipa_passives.append(str(action.get("label", "")))
+		p("绛弦图鉴三被动=%s（期望 红尘/红粉骷髅/神伤）" % str(pipa_passives))
+		# 六化身：逐招核对正式名，所有现有普攻与技能都必须有数值、机制和来历。
+		var expected_form_moves := {
+			"c021": {"attack": ["绛衣试水", "回燕剪翎", "红绫卷霜"], "skill": ["流光度影", "罗刹旋舞", "红缨缚雁"]},
+			"c013": {"attack": ["撞钟", "碎磐"], "skill": ["钟荡群山", "金刚怒目", "立地听禅"]},
+			"c023": {"attack": ["疏枝引鹤"], "skill": ["梅间回雪"]},
+			"z000": {"attack": ["松间问鹤", "流云回锋", "骤雨听剑", "玉宇挑月"], "skill": ["千锋回雪", "月华斩", "步月登霄", "一剑惊鸿", "剑奉山河", "惊鸿燕返"]},
+			"z002": {"attack": ["冰弦初响", "促柱追声", "急雨敲窗", "余音入魔"], "skill": ["踏弦", "黍离", "摄心", "红尘劫", "八音断识", "心魔引"]},
+			"z003": {"attack": ["袖里青蛇", "揽月上霄", "断雁回风"], "skill": ["崩云", "飞星送客", "万籁停晷", "长夜明火", "舜华斩", "天倾"]},
+		}
+		var form_names_ok := true
+		var form_details_ok := true
+		var form_forbidden: Array = forbidden + [
+			"无名式", "普攻 1", "普攻 2", "普攻 3", "普攻 4",
+			"技能 K", "技能 L", "技能 U", "技能 I", "技能 O", "技能 P", "O · ",
+			"skill", "atk", "res://", "user://", "hit_at", "cooldown", "damage", "range", "【待补】", "TODO",
+		]
 		for id in codex.Skulls.ORDER:
-			for action in codex._form_actions(codex.Skulls.get_profile(str(id))):
+			var labels := {"attack": [], "skill": []}
+			for action in codex._form_actions(codex.Skulls.get_profile(str(id)), str(id)):
+				var kind := str(action.get("kind", ""))
 				var text: String = codex._desc_text(action, str((action.get("anims", []) as Array)[0]) if not (action.get("anims", []) as Array).is_empty() else "")
-				for term in forbidden:
+				for term in form_forbidden:
 					if text.contains(str(term)):
 						clean_text = false
 						p("化身文案穿帮 %s / %s / %s" % [str(id), str(action.get("label", "")), str(term)])
-		p("全部化身图鉴无开发术语/资源键/占位文案=%s（期望 true）" % clean_text)
-		# 银夜变式池：普攻 2 与 K 各留 2 条，I 只留 1 条；上 / 下键手动选择且不自动跳转
+				if kind != "attack" and kind != "skill":
+					continue
+				(labels[kind] as Array).append(str(action.get("label", "")))
+				var details_ok := not str(action.get("num", "")).strip_edges().is_empty() \
+					and not str(action.get("mech", "")).strip_edges().is_empty() \
+					and not str(action.get("lore", "")).strip_edges().is_empty() \
+					and text.contains("数值：") and text.contains("机制：") and text.contains("来历：")
+				if not details_ok:
+					form_details_ok = false
+					p("化身资料缺漏 %s / %s" % [str(id), str(action.get("label", ""))])
+			var expected: Dictionary = expected_form_moves.get(str(id), {})
+			for kind in ["attack", "skill"]:
+				if labels[kind] != expected.get(kind, []):
+					form_names_ok = false
+					p("化身正式名不符 %s / %s：%s" % [str(id), str(kind), str(labels[kind])])
+		p("六化身全部现有普攻/技能正式名=%s 数值/机制/来历完整=%s（期望全 true）" % [form_names_ok, form_details_ok])
+		p("全部化身图鉴无旧标签/开发术语/资源键/占位文案=%s（期望 true）" % clean_text)
+		# 银夜变式池：揽月上霄与崩云各留 2 条，长夜明火只留 1 条；上 / 下键手动选择且不自动跳转
 		Meta.clears = 3
 		Meta.kills = 150
 		codex._select("z003")
@@ -541,16 +601,16 @@ func _ready() -> void:
 		var i_skill := -1
 		for i in codex._acts.size():
 			var label := str(codex._acts[i]["label"])
-			if label == "普攻 2":
+			if label == "揽月上霄":
 				atk2 = i
-			elif label == "技能 K":
+			elif label == "崩云":
 				k = i
-			elif label == "技能 I":
+			elif label == "长夜明火":
 				i_skill = i
 		var has_empty_passive := false
 		for action in codex._acts:
 			has_empty_passive = has_empty_passive or str(action.get("kind", "")) == "passive"
-		p("银夜变式数：普攻2=%d K=%d I=%d 空白被动已隐藏=%s（期望 2 / 2 / 1 / true）" % [
+		p("银夜变式数：揽月上霄=%d 崩云=%d 长夜明火=%d 空白被动已隐藏=%s（期望 2 / 2 / 1 / true）" % [
 			(codex._acts[atk2]["anims"] as Array).size() if atk2 >= 0 else 0,
 			(codex._acts[k]["anims"] as Array).size() if k >= 0 else 0,
 			(codex._acts[i_skill]["anims"] as Array).size() if i_skill >= 0 else 0,

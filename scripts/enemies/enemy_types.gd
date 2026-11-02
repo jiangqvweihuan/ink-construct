@@ -56,42 +56,6 @@ const TYPES := {
 		"bar_y": -120.0,
 		"number_y": -105.0,
 	},
-	# ---------- 黑袍剑客：Z002，招式最全的普通怪，三段快剑 ----------
-	"z002": {
-		"label": "黑袍剑客",
-		"data": "res://art/characters/enemies/z002/z002_data.tres",
-		"scale": 0.36, # 骨架 308.6px -> 约 111px
-		"body_radius": 30.0,
-		"elite": false,
-		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked", "dead": "atked_fall_end"},
-		"attacks": ["atk01", "atk02", "atk03"],
-		# 探针实测（scale=1 峰值 -> ×0.36）：atk01 后侧 200@0.24、atk02 后侧 217@0.23、atk03 后侧 183@0.24
-		# 黑袍剑客的剑从头到尾收在身侧/背后，剑锋扫向原点左侧，所以三招都判 both
-		"hit_at": {"atk01": 0.24, "atk02": 0.23, "atk03": 0.24},
-		"ranges": {"atk01": 72.0, "atk02": 78.0, "atk03": 57.0},
-		"both": {"atk01": true, "atk02": true, "atk03": true},
-		"attack_rules": {"atk02": {"cooldown": 7.2}, "atk03": {"cooldown": 9.6}},
-		"hp": 6,
-		"patrol_speed": 60.0,
-		"chase_speed": 150.0,
-		"patrol_range": 120.0,
-		"idle_time": 1.0,
-		"detect_range": 240.0,
-		"lose_range": 340.0,
-		"attack_range": 125.0,
-		"keep_dist": 75.0,
-		"attack_cooldown": 1.8,
-		"attack_lunge": 300.0,
-		"hit_height": 90.0,
-		"hurt_time": 0.3,
-		"armor": 0,
-		"telegraph": false,
-		"pick": "random",
-		"dead_min": 0.8, # dead 只有 0.083s，靠兜底才看得见尸体
-		"bar_w": 44.0,
-		"bar_y": -120.0,
-		"number_y": -105.0,
-	},
 	# ---------- 蛮兵：C017，慢行霸体重斧；三招以开天为主，追击三斧后力竭 ----------
 	"c017": {
 		"label": "蛮兵",

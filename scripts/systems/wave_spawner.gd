@@ -11,7 +11,6 @@ signal all_cleared()
 ## 普通怪 / 精英的候选场景，刷怪时各随机挑一个
 const NORMAL_SCENES := [
 	"res://scenes/enemies/c016.tscn", # 刀客
-	"res://scenes/enemies/z002.tscn", # 黑袍剑客
 	"res://scenes/enemies/c017.tscn", # 蛮兵
 	"res://scenes/enemies/c035.tscn", # 刺客
 ]

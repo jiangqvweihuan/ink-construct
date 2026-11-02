@@ -1,6 +1,6 @@
 extends CanvasLayer
 
-## 指定 Boss 房先导：黑底、双方名字与真实骨架对峙；其余 Boss 保持旧登场。
+## 正式 Boss 房统一先导：黑底、双方名字与真实骨架对峙；未配专属入场动画时用待机。
 
 signal finished
 
@@ -48,8 +48,10 @@ func _ready() -> void:
 
 	_make_preview(root, load(str(profile["data"])), float(profile.get("scale", 0.394)) * 1.35,
 		Vector2(292, 590), str((profile.get("anim", {}) as Dictionary).get("idle", "stand")), true, false)
-	var intro: Dictionary = BossTypes.get_boss(str(_boss.get("type_id"))).get("intro", {"anim": "skill01", "loop": false})
-	var intro_anim := str(intro.get("anim", "skill01"))
+	var boss_anims: Dictionary = _boss.get("_anim_map")
+	var idle_anim := str(boss_anims.get("idle", "stand"))
+	var intro: Dictionary = BossTypes.get_boss(str(_boss.get("type_id"))).get("intro", {"anim": idle_anim, "loop": true})
+	var intro_anim := str(intro.get("anim", idle_anim))
 	var duration := float(_boss.get("_anim_durations").get(intro_anim, 2.2))
 	_make_preview(root, _boss.get("sprite").get("skeleton_data_res"), float(_boss.get("_scale")) * 0.9,
 		Vector2(984, 600), intro_anim, bool(intro.get("loop", false)), true)

@@ -217,10 +217,7 @@ func _attack_rule_probe() -> void:
 			e._attack_rule_cds[move] = 0.0
 		e._start_attack()
 		var restored_ok: bool = e._attack_move != basic if eligible_skill else e._attack_move == basic
-		if str(id) == "z002":
-			rules_ok = rules_ok and is_equal_approx(float(e._attack_rules["atk02"]["cooldown"]), 7.2) \
-				and is_equal_approx(float(e._attack_rules["atk03"]["cooldown"]), 9.6)
-		elif str(id) == "c037":
+		if str(id) == "c037":
 			rules_ok = rules_ok and is_equal_approx(float(e._attack_rules["skill03"]["cooldown"]), 7.2) \
 				and is_equal_approx(float(e._attack_rules["cangjian"]["cooldown"]), 9.6)
 		var one_ok: bool = rules_ok and priority_ok and fallback_ok and restored_ok
@@ -229,7 +226,7 @@ func _attack_rule_probe() -> void:
 		e._release_token()
 		e.queue_free()
 		await get_tree().process_frame
-	p("七种敌人统一出手规则=%s（期望 true）" % all_ok)
+	p("六种敌人统一出手规则=%s（期望 true）" % all_ok)
 
 
 ## 刀客专项用固定站位与手动帧推进，避免随机选招和实时位移干扰数值断言。

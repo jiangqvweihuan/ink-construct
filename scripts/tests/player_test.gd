@@ -375,7 +375,7 @@ func _permanent_progression_check() -> void:
 	for info in Meta.FORM_NODES.values():
 		var form := str(info["form"])
 		counts[form] = int(counts.get(form, 0)) + 1
-	p("永久节点总数=%d 各角色=%s（期望 45，五人各 9）" % [Meta.FORM_NODES.size(), str(counts)])
+	p("永久节点总数=%d 各角色=%s（期望 54，六人各 9）" % [Meta.FORM_NODES.size(), str(counts)])
 	var learn1 := Meta.learn_node("c021_dance_1")
 	var learn2 := Meta.learn_node("c021_dance_2")
 	p("顺序修炼=%s/%s 有后继时初阶可退=%s（期望 true/true/false）" % [learn1, learn2, Meta.can_refund("c021_dance_1")])

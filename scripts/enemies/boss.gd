@@ -176,6 +176,14 @@ func entrance() -> void:
 	hp_changed.emit(hp, max_hp)
 
 
+## 黑底对峙先导结束后恢复战斗；独立 Boss 可覆盖以清理自己的预选与计时。
+func finish_entrance() -> void:
+	if state == State.DEAD:
+		return
+	_state_timer = 0.0
+	_set_state(State.CHASE)
+
+
 # ---------- 主循环 ----------
 
 func _physics_process(delta: float) -> void:
@@ -190,7 +198,8 @@ func _physics_process(delta: float) -> void:
 	_charge_cd = maxf(0.0, _charge_cd - delta)
 	_turn_cd = maxf(0.0, _turn_cd - delta)
 	if state >= S_ENTER:
-		# 自定义状态不走父类主循环，余滞要在这里独立计时；常规追击仍由父类处理。
+		# 自定义状态不走父类主循环，新状态与余滞要在这里独立计时。
+		_pipa_status_tick(delta)
 		if _slow_timer > 0.0:
 			_slow_timer = maxf(0.0, _slow_timer - delta)
 			if _slow_timer <= 0.0:
@@ -345,6 +354,9 @@ func _start_turn(dir: int) -> void:
 
 func _start_charge() -> void:
 	_release_token()
+	_trigger_six_senses()
+	if state == State.DEAD:
+		return
 	state = S_CHARGE_TELE
 	_charge_hit_done = false
 	velocity.x = 0.0
@@ -377,7 +389,7 @@ func _charge_hit_check() -> void:
 		_charge_hit_done = true
 		_sfx_player.stream = SFX_BOSS_SKILL_HIT # 碾压撞实了，闷响
 		_sfx_player.play()
-		_target.call("hurt", Run.enemy_damage(int(_charge.get("damage", 2))), Vector2(_charge_dir * 420.0, -120.0), self,
+		_hit_status_target(_target, int(_charge.get("damage", 2)), Vector2(_charge_dir * 420.0, -120.0),
 			{"anim": str(_charge.get("anim_run", _current_anim)), "hit_at": 0.55})
 
 
@@ -557,7 +569,7 @@ func _fire_zone_burst(pos: Vector2) -> void:
 	var dx: float = _target.global_position.x - pos.x
 	var dy: float = absf(_target.global_position.y - pos.y)
 	if absf(dx) <= float(_fz.get("radius", 110.0)) and dy <= 160.0:
-		_target.call("hurt", Run.enemy_damage(int(_fz.get("damage", 1))), Vector2(signf(dx) * 220.0, -100.0), self,
+		_hit_status_target(_target, int(_fz.get("damage", 1)), Vector2(signf(dx) * 220.0, -100.0),
 			{"anim": str(_anim_map["idle"]), "hit_at": 0.7})
 		# 火焰灼烧在玩家身上炸开（击中才放，区别于普通受击墨花）
 		FX.spawn(get_tree().current_scene, "fire_hit", _target.global_position + Vector2(0, -70), {"scale": 0.5})

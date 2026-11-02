@@ -131,6 +131,7 @@ func _physics_process(delta: float) -> void:
 		_move_cds[move] = maxf(0.0, float(_move_cds[move]) - delta)
 	if state == S_CAST or state == S_BREAK:
 		_attack_cd = maxf(0.0, _attack_cd - delta)
+		_pipa_status_tick(delta)
 		_find_target()
 		if state == S_CAST:
 			_cast_tick(delta)
@@ -237,6 +238,10 @@ func _chase_tick(delta: float) -> void:
 
 func _start_mo_move(move: String) -> void:
 	_cleanup_cast()
+	if move != BASIC:
+		_trigger_six_senses()
+		if state == State.DEAD:
+			return
 	_cast_id += 1
 	_attack_cast_id = _cast_id # 供测试与终局对演识别同一次起手。
 	_cast_move = move
@@ -292,9 +297,13 @@ func _events_for(move: String) -> Array:
 func _cast_tick(delta: float) -> void:
 	_cast_elapsed += delta
 	if _cast_move == TREMOR and not _marker_locked and is_instance_valid(_marker):
-		var pl := _player_node()
-		if pl != null:
-			_marker.global_position = pl.global_position
+		if _target != null and is_instance_valid(_target):
+			_marker.global_position = _target.global_position
+	if is_instance_valid(_grabbed_player) and not _grabbed_player.has_method("mo_ting_hold"):
+		if int(_grabbed_player.get("hp")) <= 0:
+			_grabbed_player = null
+		else:
+			_grabbed_player.global_position = global_position + Vector2(facing * 190.0, -180.0)
 	while not _cast_events.is_empty() and _cast_elapsed >= float(_cast_events[0]["at"]):
 		var event: Dictionary = _cast_events.pop_front()
 		_run_cast_event(event)
@@ -370,7 +379,7 @@ func _continuous_tick(delta: float) -> void:
 
 
 func _continuous_hit() -> void:
-	if _target == null or not is_instance_valid(_target) or not _target.has_method("hurt"):
+	if _target == null or not is_instance_valid(_target):
 		return
 	if _cast_move == RUSH:
 		var dx: float = _target.global_position.x - global_position.x
@@ -389,7 +398,7 @@ func _continuous_hit() -> void:
 
 
 func _hit_front(damage: int, reach: float, height: float, extra: Dictionary = {}, knockback := Vector2.ZERO) -> void:
-	if _target == null or not is_instance_valid(_target) or not _target.has_method("hurt"):
+	if _target == null or not is_instance_valid(_target):
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy := absf(_target.global_position.y - global_position.y)
@@ -398,17 +407,15 @@ func _hit_front(damage: int, reach: float, height: float, extra: Dictionary = {}
 
 
 func _hit_target(damage: int, extra: Dictionary = {}, knockback := Vector2.ZERO) -> void:
-	if _target == null or not is_instance_valid(_target) or not _target.has_method("hurt"):
+	if _target == null or not is_instance_valid(_target):
 		return
-	var move := _move_data(extra)
-	_target.call("hurt", Run.enemy_damage(damage), knockback, self, move)
+	_hit_status_target(_target, damage, knockback, _move_data(extra))
 
 
 func _hit_held(damage: int, extra: Dictionary) -> void:
-	if not is_instance_valid(_grabbed_player) or not _grabbed_player.has_method("hurt"):
+	if not is_instance_valid(_grabbed_player):
 		return
-	var amount := Run.enemy_damage(damage) if damage > 0 else 0
-	_grabbed_player.call("hurt", amount, Vector2.ZERO, self, _move_data(extra))
+	_hit_status_target(_grabbed_player, damage, Vector2.ZERO, _move_data(extra))
 
 
 func _move_data(extra: Dictionary) -> Dictionary:
@@ -422,23 +429,22 @@ func _move_data(extra: Dictionary) -> Dictionary:
 
 
 func _spawn_marker() -> void:
-	var pl := _player_node()
-	if pl == null:
+	if _target == null or not is_instance_valid(_target):
 		return
 	_marker = RedMark.new()
 	_marker.z_index = 6
-	_marker.global_position = pl.global_position
+	_marker.global_position = _target.global_position
 	get_tree().current_scene.add_child(_marker)
 	_marker_locked = false
 
 
 func _try_tremor_grab() -> void:
-	var pl := _player_node()
-	if pl != null and is_instance_valid(_marker):
-		var offset: Vector2 = pl.global_position - _marker.global_position
+	if _target != null and is_instance_valid(_target) and is_instance_valid(_marker):
+		var offset: Vector2 = _target.global_position - _marker.global_position
 		if offset.length() <= 66.0:
-			_grabbed_player = pl
-			pl.call("mo_ting_hold", global_position + Vector2(facing * 190.0, -180.0))
+			_grabbed_player = _target
+			if _target.has_method("mo_ting_hold"):
+				_target.call("mo_ting_hold", global_position + Vector2(facing * 190.0, -180.0))
 	if is_instance_valid(_marker):
 		_marker.queue_free()
 		_marker = null
@@ -455,14 +461,28 @@ func _update_laser() -> void:
 	_laser.set("length", maxf(0.0, length))
 
 
-func _player_node() -> Node2D:
-	return get_tree().get_first_node_in_group("player") as Node2D
-
-
 func _finish_cast() -> void:
 	_cleanup_cast()
 	_attack_cd = 0.24
 	_set_state(State.CHASE)
+
+
+func apply_frenzy(duration: float, empowered := false) -> void:
+	super(duration, empowered)
+	if _frenzy_time > 0.0:
+		_release_grab()
+
+
+func apply_charm(duration: float) -> void:
+	super(duration)
+	if _charm_time > 0.0:
+		_release_grab()
+
+
+func _release_grab() -> void:
+	if is_instance_valid(_grabbed_player) and _grabbed_player.has_method("mo_ting_release"):
+		_grabbed_player.call("mo_ting_release")
+	_grabbed_player = null
 
 
 ## 所有退出路径共用：任何破招/时停/死亡都不能留下红点、光束或玩家定点。
@@ -473,9 +493,7 @@ func _cleanup_cast() -> void:
 	if is_instance_valid(_laser):
 		_laser.queue_free()
 	_laser = null
-	if is_instance_valid(_grabbed_player) and _grabbed_player.has_method("mo_ting_release"):
-		_grabbed_player.call("mo_ting_release")
-	_grabbed_player = null
+	_release_grab()
 	_cast_events.clear()
 	_cast_move = ""
 	_cast_visual = ""

@@ -63,6 +63,16 @@ const UPGRADES := {
 ## theme 给面板配色用（0 朱砂 / 1 墨青 / 2 赭金）。
 ## 只对当前形态生效：换头后旧形态的卡休眠，换回来再生效（player._apply_form_mods 过滤 forms）。
 const FORM_UPGRADES := {
+	# ---------- 绛弦·苏挽音：万狂同奏（乱弦 / 同梦 / 心魔） ----------
+	"z002_chorus_1": {"label": "乱弦 · 初", "desc": "魔音命中时，使周围 240 内最多 2 名敌人癫狂 6 秒", "max": 1, "icon": "icon_sword", "forms": ["z002"], "path": "乱弦", "tier": 1, "theme": 0},
+	"z002_chorus_2": {"label": "乱弦 · 续", "desc": "癫狂敌人伤及同伴时，使受伤者癫狂 4 秒", "max": 1, "icon": "icon_sword", "forms": ["z002"], "path": "乱弦", "tier": 2, "theme": 0, "req": "z002_chorus_1"},
+	"z002_chorus_3": {"label": "乱弦 · 极", "desc": "癫狂敌人伤及同伴时，再附加 1 层怨与 1 层六感尽失", "max": 1, "icon": "icon_sword", "forms": ["z002"], "path": "乱弦", "tier": 3, "theme": 0, "req": "z002_chorus_2"},
+	"z002_allure_1": {"label": "同梦 · 初", "desc": "摄心额外魅惑周围 240 内一名非首领敌人 6 秒，不为其回血", "max": 1, "icon": "icon_undo", "forms": ["z002"], "path": "同梦", "tier": 1, "theme": 1},
+	"z002_allure_2": {"label": "同梦 · 续", "desc": "魅惑敌人伤及同伴时，自身魅惑延长 1 秒，最长 20 秒", "max": 1, "icon": "icon_undo", "forms": ["z002"], "path": "同梦", "tier": 2, "theme": 1, "req": "z002_allure_1"},
+	"z002_allure_3": {"label": "同梦 · 极", "desc": "魅惑敌人对同伴造成的伤害翻倍", "max": 1, "icon": "icon_undo", "forms": ["z002"], "path": "同梦", "tier": 3, "theme": 1, "req": "z002_allure_2"},
+	"z002_mind_1": {"label": "心魔 · 初", "desc": "心魔引引爆后，存活目标保留六感尽失", "max": 1, "icon": "icon_arrow_up", "forms": ["z002"], "path": "心魔", "tier": 1, "theme": 2},
+	"z002_mind_2": {"label": "心魔 · 续", "desc": "心魔引每击杀一名敌人，返还 3 秒冷却", "max": 1, "icon": "icon_arrow_up", "forms": ["z002"], "path": "心魔", "tier": 2, "theme": 2, "req": "z002_mind_1"},
+	"z002_mind_3": {"label": "心魔 · 极", "desc": "心魔引击杀时，对周围 240 内敌人造成 3 伤并附加 6 秒癫狂", "max": 1, "icon": "icon_arrow_up", "forms": ["z002"], "path": "心魔", "tier": 3, "theme": 2, "req": "z002_mind_2"},
 	# ---------- 双刺·冷红绫：绯羽 / 归刃 / 影饵 ----------
 	"c021_feather_1": {"label": "绯羽 · 初", "desc": "K 命中剥离全部流血，每层凝一羽（最多 3 羽）", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "绯羽", "tier": 1, "theme": 0},
 	"c021_feather_2": {"label": "绯羽 · 续", "desc": "U 消耗全部绯羽，每羽让掷匕多分裂一次", "max": 1, "icon": "icon_sword", "forms": ["c021"], "path": "绯羽", "tier": 2, "theme": 0, "req": "c021_feather_1"},
@@ -391,8 +401,8 @@ func apply_to(player) -> void:
 		return
 	player.set_upgrades(upgrades)
 	max_hp = maxi(1, BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp - max_hp_loss) # 铁砚护身赐福 + 固元（局外）- 绽花损失
-	player.max_hp = max_hp
-	player.hp = clampi(hp, 1, max_hp)
+	player.max_hp = player.effective_max_hp(max_hp) if player.has_method("effective_max_hp") else max_hp
+	player.hp = clampi(hp, 1, player.max_hp)
 	if player.skull_id != skull_id:
 		player.swap_skull(skull_id)
 	player.hp_changed.emit(player.hp, player.max_hp)

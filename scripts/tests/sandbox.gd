@@ -13,8 +13,8 @@ const Types := preload("res://scripts/enemies/enemy_types.gd")
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const Skulls := preload("res://scripts/player/skulls.gd")
 const C016Class := preload("res://scripts/enemies/c016.gd")
-const GRUNT_SCENE := "res://scenes/enemies/c016.tscn" # 小怪/精英通用壳（type_id 决定形态）
-const BOSS_SCENE := "res://scenes/enemies/bosses/boss.tscn"
+const WaveSpawner := preload("res://scripts/systems/wave_spawner.gd")
+const PLAYER_SCENE := "res://scenes/player/player.tscn"
 const OUT_DIR := "res://tests/out/"
 const ROOM_W := 1920.0
 const GOD_HP := 999999
@@ -24,6 +24,7 @@ var _enemy: Node2D = null
 var _roster: Array = [] # [{id, label, boss}]，轮换表
 var _ri := 0
 var _skull_ids: Array = []
+var _enemy_scenes: Dictionary = {} # 与正式刷怪器共用场景来源，碰撞体和脚本不另配一份
 var _info: Label
 var _upgrade: CanvasLayer = null
 
@@ -64,9 +65,16 @@ func _ready() -> void:
 		wall_shape.shape = wall_rect
 		wall.add_child(wall_shape)
 
-	_player = load("res://scenes/player/player.tscn").instantiate()
+	# 正式房小怪/精英的场景清单就是唯一来源：各自碰撞体、脚本与后续修改同步带进来。
+	for scene_path in WaveSpawner.NORMAL_SCENES + WaveSpawner.ELITE_SCENES:
+		var probe = load(scene_path).instantiate()
+		_enemy_scenes[str(probe.type_id)] = scene_path
+		probe.free()
+
+	_player = load(PLAYER_SCENE).instantiate()
 	_player.position = Vector2(380, 560)
 	add_child(_player)
+	Run.apply_to(_player) # 与正式房使用同一形态、强化和局外养成注入，再覆盖试炼场专用规则
 	_player.max_hp = GOD_HP
 	_player.hp = GOD_HP
 	_player.cooldown_scale = 0.0 # 技能零冷却：专心试招不用等 CD（冷却 = 表配 × 本倍率 × 契合）
@@ -189,31 +197,55 @@ func _cycle_enemy(dir: int) -> void:
 
 
 func _spawn_enemy() -> void:
+	_player.clear_ming_zhong_effects()
 	if _enemy != null and is_instance_valid(_enemy):
 		# 旧怪若占着全局出手令牌，free 前先还回来，否则新怪永远出不了手
 		if C016Class._attacker == _enemy:
 			C016Class._attacker = null
 		_enemy.queue_free()
 	var info: Dictionary = _roster[_ri]
-	var scene_path := GRUNT_SCENE
-	if info["boss"]:
-		if info["id"] == "c009":
-			scene_path = "res://scenes/enemies/bosses/mo_ting.tscn"
-		elif info["id"] == "c015a1":
-			scene_path = "res://scenes/enemies/bosses/fen_ding.tscn"
-		elif info["id"] == "c001":
-			scene_path = "res://scenes/enemies/bosses/wu_che.tscn"
-		else:
-			scene_path = BOSS_SCENE
+	var scene_path := str(BossTypes.SCENES.get(info["id"], BossTypes.DEFAULT_SCENE)) if info["boss"] else str(_enemy_scenes.get(info["id"], ""))
+	if scene_path.is_empty():
+		push_error("试炼场缺少正式房敌人场景映射: %s" % info["id"])
+		return
 	_enemy = load(scene_path).instantiate()
+	var script_path := str(BossTypes.SCRIPT_OVERRIDES.get(info["id"], ""))
+	if not script_path.is_empty():
+		_enemy.set_script(load(script_path))
 	_enemy.type_id = info["id"] # add_child 才跑 _ready/_apply_type，先设形态
 	if info["id"] == "c001":
 		_enemy.arena_right = ROOM_W
 	_enemy.position = Vector2(900, 560)
 	add_child(_enemy)
+	var player_hp := int(_player.hp)
+	_player.clear_sui_yue_effects()
+	_player.set_sui_yue_pressure(info["id"] == "c008")
+	_player.max_hp = GOD_HP
+	_player.hp = mini(player_hp, GOD_HP)
+	_player.cooldown_scale = 0.0
+	_player.dash_cooldown = 0.0
+	_player.hp_changed.emit(_player.hp, _player.max_hp)
 	if info["id"] != "c001": # 武车保留耐久，才能试完整个波次与阵亡流程
 		_enemy.max_hp = GOD_HP
 		_enemy.hp = GOD_HP
+
+
+func _audit_formal_sync() -> bool:
+	var all_ok := true
+	var player_ok: bool = _player.scene_file_path == PLAYER_SCENE
+	print("[SB] sync player scene=", _player.scene_file_path, " ok=", player_ok)
+	all_ok = all_ok and player_ok
+	for info in _roster:
+		var id := str(info["id"])
+		var scene_path := str(BossTypes.SCENES.get(id, BossTypes.DEFAULT_SCENE)) if info["boss"] else str(_enemy_scenes.get(id, ""))
+		var script_path := str(BossTypes.SCRIPT_OVERRIDES.get(id, "")) if info["boss"] else ""
+		var source_ok: bool = not scene_path.is_empty() and ResourceLoader.exists(scene_path)
+		if not script_path.is_empty():
+			source_ok = source_ok and ResourceLoader.exists(script_path)
+		print("[SB] sync ", id, " scene=", scene_path, " script=", script_path if not script_path.is_empty() else "<scene>", " ok=", source_ok)
+		all_ok = all_ok and source_ok
+	print("[SB] formal scene sync=", all_ok)
+	return all_ok
 
 
 func _update_info() -> void:
@@ -228,6 +260,9 @@ func _update_info() -> void:
 
 ## 回归自动流程：换一只形态、刷一只精英、刷一只 Boss，各截一张图后退出
 func _auto_tour() -> void:
+	if not _audit_formal_sync():
+		get_tree().quit(1)
+		return
 	# 首只敌人按逗号会绕到最后一只 Boss，覆盖用户实际切换路径，避免只测首只 Boss。
 	print("[SB] cycle left from first")
 	_cycle_enemy(-1)
@@ -265,7 +300,71 @@ func _auto_tour() -> void:
 		_spawn_enemy()
 		await get_tree().create_timer(0.8).timeout
 		await _shot("sandbox_boss")
+	await _pipa_visual_tour()
+	for i in _roster.size():
+		if _roster[i]["id"] == "c008":
+			_ri = i
+			_spawn_enemy()
+			await get_tree().create_timer(0.5).timeout
+			var script_ok: bool = _enemy.get_script() == load("res://scripts/enemies/sui_yue.gd")
+			var scene_ok: bool = _enemy.scene_file_path == BossTypes.DEFAULT_SCENE
+			var pressure_ok: bool = _player._sui_yue_pressure
+			print("[SB] c008 scene_ok=", scene_ok, " script_ok=", script_ok, " pressure_ok=", pressure_ok)
+			await _shot("sandbox_sui_yue")
+			get_tree().quit(0 if scene_ok and script_ok and pressure_ok else 1)
+			return
 	get_tree().quit()
+
+
+## 绛弦正式玩家实机验收：真实状态机驱动动作，截图供检查位移、连段与受击衔接。
+func _pipa_visual_tour() -> void:
+	for i in _roster.size():
+		if _roster[i]["id"] == "c016":
+			_ri = i
+			break
+	_spawn_enemy()
+	_enemy.set_physics_process(false)
+	_enemy.set_process(false)
+	_player.swap_skull("z002")
+	_player.skill_config = (_player.skill_config as Dictionary).duplicate(true)
+	_player.position = Vector2(430, 560)
+	_enemy.position = Vector2(700, 560)
+	_player._attack_recovery = 0.0
+	_update_info()
+	await get_tree().create_timer(1.5).timeout # 等换形光柱播完，避免遮住待机与首段普攻
+	await _shot("sandbox_pipa_idle")
+	for i in _player.attacks.size():
+		_player._attack_recovery = 0.0
+		_player._start_attack(i)
+		var hit: Dictionary = _player.attacks[i]["hits"][0]
+		await get_tree().create_timer(float(hit["at"])).timeout
+		await _shot("sandbox_pipa_atk%d" % (i + 1))
+		await get_tree().create_timer(maxf(0.05, float(_player.attacks[i]["lock"]) - float(hit["at"]) + 0.05)).timeout
+	for anim in ["run-", "skill13_02-cankao"]:
+		_player.position = Vector2(430, 560)
+		_player.skill_config["run-"]["pool"] = [anim]
+		_player._skill_cds["run-"] = 0.0
+		_player._start_skill("run-")
+		await get_tree().create_timer(0.30).timeout
+		await _shot("sandbox_pipa_k_" + anim)
+		await get_tree().create_timer(0.8).timeout
+		print("[SB] pipa K ", anim, " end_x=", _player.global_position.x, " state=", _player.state)
+	_player.position = Vector2(500, 560)
+	Input.action_press("jump")
+	await get_tree().create_timer(0.12).timeout
+	Input.action_release("jump")
+	await get_tree().create_timer(0.10).timeout
+	await _shot("sandbox_pipa_jump_up")
+	await get_tree().create_timer(0.32).timeout
+	await _shot("sandbox_pipa_jump_down")
+	await get_tree().create_timer(0.55).timeout
+	_player._hurt_invincible = 0.0
+	_player.hurt(4)
+	await get_tree().create_timer(0.55).timeout
+	await _shot("sandbox_pipa_knockdown")
+	await get_tree().create_timer(3.0).timeout
+	await _shot("sandbox_pipa_getup")
+	print("[SB] pipa visual tour done state=", _player.state, " anim=", _player._current_anim)
 
 
 func _shot(tag: String) -> void:

@@ -78,6 +78,7 @@ func _physics_process(delta: float) -> void:
 	for move in _move_cds:
 		_move_cds[move] = maxf(0.0, float(_move_cds[move]) - delta)
 	if state == S_CAST or state == S_AWAKEN:
+		_pipa_status_tick(delta)
 		_find_target()
 		if state == S_CAST:
 			_cast_tick(delta)
@@ -153,6 +154,10 @@ func _chase_tick(delta: float) -> void:
 
 func _start_fen_move(move: String) -> void:
 	_cleanup_cast()
+	if move != PALM:
+		_trigger_six_senses()
+		if state == State.DEAD:
+			return
 	_cast_id += 1
 	_attack_cast_id = _cast_id
 	_cast_move = move
@@ -218,12 +223,12 @@ func _run_cast_event(event: Dictionary) -> void:
 
 
 func _hit_front(damage: int, reach: float, height: float, extra: Dictionary = {}, knockback := Vector2.ZERO) -> void:
-	if _target == null or not is_instance_valid(_target) or not _target.has_method("hurt"):
+	if _target == null or not is_instance_valid(_target):
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy := absf(_target.global_position.y - global_position.y)
 	if (dx == 0.0 or (dx > 0.0) == (facing > 0)) and absf(dx) <= reach + _radius_of(_target) and dy <= height:
-		_target.call("hurt", Run.enemy_damage(damage), knockback, self, _move_data(extra))
+		_hit_status_target(_target, damage, knockback, _move_data(extra))
 
 
 func _move_data(extra: Dictionary) -> Dictionary:
@@ -238,9 +243,8 @@ func _move_data(extra: Dictionary) -> Dictionary:
 
 func _warn_rise() -> void:
 	_rise_positions.clear()
-	var pl := get_tree().get_first_node_in_group("player") as Node2D
-	if pl != null:
-		_rise_positions.append(pl.global_position.x)
+	if _target != null and is_instance_valid(_target):
+		_rise_positions.append(_target.global_position.x)
 	while _rise_positions.size() < 3:
 		_rise_positions.append(randf_range(ARENA_L + 120.0, ARENA_R - 120.0))
 	for x in _rise_positions:
@@ -259,14 +263,13 @@ func _burst_rise() -> void:
 	_sfx_player.stream = SFX_FIRE_BURST
 	_sfx_player.play()
 	Feel.shake(5.0, 0.18)
-	var pl := get_tree().get_first_node_in_group("player") as Node2D
-	if pl == null or not pl.has_method("hurt"):
+	if _target == null or not is_instance_valid(_target):
 		return
 	for x in _rise_positions:
-		var dx: float = pl.global_position.x - float(x)
-		if absf(dx) <= RISE_RADIUS and absf(pl.global_position.y - global_position.y) <= 160.0:
-			pl.call("hurt", Run.enemy_damage(3), Vector2(signf(dx) * 220.0, -100.0), self, _move_data({"fen_ding_burn": true}))
-			FX.spawn(get_tree().current_scene, "fire_hit", pl.global_position + Vector2(0, -70), {"scale": 0.5})
+		var dx: float = _target.global_position.x - float(x)
+		if absf(dx) <= RISE_RADIUS and absf(_target.global_position.y - global_position.y) <= 160.0:
+			_hit_status_target(_target, 3, Vector2(signf(dx) * 220.0, -100.0), _move_data({"fen_ding_burn": true}))
+			FX.spawn(get_tree().current_scene, "fire_hit", _target.global_position + Vector2(0, -70), {"scale": 0.5})
 			break
 
 
@@ -303,6 +306,9 @@ func _apply_hp_damage(amount: int, color: Color = DMG_COLOR) -> void:
 
 
 func _awaken() -> void:
+	_trigger_six_senses()
+	if state == State.DEAD:
+		return
 	_awakened = true
 	_cleanup_cast()
 	_release_token()
@@ -313,6 +319,15 @@ func _awaken() -> void:
 	_telegraph()
 	Feel.shake(7.0, 0.3)
 	_fx_play(_fx.get("transform", {}))
+
+
+func mind_status_count() -> int:
+	return super() + int(_awakened)
+
+
+func _clear_mind_statuses() -> void:
+	super()
+	_awakened = false
 
 
 func take_damage(amount: int, source_x: float) -> void:

@@ -29,13 +29,15 @@ var _from_split := false # 是否由另一把匕命中后分裂而来
 var _style := "qi" # 视觉：qi=朱砂剑气弧 / dagger=短匕
 var _bleed := 0 # 命中叠流血层数（剑仙月华斩）
 var _size := 1.0 # 剑气视觉与判定尺寸倍率（巨大剑气）
+var _effects: Dictionary = {} # 绛弦魔音：癫狂、癫狂翻倍及最小时长
 
 
 ## dir: 1 朝右 -1 朝左；damage 已含局内强化/契合加成；sfx 命中音效名（空则不播）；pierce 命中不毁；
 ## root 命中定身秒数；split 命中后分裂数量；style 视觉风格；bleed 命中叠流血层数；scale 尺寸倍率
 func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "", p_pierce := false,
 		p_root := 0.0, p_split := 0, p_style := "qi", p_bleed := 0, p_scale := 1.0,
-		p_pierce_charges := 0, p_source: Node = null, p_from_skill := false, p_cast_id := 0) -> void:
+		p_pierce_charges := 0, p_source: Node = null, p_from_skill := false, p_cast_id := 0,
+		p_effects: Dictionary = {}) -> void:
 	_dir = p_dir
 	_speed = p_speed
 	_range = p_range
@@ -51,6 +53,7 @@ func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "
 	_source = p_source
 	_from_skill = p_from_skill
 	_cast_id = p_cast_id
+	_effects = p_effects.duplicate(true)
 
 
 func _ready() -> void:
@@ -65,6 +68,9 @@ func _ready() -> void:
 func _draw() -> void:
 	if _style == "dagger":
 		_draw_dagger()
+		return
+	if _style == "magic_sound":
+		_draw_magic_sound()
 		return
 	# 剑气：一道前凸的朱砂弧 + 内侧淡晕 + 后方两笔墨拖尾
 	var arc_pts := PackedVector2Array()
@@ -91,6 +97,20 @@ func _draw_dagger() -> void:
 	draw_line(Vector2(-6, 12), Vector2(-36, 7), Color(INK, 0.35), 1.5)
 
 
+## 魔音：三重绛紫声波与一缕墨色尾迹，远程普攻和黍离共用。
+func _draw_magic_sound() -> void:
+	var purple := Color(0.68, 0.38, 0.76)
+	draw_circle(Vector2.ZERO, 22.0, Color(purple, 0.16))
+	for ring in 3:
+		var pts := PackedVector2Array()
+		for i in 11:
+			var a := lerpf(-1.2, 1.2, i / 10.0)
+			pts.append(Vector2(cos(a) * (8.0 + ring * 6.0) - ring * 5.0, sin(a) * (22.0 + ring * 7.0)))
+		draw_polyline(pts, Color(purple, 0.95 - ring * 0.2), 3.0 - ring * 0.5, true)
+	draw_line(Vector2(-12, -10), Vector2(-42, -4), Color(INK, 0.55), 2.5)
+	draw_line(Vector2(-12, 10), Vector2(-36, 5), Color(purple, 0.45), 2.0)
+
+
 func _physics_process(delta: float) -> void:
 	var step := _speed * delta
 	position.x += _dir * step
@@ -111,7 +131,10 @@ func _physics_process(delta: float) -> void:
 			var hit_damage := _damage
 			if is_instance_valid(_source) and _source.has_method("_target_damage_bonus"):
 				hit_damage += int(_source.call("_target_damage_bonus", p))
-			p.call("take_damage", hit_damage, global_position.x)
+			if is_instance_valid(_source) and _source.has_method("_damage_enemy"):
+				_source.call("_damage_enemy", p, hit_damage)
+			else:
+				p.call("take_damage", hit_damage, global_position.x)
 			# 命中计数与永久效果优先回报给实际来源；旧测试场景没有来源时保留原入口。
 			if is_instance_valid(_source) and _source.has_method("on_projectile_hit"):
 				_source.call("on_projectile_hit", p, _from_skill, _cast_id)
@@ -129,6 +152,12 @@ func _physics_process(delta: float) -> void:
 			# 流血（剑仙月华斩）：命中即叠层，剑气本身不消失
 			if _bleed > 0 and int(e.get("hp")) > 0 and e.has_method("apply_bleed"):
 				e.call("apply_bleed", _bleed)
+			if int(e.get("hp")) > 0 and float(_effects.get("frenzy", 0.0)) > 0.0 and e.has_method("apply_frenzy"):
+				e.call("apply_frenzy", float(_effects["frenzy"]), bool(_effects.get("frenzy_empower", false)))
+			if int(e.get("hp")) > 0 and bool(_effects.get("frenzy_double", false)) and e.has_method("double_frenzy"):
+				e.call("double_frenzy", float(_effects.get("frenzy_min", 12.0)))
+			if _style == "magic_sound" and is_instance_valid(_source) and _source.has_method("on_pipa_sound_hit"):
+				_source.call("on_pipa_sound_hit", p)
 			Feel.hitstop(0.04)
 			Feel.shake(3.0, 0.1)
 			# 分裂（双刺 U）：第一把钉进敌人，第二把从命中点继续飞，忽略刚命中的目标防重复掉血
@@ -136,7 +165,7 @@ func _physics_process(delta: float) -> void:
 				_split_left -= 1
 				var child = get_script().new()
 				child.setup(_dir, _speed, _range, _damage, _sfx, _pierce, _root_time, _split_left, _style, _bleed, _size,
-					_pierce_left, _source, _from_skill, _cast_id)
+					_pierce_left, _source, _from_skill, _cast_id, _effects)
 				child._hit_list = _hit_list.duplicate()
 				child._from_split = true
 				child._hit_list.append(e.get_instance_id())

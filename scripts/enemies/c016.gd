@@ -132,6 +132,15 @@ const POISON_TICK := 0.5 # 每 0.5 秒扣一次
 const POISON_DMG := 1 # 每次扣 1 点
 const POISON_COLOR := Color(0.36, 0.6, 0.32) # 竹青：中毒飘字与掉血数字
 const POISON_LABEL_COLOR := Color(0.45, 0.7, 0.4)
+# ---------- 绛弦：癫狂 / 魅惑 / 怨 / 六感尽失 / 心灵震撼（均随房间实体销毁） ----------
+var _frenzy_time := 0.0
+var _frenzy_empowered := false
+var _charm_time := 0.0
+var _grudge := 0
+var _six_senses := 0
+var _mind_shock := 0 # 上限一层；重复神伤仍刷新其他状态，不突破此上限
+var _red_scapegoat_used := false # 红粉骷髅：每个癫狂目标至多替死一次
+var _transferred_debuffs: Dictionary = {} # 心魔引转来的玩家专属减益：id -> {stacks,time}
 var _fly_impact := 0 # 击退（银夜 L）撞人/撞墙的组合伤害，0=纯击飞无碰撞伤害
 var _fly_hit := {} # 本次击退已撞过的同伴（一只只撞一次）
 var _slam_pending := false # 仅 slam 的落地待回报；普通击飞/击退必须清除
@@ -413,6 +422,7 @@ func _physics_process(delta: float) -> void:
 	_bleed_tick(delta) # 流血照常跳（时停里不动，所以放在 stop 分支之后）
 	_poison_tick(delta) # 中毒同理：时停期间不跳毒
 	_regen_tick(delta) # 山民：时停冻结，其他状态照常计时
+	_pipa_status_tick(delta)
 
 	# 晕眩（力僧 L）：比定身更强——站桩发愣，不出手也不移动（放在定身之前结算）
 	if _stun_timer > 0.0:
@@ -493,7 +503,7 @@ func _chase_tick(delta: float) -> void:
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
-	var max_range := 520.0 if _target.is_in_group("player_decoy") else lose_range
+	var max_range := INF if _charm_time > 0.0 or _frenzy_time > 0.0 else (520.0 if _target.is_in_group("player_decoy") else lose_range)
 	if absf(dx) > max_range:
 		_target = null
 		_set_state(State.PATROL)
@@ -670,6 +680,11 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		_attacker = self # 本体占住出手令牌；凝华分身只同步，不阻断其他敌人
 	_sword_hit_damage.clear()
 	_attack_move = anim
+	# 六感尽失只惩罚非普攻的独立起手；连段接续不重复触发。
+	if not continue_chain and anim != basic_anim:
+		_trigger_six_senses()
+		if state == State.DEAD:
+			return
 	_attack_visual = str(_move_anims.get(anim, anim))
 	if _move_pool.has(anim):
 		var visuals: Array = _move_pool[anim]
@@ -755,6 +770,8 @@ func _telegraph() -> void:
 func _deal_hit(seg := 0) -> void:
 	if _target == null or not is_instance_valid(_target):
 		return
+	if _charm_time > 0.0 and _target.is_in_group("player"):
+		return # 魅惑目标永不攻击玩家，包括魅惑前已经起手的旧招
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
 	var move := _replay_move(seg)
@@ -772,6 +789,11 @@ func _deal_hit(seg := 0) -> void:
 		var raw_facing = _target.get("facing")
 		if raw_facing != null and (global_position.x - _target.global_position.x) * float(raw_facing) < 0.0:
 			dmg *= 2
+	# 红尘：每 3 层怨逐段 -1，每段最低仍为 1；强化癫狂在最后翻倍。
+	if dmg > 0:
+		dmg = maxi(1, dmg - int(_grudge / 3.0))
+		if _frenzy_time > 0.0 and _frenzy_empowered:
+			dmg *= 2
 	# 本体先结算时记录同段伤害，分身后结算直接复用，避免首段叠层让镜像多打 1 点。
 	if _is_sword_clone and is_instance_valid(_sword_owner) \
 			and int(_sword_owner.get("_attack_cast_id")) == _attack_cast_id:
@@ -781,15 +803,17 @@ func _deal_hit(seg := 0) -> void:
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_attack_move, false))
 	var rng := _range_of(_attack_move, seg) if in_front else _back_range_of(_attack_move, seg)
-	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height \
-			and _target.has_method("hurt"):
+	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height:
 		if not _is_sword_clone:
 			_sword_hit_damage[seg] = dmg
 		var kb := Vector2(facing * _hit_knockback.x, _hit_knockback.y)
 		if move.has("knockback"):
 			var custom: Vector2 = move["knockback"]
 			kb = Vector2(facing * custom.x, custom.y)
-		_target.call("hurt", dmg, kb, self, move)
+		if _target.is_in_group("enemies") and _target.has_method("take_damage_from"):
+			_target.call("take_damage_from", dmg, self) # 癫狂/魅惑：真实敌人互伤
+		elif _target.has_method("hurt"):
+			_target.call("hurt", dmg, kb, self, move)
 
 
 func _hit_key(anim: String) -> String:
@@ -1059,6 +1083,228 @@ func _sync_bloodthirst() -> void:
 		State.CHASE:
 			var anim := str(_bloodthirst.get("move", _anim_map["chase"])) if _bloodthirst_weak() else str(_anim_map["chase"])
 			_play(anim, true, _chase_anim_speed)
+
+
+# ---------- 绛弦机制接口：癫狂 / 魅惑 / 怨 / 六感尽失 / 心魔引 ----------
+
+func apply_frenzy(duration: float, empowered := false) -> void:
+	if state == State.DEAD or duration <= 0.0:
+		return
+	_frenzy_time = maxf(_frenzy_time, duration)
+	_frenzy_empowered = _frenzy_empowered or empowered
+	_target = null
+
+
+## 黍离：已有癫狂翻倍；没有或剩余不足时，也至少留下 12 秒。
+func double_frenzy(minimum := 12.0) -> void:
+	if state == State.DEAD:
+		return
+	_frenzy_time = maxf(minimum, _frenzy_time * 2.0)
+	_target = null
+
+
+func apply_charm(duration: float) -> void:
+	if state == State.DEAD or duration <= 0.0:
+		return
+	_charm_time = maxf(_charm_time, duration)
+	_target = null
+
+
+func add_grudge(layers: int) -> void:
+	if state != State.DEAD and layers > 0:
+		_grudge += layers # 当前房间永久，无上限
+
+
+func apply_six_senses(layers: int) -> void:
+	if state != State.DEAD and layers > 0:
+		_six_senses += layers # 当前房间永久，无上限
+
+
+func can_red_scapegoat() -> bool:
+	return state != State.DEAD and hp > 0 and _frenzy_time > 0.0 and not _red_scapegoat_used
+
+
+func consume_red_scapegoat() -> void:
+	_red_scapegoat_used = true
+
+
+## 带明确来源的伤害：玩家打魅惑目标减半；万狂同奏在敌人互伤后结算流派联动。
+func take_damage_from(amount: int, source: Node) -> void:
+	var final := amount
+	if _charm_time > 0.0 and source != null and is_instance_valid(source) and source.is_in_group("player"):
+		final = maxi(1, int(ceilf(final / 2.0)))
+	var allied_hit := source != null and is_instance_valid(source) and source != self and source.is_in_group("enemies") and source is Node2D
+	var player = get_tree().get_first_node_in_group("player") if allied_hit else null
+	var pipa_active := player != null and str(player.get("skull_id")) == "z002" and player.has_method("_own")
+	if allied_hit and pipa_active and float(source.get("_charm_time")) > 0.0 and bool(player.call("_own", "z002_allure_3")):
+		final *= 2
+	take_damage(final, (source as Node2D).global_position.x if source is Node2D else global_position.x)
+	if not allied_hit or not pipa_active or hp <= 0 or state == State.DEAD:
+		return
+	if float(source.get("_frenzy_time")) > 0.0:
+		if bool(player.call("_own", "z002_chorus_2")):
+			apply_frenzy(4.0)
+		if bool(player.call("_own", "z002_chorus_3")):
+			add_grudge(1)
+			apply_six_senses(1)
+	if float(source.get("_charm_time")) > 0.0 and bool(player.call("_own", "z002_allure_2")):
+		source.set("_charm_time", minf(20.0, float(source.get("_charm_time")) + 1.0))
+
+
+## 特殊 Boss 自定义招式共用：怨降低每段伤害，强化癫狂翻倍；魅惑时绝不攻击玩家。
+func _hit_status_target(target: Node, damage: int, knockback: Vector2, move: Dictionary) -> bool:
+	if target == null or not is_instance_valid(target) or target == self:
+		return false
+	var dmg := 0 if damage <= 0 else Run.enemy_damage(damage)
+	if dmg > 0:
+		dmg = maxi(1, dmg - int(_grudge / 3.0))
+		if _frenzy_time > 0.0 and _frenzy_empowered:
+			dmg *= 2
+	if target.is_in_group("enemies"):
+		if int(target.get("hp")) <= 0:
+			return false
+		if target.has_method("take_damage_from"):
+			target.call("take_damage_from", dmg, self)
+		else:
+			target.call("take_damage", dmg, global_position.x)
+		return true
+	if _charm_time > 0.0 or not target.has_method("hurt"):
+		return false
+	target.call("hurt", dmg, knockback, self, move)
+	return true
+
+
+## 心魔引可转移所有玩家减益；能直接对应敌人状态的走原接口，其余保留层数与时长供再次引爆。
+func apply_transferred_debuff(info: Dictionary) -> void:
+	if state == State.DEAD:
+		return
+	var id := str(info.get("id", ""))
+	var stacks := maxi(1, int(info.get("stacks", 1)))
+	var duration := maxf(0.0, float(info.get("time", 0.0)))
+	match id:
+		"bleed", "cut", "fen_ding_burn": apply_bleed(stacks)
+		"stun": stun(maxf(duration, 1.0), true)
+		"jump_seal", "dash_seal", "cripple": root(maxf(duration, 1.0), true)
+		_:
+			var old: Dictionary = _transferred_debuffs.get(id, {"stacks": 0, "time": 0.0})
+			old["stacks"] = int(old.get("stacks", 0)) + stacks
+			old["time"] = maxf(float(old.get("time", 0.0)), duration)
+			_transferred_debuffs[id] = old
+
+
+func _pipa_status_tick(delta: float) -> void:
+	if _frenzy_time > 0.0:
+		_frenzy_time = maxf(0.0, _frenzy_time - delta)
+		if _frenzy_time <= 0.0:
+			_frenzy_empowered = false
+			_target = null
+	if _charm_time > 0.0:
+		_charm_time = maxf(0.0, _charm_time - delta)
+		if _charm_time <= 0.0:
+			_target = null
+			if Run.skull_id == "z002" and Meta.has_form_node("z002_charm_3"):
+				add_grudge(3)
+	for id in _transferred_debuffs.keys():
+		var info: Dictionary = _transferred_debuffs[id]
+		if float(info.get("time", 0.0)) > 0.0:
+			info["time"] = maxf(0.0, float(info["time"]) - delta)
+			if float(info["time"]) <= 0.0:
+				_transferred_debuffs.erase(id)
+			else:
+				_transferred_debuffs[id] = info
+
+
+func _trigger_six_senses() -> void:
+	if _six_senses <= 0 or state == State.DEAD:
+		return
+	var damage := _six_senses + int(Run.skull_id == "z002" and Meta.has_form_node("z002_grudge_3"))
+	_direct_damage(damage, Color(0.62, 0.38, 0.72))
+
+
+## 返回引爆前的增益/减益总层数；计时状态统一每 2 秒一层，向上取整。
+func mind_status_count() -> int:
+	var count := _grudge + _six_senses + _bleed_stacks + _mind_shock
+	for time in [_poison_time, _frenzy_time, _charm_time, _root_timer, _stun_timer, _slow_timer, _stop_timer]:
+		if float(time) > 0.0:
+			count += int(ceilf(float(time) / 2.0))
+	for id in _transferred_debuffs:
+		var info: Dictionary = _transferred_debuffs[id]
+		count += maxi(1, int(info.get("stacks", 1))) if float(info.get("time", 0.0)) <= 0.0 else int(ceilf(float(info["time"]) / 2.0))
+	# 常驻正面状态也各算一层；特殊 Boss 可覆盖追加自己的独有增益。
+	count += int(_regen_interval > 0.0) + int(_enraged) + int(_bloodthirst_active) + int(_skill_cooldown_scale < 1.0)
+	return count
+
+
+func detonate_mind(base_damage: int, source_x: float, preserve_senses := false) -> int:
+	if state == State.DEAD:
+		return 0
+	var damage := base_damage + mind_status_count()
+	var senses := _six_senses
+	_clear_mind_statuses()
+	take_damage(damage, source_x)
+	if preserve_senses and hp > 0 and state != State.DEAD:
+		_six_senses = senses
+	return damage
+
+
+func _clear_mind_statuses() -> void:
+	_frenzy_time = 0.0
+	_frenzy_empowered = false
+	_charm_time = 0.0
+	_grudge = 0
+	_six_senses = 0
+	_mind_shock = 0
+	_transferred_debuffs.clear()
+	_bleed_stacks = 0
+	_bleed_time = 0.0
+	_bleed_acc = 0.0
+	_poison_time = 0.0
+	_poison_acc = 0.0
+	_root_timer = 0.0
+	_stun_timer = 0.0
+	_slow_timer = 0.0
+	_slow_scale = 1.0
+	_end_stop()
+	if _enraged:
+		attack_cooldown /= _enrage_cd
+		chase_speed /= _enrage_speed
+	_enraged = false
+	_enrage_below = 0.0
+	_regen_interval = 0.0
+	_regen_amount = 0
+	_bloodthirst.clear()
+	_bloodthirst_active = false
+	_skill_cooldown_scale = 1.0
+	_target = null
+
+
+## 神伤：层数类 +1，计时类 +5 秒；心灵震撼与原有状态均不得突破各自上限。
+func amplify_debuffs() -> void:
+	if state == State.DEAD:
+		return
+	_mind_shock = 1
+	if _bleed_stacks > 0:
+		_bleed_stacks = mini(BLEED_MAX, _bleed_stacks + 1)
+		_bleed_time += 5.0
+	if _poison_time > 0.0:
+		_poison_time += 5.0
+	_root_timer += 5.0 if _root_timer > 0.0 else 0.0
+	_stun_timer += 5.0 if _stun_timer > 0.0 else 0.0
+	_slow_timer += 5.0 if _slow_timer > 0.0 else 0.0
+	_stop_timer += 5.0 if _stop_timer > 0.0 else 0.0
+	_frenzy_time += 5.0 if _frenzy_time > 0.0 else 0.0
+	_charm_time += 5.0 if _charm_time > 0.0 else 0.0
+	if _grudge > 0:
+		_grudge += 1
+	if _six_senses > 0:
+		_six_senses += 1
+	for id in _transferred_debuffs:
+		var info: Dictionary = _transferred_debuffs[id]
+		if float(info.get("time", 0.0)) > 0.0:
+			info["time"] = float(info["time"]) + 5.0
+		else:
+			info["stacks"] = int(info.get("stacks", 1)) + 1
+		_transferred_debuffs[id] = info
 
 
 # ---------- 银夜机制接口：击飞 / 击退 / 时间暂停 ----------
@@ -1563,6 +1809,31 @@ func _cleanup() -> void:
 # ---------- 工具 ----------
 
 func _find_target() -> void:
+	# 魅惑时只认敌方同伴；癫狂则连自己原本的玩家阵营也算进最近目标。
+	# 两者同时存在时，魅惑的"绝不攻击玩家"优先。
+	if _charm_time > 0.0 or _frenzy_time > 0.0:
+		var chosen: Node2D = null
+		var chosen_dist := INF
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var p := e as Node2D
+			if p == null or p == self or int(e.get("hp")) <= 0:
+				continue
+			var dist := global_position.distance_squared_to(p.global_position)
+			if dist < chosen_dist:
+				chosen = p
+				chosen_dist = dist
+		if _charm_time <= 0.0:
+			for group in ["player", "player_decoy"]:
+				for node in get_tree().get_nodes_in_group(group):
+					var p := node as Node2D
+					if p == null or (group == "player" and int(node.get("state")) == 8):
+						continue
+					var dist := global_position.distance_squared_to(p.global_position)
+					if dist < chosen_dist:
+						chosen = p
+						chosen_dist = dist
+		_target = chosen
+		return
 	var nearest: Node2D = null
 	var nearest_dist := INF
 	for node in get_tree().get_nodes_in_group("player_decoy"):
@@ -1656,6 +1927,8 @@ func _update_peer_ghosts() -> void:
 func _sees_player(radius: float) -> bool:
 	if _target == null or not is_instance_valid(_target):
 		return false
+	if _charm_time > 0.0 or _frenzy_time > 0.0:
+		return true
 	var dx: float = absf(_target.global_position.x - global_position.x)
 	var dy: float = absf(_target.global_position.y - global_position.y)
 	if _target.is_in_group("player_decoy"):

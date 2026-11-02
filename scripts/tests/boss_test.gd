@@ -1,5 +1,7 @@
 ﻿extends Node
 
+const BossTypes := preload("res://scripts/enemies/boss_types.gd")
+
 ## Boss 战冒烟测试：登场 -> 阶段变身 -> 冲锋撞墙 -> 斩杀 -> 通关结算。
 ## 用 _debug 占位 Boss（c037 骨架放大版）走通全链路，真身转换好后换 ROSTER 即可。
 
@@ -27,6 +29,15 @@ func _ready() -> void:
 	var room = load("res://scenes/world/room_01.tscn").instantiate()
 	add_child(room)
 	await get_tree().create_timer(0.5).timeout
+	var intro = room.get_node_or_null("BossDuelIntro")
+	if BossTypes.ROSTER.has(Run.boss_id):
+		p("duel intro created=" + str(intro != null) + " anim=" + str(BossTypes.get_boss(Run.boss_id).get("intro", {})))
+		if intro == null:
+			get_tree().quit(1)
+			return
+		await _shot("00_duel_intro")
+		if is_instance_valid(intro):
+			await intro.finished
 	# 玩家拉满血，别在测试途中被 Boss 打死
 	room._player.max_hp = 99
 	room._player.hp = 99
@@ -53,43 +64,53 @@ func _ready() -> void:
 	b._slow_timer = 0.0
 	b._slow_scale = 1.0
 
-	# 阶段 1 -> 2：打到 68% 以下；变身期无敌，循环打到 stage 翻篇为止
-	var guard := 0
-	while b.stage < 1 and guard < 40:
-		b.take_damage(2, b.global_position.x - 10.0)
-		await get_tree().create_timer(0.3).timeout
-		guard += 1
-	p("stage2 entered, hp=" + str(b.hp))
-	await get_tree().create_timer(4.5).timeout # 变身 3.467s + 僵直 0.6s
-	await _shot("01_stage2")
-
-	# 阶段 2 -> 末段（两段形态的 Boss 最高只到 stage1，循环上限按实际段数走）
+	# 多阶段 Boss 依次打到后续阶段；鸣钟等单阶段 Boss 不为此空耗伤害。
 	var max_stage: int = b._stages.size() - 1
-	guard = 0
-	while b.stage < max_stage and guard < 40:
+	var guard := 0
+	if max_stage > 0:
+		while is_instance_valid(b) and b.hp > 0 and b.stage < mini(1, max_stage) and guard < 40:
+			b.take_damage(2, b.global_position.x - 10.0)
+			await get_tree().create_timer(0.3).timeout
+			guard += 1
 		if not is_instance_valid(b) or b.hp <= 0:
-			break
-		b.take_damage(2, b.global_position.x - 10.0)
-		await get_tree().create_timer(0.3).timeout
-		guard += 1
-	if is_instance_valid(b):
-		p("final stage entered, stage=" + str(b.stage) + " hp=" + str(b.hp))
-	await get_tree().create_timer(4.5).timeout
-	await _shot("02_stage3")
+			p("FAIL boss died before stage transition")
+			get_tree().quit(1)
+			return
+		p("stage2 entered, hp=" + str(b.hp))
+		await get_tree().create_timer(4.5).timeout # 变身 3.467s + 僵直 0.6s
+		await _shot("01_stage2")
 
-	# 冲锋验证：玩家瞬到场地另一头拉开距离，等 Boss 蓄力/冲锋/撞墙
-	room._player.global_position.x = 1520.0
-	var saw_charge := false
-	guard = 0
-	while guard < 60:
-		if int(b.state) >= 103: # S_CHARGE_TELE / S_CHARGING
-			saw_charge = true
-			break
-		await get_tree().create_timer(0.2).timeout
-		guard += 1
-	p("charge seen=" + str(saw_charge))
-	await get_tree().create_timer(1.6).timeout
-	await _shot("03_charge")
+		guard = 0
+		while is_instance_valid(b) and b.hp > 0 and b.stage < max_stage and guard < 40:
+			b.take_damage(2, b.global_position.x - 10.0)
+			await get_tree().create_timer(0.3).timeout
+			guard += 1
+		if not is_instance_valid(b) or b.hp <= 0:
+			p("FAIL boss died before final stage")
+			get_tree().quit(1)
+			return
+		p("final stage entered, stage=" + str(b.stage) + " hp=" + str(b.hp))
+		await get_tree().create_timer(4.5).timeout
+		await _shot("02_stage3")
+	else:
+		p("single-stage boss, transform smoke skipped")
+
+	# 通用冲锋只对配置了 _charge 的 Boss 生效；鸣钟的旋征由专项测试覆盖。
+	if not b._charge.is_empty():
+		room._player.global_position.x = 1520.0
+		var saw_charge := false
+		guard = 0
+		while guard < 60:
+			if int(b.state) >= 103: # S_CHARGE_TELE / S_CHARGING
+				saw_charge = true
+				break
+			await get_tree().create_timer(0.2).timeout
+			guard += 1
+		p("charge seen=" + str(saw_charge))
+		await get_tree().create_timer(1.6).timeout
+		await _shot("03_charge")
+	else:
+		p("charge not configured, charge smoke skipped")
 
 	# 斩杀 -> 通关结算
 	guard = 0
