@@ -18,7 +18,7 @@ const CHASE_ANIM := "speed_run"
 const RETREAT_ANIM := "run1"
 const MOVE_ORDER := [COMBO, CHAIN, PURSUIT, AWAKEN]
 const COOLDOWNS := {CHAIN: 24.0, PURSUIT: 36.0, AWAKEN: 40.0}
-const START_RANGES := {COMBO: 270.0, CHAIN: 250.0, PURSUIT: 650.0, AWAKEN: 9999.0}
+const HIT_RANGES := {COMBO: 260.0, CHAIN: 235.0, PURSUIT: 265.0}
 const ATTACK_DESIRE_TIME := 3.2
 const RETREAT_TIME := 1.0
 const HOLD_DISTANCE := 270.0
@@ -46,6 +46,11 @@ var _block := 0
 var _held_player: Node2D = null
 var _spin_done := false
 var _spin_phase := false
+
+
+func hud_extra_hp() -> int:
+	return _block
+
 
 var _root_bone = null
 var _root_bone_base := 0.0
@@ -130,7 +135,7 @@ func _physics_process(delta: float) -> void:
 	super(delta)
 
 
-## 平常保持中近距离；欲望满后先选招，再用高速追击贴近到该招真实射程。
+## 平常保持中近距离；欲望满后先选招，再贴近到该招实际命中范围的中段。
 func _chase_tick(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
@@ -144,8 +149,11 @@ func _chase_tick(delta: float) -> void:
 	if _planned_move.is_empty() and _attack_desire >= ATTACK_DESIRE_TIME:
 		_planned_move = _choose_move(dist)
 	if not _planned_move.is_empty():
-		var reach := float(START_RANGES[_planned_move])
-		if dy <= 190.0 and dist <= reach + _radius_of(_target):
+		if _planned_move == AWAKEN:
+			_start_ming_move(AWAKEN)
+			return
+		var release_reach := float(HIT_RANGES[_planned_move]) * 0.5
+		if dy <= 190.0 and dist <= release_reach + _radius_of(_target):
 			_start_ming_move(_planned_move)
 			return
 		velocity.x = move_toward(velocity.x, facing * chase_speed * 1.45, accel * delta)

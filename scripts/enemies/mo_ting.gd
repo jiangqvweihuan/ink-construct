@@ -16,12 +16,13 @@ const LASER := "skill02-01" # 贯昼
 const INTRO_ANIM := "skill01"
 const MOVE_ORDER := [BASIC, TREMOR, RUSH, SLAM, LEAP, LASER]
 const COOLDOWNS := {TREMOR: 30.0, RUSH: 35.0, SLAM: 25.0, LEAP: 40.0, LASER: 16.0}
+const CENTER_RANGES := {BASIC: 200.0, RUSH: 105.0, SLAM: 185.0, LEAP: 175.0}
+const LASER_RELEASE_DISTANCE := 340.0
 const ATTACK_DESIRE_TIME := 5.0
 const HOLD_DISTANCE := 380.0
 const HOLD_TOLERANCE := 45.0
 const YIELD_DISTANCE := 120.0
 const FAST_DESIRE_SCALE := 2.0
-const PURSUIT_COMMIT_DIST := 260.0 # 后退拉距时被持续追逼到此距离内，立即释放当前距离技。
 const RUSH_START := 1.62 # 动画蓄力结束、机体开始前倾后才起步。
 const RUSH_END := 3.60
 const GROUND_IMPACT_X := 240.0 # 断岳 / 陨构的拍地点在骨架原点身前，不在 Boss 脚底。
@@ -32,6 +33,7 @@ var _move_cds: Dictionary = {}
 var _battle_time := 0.0
 var _attack_desire := 0.0
 var _approach_yield := 0.0
+var _planned_move := ""
 var _recent_hits: Array = []
 var _cast_move := ""
 var _cast_visual := ""
@@ -111,6 +113,7 @@ func finish_entrance() -> void:
 	_battle_time = 0.0
 	_attack_desire = 0.0
 	_approach_yield = 0.0
+	_planned_move = ""
 	_recent_hits.clear()
 	_set_state(State.CHASE)
 
@@ -146,7 +149,7 @@ func _physics_process(delta: float) -> void:
 	super(delta)
 
 
-## 常驻追击：公共欲望满后墨颤优先；远程招就绪时主动拉距，近身招只在远程招不可用或无处可退时兜底。
+## 常驻追击：欲望满后预选一招并贴近到实际命中区域；墨颤保留锁定玩家的目标型机制。
 func _chase_tick(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
@@ -188,52 +191,46 @@ func _chase_tick(delta: float) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 			_play(str(_anim_map["idle"]), true)
 			return
-	if dy <= 180.0:
-		if _battle_time >= 5.0 and float(_move_cds[TREMOR]) <= 0.0:
-			if _attack_cd <= 0.0:
-				_start_mo_move(TREMOR)
-			else:
-				velocity.x = move_toward(velocity.x, 0.0, brake * delta)
-				_play(str(_anim_map["idle"]), true)
-			return
-
-		# 三个距离招按既有优先级择一；近身也先向后拉开，不再贴着玩家等距离。
-		var ranged_move := ""
-		var ranged_distance := 0.0
-		if float(_move_cds[LEAP]) <= 0.0:
-			ranged_move = LEAP
-			ranged_distance = 520.0
-		elif float(_move_cds[RUSH]) <= 0.0:
-			ranged_move = RUSH
-			ranged_distance = 431.0
-		elif float(_move_cds[LASER]) <= 0.0:
-			ranged_move = LASER
-			ranged_distance = 340.0
-		if ranged_move != "":
-			var pursuit_close := approaching
-			if dist >= ranged_distance or (dist <= PURSUIT_COMMIT_DIST and pursuit_close):
-				if _attack_cd <= 0.0:
-					_start_mo_move(ranged_move)
-				else:
-					velocity.x = move_toward(velocity.x, 0.0, brake * delta)
-					_play(str(_anim_map["idle"]), true)
-				return
-			var retreat_dir := -facing
-			var retreat_x := global_position.x + retreat_dir * chase_speed * delta
-			if retreat_x >= ARENA_L + 90.0 and retreat_x <= ARENA_R - 90.0:
-				velocity.x = move_toward(velocity.x, retreat_dir * chase_speed, accel * delta)
-				_play(str(_anim_map["chase"]), true)
-				return
-
+	if _planned_move.is_empty():
+		_planned_move = _choose_mo_move(dist)
+	if _planned_move == TREMOR:
 		if _attack_cd <= 0.0:
-			if dist <= 390.0 and float(_move_cds[SLAM]) <= 0.0:
-				_start_mo_move(SLAM)
-				return
-			if dist <= 427.0:
-				_start_mo_move(BASIC)
-				return
+			_start_mo_move(TREMOR)
+		else:
+			velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+			_play(str(_anim_map["idle"]), true)
+		return
+	# 贯昼有 120px 的可见起点；玩家贴身时改用真正能命中的近身招，不向后拉距。
+	if _planned_move == LASER and dist < LASER_OFFSET.x:
+		_planned_move = SLAM if float(_move_cds[SLAM]) <= 0.0 else BASIC
+	var in_range := false
+	if _planned_move == LASER:
+		in_range = dy <= 180.0 and dist >= LASER_OFFSET.x and dist <= LASER_RELEASE_DISTANCE
+	else:
+		var release_reach := float(CENTER_RANGES[_planned_move])
+		in_range = dy <= 180.0 and dist <= release_reach + _radius_of(_target)
+	if in_range:
+		if _attack_cd <= 0.0:
+			_start_mo_move(_planned_move)
+		else:
+			velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+			_play(str(_anim_map["idle"]), true)
+		return
 	velocity.x = move_toward(velocity.x, facing * chase_speed, accel * delta)
 	_play(str(_anim_map["chase"]), true)
+
+
+func _choose_mo_move(dist: float) -> String:
+	if _battle_time >= 5.0 and float(_move_cds[TREMOR]) <= 0.0:
+		return TREMOR
+	for move in [LEAP, RUSH]:
+		if float(_move_cds[move]) <= 0.0:
+			return move
+	if dist >= LASER_OFFSET.x and float(_move_cds[LASER]) <= 0.0:
+		return LASER
+	if float(_move_cds[SLAM]) <= 0.0:
+		return SLAM
+	return BASIC
 
 
 func _start_mo_move(move: String) -> void:
@@ -497,6 +494,7 @@ func _cleanup_cast() -> void:
 	_cast_events.clear()
 	_cast_move = ""
 	_cast_visual = ""
+	_planned_move = ""
 	_tick_started = false
 	_tick_acc = 0.0
 	_marker_locked = false

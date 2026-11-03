@@ -161,6 +161,8 @@ func _enemy_config() -> Dictionary:
 
 
 func _enemy_label() -> String:
+	if Run.last_hit.is_empty():
+		return "命火自熄"
 	var cfg := _enemy_config()
 	return str(cfg.get("label", "无名墨影"))
 

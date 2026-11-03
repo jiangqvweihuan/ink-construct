@@ -145,7 +145,22 @@ func _test_attack_desire() -> void:
 	_check(is_equal_approx(_b._attack_desire, 3.5) and is_zero_approx(_b.velocity.x) and _b._current_anim == "stand", "重新相持后恢复 1 倍欲望并待机")
 	_b._attack_desire = 5.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.CRUSH, "欲望满 5 秒后优先选择已就绪技能")
+	_check(_b._planned_move == _b.CRUSH and _b._cast_move.is_empty() and _b.velocity.x > 0.0, "欲望满后预选愤炎碎并继续贴近")
+	_p.global_position.x = 1000.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.CRUSH, "愤炎碎进入实际范围中段后才起手")
+	_b._cast_tick(1.18)
+	_check(_p.hp == 98, "愤炎碎贴近后首段能命中保持不动的玩家")
+
+	_reset_all()
+	_p.global_position.x = 1400.0
+	_b._chase_tick(0.016)
+	_check(_b._planned_move == _b.FISTS and _b._cast_move.is_empty() and _b.velocity.x > 0.0, "远距离满欲望预选双拳并主动贴近")
+	_p.global_position.x = 1030.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.FISTS, "双拳进入实际范围中段后才起手")
+	_b._cast_tick(0.91)
+	_check(_p.hp == 96, "双拳贴近后能命中保持不动的玩家")
 
 
 func _test_palm() -> void:
@@ -188,6 +203,17 @@ func _test_fists() -> void:
 	_b._cast_tick(0.01)
 	_check(_p.hp == 96 and _p._fen_ding_burn_stacks == 1, "双拳造成 3 伤并叠加 1 层怒焰")
 	_check(_p.velocity.x <= -600.0 and _p.velocity.y < 0.0, "双拳附带高额击退")
+
+	_reset_all()
+	var previous_skull: String = _p.skull_id
+	_p.swap_skull("c013")
+	_p.max_hp = 20
+	_p.hp = 20
+	Run.c013_buddha = 1
+	_b._start_fen_move(_b.FISTS)
+	_b._cast_tick(0.91)
+	_check(_p.hp == 17 and Run.c013_buddha == 0 and _p._hurt_chain.is_empty(), "真实 Boss 恰好 3 实伤消耗力僧佛陀且只免除倒地")
+	_p.swap_skull(previous_skull)
 
 
 func _test_burn() -> void:

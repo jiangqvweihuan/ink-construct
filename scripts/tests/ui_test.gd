@@ -18,6 +18,10 @@ func p(msg) -> void:
 
 func _ready() -> void:
 	get_window().size = Vector2i(1280, 720)
+	get_tree().create_timer(120.0).timeout.connect(func():
+		p("TIMEOUT")
+		get_tree().quit(2)
+	)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_log = FileAccess.open("res://tests/ui_test.log", FileAccess.WRITE)
 
@@ -42,6 +46,7 @@ func _ready() -> void:
 
 	# 设置：三页签截图 + 改键/冲突/Esc 取消（persist 关掉，不写玩家配置）
 	Settings.persist = false
+	Settings.reset_binds()
 	_menu._open_settings()
 	await get_tree().create_timer(0.4).timeout
 	var sp = _find_panel("settings_panel.gd")
@@ -54,21 +59,27 @@ func _ready() -> void:
 		sp._switch_tab("操作")
 		await get_tree().process_frame
 		await _shot("02c_settings_keys")
-		# 改键：跳跃 Space -> G，InputMap 与按钮文字都要跟着变
+		# 面板内先改草稿：按钮显示 G，但关闭前 InputMap 仍保持 Space。
 		sp._start_capture("jump")
 		await _press_key(KEY_G)
-		p("改键 jump -> %s 按钮=%s（期望 G / G）" % [Settings.action_label("jump"), sp._key_btns["jump"].text])
-		# 冲突：闪避想绑 G（已被跳跃占用）-> 拒绝并出提示
+		p("改键草稿 jump 按钮=%s 草稿=%s 实键=%s（期望 G / G / 空）" % [sp._key_btns["jump"].text, sp._draft_label("jump"), Settings.action_label("jump")])
+		# 冲突检测同样读取草稿，闪避不能抢跳跃刚选择的 G。
 		sp._start_capture("dash")
 		await _press_key(KEY_G)
-		p("冲突绑定被拒 dash 仍=%s hint=%s（期望 Sh / 非空）" % [Settings.action_label("dash"), sp._hint.text])
-		# Esc 取消录入
+		p("冲突绑定被拒 dash 草稿=%s hint=%s（期望 Sh / 非空）" % [sp._draft_label("dash"), sp._hint.text])
+		# 第一次 Esc 只取消录入，第二次 Esc 关闭并统一应用。
 		sp._start_capture("dash")
 		await _press_key(KEY_ESCAPE)
-		p("Esc 取消录入 dash 仍=%s（期望 Sh）" % Settings.action_label("dash"))
+		p("Esc 取消录入 dash 草稿=%s 面板存在=%s（期望 Sh / true）" % [sp._draft_label("dash"), is_instance_valid(sp)])
+		await _press_key(KEY_ESCAPE)
+		await get_tree().create_timer(0.2).timeout
+		p("Esc 关闭设置并应用 jump=%s 面板=%s（期望 G / false）" % [Settings.action_label("jump"), _find_panel("settings_panel.gd") != null])
+	# 叉号走同一条关闭应用路径，且显示正常 × 而非“启”。
+	_menu._open_settings()
 	await get_tree().create_timer(0.2).timeout
-	_close_settings() # 先关掉设置，别让它的窗口叠在化身谱截图里
-	await get_tree().process_frame
+	await _click(Vector2(981, 101))
+	await get_tree().create_timer(0.2).timeout
+	p("叉号关闭设置 面板=%s（期望 false）" % (_find_panel("settings_panel.gd") != null))
 
 	# 化身谱：固定一份临时新档，覆盖滚动总览、买断、单角色修炼页与独立商栈。
 	Meta.persist = false
@@ -98,8 +109,10 @@ func _ready() -> void:
 		await _shot("04b_form_detail_nodes")
 		p("修炼节点已购=%s 可退=%s（期望 true / true）" % [Meta.has_form_node("c013_guard_1"), Meta.can_refund("c013_guard_1")])
 		forms._back()
+		p("化身谱已返回总览")
 		await get_tree().create_timer(0.2).timeout
 		forms._refresh() # 购买后走的重建路径
+		p("化身谱总览已重建")
 		await get_tree().create_timer(0.2).timeout
 		await _shot("04c_codex_refresh")
 		await _click(Vector2(135, 80)) # 「返回」在窗口左上角
@@ -639,6 +652,7 @@ func _ready() -> void:
 		await get_tree().process_frame
 		p("图鉴点返回 -> 面板=%s（期望 false）" % (_find_panel("codex_panel.gd") != null))
 
+	Settings.reset_binds()
 	p("ALL DONE")
 	get_tree().quit()
 
@@ -648,12 +662,6 @@ func _find_panel(script_name: String) -> Node:
 		if c.get_script() != null and str(c.get_script().resource_path).ends_with(script_name):
 			return c
 	return null
-
-
-func _close_settings() -> void:
-	for c in _menu.get_children():
-		if c.get_script() != null and str(c.get_script().resource_path).ends_with("settings_panel.gd"):
-			c.queue_free()
 
 
 ## 真实按键（改键录入走 _input 路径）

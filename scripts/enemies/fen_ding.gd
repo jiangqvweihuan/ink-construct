@@ -14,6 +14,7 @@ const RISE := "skill05" # 炎起
 const INTRO_ANIM := "stand"
 const MOVE_ORDER := [PALM, CRUSH, FISTS, RISE]
 const COOLDOWNS := {CRUSH: 20.0, FISTS: 25.0, RISE: 30.0}
+const HIT_RANGES := {PALM: 300.0, CRUSH: 340.0, FISTS: 466.0}
 const ATTACK_DESIRE_TIME := 5.0
 const HOLD_DISTANCE := 320.0
 const HOLD_TOLERANCE := 40.0
@@ -24,6 +25,7 @@ const RISE_RADIUS := 110.0
 var _move_cds: Dictionary = {}
 var _attack_desire := 0.0
 var _approach_yield := 0.0
+var _planned_move := ""
 var _cast_move := ""
 var _cast_elapsed := 0.0
 var _cast_duration := 0.0
@@ -62,6 +64,7 @@ func finish_entrance() -> void:
 		return
 	_attack_desire = 0.0
 	_approach_yield = 0.0
+	_planned_move = ""
 	_set_state(State.CHASE)
 
 
@@ -135,21 +138,29 @@ func _chase_tick(delta: float) -> void:
 			velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 			_play(str(_anim_map["idle"]), true)
 			return
-	if _awakened and float(_move_cds[RISE]) <= 0.0:
+	if _planned_move.is_empty():
+		_planned_move = _choose_fen_move(dist)
+	if _planned_move == RISE:
 		_start_fen_move(RISE)
 		return
-	if dy <= 190.0:
-		if dist <= 370.0 and float(_move_cds[CRUSH]) <= 0.0:
-			_start_fen_move(CRUSH)
-			return
-		if dist <= 480.0 and float(_move_cds[FISTS]) <= 0.0:
-			_start_fen_move(FISTS)
-			return
-		if dist <= 330.0:
-			_start_fen_move(PALM)
-			return
+	var release_reach := float(HIT_RANGES[_planned_move]) * 0.5
+	if dy <= 190.0 and dist <= release_reach + _radius_of(_target):
+		_start_fen_move(_planned_move)
+		return
 	velocity.x = move_toward(velocity.x, facing * chase_speed, accel * delta)
 	_play(str(_anim_map["chase"]), true)
+
+
+func _choose_fen_move(dist: float) -> String:
+	if _awakened and float(_move_cds[RISE]) <= 0.0:
+		return RISE
+	if dist > 370.0 and float(_move_cds[FISTS]) <= 0.0:
+		return FISTS
+	if float(_move_cds[CRUSH]) <= 0.0:
+		return CRUSH
+	if float(_move_cds[FISTS]) <= 0.0:
+		return FISTS
+	return PALM
 
 
 func _start_fen_move(move: String) -> void:
@@ -290,6 +301,7 @@ func _cleanup_cast() -> void:
 	_rise_positions.clear()
 	_cast_events.clear()
 	_cast_move = ""
+	_planned_move = ""
 
 
 ## 炎骨：首次跌破 50% 时永久觉醒；当前这一击不减免，之后伤害减半并向上取整。

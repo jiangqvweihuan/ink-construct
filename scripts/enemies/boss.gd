@@ -29,6 +29,11 @@ const ARENA_R := 1840.0
 
 var boss_label := ""
 var stage := 0
+
+
+## HUD 额外防护尾段；拥有数值护盾的 Boss 在自身脚本覆盖。
+func hud_extra_hp() -> int:
+	return 0
 ## 无尽模式的外部缩放：room_01 在 add_child（_ready -> _apply_type）之前写入
 var hp_scale := 1.0 # 血量倍率，1 = 冒险模式原始数值
 var cd_scale := 1.0 # 出手冷却倍率，<1 = 出手更快

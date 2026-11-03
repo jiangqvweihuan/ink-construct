@@ -13,7 +13,7 @@ const EYE := "skill01" # 佛眼
 const INTRO_ANIM := "stand"
 const MOVE_ORDER := [ARMS, CRUSHER, HANDS, EYE]
 const COOLDOWNS := {CRUSHER: 24.0, HANDS: 30.0, EYE: 50.0}
-const START_RANGES := {ARMS: 536.0, CRUSHER: 300.0, HANDS: 260.0, EYE: 225.0}
+const HIT_RANGES := {ARMS: 536.0, CRUSHER: 300.0, HANDS: 260.0, EYE: 225.0}
 const ATTACK_DESIRE_TIME := 3.5
 const MOVE_ANIM_SPEED := 1.3
 const RETREAT_TIME := 1.15
@@ -94,7 +94,7 @@ func _physics_process(delta: float) -> void:
 	super(delta)
 
 
-## 收招先后撤；追击阶段积满欲望后预选一招，再接近到该招的真实出手范围。
+## 收招先后撤；追击阶段积满欲望后预选一招，再贴近到该招实际命中范围的中段。
 func _chase_tick(delta: float) -> void:
 	if _target == null or not is_instance_valid(_target):
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
@@ -109,9 +109,10 @@ func _chase_tick(delta: float) -> void:
 	if _planned_move.is_empty() and _attack_desire >= ATTACK_DESIRE_TIME:
 		_planned_move = _choose_move(dist)
 	if not _planned_move.is_empty():
-		var start_reach := float(START_RANGES[_planned_move]) * (1.0 + _eye_effect("reach"))
-		# 与伤害判定完全同口径：玩家中心进入「招式射程 + 受击半径」才起手，近身也不会反向误判。
-		if dy <= 190.0 and dist <= start_reach + _radius_of(_target):
+		var release_reach := float(HIT_RANGES[_planned_move]) * 0.5
+		if _planned_move != EYE:
+			release_reach *= 1.0 + _eye_effect("reach")
+		if dy <= 190.0 and dist <= release_reach + _radius_of(_target):
 			_start_sui_move(_planned_move)
 			return
 		velocity.x = move_toward(velocity.x, facing * speed, accel * delta)

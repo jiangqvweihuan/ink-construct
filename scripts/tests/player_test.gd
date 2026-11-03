@@ -913,15 +913,26 @@ func _innate_passive_regression() -> void:
 
 	# 红蝶：首次死亡百血起身，每秒流失；再次归零进入标准死亡流程。
 	_prepare_innate("c021")
-	_player.hurt(20)
+	var red_attacker := CutAttacker.new()
+	add_child(red_attacker)
+	_player.hurt(20, Vector2.ZERO, red_attacker, {"anim": "skill02", "hit_at": 0.3})
 	_check(Run.c021_red_butterfly_used and _player.max_hp == 100 and _player.hp == 100, "红蝶首次死亡满血复活且生命上限提升至 100")
 	_player.state = _player.State.IDLE
 	_player._innate_passive_tick(1.0)
 	_check(_player.hp == 99, "红蝶复活后每秒失去 1 点生命")
 	_player.hp = 1
 	_player._hurt_invincible = 0.0
-	_player.hurt(2)
+	_player._innate_passive_tick(1.0)
 	_check(_player.state == _player.State.DEAD, "红蝶之后再次死亡进入标准流程")
+	_check(Run.last_hit.is_empty(), "红蝶纯流失致死清空历史攻击者，不播放敌方击杀对演")
+	_player.state = _player.State.IDLE
+	_player.hp = 2
+	_player._hurt_invincible = 0.0
+	_player._hurt_cast_key = ""
+	_player.hurt(2, Vector2.ZERO, red_attacker, {"anim": "skill02", "hit_at": 0.3})
+	_check(Run.last_hit.get("type_id", "") == "c035" and int(Run.last_hit.get("damage", 0)) == 2,
+		"红蝶 2 血被敌人补刀仍保留真实击杀者与伤害")
+	red_attacker.queue_free()
 
 	# 圣僧与降魔：真实伤害计数、全伤加成、3 伤封顶、免击倒与减益免疫。
 	_prepare_innate("c013")
@@ -938,13 +949,15 @@ func _innate_passive_regression() -> void:
 	_player.hurt(9, Vector2.ZERO, null, {"bleed": 2, "dash_seal": 8.0, "cripple": 3.0})
 	_check(_player.hp == 17 and _player._bleed_stacks == 0 and _player._dash_seal == 0.0 and _player._cripple_time == 0.0,
 		"圣僧单次最多受 3 伤且免疫负面效果")
+	_check(Run.c013_buddha == 0 and _player._hurt_phase != "chain" and _player._hurt_chain.is_empty(),
+		"圣僧把高伤压到实际 3 伤后，降魔仍消耗佛陀并免除自然倒地")
 	_player.hp = 20
 	_player.state = _player.State.IDLE
 	_player._hurt_invincible = 0.0
 	Run.c013_buddha = 1
-	_player.hurt(3, Vector2.ZERO, null, {"force_knockdown": true})
+	_player.hurt(3, Vector2.ZERO, null, {})
 	_check(_player.hp == 17 and Run.c013_buddha == 0 and _player._hurt_phase != "fall" and _player._hurt_chain.is_empty(),
-		"佛陀消耗一层，只免除恰好 3 伤带来的击倒而不减伤")
+		"恰好实际 3 伤的自然倒地攻击消耗一层佛陀，只免倒地而不减伤")
 	demon_target.queue_free()
 
 	# 墨梅与霜梅：终局墨锭、60 血、进房复原向上取整和普攻恢复豁免。

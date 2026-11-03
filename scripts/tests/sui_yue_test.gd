@@ -201,7 +201,10 @@ func _test_attack_desire() -> void:
 	_check(is_equal_approx(_b._approach_yield, 120.0), "单轮逼近最多忍让 120px")
 	_b._chase_tick(0.016)
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.EYE and is_zero_approx(_b._attack_desire), "继续冒进立即出手且近身优先佛眼")
+	_check(_b._planned_move == _b.EYE and _b._cast_move.is_empty(), "继续冒进只预选近身佛眼，不在范围外空挥")
+	_p.global_position.x = 930.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.EYE and is_zero_approx(_b._attack_desire), "冒进预选佛眼后贴近到范围中段再出手")
 	_b._finish_cast()
 	_check(_b.state == _b.S_RETREAT and _b._planned_move.is_empty(), "收招进入后撤并清空上一轮预选")
 	var cast_id: int = _b._cast_id
@@ -229,7 +232,10 @@ func _test_attack_desire() -> void:
 	_check(_b._planned_move == _b.EYE and _b._cast_move.is_empty() and _b.velocity.x > 0.0, "欲望满后先选佛眼，距离不足只接近不出手")
 	_p.global_position.x = 1020.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.EYE, "接近到所选招式范围后才正式出手")
+	_check(_b._cast_move.is_empty() and _b._planned_move == _b.EYE and _b.velocity.x > 0.0, "佛眼最大射程边缘不再提前起手")
+	_p.global_position.x = 940.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.EYE, "佛眼贴近到实际范围中段后才正式出手")
 
 	_reset_all()
 	_b._move_cds[_b.EYE] = 50.0
@@ -240,7 +246,12 @@ func _test_attack_desire() -> void:
 	_check(_b._current_anim == "run" and is_equal_approx(_b._current_anim_speed, _b.MOVE_ANIM_SPEED), "碎岳追击动画按 1.3 倍速度播放")
 	_p.global_position.x = 1090.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.HANDS, "万佛手按完整伤害口径进入真实射程后才起手")
+	_check(_b._cast_move.is_empty() and _b._planned_move == _b.HANDS, "万佛手最大射程边缘仍继续贴近")
+	_p.global_position.x = 960.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.HANDS, "万佛手进入实际范围中段后才起手")
+	_b._cast_tick(2.17)
+	_check(_p.hp == 98, "万佛手贴近后首段能命中保持不动的玩家")
 
 
 func _test_arms() -> void:

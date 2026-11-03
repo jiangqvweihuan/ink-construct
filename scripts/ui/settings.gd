@@ -118,6 +118,42 @@ static func apply_all() -> void:
 		_apply_bind(action, binds[action])
 
 
+## 设置面板打开时复制草稿，关闭时一次性应用，避免滑条和改键半途写盘。
+static func snapshot() -> Dictionary:
+	_ensure_loaded()
+	return {
+		"master": master_volume, "music": music_volume, "sfx": sfx_volume,
+		"display_mode": display_mode, "resolution": resolution, "fps_limit": fps_limit,
+		"vsync": vsync, "brightness": brightness, "screen_shake": screen_shake,
+		"binds": binds.duplicate(true),
+	}
+
+
+static func default_snapshot() -> Dictionary:
+	return {
+		"master": 1.0, "music": 1.0, "sfx": 1.0,
+		"display_mode": 0, "resolution": RESOLUTIONS[0], "fps_limit": 0,
+		"vsync": true, "brightness": 1.0, "screen_shake": true, "binds": {},
+	}
+
+
+static func apply_snapshot(data: Dictionary) -> void:
+	master_volume = clampf(float(data.get("master", 1.0)), 0.0, 1.0)
+	music_volume = clampf(float(data.get("music", 1.0)), 0.0, 1.0)
+	sfx_volume = clampf(float(data.get("sfx", 1.0)), 0.0, 1.0)
+	display_mode = clampi(int(data.get("display_mode", 0)), 0, 2)
+	resolution = data.get("resolution", RESOLUTIONS[0])
+	fps_limit = int(data.get("fps_limit", 0))
+	vsync = bool(data.get("vsync", true))
+	brightness = clampf(float(data.get("brightness", 1.0)), 0.5, 1.5)
+	screen_shake = bool(data.get("screen_shake", true))
+	binds = (data.get("binds", {}) as Dictionary).duplicate(true)
+	for action in DEFAULT_BINDS:
+		_apply_bind(action, DEFAULT_BINDS[action])
+	apply_all()
+	_save()
+
+
 static func _apply_display() -> void:
 	# Godot 没有「无边框」窗口模式，无边框 = 窗口化 + WINDOW_FLAG_BORDERLESS
 	match display_mode:

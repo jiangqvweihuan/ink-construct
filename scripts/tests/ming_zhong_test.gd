@@ -65,6 +65,7 @@ func _ready() -> void:
 	_test_interruptions()
 	_test_root_motion()
 	await _test_pursuit_root_motion()
+	await _test_hud_bar()
 	_test_cleanup_and_execute()
 	p("DONE checks=%d failed=%d" % [_checks, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
@@ -127,7 +128,12 @@ func _test_standard_moves() -> void:
 	_check(_b._current_anim == "speed_run" and _b.velocity.x > 0.0, "满欲望追近使用动画 22 speed_run")
 	_p.global_position.x = 1200.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.PURSUIT, "进入追击真实射程后才起手")
+	_check(_b._cast_move.is_empty() and _b._planned_move == _b.PURSUIT and _b.velocity.x > 0.0, "旧追击起手距离仍会空挥，现在必须继续贴近")
+	_p.global_position.x = 960.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.PURSUIT, "玩家进入追击实际命中范围中段后才起手")
+	_b._cast_tick(0.53)
+	_check(_p.hp == 98, "追击贴近后首段能命中保持不动的玩家")
 	_b._finish_cast()
 	_b._retreat_tick(0.016)
 	_check(_b.state == _b.S_RETREAT and _b._current_anim == "run1", "收招后撤使用动画 12 run1")
@@ -316,6 +322,31 @@ func _test_pursuit_root_motion() -> void:
 		_check(max_travel < -300.0, "旋征%s在旋转阶段产生真实位移" % anim)
 		_check(last_cast_travel < -300.0, "旋征%s收招保留末帧位移" % anim)
 		_check(is_zero_approx(_b.sprite.position.x) and is_zero_approx(_b._root_offset()), "旋征%s收招清除视觉补偿并恢复根骨" % anim)
+
+
+func _test_hud_bar() -> void:
+	_reset_all()
+	_b.hp_changed.emit(_b.hp, _b.max_hp)
+	_b._block = 12
+	await get_tree().create_timer(0.2).timeout
+	_check(_room._hud._boss_vital.extra == 12 and _room._hud._boss_vital._extra_root.visible, "鸣钟格挡同步到 Boss 血条白色尾段")
+	await _shot("hud_block")
+	_b.take_damage(6, 500.0)
+	await get_tree().create_timer(0.15).timeout
+	_check(_b.hp == 68 and _b._block == 6 and _room._hud._boss_vital.extra == 6, "完全格挡无血量信号时尾段仍实时扣除")
+	_b._block = 40
+	await get_tree().create_timer(0.15).timeout
+	_check(_room._hud._boss_vital.extra == 40, "高格挡尾段同步不丢失")
+	_check(_room._hud._boss_bar.position.x + _room._hud._boss_vital.size.x < _room._hud._status_panel.position.x, "高格挡尾段不侵入右上状态区")
+	await _shot("hud_block_high")
+	_b._block = 0
+
+
+func _shot(tag: String) -> void:
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var err := img.save_png("res://tests/out/ming_zhong_" + tag + ".png")
+	p("saved " + tag + " err=" + str(err))
 
 
 func _test_cleanup_and_execute() -> void:

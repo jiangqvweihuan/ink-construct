@@ -359,45 +359,52 @@ func _test_move_selection() -> void:
 	_reset_all()
 	_b._move_cds[_b.TREMOR] = 1.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move.is_empty() and _b.velocity.x > 0.0, "陨构就绪时近身主动后退拉距")
+	_check(_b._planned_move == _b.LEAP and _b._cast_move.is_empty() and _b.velocity.x < 0.0, "陨构满欲望后向玩家贴近而非后退拉距")
 	_b.global_position.x = 1000.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.LEAP, "陨构达到 520 距离后立即释放")
+	_check(_b._cast_move.is_empty() and _b._planned_move == _b.LEAP, "陨构旧 520 起手距离不再隔空释放")
+	_b.global_position.x = 665.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.LEAP, "陨构进入落地范围中段后才释放")
 
 	_reset_all()
 	_b._move_cds[_b.TREMOR] = 1.0
 	_b._move_cds[_b.LEAP] = 1.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move.is_empty() and _b.velocity.x > 0.0, "墨冲就绪时近身主动后退拉距")
+	_check(_b._planned_move == _b.RUSH and _b._cast_move.is_empty() and _b.velocity.x < 0.0, "墨冲满欲望后向玩家贴近而非后退拉距")
 	_b.global_position.x = 900.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.RUSH, "墨冲达到 431 距离后立即释放")
+	_check(_b._cast_move.is_empty() and _b._planned_move == _b.RUSH, "墨冲旧 431 起手距离不再提前释放")
+	_b.global_position.x = 595.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.RUSH, "墨冲进入冲撞命中范围中段后才释放")
+	_b._cast_tick(1.63)
+	_check(_p.hp == 97, "墨冲贴近后首轮判定能命中保持不动的玩家")
 
 	_reset_all()
-	_p.global_position.x = 500.0
+	_p.global_position.x = 100.0
 	_b._move_cds[_b.TREMOR] = 1.0
 	_b._move_cds[_b.LEAP] = 1.0
 	_b._move_cds[_b.RUSH] = 1.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move.is_empty() and _b.velocity.x > 0.0, "贯昼就绪时近身主动后退拉距")
-	_b.global_position.x = 840.0
+	_check(_b._planned_move == _b.LASER and _b._cast_move.is_empty() and _b.velocity.x < 0.0, "贯昼超出发射节奏距离时主动接近而非后退")
+	_p.global_position.x = 460.0
 	_b._chase_tick(0.016)
-	_check(_b._cast_move == _b.LASER, "贯昼达到 340 距离后立即释放")
+	_check(_b._cast_move == _b.LASER, "贯昼进入可见光束有效区域后释放")
+	_b._cast_tick(0.86)
+	_check(_p.hp == 98, "贯昼贴近后能命中保持不动的玩家")
 
-	for case in [
-		{"move": _b.LEAP, "label": "陨构"},
-		{"move": _b.RUSH, "label": "墨冲"},
-		{"move": _b.LASER, "label": "贯昼"},
-	]:
-		_reset_all()
-		_b.global_position.x = 700.0
-		_p.velocity.x = 200.0
-		_b._move_cds[_b.TREMOR] = 1.0
-		for ranged in [_b.LEAP, _b.RUSH, _b.LASER]:
-			_b._move_cds[ranged] = 1.0
-		_b._move_cds[case["move"]] = 0.0
-		_b._chase_tick(0.016)
-		_check(_b._cast_move == case["move"], "%s 后退拉距时被玩家追逼至 260px 内立即释放" % case["label"])
+	_reset_all()
+	_p.global_position.x = 100.0
+	for move in [_b.TREMOR, _b.LEAP, _b.RUSH, _b.LASER, _b.SLAM]:
+		_b._move_cds[move] = 1.0
+	_b._chase_tick(0.016)
+	_check(_b._planned_move == _b.BASIC and _b._cast_move.is_empty() and _b.velocity.x < 0.0, "奋挥兜底时同样先贴近玩家")
+	_p.global_position.x = 570.0
+	_b._chase_tick(0.016)
+	_check(_b._cast_move == _b.BASIC, "奋挥进入实际范围中段后才释放")
+	_b._cast_tick(0.64)
+	_check(_p.hp == 98, "奋挥贴近后首段能命中保持不动的玩家")
 
 
 func _test_death_cleanup() -> void:

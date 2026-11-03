@@ -40,6 +40,7 @@ func _ready() -> void:
 	_p = _room._player
 	_check(_b.get_script() == load("res://scripts/enemies/wu_che.gd"), "正式房间使用武车独立脚本")
 	_check(_b.max_hp == 5 and _b.hp == 5, "落笔难度初始为 5 点耐久")
+	await _test_formal_entrance()
 	_b.set_physics_process(false)
 	_p.set_physics_process(false)
 	_test_difficulty()
@@ -52,6 +53,17 @@ func _ready() -> void:
 	_test_idle_and_death()
 	p("DONE checks=%d failed=%d" % [_checks, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
+
+
+func _test_formal_entrance() -> void:
+	var intro = _room.get_node_or_null("BossDuelIntro")
+	if intro != null:
+		intro._finish()
+	for i in 6:
+		await get_tree().create_timer(0.25).timeout
+	_check(_b.state == _b.S_START or _b.state == _b.S_RUN, "正式先导结束后武车进入自己的冲锋链而非通用 CHASE")
+	_check(_b._charge_elapsed > 1.15 and absf(_b.global_position.x - 1120.0) > 100.0 and absf(_b.velocity.x) > 0.0,
+		"正式先导结束后武车朝目标真实开始移动")
 
 
 func _reset_boss() -> void:

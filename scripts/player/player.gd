@@ -317,7 +317,7 @@ func _register_pipa_passives() -> void:
 	Meta.register_battle_passive("c013_saint", {"form": "c013", "owned": true, "name": "圣僧",
 		"desc": "免疫全部负面效果，单次受到的伤害最多为 3。", "boss_effect": {}})
 	Meta.register_battle_passive("c013_demon", {"form": "c013", "owned": true, "name": "降魔",
-		"desc": "每造成 4 次实际伤害获得一层可跨房保留的佛陀；每层全伤 +1。受到恰好 3 伤且会倒地的攻击时，消耗一层只免除倒地。", "boss_effect": {}})
+		"desc": "每造成 4 次实际伤害获得一层可跨房保留的佛陀；每层全伤 +1。当结算后的实际伤害恰好为 3 且此次攻击会倒地时，消耗一层只免除倒地。", "boss_effect": {}})
 	Meta.register_battle_passive("c023_ink_plum", {"form": "c023", "owned": true, "name": "墨梅",
 		"desc": "每次造成实际伤害额外积累 1 墨锭，终局一并结算。", "boss_effect": {}})
 	Meta.register_battle_passive("c023_frost_plum", {"form": "c023", "owned": true, "name": "霜梅",
@@ -418,6 +418,11 @@ func effective_max_hp(raw_max: int) -> int:
 
 func extra_hp_cap() -> int:
 	return int(floor(float(max_hp) * 0.5)) if skull_id == "z000" and has_battle_passive("z000_immortal") else 0
+
+
+## HUD 白色尾段：超额生命由血条根据 hp/max_hp 自行拆分，这里只报额外护盾与格挡。
+func hud_extra_hp() -> int:
+	return _shield_hits + int(ceil(_stolen_bell / 2.0)) + _stolen_block + int(_parry_ready) + int(_bell_shell)
 
 
 ## 每次正式进房调用：霜梅先复原，再把本房实际恢复量转换为 K 尾鞭加伤。
@@ -908,6 +913,7 @@ func _innate_passive_tick(delta: float) -> void:
 			hp_changed.emit(hp, max_hp)
 			_spawn_number(1, DMG_COLOR, 130.0)
 			if hp <= 0 and not _try_revive(Vector2.ZERO):
+				_record_last_hit(null, {}, 0) # 红蝶燃尽不是敌方击杀，不能重演历史最后一次受击
 				die()
 	if skull_id == "z003" and state != State.DEAD:
 		if _stolen("c016_mountain"):

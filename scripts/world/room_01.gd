@@ -377,6 +377,14 @@ func _run_demo() -> void:
 	bp.pick("reroll")
 	await get_tree().create_timer(0.3).timeout
 	await get_tree().create_timer(1.0).timeout
+	# 真实 Esc 输入链：房间 _unhandled_input 打开，暂停层 _input 再次关闭。
+	await _demo_escape()
+	await get_tree().create_timer(0.15).timeout
+	p("Esc 打开暂停=%s 树暂停=%s" % [get_node_or_null("PauseMenu") != null, get_tree().paused])
+	await _shot("01_pause")
+	await _demo_escape()
+	await get_tree().create_timer(0.15).timeout
+	p("Esc 继续战斗=%s 树恢复=%s" % [get_node_or_null("PauseMenu") == null, not get_tree().paused])
 	await _shot("01_view")
 	Input.action_press("move_right")
 	await get_tree().create_timer(3.0).timeout
@@ -427,6 +435,21 @@ func _run_demo() -> void:
 	p("decor 剩余未触发: %d" % alive)
 	p("ALL DONE player=" + str(_player.global_position))
 	get_tree().quit()
+
+
+func _demo_escape() -> void:
+	var ev := InputEventKey.new()
+	ev.physical_keycode = KEY_ESCAPE
+	ev.keycode = KEY_ESCAPE
+	ev.pressed = true
+	get_viewport().push_input(ev)
+	await get_tree().process_frame
+	var up := InputEventKey.new()
+	up.physical_keycode = KEY_ESCAPE
+	up.keycode = KEY_ESCAPE
+	up.pressed = false
+	get_viewport().push_input(up)
+	await get_tree().process_frame
 
 
 func _tap(action: String) -> void:

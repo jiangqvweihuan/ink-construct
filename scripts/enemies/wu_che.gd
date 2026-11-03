@@ -70,6 +70,14 @@ func _ready() -> void:
 	_play(_idle_anim(), true)
 
 
+## 通用 Boss 先导结束会进入 CHASE；武车没有步行追击，必须回到自己的冲锋链。
+func finish_entrance() -> void:
+	if state == State.DEAD:
+		return
+	_state_timer = 0.0
+	_enter_wait()
+
+
 func _all_anim_names() -> Array:
 	var names := super()
 	for anim in [START_ANIM, RUN_ANIM, BRAKE_ANIM, TURN_ANIM, SUMMON_ANIM, IDLE_ANIM, WEAK_IDLE_ANIM, "atked_fall_end"]:
