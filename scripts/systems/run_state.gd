@@ -154,6 +154,13 @@ var max_hp_loss := 0 # 镰意绽花：本局生命上限损失，跨房间保留
 var supply_upgrade_rerolls := 0 # 重随券：整局共享的额外强化重随次数
 var guard_available := false # 护砚：每局第一次实际受伤减免
 var c021_dance_kills := 0 # 血舞·极：跨房间保留的每三杀回血计数
+var c021_red_butterfly_used := false # 红蝶：每局首次死亡满血复活，之后持续失去生命
+var c013_damage_hits := 0 # 降魔：实际造成伤害的累计次数，每四次凝一层佛陀
+var c013_buddha := 0 # 佛陀：跨房间保留，无叠加上限
+var c023_ink_bonus := 0 # 墨梅：每次实际伤害积累的额外结算墨锭
+var z003_kill_counts: Dictionary = {} # 血色切割：敌人 类型+阶级 -> 本局击败数
+var z003_stolen: Dictionary = {} # 血色切割：同一键 -> 被动包与召唤场景，未来 PvP 共用
+var z003_madness_hp := 0 # 失心疯：夺取后由命中与受击累积的生命上限修正
 var boss_id := "" # 当前 Boss 房登场的 Boss
 var boss_queue: Array = [] # 无归冒险为两只不同 Boss；其他情况只有一只
 var boss_defeated: Array = [] # 本次 Boss 房已讨伐名录，结算落款用
@@ -170,9 +177,6 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1)
 	depth = 1
 	room_index = 0
 	skull_id = new_skull if new_skull != "" else "c021"
-	max_hp_loss = 0
-	max_hp = BASE_HP + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id)
-	hp = max_hp
 	upgrades = {}
 	blessing = ""
 	blessing_used = false
@@ -181,8 +185,16 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1)
 	supply_revive_used = false
 	supply_hp = 0
 	supply_upgrade_rerolls = 0
+	max_hp_loss = 0
 	guard_available = Meta.shop_level("start_guard") > 0
 	c021_dance_kills = 0
+	c021_red_butterfly_used = false
+	c013_damage_hits = 0
+	c013_buddha = 0
+	c023_ink_bonus = 0
+	z003_kill_counts.clear()
+	z003_stolen.clear()
+	z003_madness_hp = 0
 	last_hit = {}
 	boss_defeated = []
 	boss_phase = 0
@@ -194,8 +206,52 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1)
 	supply_hp = 2 if supply == "supply_hp" else 0
 	if supply == "supply_reroll":
 		supply_upgrade_rerolls = 2
-	max_hp += supply_hp
+	max_hp = calculated_max_hp()
 	hp = max_hp
+
+
+## 化身固有生命与所有局内外上限修正统一走这里；红蝶触发后固定为 100（仍会被削上限）。
+func calculated_max_hp() -> int:
+	if skull_id == "c021" and c021_red_butterfly_used:
+		return maxi(1, 100 - max_hp_loss)
+	var form_base := 60 if skull_id == "c023" else BASE_HP
+	return maxi(1, form_base + level("hp") + (2 if blessing == "hp" else 0) \
+		+ Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp - max_hp_loss + z003_madness_hp)
+
+
+## 血色切割统一入口：敌人死亡提交 export_passives()；化身与未来 PvP 直接提交同构被动包。
+## 返回本次新夺取的包；未达阈值或已夺取返回空字典，同类型不同阶级分别计数。
+func record_blood_cut(packet: Dictionary, count_defeat := true) -> Dictionary:
+	var type_id := str(packet.get("type_id", ""))
+	var tier := str(packet.get("tier", "mob"))
+	if type_id.is_empty() or (packet.get("passives", []) as Array).is_empty():
+		return {}
+	var key := "%s:%s" % [type_id, tier]
+	if z003_stolen.has(key):
+		return {}
+	var threshold := 6 if tier == "mob" else (3 if tier == "elite" else 1)
+	var count := int(z003_kill_counts.get(key, 0)) + (1 if count_defeat else 0)
+	z003_kill_counts[key] = count
+	if count < threshold:
+		return {}
+	var stored := packet.duplicate(true)
+	stored["key"] = key
+	z003_stolen[key] = stored
+	return stored.duplicate(true)
+
+
+func has_stolen_passive(id: String) -> bool:
+	for packet in z003_stolen.values():
+		if (packet.get("passives", []) as Array).has(id):
+			return true
+	return false
+
+
+func random_stolen_packet() -> Dictionary:
+	if z003_stolen.is_empty():
+		return {}
+	var keys := z003_stolen.keys()
+	return (z003_stolen[str(keys[randi() % keys.size()])] as Dictionary).duplicate(true)
 
 
 func room_config() -> Dictionary:
@@ -372,8 +428,7 @@ func buy(key: String) -> bool:
 		return false
 	upgrades[key] = level(key) + 1
 	if key == "hp":
-		# 与 apply_to 同公式：铁砚护身赐福 + 固元（局外）都要算进上限
-		max_hp = maxi(1, BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp - max_hp_loss)
+		max_hp = calculated_max_hp()
 		hp = max_hp # 买了加血就回满，下一层的起始血量一并提高
 	return true
 
@@ -400,16 +455,21 @@ func apply_to(player) -> void:
 		push_error("Run.apply_to: 玩家缺少 set_upgrades（脚本未加载？），状态未装回")
 		return
 	player.set_upgrades(upgrades)
-	max_hp = maxi(1, BASE_HP + level("hp") + (2 if blessing == "hp" else 0) + Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp - max_hp_loss) # 铁砚护身赐福 + 固元（局外）- 绽花损失
-	player.max_hp = player.effective_max_hp(max_hp) if player.has_method("effective_max_hp") else max_hp
-	player.hp = clampi(hp, 1, player.max_hp)
 	if player.skull_id != skull_id:
 		player.swap_skull(skull_id)
+	max_hp = calculated_max_hp()
+	player.max_hp = player.effective_max_hp(max_hp) if player.has_method("effective_max_hp") else max_hp
+	var extra_cap: int = player.extra_hp_cap() if player.has_method("extra_hp_cap") else 0
+	player.hp = clampi(hp, 1, player.max_hp + extra_cap)
 	player.hp_changed.emit(player.hp, player.max_hp)
+	if player.has_method("on_room_enter"):
+		player.on_room_enter()
 
 
 ## 镰意绽花：只扣本局上限，不造成普通直伤；实际损失写入 Run，换房与后续强化都不会洗掉。
 func lose_max_hp(amount: int, player = null) -> int:
+	if player != null and is_instance_valid(player) and player.has_method("_saint_immune") and bool(player.call("_saint_immune")):
+		return 0
 	var actual := mini(maxi(0, amount), maxi(0, max_hp - 1))
 	if actual <= 0:
 		return 0

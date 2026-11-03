@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://cal41afnktiq5"]
 
-[ext_resource type="Script" path="res://scripts/tests/anim_viewer.gd" id="1"]
+[ext_resource type="Script" uid="uid://cyoxrso4q57ia" path="res://scripts/tests/anim_viewer.gd" id="1"]
 
-[node name="AnimViewer" type="Node2D"]
+[node name="AnimViewer" type="Node2D" unique_id=1965640879]
+position = Vector2(0, -2)
 script = ExtResource("1")

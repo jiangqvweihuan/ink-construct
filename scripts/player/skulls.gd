@@ -49,7 +49,7 @@ const SKULLS := {
 		"skills": {
 			# K 穿影突刺（第 19 号 skill01，1.567s）：0.75~1.28s 隐身前冲穿过敌人，1.30s 现身一刀。
 			# speed 1.4 提速去掉"顿感"，blink_speed 同步 ×1.4 保持原位移距离；invincible 整段无敌
-			# （对齐银夜 O 的位移技规则）。时刻表仍按动画秒标定，提速后自动对齐。
+			# （对齐影殇 O 的位移技规则）。时刻表仍按动画秒标定，提速后自动对齐。
 			"skill01": {
 				"action": "skill", "cooldown": 3.0, "speed": 1.4, "invincible": true,
 				"hits": [{"at": 1.30, "range": 100.0, "height": 90.0, "damage": 2, "path": true, "sfx": "hit_heavy"}],
@@ -357,10 +357,10 @@ const SKULLS := {
 		"hud_skills": ["run-", "skill03", "skill13-", "skill07_02", "skill10_03", "skill09"],
 	},
 	# 青笠 c012 已下掉玩家形态（动画撑不起招式，强度垫底），转生为精英怪——
-	# 见 scripts/enemies/enemy_types.gd c012；绛弦 z002 位于剑仙与银夜之间。
-	# ---------- 银夜：Z003，轻功剑客。普攻三段随机池 + 六技能（K/L/U/I/O/P，O/P 觉醒限定） ----------
+	# 见 scripts/enemies/enemy_types.gd c012；绛弦 z002 位于剑仙与影殇之间。
+	# ---------- 影殇：Z003，轻功剑客。普攻三段随机池 + 六技能（K/L/U/I/O/P，O/P 觉醒限定） ----------
 	"z003": {
-		"label": "银夜",
+		"label": "影殇",
 		"name": "将去未还",
 		"hero": true, # 英雄级主角：K/L/U 普通技 + I 觉醒 + O/P 觉醒技（规范见 PROGRESS.md）
 		"data": "res://art/characters/player/skulls/z003/z003_data.tres",

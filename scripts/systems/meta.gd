@@ -432,8 +432,8 @@ func diff_since(snap: Dictionary) -> Dictionary:
 
 ## 每局基础 2 墨锭；每 2 击杀 +1、每个已清房间 +5，通关额外 +25。
 ## 聚墨每级再 +2；阵亡同样按已有战绩结算，不再依赖局内货币余量。
-func deposit_ink(run_kills: int, cleared_rooms: int, cleared: bool) -> int:
-	var n := 2 + maxi(0, run_kills) / 2 + maxi(0, cleared_rooms) * 5 + (25 if cleared else 0) + 2 * shop_level("start_ink")
+func deposit_ink(run_kills: int, cleared_rooms: int, cleared: bool, bonus := 0) -> int:
+	var n := 2 + maxi(0, run_kills) / 2 + maxi(0, cleared_rooms) * 5 + (25 if cleared else 0) + 2 * shop_level("start_ink") + maxi(0, bonus)
 	ink += n
 	_save()
 	return n

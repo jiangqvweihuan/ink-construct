@@ -11,6 +11,7 @@ const SpinePoseMixer := preload("res://scripts/systems/spine_pose_mixer.gd")
 const DMG_COLOR := Color(0.66, 0.2, 0.16) # 朱砂：敌人受伤数字
 const SFX_HIT_QI := preload("res://audio/sfx/hit_qi.wav")
 const SFX_TELEGRAPH := preload("res://audio/sfx/telegraph.wav")
+const PLAYER_BURN_INTERVALS := [60.0, 58.0, 54.0, 48.0, 40.0, 30.0, 18.0, 10.0]
 
 @export var type_id := "c016"
 
@@ -23,6 +24,7 @@ static var _attacker: Node2D = null
 
 var state: int = State.IDLE
 var wu_che_summon := false # 武车召唤物：玩家带通缉时，其实伤由统一入口额外 +1
+var player_ally := false # 魅唤：独立友方阵营，不占敌人组、波次或击杀结算
 var facing := -1
 var hp: int
 
@@ -100,6 +102,12 @@ var _hurt_chain_active := false # 链中照常吃伤害，但受击动画不得�
 var _regen_interval := 0.0 # 山民被动：回血间隔，0=无被动
 var _regen_amount := 0
 var _regen_timer := 0.0
+var _sword_sect_scale := 1.0 # 剑宗：当前实体所在房间内永久减疗
+var _heal_fraction := 0.0 # 减半后的零散治疗累计，避免每次 1 点都直接归零
+var _player_burn_stacks := 0 # 影殇夺取炽热之心后施加的怒焰
+var _player_burn_left := 0.0
+var _player_burn_source: Node = null
+var _evil_buddha_pressure := false # 影殇夺取邪佛后压制目标增益
 # 半血狂暴：血量跌破 below 比例时触发一次——出手冷却 ×cd、追击速度 ×speed
 var _enrage_below := 0.0
 var _enrage_cd := 0.65
@@ -113,6 +121,7 @@ var _sword_intent := 0
 var _sword_hit_damage: Dictionary = {} # 本次出手各段已结算伤害，供同步分身保持同伤
 var _sword_clone_node: Node2D = null
 var _is_sword_clone := false
+var _sword_player_clone := false # 影殇夺取剑意：复用青笠虚影，但由玩家同段伤害驱动
 var _sword_owner: Node2D = null
 var _elite := false # 精英标记（时停分档用：杂兵 3s / 精英 2s / Boss 1s）
 var _stop_timer := 0.0 # 时间暂停（银夜 U）剩余
@@ -182,7 +191,7 @@ var _sfx_player: AudioStreamPlayer
 
 
 func _ready() -> void:
-	add_to_group("enemies")
+	add_to_group("player_allies" if player_ally else "enemies")
 	_apply_type()
 	hp = max_hp
 	_regen_timer = _regen_interval
@@ -195,6 +204,7 @@ func _ready() -> void:
 	if _is_sword_clone:
 		# 凝华分身不可选中、不占敌人组与出手令牌；无敌且不会触发击杀/结算逻辑。
 		remove_from_group("enemies")
+		remove_from_group("player_allies")
 		_telegraph_on = false
 		_hp_bar.visible = false
 		$CollisionShape2D.set_deferred("disabled", true)
@@ -770,6 +780,8 @@ func _telegraph() -> void:
 func _deal_hit(seg := 0) -> void:
 	if _target == null or not is_instance_valid(_target):
 		return
+	if player_ally and not _target.is_in_group("enemies"):
+		return
 	if _charm_time > 0.0 and _target.is_in_group("player"):
 		return # 魅惑目标永不攻击玩家，包括魅惑前已经起手的旧招
 	var dx: float = _target.global_position.x - global_position.x
@@ -782,7 +794,7 @@ func _deal_hit(seg := 0) -> void:
 	var dmg := 0 if no_damage else Run.enemy_damage(_damage_of(_attack_move, seg) + _sword_intent_now() + turn_bonus)
 	if dmg > 0 and wu_che_summon:
 		dmg += 1 # 墨徒信仰：直接攻击始终比当前难度高一档，最高难度也继续提升
-	if dmg > 0 and _bloodthirst_active:
+	if dmg > 0 and _bloodthirst_active and not _evil_buddha_pressure:
 		dmg = maxi(1, dmg + int(_bloodthirst.get("damage_delta", -1)))
 	# 阴影只放大本次直接命中；割伤在玩家侧独立计时，绝不回到这里二次暴击。
 	if dmg > 0 and _backstab:
@@ -792,7 +804,7 @@ func _deal_hit(seg := 0) -> void:
 	# 红尘：每 3 层怨逐段 -1，每段最低仍为 1；强化癫狂在最后翻倍。
 	if dmg > 0:
 		dmg = maxi(1, dmg - int(_grudge / 3.0))
-		if _frenzy_time > 0.0 and _frenzy_empowered:
+		if _frenzy_time > 0.0 and _frenzy_empowered and not _evil_buddha_pressure:
 			dmg *= 2
 	# 本体先结算时记录同段伤害，分身后结算直接复用，避免首段叠层让镜像多打 1 点。
 	if _is_sword_clone and is_instance_valid(_sword_owner) \
@@ -811,8 +823,12 @@ func _deal_hit(seg := 0) -> void:
 			var custom: Vector2 = move["knockback"]
 			kb = Vector2(facing * custom.x, custom.y)
 		if _target.is_in_group("enemies") and _target.has_method("take_damage_from"):
-			_target.call("take_damage_from", dmg, self) # 癫狂/魅惑：真实敌人互伤
-		elif _target.has_method("hurt"):
+			var before := int(_target.get("hp"))
+			_target.call("take_damage_from", dmg, self) # 癫狂/魅惑/魅唤：真实敌人互伤
+			var dealt := maxi(0, before - int(_target.get("hp")))
+			if dealt > 0:
+				on_player_hit(dealt, move, _target)
+		elif not player_ally and _target.has_method("hurt"):
 			_target.call("hurt", dmg, kb, self, move)
 
 
@@ -866,7 +882,7 @@ func on_player_hit(amount: int, move: Dictionary, _player: Node) -> void:
 			_attack_rule_cds[anim] = float(_attack_rule_cds[anim]) * _skill_cooldown_scale
 	if amount > 0 and bool(move.get("lifesteal_from_damage", false)):
 		_heal(amount)
-	if _bloodthirst_active and (amount > 0 or bloom):
+	if _bloodthirst_active and not _evil_buddha_pressure and (amount > 0 or bloom):
 		_heal(int(_bloodthirst.get("lifesteal", 1)))
 	if amount > 0 and not _is_sword_clone and int(move.get("sword_intent", 0)) > 0:
 		_gain_sword_intent(int(move.get("sword_intent", 0)))
@@ -929,9 +945,35 @@ func _sword_sync_attack(anim: String) -> void:
 	_attack_cast_id = int(_sword_owner.get("_attack_cast_id"))
 
 
+func _sword_sync_player_action() -> void:
+	if not _is_sword_clone or not _sword_player_clone or not is_instance_valid(_sword_owner):
+		return
+	facing = int(_sword_owner.get("facing"))
+	_apply_facing()
+	global_position = _sword_owner.global_position + Vector2(-facing * 58.0, 0.0)
+	_target = null
+	_start_attack("skill02" if int(_sword_owner.get("state")) == 6 else "skill01")
+	_attack_hits_left.clear() # 玩家在实际命中时复写同段伤害，虚影自身不另做命中判定
+
+
+func _sword_player_clone_tick(delta: float) -> void:
+	if state == State.ATTACK:
+		_attack_tick(delta)
+	facing = int(_sword_owner.get("facing"))
+	_apply_facing()
+	global_position = _sword_owner.global_position + Vector2(-facing * 58.0, 0.0)
+	if state != State.ATTACK:
+		var owner_velocity = _sword_owner.get("velocity")
+		var moving := owner_velocity is Vector2 and absf(owner_velocity.x) > 12.0
+		_play(str(_anim_map["chase" if moving else "idle"]), true)
+
+
 func _sword_clone_tick(delta: float) -> void:
-	if not is_instance_valid(_sword_owner) or int(_sword_owner.get("state")) == State.DEAD:
+	if not is_instance_valid(_sword_owner) or int(_sword_owner.get("state")) == (8 if _sword_player_clone else State.DEAD):
 		queue_free()
+		return
+	if _sword_player_clone:
+		_sword_player_clone_tick(delta)
 		return
 	_target = _sword_owner.get("_target") as Node2D
 	if state == State.ATTACK:
@@ -953,12 +995,25 @@ func _dismiss_sword_clone() -> void:
 	_sword_clone_node = null
 
 
+func apply_sword_sect() -> void:
+	_sword_sect_scale = 0.5 # 同一房间永久减半，重复命中不继续叠成 1/4、1/8
+
+
 func _heal(amount: int) -> void:
 	if amount <= 0 or hp <= 0 or state == State.DEAD or hp >= max_hp:
 		return
-	var actual := mini(amount, max_hp - hp)
+	var healing := float(amount) * _sword_sect_scale + _heal_fraction
+	var whole := int(floor(healing))
+	_heal_fraction = healing - whole
+	var actual := mini(whole, max_hp - hp)
+	if actual <= 0:
+		return
 	hp += actual
+	if hp >= max_hp:
+		_heal_fraction = 0.0
 	_update_hp_bar()
+	if has_signal("hp_changed"):
+		emit_signal("hp_changed", hp, max_hp)
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("+%d" % actual, POISON_LABEL_COLOR)
 	dn.global_position = global_position + Vector2(0, _number_y)
@@ -1091,7 +1146,7 @@ func apply_frenzy(duration: float, empowered := false) -> void:
 	if state == State.DEAD or duration <= 0.0:
 		return
 	_frenzy_time = maxf(_frenzy_time, duration)
-	_frenzy_empowered = _frenzy_empowered or empowered
+	_frenzy_empowered = _frenzy_empowered or (empowered and not _evil_buddha_pressure)
 	_target = null
 
 
@@ -1133,7 +1188,8 @@ func take_damage_from(amount: int, source: Node) -> void:
 	var final := amount
 	if _charm_time > 0.0 and source != null and is_instance_valid(source) and source.is_in_group("player"):
 		final = maxi(1, int(ceilf(final / 2.0)))
-	var allied_hit := source != null and is_instance_valid(source) and source != self and source.is_in_group("enemies") and source is Node2D
+	var allied_hit := source != null and is_instance_valid(source) and source != self \
+		and (source.is_in_group("enemies") or source.is_in_group("player_allies")) and source is Node2D
 	var player = get_tree().get_first_node_in_group("player") if allied_hit else null
 	var pipa_active := player != null and str(player.get("skull_id")) == "z002" and player.has_method("_own")
 	if allied_hit and pipa_active and float(source.get("_charm_time")) > 0.0 and bool(player.call("_own", "z002_allure_3")):
@@ -1155,20 +1211,26 @@ func take_damage_from(amount: int, source: Node) -> void:
 func _hit_status_target(target: Node, damage: int, knockback: Vector2, move: Dictionary) -> bool:
 	if target == null or not is_instance_valid(target) or target == self:
 		return false
+	if player_ally and not target.is_in_group("enemies"):
+		return false
 	var dmg := 0 if damage <= 0 else Run.enemy_damage(damage)
 	if dmg > 0:
 		dmg = maxi(1, dmg - int(_grudge / 3.0))
-		if _frenzy_time > 0.0 and _frenzy_empowered:
+		if _frenzy_time > 0.0 and _frenzy_empowered and not _evil_buddha_pressure:
 			dmg *= 2
 	if target.is_in_group("enemies"):
 		if int(target.get("hp")) <= 0:
 			return false
+		var before := int(target.get("hp"))
 		if target.has_method("take_damage_from"):
 			target.call("take_damage_from", dmg, self)
 		else:
 			target.call("take_damage", dmg, global_position.x)
+		var dealt := maxi(0, before - int(target.get("hp")))
+		if dealt > 0:
+			on_player_hit(dealt, move, target)
 		return true
-	if _charm_time > 0.0 or not target.has_method("hurt"):
+	if _charm_time > 0.0 or player_ally or not target.has_method("hurt"):
 		return false
 	target.call("hurt", dmg, knockback, self, move)
 	return true
@@ -1212,6 +1274,49 @@ func _pipa_status_tick(delta: float) -> void:
 				_transferred_debuffs.erase(id)
 			else:
 				_transferred_debuffs[id] = info
+	_player_burn_tick(delta)
+
+
+func _player_burn_interval() -> float:
+	if _player_burn_stacks <= 0:
+		return 0.0
+	return float(PLAYER_BURN_INTERVALS[mini(_player_burn_stacks, PLAYER_BURN_INTERVALS.size()) - 1])
+
+
+## 玩家夺取炽热之心后，实际命中只为目标叠怒焰；回血与刷新冷却由真实灼烧回报触发。
+func apply_player_burn(source: Node) -> void:
+	if state == State.DEAD or source == null or not is_instance_valid(source):
+		return
+	_player_burn_stacks += 1
+	_player_burn_source = source
+	_player_burn_left = _player_burn_interval()
+
+
+func _player_burn_tick(delta: float) -> void:
+	if _player_burn_stacks <= 0 or state == State.DEAD:
+		return
+	if not is_instance_valid(_player_burn_source):
+		_player_burn_stacks = 0
+		_player_burn_left = 0.0
+		return
+	_player_burn_left -= delta
+	if _player_burn_left > 0.0:
+		return
+	var source := _player_burn_source
+	var before := hp
+	_direct_damage(1, Color(0.9, 0.38, 0.2))
+	var dealt := maxi(0, before - hp)
+	if dealt > 0 and is_instance_valid(source) and source.has_method("on_fen_ding_burn_hit"):
+		source.call("on_fen_ding_burn_hit", dealt, self)
+	if state != State.DEAD:
+		_player_burn_left = _player_burn_interval()
+
+
+## 邪佛压场封住敌方增益；强化癫狂立即失效，嗜血的伤害与回血也在压制期间停用。
+func set_evil_buddha_pressure(active: bool) -> void:
+	_evil_buddha_pressure = active
+	if active:
+		_frenzy_empowered = false
 
 
 func _trigger_six_senses() -> void:
@@ -1312,6 +1417,30 @@ func amplify_debuffs() -> void:
 ## 时间暂停分档：杂兵 mob / 精英 elite；Boss 在 boss.gd 覆盖为 boss
 func stop_tier() -> String:
 	return "elite" if _elite else "mob"
+
+
+## 血色切割与魅唤共用实体被动包；未来化身/PvP 也提交同一结构，无需伪装敌人死亡。
+func export_passives() -> Dictionary:
+	var passives: Array = []
+	match type_id:
+		"c016": passives = ["c016_mountain"]
+		"c017": passives = ["c017_brute"]
+		"c035": passives = ["c035_shadow"]
+		"c018": passives = ["c018_bloodthirst"]
+		"c012": passives = ["c012_sword_intent"]
+		"c037": passives = ["c037_burst"]
+		"c009": passives = ["c009_construct", "c009_madness"]
+		"c015a1": passives = ["c015a1_flame_bone", "c015a1_burning_heart"]
+		"c001": passives = ["c001_faith", "c001_era"]
+		"c008": passives = ["c008_bell", "c008_evil_buddha"]
+		"c032": passives = ["c032_war_god", "c032_divine_favor"]
+	return {
+		"type_id": type_id,
+		"tier": stop_tier(),
+		"passives": passives,
+		"scene": scene_file_path,
+		"script": get_script().resource_path,
+	}
 
 
 ## 时间暂停（银夜 U）：定住 dur 秒。无视霸体与出手霸体——前摇一律打断，
@@ -1514,12 +1643,7 @@ func _regen_tick(delta: float) -> void:
 	_regen_timer = _regen_interval
 	if hp >= max_hp:
 		return
-	hp = mini(max_hp, hp + _regen_amount)
-	_update_hp_bar()
-	var dn := DAMAGE_NUMBER.new()
-	dn.setup("+%d" % _regen_amount, POISON_LABEL_COLOR)
-	dn.global_position = global_position + Vector2(0, _number_y)
-	get_tree().current_scene.add_child(dn)
+	_heal(_regen_amount)
 
 
 ## 非打击伤害（流血/中毒等）：直接扣血，不进硬直，但仍走死亡流程；Boss 覆盖以同步阶段/大血条
@@ -1719,12 +1843,13 @@ func die() -> void:
 		# 尸体消散时一团墨散开，盖住淡出
 		FX.spawn(get_tree().current_scene, "vanish", global_position,
 			{"scale": _scale * 1.6, "z": 5})
-	Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
-	Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
-	Score.add_kill() # 本局击杀计数（结算战绩用）
-	var pl = get_tree().get_first_node_in_group("player")
-	if pl != null and pl.has_method("on_enemy_killed"):
-		pl.call("on_enemy_killed", self)
+	if not player_ally:
+		Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
+		Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
+		Score.add_kill() # 本局击杀计数（结算战绩用）
+		var pl = get_tree().get_first_node_in_group("player")
+		if pl != null and pl.has_method("on_enemy_killed"):
+			pl.call("on_enemy_killed", self)
 	if bursting:
 		_magic_explosion() # died 必须等最后一击结束，波次才不会提前结算
 	else:
@@ -1772,7 +1897,7 @@ func _deal_death_burst() -> void:
 	var move := {"anim": str(_death_burst.get("anim", "transform")), "hit_at": 3.467,
 		"cast_id": _attack_cast_id, "seg": 0, "room_cd_curse": true}
 	var pl = get_tree().get_first_node_in_group("player")
-	if pl != null and pl is Node2D and _death_target_in_front(pl) and pl.has_method("hurt"):
+	if not player_ally and pl != null and pl is Node2D and _death_target_in_front(pl) and pl.has_method("hurt"):
 		pl.call("hurt", damage, Vector2(facing * 420.0, -60.0), self, move)
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if e == self or not is_instance_valid(e) or not e is Node2D or int(e.get("hp")) <= 0:
@@ -1809,6 +1934,19 @@ func _cleanup() -> void:
 # ---------- 工具 ----------
 
 func _find_target() -> void:
+	if player_ally:
+		var nearest_enemy: Node2D = null
+		var nearest_enemy_dist := INF
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var p := e as Node2D
+			if p == null or p == self or int(e.get("hp")) <= 0:
+				continue
+			var dist := global_position.distance_squared_to(p.global_position)
+			if dist < nearest_enemy_dist:
+				nearest_enemy = p
+				nearest_enemy_dist = dist
+		_target = nearest_enemy
+		return
 	# 魅惑时只认敌方同伴；癫狂则连自己原本的玩家阵营也算进最近目标。
 	# 两者同时存在时，魅惑的"绝不攻击玩家"优先。
 	if _charm_time > 0.0 or _frenzy_time > 0.0:

@@ -272,7 +272,7 @@ func _test_interruptions() -> void:
 	_p.state = _p.State.DASH
 	_b._cast_tick(0.02)
 	_check(_p.hp == 99 and _p._ming_zhong_holy == 0 and not _b._heroic, "觉醒爆发可被完美闪避且不触发命中收益")
-	_check(_b.hp == 47 and _b._awakened and _b._block == 10, "闪避全场伤害不妨碍鸣钟觉醒、回血与获得格挡")
+	_check(_b.hp == 43 and _b._awakened and _b._block == 10, "闪身回敬觉醒爆发 4 伤后，鸣钟仍完成觉醒、回血与获得格挡")
 
 	_reset_all()
 	_b._start_ming_move(_b.CHAIN)

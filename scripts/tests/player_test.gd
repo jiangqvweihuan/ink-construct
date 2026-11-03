@@ -58,6 +58,22 @@ class CutAttacker extends Node2D:
 	func take_damage(amount: int, _source_x: float) -> void:
 		damage_taken += amount
 
+## 固有被动靶子：走真实扣血入口，只保留断言需要的字段。
+class PassiveTarget extends Node2D:
+	var hp := 999
+	var damage_taken := 0
+	var sword_sect_applications := 0
+
+	func take_damage(amount: int, _source_x: float) -> void:
+		hp -= amount
+		damage_taken += amount
+
+	func take_damage_from(amount: int, _source: Node) -> void:
+		take_damage(amount, 0.0)
+
+	func apply_sword_sect() -> void:
+		sword_sect_applications += 1
+
 const OUT_DIR := "res://tests/out/"
 const PlayerClass := preload("res://scripts/player/player.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
@@ -65,6 +81,8 @@ const Skulls = preload("res://scripts/player/skulls.gd")
 var _log: FileAccess
 var _player: PlayerClass
 var _last_state := -1
+var _checks := 0
+var _failed := 0
 
 
 func p(msg) -> void:
@@ -72,6 +90,13 @@ func p(msg) -> void:
 	if _log:
 		_log.store_line("[PT] " + str(msg))
 		_log.flush()
+
+
+func _check(ok: bool, label: String) -> void:
+	_checks += 1
+	if not ok:
+		_failed += 1
+	p(("PASS " if ok else "FAIL ") + label)
 
 
 func _ready() -> void:
@@ -355,10 +380,12 @@ func _ready() -> void:
 
 	_permanent_progression_check()
 	await _new_build_regression()
-	_assassin_cut_regression()
+	await _assassin_cut_regression()
 	_dualsickle_regression()
 	_qingli_regression()
-	get_tree().quit()
+	await _innate_passive_regression()
+	p("PASSIVE DONE checks=%d failed=%d" % [_checks, _failed])
+	get_tree().quit(1 if _failed > 0 else 0)
 
 
 ## 化身谱 / 商栈回归：购买退款链、永久战斗效果、重随券、护砚与复活墨符。
@@ -422,7 +449,7 @@ func _permanent_progression_check() -> void:
 	_player.hurt(2)
 	p("护砚后 hp=%d 剩余护砚=%s（期望 7/false）" % [_player.hp, Run.guard_available])
 
-	# 复活墨符由开始流程入行囊、Run.start 消耗，致死伤后以 4 血起身。
+	# 双刺首次死亡先触发红蝶；第二次死亡才消耗复活墨符并以 4 血起身。
 	Meta.purchases = {}
 	Meta.inventory = {"supply_revive": 1}
 	Meta.selected_supply = "supply_revive"
@@ -431,7 +458,13 @@ func _permanent_progression_check() -> void:
 	_player.state = 0
 	_player._hurt_invincible = 0.0
 	_player.hurt(3)
-	p("墨符复活 hp=%d 已消耗=%s 库存=%d（期望 4/true/0）" % [_player.hp, Run.supply_revive_used, Meta.supply_count("supply_revive")])
+	var red_first: bool = _player.hp == 100 and Run.c021_red_butterfly_used and not Run.supply_revive_used
+	_player.hp = 1
+	_player.state = 0
+	_player._hurt_invincible = 0.0
+	_player.hurt(3)
+	p("红蝶首死=%s 墨符第二次复活 hp=%d 已消耗=%s 库存=%d（期望 true/4/true/0）" % [
+		red_first, _player.hp, Run.supply_revive_used, Meta.supply_count("supply_revive")])
 
 
 ## 新局内流派的关键状态链：多层盾、封脉、空中派生、落匕/影饵、漏刻与去来。
@@ -558,6 +591,7 @@ func _new_build_regression() -> void:
 
 ## 刺客割伤：同招穿透、独立 3/6 秒计时、防御不挂伤与致死对演。
 func _assassin_cut_regression() -> void:
+
 	Meta.form_nodes = {}
 	Run.start()
 	Run.guard_available = false
@@ -647,6 +681,28 @@ func _assassin_cut_regression() -> void:
 	p("割伤致死 死亡并清理=%s 终局对演记录=%s last_hit=%s（期望 true/true/c035+skill02）" % [death_ok, replay_ok, str(Run.last_hit)])
 	attacker.queue_free()
 	other.queue_free()
+
+	# 真实刺客死亡后，尸体自然释放不能让其留下的 3/6 秒割伤报错或消失。
+	_reset_cut_player()
+	var real_assassin = _spawn_real_enemy("c035", Vector2(650, 560))
+	var real_move := {"anim": "skill02", "hit_at": 0.50, "cast_id": 77, "cut": true}
+	_player.hurt(1, Vector2.ZERO, real_assassin, real_move)
+	_player._damage_enemy(real_assassin, int(real_assassin.get("hp")))
+	var real_death_ok: bool = int(real_assassin.get("state")) == real_assassin.State.DEAD and _player._cuts.size() == 1
+	var waited := 0.0
+	while is_instance_valid(real_assassin) and waited < 5.0:
+		await get_tree().create_timer(0.1).timeout
+		waited += 0.1
+	_player.state = _player.State.IDLE
+	_player.velocity = Vector2.ZERO
+	_player._hurt_invincible = 0.0
+	var freed_hp: int = _player.hp
+	_player._cut_tick(3.01)
+	var freed_three_ok: bool = _player.hp == freed_hp - 1 and _player._cuts.size() == 1
+	_player._cut_tick(3.0)
+	var freed_six_ok: bool = _player.hp == freed_hp - 2 and _player._cuts.is_empty()
+	_check(real_death_ok and not is_instance_valid(real_assassin) and freed_three_ok and freed_six_ok,
+		"真实刺客尸体释放后，遗留割伤仍在 3 秒与 6 秒各结算 1 伤")
 
 
 ## 双镰与青笠共用普通流血：与割伤隔离、完整三秒结算、防御不挂伤，以及绽花跨房上限损失。
@@ -835,6 +891,229 @@ func _qingli_regression() -> void:
 	var reflect_ok: bool = _player.hp == hp_before and _player._dash_seal == 0.0 and attacker.damage_taken > 0
 	p("旋斩封闪防御 闪避/护盾/受击无敌/反伤不触发=%s/%s/%s/%s（期望全 true）" % [dodge_ok, shield_ok, invincible_ok, reflect_ok])
 	attacker.queue_free()
+
+
+## 五个化身固有被动、血色切割阈值与魅唤单召唤的数值回归。
+func _innate_passive_regression() -> void:
+
+	# 闪身：忽略 0.5 秒最小间隔，闪避后只回敬该段原始伤害。
+	_prepare_innate("c021")
+	_player._dash_cd = 0.0
+	_player._dash_gap = 0.4
+	Input.action_press("dash")
+	_player._try_dash()
+	Input.action_release("dash")
+	_check(_player.state == _player.State.DASH, "闪身不受 0.5 秒最小闪避间隔限制")
+	var flash_target := PassiveTarget.new()
+	add_child(flash_target)
+	var flash_hp: int = _player.hp
+	_player.hurt(4, Vector2.ZERO, flash_target)
+	_check(_player.hp == flash_hp and flash_target.hp == 995, "闪身躲避本段伤害并将 4 点原始伤害回敬攻击者")
+	flash_target.queue_free()
+
+	# 红蝶：首次死亡百血起身，每秒流失；再次归零进入标准死亡流程。
+	_prepare_innate("c021")
+	_player.hurt(20)
+	_check(Run.c021_red_butterfly_used and _player.max_hp == 100 and _player.hp == 100, "红蝶首次死亡满血复活且生命上限提升至 100")
+	_player.state = _player.State.IDLE
+	_player._innate_passive_tick(1.0)
+	_check(_player.hp == 99, "红蝶复活后每秒失去 1 点生命")
+	_player.hp = 1
+	_player._hurt_invincible = 0.0
+	_player.hurt(2)
+	_check(_player.state == _player.State.DEAD, "红蝶之后再次死亡进入标准流程")
+
+	# 圣僧与降魔：真实伤害计数、全伤加成、3 伤封顶、免击倒与减益免疫。
+	_prepare_innate("c013")
+	var demon_target := PassiveTarget.new()
+	add_child(demon_target)
+	for i in 4:
+		_player._damage_enemy(demon_target, 1)
+	_check(Run.c013_damage_hits == 4 and Run.c013_buddha == 1 and _player._buff_now() == 1,
+		"降魔每 4 次实际伤害获得一层佛陀且每层伤害 +1")
+	_player._damage_enemy(demon_target, 0)
+	_check(Run.c013_damage_hits == 4, "零伤不会累计降魔")
+	_player.max_hp = 20
+	_player.hp = 20
+	_player.hurt(9, Vector2.ZERO, null, {"bleed": 2, "dash_seal": 8.0, "cripple": 3.0})
+	_check(_player.hp == 17 and _player._bleed_stacks == 0 and _player._dash_seal == 0.0 and _player._cripple_time == 0.0,
+		"圣僧单次最多受 3 伤且免疫负面效果")
+	_player.hp = 20
+	_player.state = _player.State.IDLE
+	_player._hurt_invincible = 0.0
+	Run.c013_buddha = 1
+	_player.hurt(3, Vector2.ZERO, null, {"force_knockdown": true})
+	_check(_player.hp == 17 and Run.c013_buddha == 0 and _player._hurt_phase != "fall" and _player._hurt_chain.is_empty(),
+		"佛陀消耗一层，只免除恰好 3 伤带来的击倒而不减伤")
+	demon_target.queue_free()
+
+	# 墨梅与霜梅：终局墨锭、60 血、进房复原向上取整和普攻恢复豁免。
+	_prepare_innate("c023")
+	_check(_player.max_hp == 60, "霜梅基础生命上限为 60")
+	var plum_target := PassiveTarget.new()
+	add_child(plum_target)
+	for i in 4:
+		_player._damage_enemy(plum_target, 1)
+	_check(Run.c023_ink_bonus == 4, "墨梅按实际伤害次数积累额外结算墨锭")
+	_player.hp = 39
+	_player.on_room_enter()
+	_check(_player.hp == 60 and _player._c023_frost_bonus == 3, "霜梅进房恢复 21 点并为 K 尾鞭增加 3 点攻击")
+	_player._attack_recovery = 1.0
+	_check(not _player._attack_recovery_active(), "霜梅普攻不受 1 秒恢复限制")
+	plum_target.queue_free()
+
+	# 不朽、剑宗与淑女：双倍恢复、额外生命、减疗接口及 20 秒自检联动。
+	_prepare_innate("z000")
+	_player.max_hp = 20
+	_player.hp = 20
+	_player._restore_hp(10)
+	_check(_player.hp == 30 and _player.extra_hp_cap() == 10, "不朽双倍恢复并允许最多半管额外生命")
+	var sword_target := PassiveTarget.new()
+	add_child(sword_target)
+	_player._damage_enemy(sword_target, 1)
+	_check(sword_target.sword_sect_applications == 1, "剑宗实际伤害后通知目标永久减半房间恢复")
+	_player.hp = 20
+	_player._z000_lady_timer = 0.0
+	_player._innate_passive_tick(0.01)
+	_check(_player.hp == 24 and is_equal_approx(_player._z000_confidence_time, 10.0) and _player._buff_now() == 1,
+		"淑女自检经不朽双倍恢复，并获得 10 秒自信与伤害 +1")
+	sword_target.queue_free()
+
+	# 暗夜：用同一种子先取判定值，再复现同一击，避免概率测试闪烁。
+	_prepare_innate("z003")
+	seed(19)
+	var night_roll := randf()
+	seed(19)
+	var night_hp: int = _player.hp
+	_player.hurt(1)
+	_check((_player.hp == night_hp) == (night_roll < 0.2), "暗夜按 20% 判定免除被命中的伤害")
+
+	# 血色切割：实例化真实敌人，走玩家扣血 → 敌人死亡 → 死亡回报的完整链路。
+	var mob_path_ok := true
+	for i in 6:
+		var mob = _spawn_real_enemy("c016")
+		_player._damage_enemy(mob, int(mob.get("hp")))
+		mob_path_ok = mob_path_ok and int(Run.z003_kill_counts.get("c016:mob", 0)) == i + 1 \
+			and Run.z003_stolen.has("c016:mob") == (i == 5)
+	_check(mob_path_ok, "真实刀客前 5 次只计数，第 6 次死亡回报夺取山民被动")
+	_player.hp = _player.max_hp - 1
+	_player._stolen_regen_left = 0.0
+	_player._innate_passive_tick(0.01)
+	_check(_player.hp == _player.max_hp, "夺取山民后在真实被动帧恢复生命")
+
+	var brute_path_ok := true
+	for i in 6:
+		var brute = _spawn_real_enemy("c017")
+		_player._damage_enemy(brute, int(brute.get("hp")))
+		brute_path_ok = brute_path_ok and int(Run.z003_kill_counts.get("c017:mob", 0)) == i + 1 \
+			and Run.z003_stolen.has("c017:mob") == (i == 5)
+	_check(brute_path_ok, "真实力士前 5 次只计数，第 6 次死亡回报夺取蛮力被动")
+	var brute_target = _spawn_real_enemy("c016", Vector2(500, 560))
+	brute_target.set("hp", 10)
+	_player._damage_enemy(brute_target, 1)
+	_check(int(brute_target.get("state")) == brute_target.State.FLY and is_equal_approx(float(brute_target.get("velocity").x), 110.0),
+		"夺取蛮力后真实命中将存活敌人击退")
+	brute_target.queue_free()
+
+	var shadow_path_ok := true
+	for i in 6:
+		var shadow = _spawn_real_enemy("c035")
+		_player._damage_enemy(shadow, int(shadow.get("hp")))
+		shadow_path_ok = shadow_path_ok and int(Run.z003_kill_counts.get("c035:mob", 0)) == i + 1 \
+			and Run.z003_stolen.has("c035:mob") == (i == 5)
+	_check(shadow_path_ok, "真实刺客第 6 次死亡回报夺取阴影被动")
+	_player.global_position.x = 300.0
+	var shadow_target = _spawn_real_enemy("c016", Vector2(500, 560))
+	shadow_target.set("hp", 10)
+	shadow_target.set("facing", 1)
+	_player._damage_enemy(shadow_target, 1)
+	_check(int(shadow_target.get("hp")) == 8, "夺取阴影后从目标背后造成双倍真实直接伤害")
+	shadow_target.queue_free()
+	var avatar: Dictionary = _player.export_passives()
+	var avatar_packet: Dictionary = Run.record_blood_cut(avatar)
+	_check(str(avatar.get("tier", "")) == "boss" and not avatar_packet.is_empty() \
+		and (avatar_packet.get("passives", []) as Array).has("z003_charm_call"),
+		"化身以 Boss 级同构包接入血色切割与未来 PvP 接口")
+
+	Run.z003_stolen.erase(str(avatar_packet.get("key", ""))) # 自测用的自身 PvP 包不进入本场魅唤池。
+
+	# 魅唤：直接从上述真实死亡夺取的实体池抽取，连续调用仍只有同一名友方。
+	_player._charm_call()
+	var ally: Node2D = _player._charm_summon
+	_check(is_instance_valid(ally) and ["c016", "c017", "c035"].has(str(ally.get("type_id"))) \
+		and ally.is_in_group("player_allies") and not ally.is_in_group("enemies"),
+		"魅唤从真实夺取池召唤独立友方且不占敌人组")
+	_player._charm_call()
+	_check(_player._charm_summon == ally and get_tree().get_nodes_in_group("player_allies").size() == 1,
+		"魅唤同时最多保留一名协助者")
+	if is_instance_valid(ally):
+		ally.queue_free()
+	_player._charm_summon = null
+
+	# 真实青笠三次死亡夺取剑意；隔离叠层初值后验证三层凝华与第四段复写。
+	for i in 3:
+		var swordsman = _spawn_real_enemy("c012")
+		_player._damage_enemy(swordsman, int(swordsman.get("hp")))
+	_check(Run.z003_stolen.has("c012:elite"), "真实青笠第 3 次死亡回报夺取剑意")
+	_player._stolen_sword_intent = 0
+	var mirror_target := PassiveTarget.new()
+	add_child(mirror_target)
+	for i in 4:
+		_player._damage_enemy(mirror_target, 1)
+	var mirror: Node2D = _player._stolen_sword_clone
+	_check(is_instance_valid(mirror) and _player._stolen_sword_intent == 3 and mirror_target.hp == 994 \
+		and mirror.get("_is_sword_clone") and mirror.get("_sword_player_clone") and mirror.get("_sword_owner") == _player \
+		and not mirror.is_in_group("enemies") and not mirror.is_in_group("player_allies") \
+		and mirror.get_node_or_null("SwordCloneRing") != null,
+		"夺取剑意三层生成唯一淡青凝华分身并复写第四段同伤")
+	_player.state = _player.State.IDLE
+	_player._attack_recovery = 0.0
+	_player._start_attack(0)
+	var mirror_hp: int = mirror.hp
+	mirror.take_damage(99, _player.global_position.x)
+	_check(mirror.state == mirror.State.ATTACK and mirror._attack_hits_left.is_empty() \
+		and mirror._current_anim == "skill01" and mirror.hp == mirror_hp and mirror.state != mirror.State.DEAD,
+		"凝华虚影同步玩家出手，不独立结算伤害且无敌")
+	_player.die()
+	_check(not is_instance_valid(_player._stolen_sword_clone) and mirror.is_queued_for_deletion(),
+		"玩家死亡时凝华虚影立即消散")
+	mirror_target.queue_free()
+
+
+func _spawn_real_enemy(type_id: String, pos := Vector2(500, 560)):
+	var scene_path := "res://scenes/enemies/c012_elite.tscn" if type_id == "c012" else "res://scenes/enemies/%s.tscn" % type_id
+	var enemy = load(scene_path).instantiate()
+	enemy.set("type_id", type_id)
+	enemy.position = pos
+	add_child(enemy)
+	enemy.set_physics_process(false)
+	enemy.set("_target", _player)
+	return enemy
+
+
+func _prepare_innate(form: String) -> void:
+	Meta.persist = false
+	Meta.purchases = {}
+	Meta.form_nodes = {}
+	Meta.inventory = {}
+	Meta.selected_supply = ""
+	Run.start(Run.MODE_ADVENTURE, form)
+	_player.swap_skull(form)
+	Run.apply_to(_player)
+	_player.set_upgrades({})
+	_player.set_physics_process(false)
+	_reset_cut_player(Run.max_hp)
+	_player.max_hp = Run.max_hp
+	_player.hp = Run.max_hp
+	_player._buff_damage = 0
+	_player._buff_timer = 0.0
+	_player._stop_buff_damage = 0
+	_player._stop_buff_timer = 0.0
+	_player._awaken_stacks = 0
+	_player._room_awaken_damage = 0
+	_player._z000_confidence_time = 0.0
+	_player._z000_lady_timer = 20.0
+	_player._red_butterfly_left = 1.0
 
 
 func _reset_bloom_player(hp := 5) -> void:

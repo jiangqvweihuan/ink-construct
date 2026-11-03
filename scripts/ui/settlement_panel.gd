@@ -43,7 +43,7 @@ func _ready() -> void:
 	var diff: Dictionary = {"mastery": {}, "unlocks": []}
 	if not Run.meta_snapshot.is_empty():
 		diff = Meta.diff_since(Run.meta_snapshot)
-	var ink_gain := Meta.deposit_ink(Score.kills, Run.cleared_room_count(), _cleared)
+	var ink_gain := Meta.deposit_ink(Score.kills, Run.cleared_room_count(), _cleared, Run.c023_ink_bonus)
 	_build(diff, ink_gain)
 
 
@@ -101,7 +101,10 @@ func _build(diff: Dictionary, ink_gain: int) -> void:
 		_make_line("新化身 · %s %s" % [str(Skulls.get_profile(id)["label"]), str(Skulls.get_profile(id).get("name", ""))], RED, 18, cy)
 		cy += 30.0
 	if ink_gain > 0 and cy <= 460.0:
-		_make_line("墨锭 +%d（总 %d）" % [ink_gain, Meta.ink], PAPER, 19, cy)
+		var ink_text := "墨锭 +%d（总 %d）" % [ink_gain, Meta.ink]
+		if Run.c023_ink_bonus > 0:
+			ink_text = "墨锭 +%d（墨梅 +%d｜总 %d）" % [ink_gain, Run.c023_ink_bonus, Meta.ink]
+		_make_line(ink_text, PAPER, 19, cy)
 		cy += 30.0
 	if rows == 0 and diff["unlocks"].is_empty() and ink_gain <= 0:
 		_make_line("本局无额外收获", DIM, 17, cy)

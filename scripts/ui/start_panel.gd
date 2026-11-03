@@ -193,7 +193,7 @@ func _rule(pos: Vector2, size: Vector2) -> void:
 	add_child(r)
 
 
-func _texture_card(pos: Vector2, size: Vector2, selected := false) -> TextureButton:
+func _texture_card(pos: Vector2, size: Vector2, selected := false, parent: Node = null) -> TextureButton:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
@@ -202,7 +202,9 @@ func _texture_card(pos: Vector2, size: Vector2, selected := false) -> TextureBut
 	b.position = pos
 	b.size = size
 	b.modulate = Color(1.16, 1.09, 0.88) if selected else Color.WHITE
-	add_child(b)
+	if parent == null:
+		parent = self
+	parent.add_child(b)
 	return b
 
 
@@ -233,8 +235,32 @@ func _difficulty_card(index: int) -> void:
 func _character_step() -> void:
 	_ensure_char()
 	var ids := Skulls.ids()
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(90, 242)
+	scroll.size = Vector2(674, 254)
+	scroll.clip_contents = true
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	add_child(scroll)
+	var h_scroll := scroll.get_h_scroll_bar()
+	h_scroll.custom_minimum_size = Vector2(0, 12)
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.05, 0.05, 0.05, 0.55)
+	track.set_corner_radius_all(4)
+	h_scroll.add_theme_stylebox_override("scroll", track)
+	var grabber := StyleBoxFlat.new()
+	grabber.bg_color = RED
+	grabber.set_corner_radius_all(4)
+	h_scroll.add_theme_stylebox_override("grabber", grabber)
+	h_scroll.add_theme_stylebox_override("grabber_highlight", grabber)
+	h_scroll.add_theme_stylebox_override("grabber_pressed", grabber)
+	var cards := Control.new()
+	cards.custom_minimum_size = Vector2(ids.size() * 134 - 12, 240)
+	cards.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scroll.add_child(cards)
 	for i in ids.size():
-		_char_card(str(ids[i]), i)
+		_char_card(str(ids[i]), i, cards)
 	_rule(Vector2(782, 246), Vector2(1, 270))
 	if _char != "":
 		var profile: Dictionary = Skulls.get_profile(_char)
@@ -246,12 +272,12 @@ func _character_step() -> void:
 	_supply_selector()
 
 
-func _char_card(id: String, i: int) -> void:
+func _char_card(id: String, i: int, parent: Control) -> void:
 	var unlocked := Meta.is_unlocked(id)
 	var profile: Dictionary = Skulls.get_profile(id)
 	var card: Control
 	if unlocked:
-		var b := _texture_card(Vector2(90 + i * 134, 246), Vector2(122, 240), id == _char)
+		var b := _texture_card(Vector2(i * 134, 0), Vector2(122, 240), id == _char, parent)
 		b.pressed.connect(_pick_char.bind(id))
 		card = b
 	else:
@@ -260,10 +286,10 @@ func _char_card(id: String, i: int) -> void:
 		t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		t.stretch_mode = TextureRect.STRETCH_SCALE
 		t.modulate = Color(1, 1, 1, 0.48)
-		t.position = Vector2(90 + i * 134, 246)
+		t.position = Vector2(i * 134, 0)
 		t.size = Vector2(122, 240)
 		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(t)
+		parent.add_child(t)
 		card = t
 	if unlocked:
 		if bool(profile.get("hero", false)):

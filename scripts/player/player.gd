@@ -10,6 +10,7 @@ const Skulls := preload("res://scripts/player/skulls.gd")
 const PROJECTILE := preload("res://scripts/systems/projectile.gd") # 远程形态的普攻/技能发投射物
 const FX := preload("res://scripts/systems/fx.gd") # 精灵条特效：斩击/化身光柱/受击墨花
 const Settings = preload("res://scripts/ui/settings.gd") # 改键后 HUD 键名要读 InputMap
+const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
 
 
@@ -116,8 +117,27 @@ var _passive_seal_time := 0.0 # 碎岳剥离：15 秒内禁止全部局内强化
 var _stolen_passives: Dictionary = {} # 佛眼取走的被动 id；下次扫描或碎岳死亡时归还
 var _sui_yue_pressure := false # 邪佛压场：封自身增益，保留基础形态、回血与觉醒
 var _stun_time := 0.0 # 万佛手：实伤附加眩晕，锁定操作但不制造额外伤害
-var _room_awaken_damage := 0 # 银夜 P 觉醒强化：与局内加伤分槽，邪佛不能抹去
+var _room_awaken_damage := 0 # 影殇 P 觉醒强化：与局内加伤分槽，邪佛不能抹去
 var _awaken_buff_damage := 0 # 当前觉醒动作提供的加伤，供邪佛下单独保留
+var _red_butterfly_left := 1.0 # 红蝶复活后的每秒生命流失
+var _c023_frost_bonus := 0 # 霜梅：本房 K 尾鞭加伤，下次进房按实际恢复量重算
+var _z000_lady_timer := 20.0 # 淑女：每 20 秒自检
+var _z000_confidence_time := 0.0 # 自信：10 秒内技能冷却减半、伤害 +1
+var _charm_summon: Node2D = null # 魅唤：同时最多一名，独立于武车自身召唤列表
+var _stolen_regen_left := 5.0
+var _stolen_bloodthirst := false
+var _stolen_sword_intent := 0
+var _stolen_sword_clone: Node2D = null # 夺取剑意：三层后的唯一同步凝华虚影
+var _stolen_block := 0
+var _stolen_bell := 0 # 佛曰：每层两点抵挡，独立于有时限的形态金钟罩
+var _stolen_divine := false
+var _stolen_holy: Dictionary = {}
+var _stolen_flame_awakened := false
+var _stolen_wall_free := true # 墨徒信仰：夺取后首次撞墙免耐久
+var _stolen_wall_latch := false
+var _stolen_history: Array = [] # 璀璨时代：记录本实体两秒前的位置
+var _stolen_history_time := 0.0
+var _stolen_era_contacts: Dictionary = {} # 每次闪避接触同一目标只回溯一次
 # ---------- 通用动作接口（形态表按需开启；未配 = 退回旧行为，新角色照抄这组字段即可） ----------
 var _dash_time_base := 0.0 # 闪避时长 = 闪避动画长度（完美闪避判定窗口）
 var _dash_speed_base := 0.0 # 闪避位移速度（配合时长控制总距离）
@@ -290,12 +310,36 @@ func _ready() -> void:
 
 
 func _register_pipa_passives() -> void:
+	Meta.register_battle_passive("c021_flash", {"form": "c021", "owned": true, "name": "闪身",
+		"desc": "闪避不受 0.5 秒最小间隔限制；闪避攻击时将该段伤害回敬攻击者。", "boss_effect": {}})
+	Meta.register_battle_passive("c021_red_butterfly", {"form": "c021", "owned": true, "name": "红蝶",
+		"desc": "每局首次死亡满血复活并将上限提升至 100，此后每秒失去 1 生命，仍可受击。", "boss_effect": {}})
+	Meta.register_battle_passive("c013_saint", {"form": "c013", "owned": true, "name": "圣僧",
+		"desc": "免疫全部负面效果，单次受到的伤害最多为 3。", "boss_effect": {}})
+	Meta.register_battle_passive("c013_demon", {"form": "c013", "owned": true, "name": "降魔",
+		"desc": "每造成 4 次实际伤害获得一层可跨房保留的佛陀；每层全伤 +1。受到恰好 3 伤且会倒地的攻击时，消耗一层只免除倒地。", "boss_effect": {}})
+	Meta.register_battle_passive("c023_ink_plum", {"form": "c023", "owned": true, "name": "墨梅",
+		"desc": "每次造成实际伤害额外积累 1 墨锭，终局一并结算。", "boss_effect": {}})
+	Meta.register_battle_passive("c023_frost_plum", {"form": "c023", "owned": true, "name": "霜梅",
+		"desc": "生命上限为 60；进新房间恢复全部损失生命，每恢复不足 10 点也按 10 点计，为本房 K 尾鞭提供等量段数加伤；普攻无 1 秒恢复限制。", "boss_effect": {}})
+	Meta.register_battle_passive("z000_immortal", {"form": "z000", "owned": true, "name": "不朽",
+		"desc": "所有生命恢复双倍，并允许溢出为不超过生命上限一半的额外生命。", "boss_effect": {}})
+	Meta.register_battle_passive("z000_sword_sect", {"form": "z000", "owned": true, "name": "剑宗",
+		"desc": "造成实际伤害后，使目标在当前房间的恢复效果永久减半；重复命中不继续叠乘。", "boss_effect": {}})
+	Meta.register_battle_passive("z000_lady", {"form": "z000", "owned": true, "name": "淑女",
+		"desc": "每 20 秒恢复 10% 最大生命（受不朽加成），并获得 10 秒自信：期间释放的技能冷却减半、伤害 +1。", "boss_effect": {}})
 	Meta.register_battle_passive("z002_red_dust", {"form": "z002", "owned": true, "name": "红尘",
 		"desc": "伤害她的敌人获得当前房永久怨；每 3 层使其每段伤害 -1，最低 1。", "boss_effect": {}})
 	Meta.register_battle_passive("z002_ephemeral", {"form": "z002", "owned": true, "name": "须臾 · 红粉骷髅",
 		"desc": "致命伤由一名未替死过的癫狂目标承受双倍溢出伤害，自身保留 1 生命。", "boss_effect": {}})
 	Meta.register_battle_passive("z002_sorrow", {"form": "z002", "owned": true, "name": "神伤",
 		"desc": "每 30 秒全房 5 伤并施加心灵震撼，强化目标全部减益。", "boss_effect": {}})
+	Meta.register_battle_passive("z003_night", {"form": "z003", "owned": true, "name": "暗夜",
+		"desc": "被攻击命中有 20% 概率不受伤害。", "boss_effect": {}})
+	Meta.register_battle_passive("z003_blood_cut", {"form": "z003", "owned": true, "name": "血色切割",
+		"desc": "本局击败同类型杂兵 6 次、精英 3 次或 Boss 1 次后，夺取其全部被动；接口同样支持化身与未来联机对手。", "boss_effect": {}})
+	Meta.register_battle_passive("z003_charm_call", {"form": "z003", "owned": true, "name": "魅唤",
+		"desc": "使用 P 时随机召唤一名已夺取被动的实体协助作战；召唤物数值不变，只攻击敌人。", "boss_effect": {}})
 
 
 ## 把形态表里的动画映射 / 普攻段 / 技能表 / HUD 顺序装到实例上
@@ -322,6 +366,7 @@ func _apply_profile(id: String) -> void:
 	_awaken_pending = 0.0
 	_awaken_stacks = 0
 	_skill_damage_total = 0
+	_c023_frost_bonus = 0
 	_skill_runtime.clear()
 	_pipa_awaken_count = 0
 	_pipa_o_used = false
@@ -351,6 +396,9 @@ func _apply_profile(id: String) -> void:
 
 ## 邪佛压场时只卸下增益，不改 Run / Meta 中的真实解锁与存档。
 func set_sui_yue_pressure(active: bool) -> void:
+	if active and _saint_immune():
+		_sui_yue_pressure = false
+		return
 	_sui_yue_pressure = active
 	_refresh_mastery()
 	set_upgrades(_upgrades)
@@ -362,9 +410,27 @@ func set_sui_yue_pressure(active: bool) -> void:
 
 func effective_max_hp(raw_max: int) -> int:
 	if _passives_disabled():
-		return maxi(1, 8 - (Run.max_hp_loss if Run.active else 0))
+		var sealed_base := 100 if skull_id == "c021" and Run.c021_red_butterfly_used else 8
+		return maxi(1, sealed_base - (Run.max_hp_loss if Run.active else 0))
 	var stolen_hp := int(_stolen_passives.has("c013_meditation_1")) + int(_stolen_passives.has("c023_patience_2"))
 	return maxi(1, raw_max - stolen_hp)
+
+
+func extra_hp_cap() -> int:
+	return int(floor(float(max_hp) * 0.5)) if skull_id == "z000" and has_battle_passive("z000_immortal") else 0
+
+
+## 每次正式进房调用：霜梅先复原，再把本房实际恢复量转换为 K 尾鞭加伤。
+func on_room_enter() -> void:
+	_c023_frost_bonus = 0
+	if skull_id != "c023" or not has_battle_passive("c023_frost_plum"):
+		return
+	var before := hp
+	_restore_hp(maxi(0, max_hp - hp))
+	var restored := maxi(0, hp - before)
+	_c023_frost_bonus = int(ceil(float(restored) / 10.0))
+	if Run.active:
+		Run.hp = hp
 
 
 func _refresh_mastery() -> void:
@@ -384,12 +450,27 @@ func _refresh_passive_loadout() -> void:
 
 
 func apply_sui_yue_seal(dur := 15.0) -> void:
+	if _saint_immune():
+		return
 	_passive_seal_time = maxf(_passive_seal_time, dur)
 	_refresh_passive_loadout()
 
 
+## 化身与敌方实体共用血色切割被动包；未来联机击败化身可直接提交此结构。
+func export_passives() -> Dictionary:
+	return {
+		"type_id": skull_id,
+		"tier": "boss",
+		"passives": Meta.battle_passive_candidates(skull_id),
+		"scene": "",
+		"script": "",
+	}
+
+
 func sui_yue_passive_candidates() -> Array:
 	var out: Array = []
+	if _saint_immune():
+		return out
 	for id in Meta.battle_passive_candidates(skull_id):
 		if not _stolen_passives.has(str(id)):
 			out.append(str(id))
@@ -407,7 +488,7 @@ func has_battle_passive(id: String) -> bool:
 
 
 func steal_sui_yue_passive(id: String) -> bool:
-	if not sui_yue_passive_candidates().has(id):
+	if _saint_immune() or not sui_yue_passive_candidates().has(id):
 		return false
 	_stolen_passives[id] = true
 	_refresh_passive_loadout()
@@ -694,6 +775,8 @@ func _setup_spine() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _saint_immune():
+		_clear_saint_debuffs()
 	_mo_ting_burn_tick(delta)
 	_fen_ding_burn_tick(delta)
 	_ming_zhong_vulnerable_time = maxf(0.0, _ming_zhong_vulnerable_time - delta)
@@ -713,6 +796,7 @@ func _physics_process(delta: float) -> void:
 	_ming_zhong_holder = null
 	_build_tick(delta)
 	_pipa_passive_tick(delta)
+	_innate_passive_tick(delta)
 	_coyote = maxf(0.0, _coyote - delta)
 	_jump_buf = maxf(0.0, _jump_buf - delta)
 	_dash_cd = maxf(0.0, _dash_cd - delta)
@@ -812,6 +896,102 @@ func _pipa_passive_tick(delta: float) -> void:
 	_play_sfx("skill_boom")
 
 
+func _innate_passive_tick(delta: float) -> void:
+	_z000_confidence_time = maxf(0.0, _z000_confidence_time - delta)
+	if state == State.DEAD:
+		return
+	if skull_id == "c021" and Run.c021_red_butterfly_used and has_battle_passive("c021_red_butterfly"):
+		_red_butterfly_left -= delta
+		if _red_butterfly_left <= 0.0:
+			_red_butterfly_left += 1.0
+			hp -= 1 # 红蝶的生命流失不是敌方攻击，不触发闪避、护盾或受击无敌
+			hp_changed.emit(hp, max_hp)
+			_spawn_number(1, DMG_COLOR, 130.0)
+			if hp <= 0 and not _try_revive(Vector2.ZERO):
+				die()
+	if skull_id == "z003" and state != State.DEAD:
+		if _stolen("c016_mountain"):
+			_stolen_regen_left -= delta
+			if _stolen_regen_left <= 0.0:
+				_stolen_regen_left += 5.0
+				_restore_hp(1)
+		if _stolen("c018_bloodthirst") and not _stolen_bloodthirst and hp * 10 < max_hp * 3:
+			_stolen_bloodthirst = true
+			_spawn_passive_text("嗜血 · 觉醒", Color(0.78, 0.3, 0.38))
+		if _stolen("c015a1_flame_bone") and not _stolen_flame_awakened and hp * 2 < max_hp:
+			_stolen_flame_awakened = true
+			_spawn_passive_text("炎骨 · 觉醒", Color(0.9, 0.38, 0.2))
+			FX.spawn(get_tree().current_scene, "fire_pillar", global_position, {"scale": 0.8})
+		if _stolen("c008_evil_buddha"):
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if int(e.get("hp")) > 0 and e.has_method("set_evil_buddha_pressure"):
+					e.call("set_evil_buddha_pressure", true)
+		_stolen_history_time += delta
+		_stolen_history.append({"time": _stolen_history_time, "position": global_position})
+		while _stolen_history.size() > 1 and float(_stolen_history[1]["time"]) <= _stolen_history_time - 2.0:
+			_stolen_history.pop_front()
+	if skull_id != "z000" or state == State.DEAD or not has_battle_passive("z000_lady"):
+		return
+	_z000_lady_timer -= delta
+	if _z000_lady_timer > 0.0:
+		return
+	_z000_lady_timer += 20.0
+	_restore_hp(maxi(1, int(ceil(float(max_hp) * 0.1))))
+	_z000_confidence_time = 10.0
+
+
+func _spawn_passive_text(text: String, color: Color) -> void:
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup(text, color)
+	dn.global_position = global_position + Vector2(0, -175)
+	get_tree().current_scene.add_child(dn)
+
+
+func _saint_immune() -> bool:
+	return skull_id == "c013" and has_battle_passive("c013_saint")
+
+
+## 圣僧只免疫负面状态，不免除伤害与倒地；佛陀对倒地的反制另行结算。
+func _clear_saint_debuffs() -> void:
+	_cuts.clear()
+	_cut_casts.clear()
+	_clear_bleed()
+	clear_fen_ding_burn()
+	_mo_ting_burn_stacks = 0
+	_mo_ting_burn_time = 0.0
+	_jump_seal = 0.0
+	_dash_seal = 0.0
+	_cripple_time = 0.0
+	_room_cd_cursed = false
+	_room_cd_uses.clear()
+	_ming_zhong_vulnerable_time = 0.0
+	_ming_zhong_holy = 0
+	_stun_time = 0.0
+	_mo_ting_grabbed = false
+	_ming_zhong_holder = null
+	wu_che_wanted = false
+	var refresh := _passive_seal_time > 0.0 or _sui_yue_pressure or not _stolen_passives.is_empty()
+	_passive_seal_time = 0.0
+	_sui_yue_pressure = false
+	_stolen_passives.clear()
+	if refresh:
+		_refresh_passive_loadout()
+
+
+func _consume_buddha_guard(amount: int, move: Dictionary) -> bool:
+	if skull_id != "c013" or amount != 3 or Run.c013_buddha <= 0 or not has_battle_passive("c013_demon"):
+		return false
+	var would_knock := bool(move.get("force_knockdown", false)) or (_knock_at < 999 and amount >= _knock_at)
+	if not would_knock:
+		return false
+	Run.c013_buddha -= 1
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("佛陀 · 不倒", Color(0.9, 0.75, 0.3))
+	dn.global_position = global_position + Vector2(0, -175)
+	get_tree().current_scene.add_child(dn)
+	return true
+
+
 # ---------- 各状态逻辑 ----------
 
 func _ground_move(delta: float) -> void:
@@ -829,7 +1009,7 @@ func _ground_move(delta: float) -> void:
 		_set_state(State.IDLE)
 	_try_jump()
 	_try_dash()
-	if Input.is_action_just_pressed("attack") and _attack_recovery <= 0.0:
+	if Input.is_action_just_pressed("attack") and not _attack_recovery_active():
 		_start_attack(0)
 	else:
 		_try_skill()
@@ -844,7 +1024,7 @@ func _air_move(delta: float) -> void:
 	else:
 		# 空中松油门轻微制动，比地面刹得慢（不锁死空中控制）
 		velocity.x = move_toward(velocity.x, 0.0, brake * 0.4 * delta)
-	if Input.is_action_just_pressed("attack") and _attack_recovery <= 0.0 and _air_follow > 0.0 and _cripple_time <= 0.0:
+	if Input.is_action_just_pressed("attack") and not _attack_recovery_active() and _air_follow > 0.0 and _cripple_time <= 0.0:
 		if skull_id == "z000" and (_own("z000_moon_1") or _form_node("z000_volley_2")):
 			_chase_air_target()
 			_start_attack(0)
@@ -1089,14 +1269,126 @@ func _combo_finish_wave() -> void:
 ## 所有玩家直伤统一携带真实来源；魅惑减伤在受击方结算，投射物也走同一入口。
 ## 返回实际扣血，供八音总伤与测试核对，不靠 source_x 猜测攻击者身份。
 func _damage_enemy(target: Node, amount: int) -> int:
-	if target == null or not is_instance_valid(target) or amount <= 0:
+	if target == null or not is_instance_valid(target) or amount <= 0 or int(target.get("hp")) <= 0:
 		return 0
+	if _stolen_divine and _stolen("c032_divine_favor"):
+		return _stolen_holy_hit(target)
+	if _stolen("c035_shadow"):
+		var target_facing = target.get("facing")
+		if target_facing != null and (global_position.x - (target as Node2D).global_position.x) * float(target_facing) < 0.0:
+			amount *= 2 # 阴影只放大玩家直接伤害，目标自身的持续伤害不会经过这里
 	var before := int(target.get("hp"))
 	if target.has_method("take_damage_from"):
 		target.call("take_damage_from", amount, self)
 	else:
 		target.call("take_damage", amount, global_position.x)
-	return maxi(0, before - int(target.get("hp")))
+	var dealt := maxi(0, before - int(target.get("hp")))
+	if dealt > 0:
+		_on_innate_damage(target, dealt)
+	return dealt
+
+
+func _stolen_holy_hit(target: Node) -> int:
+	var id := target.get_instance_id()
+	_stolen_holy[id] = int(_stolen_holy.get(id, 0)) + (2 if _buff_timer > 0.0 else 1)
+	var stacks := int(_stolen_holy[id])
+	var p := target as Node2D
+	if p != null:
+		var dn := DAMAGE_NUMBER.new()
+		dn.setup("圣光 · %d/36" % stacks, Color(0.95, 0.82, 0.38))
+		dn.global_position = p.global_position + Vector2(0, -160)
+		get_tree().current_scene.add_child(dn)
+	_stolen_war_god_hit()
+	if stacks >= 36 and int(target.get("hp")) > 0:
+		var lethal := int(target.get("hp"))
+		if target.has_method("take_damage_from"):
+			target.call("take_damage_from", lethal, self)
+		else:
+			target.call("take_damage", lethal, global_position.x)
+	return 0
+
+
+## 固有与夺取被动只响应真实扣血：被格挡、无敌或零伤命中不会累计。
+func _on_innate_damage(target: Node, dealt: int) -> void:
+	if skull_id == "c013" and has_battle_passive("c013_demon"):
+		Run.c013_damage_hits += 1
+		if Run.c013_damage_hits % 4 == 0:
+			Run.c013_buddha += 1
+			var dn := DAMAGE_NUMBER.new()
+			dn.setup("佛陀 %d" % Run.c013_buddha, Color(0.9, 0.75, 0.3))
+			dn.global_position = global_position + Vector2(0, -165)
+			get_tree().current_scene.add_child(dn)
+	if skull_id == "c023" and Run.active and has_battle_passive("c023_ink_plum"):
+		Run.c023_ink_bonus += 1
+	if skull_id == "z000" and has_battle_passive("z000_sword_sect") and target.has_method("apply_sword_sect"):
+		target.call("apply_sword_sect")
+	if skull_id != "z003":
+		return
+	if _stolen_bloodthirst and _stolen("c018_bloodthirst"):
+		_restore_hp(1)
+	if _stolen("c032_war_god"):
+		_stolen_war_god_hit()
+	if _stolen("c009_madness"):
+		max_hp += 1
+		hp = max_hp
+		if Run.active:
+			Run.z003_madness_hp += 1
+			Run.max_hp = max_hp
+			Run.hp = hp
+		hp_changed.emit(hp, max_hp)
+	if _stolen("c012_sword_intent"):
+		var echo := _stolen_sword_intent >= 3
+		if not echo:
+			_stolen_sword_intent += 1
+			_spawn_passive_text("剑意凝华" if _stolen_sword_intent >= 3 else "剑意 %d/3" % _stolen_sword_intent, Color(0.55, 0.78, 0.82))
+			if _stolen_sword_intent >= 3:
+				_spawn_stolen_sword_clone()
+		elif is_instance_valid(_stolen_sword_clone) and int(target.get("hp")) > 0:
+			# 凝华镜像复写本次直伤；不再回到玩家命中钩子，避免无限递归与重复叠层。
+			if target.has_method("take_damage_from"):
+				target.call("take_damage_from", dealt, self)
+			else:
+				target.call("take_damage", dealt, global_position.x)
+			var p := target as Node2D
+			if p != null:
+				FX.spawn(get_tree().current_scene, "slash", p.global_position + Vector2(-facing * 42.0, -65.0), {"scale": 0.4, "mod": Color(0.55, 0.78, 0.82, 0.7)})
+	if int(target.get("hp")) > 0:
+		if _stolen("c017_brute") and target.has_method("knock_back"):
+			var dir := signf((target as Node2D).global_position.x - global_position.x)
+			target.call("knock_back", int(dir if dir != 0.0 else facing), 110.0, 0)
+		if _stolen("c015a1_burning_heart") and target.has_method("apply_player_burn"):
+			target.call("apply_player_burn", self)
+
+
+func _spawn_stolen_sword_clone() -> void:
+	if is_instance_valid(_stolen_sword_clone):
+		return
+	var clone = load("res://scenes/enemies/c012_elite.tscn").instantiate()
+	clone.set("_is_sword_clone", true)
+	clone.set("_sword_player_clone", true)
+	clone.set("_sword_owner", self)
+	clone.position = global_position + Vector2(-facing * 58.0, 0.0)
+	clone.set("facing", facing)
+	get_tree().current_scene.add_child(clone)
+	_stolen_sword_clone = clone
+	clone.call("_sword_sync_player_action")
+
+
+func _sync_stolen_sword_clone() -> void:
+	if is_instance_valid(_stolen_sword_clone):
+		_stolen_sword_clone.call("_sword_sync_player_action")
+
+
+func _dismiss_stolen_sword_clone() -> void:
+	if is_instance_valid(_stolen_sword_clone):
+		_stolen_sword_clone.queue_free()
+	_stolen_sword_clone = null
+
+
+func _stolen_war_god_hit() -> void:
+	for n in _skill_cds:
+		_skill_cds[n] = maxf(0.0, float(_skill_cds[n]) - 3.0)
+	_stolen_block += 2
 
 
 ## 目标的受击半径：体型越大挨打面越大；没有该属性的测试替身按 30 兜底
@@ -1128,11 +1420,17 @@ func _buff_now() -> int:
 	if _stop_buff_timer > 0.0:
 		v = maxi(v, _stop_buff_damage)
 	var total := v + _awaken_stacks + _room_awaken_damage
+	if _stolen("c012_sword_intent"):
+		total += _stolen_sword_intent
 	if skull_id == "c021":
 		if _form_node("c021_combo_2") and Score.combo >= 10:
 			total += 1
 		if _form_node("c021_shadow_3") and not is_on_floor():
 			total += 1
+	if skull_id == "c013" and has_battle_passive("c013_demon"):
+		total += Run.c013_buddha
+	if skull_id == "z000" and _z000_confidence_time > 0.0 and has_battle_passive("z000_lady"):
+		total += 1
 	if Meta.shop_level("start_edge") > 0 and Run.room_index == 0 and Run.depth == 1:
 		total += 1 # 初锋：每局首个普通房全部伤害 +1
 	return total
@@ -1535,7 +1833,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		return
 	# 远程技能：发投射物，命中由投射物自己结算
 	if h.has("projectile"):
-		var shot_damage := int(h["damage"]) + damage_bonus + _proj_damage_bonus + _buff_now() + int(low_hp_skill)
+		var shot_damage := _stolen_skill_damage(int(h["damage"]) + damage_bonus + _proj_damage_bonus + _buff_now() + int(low_hp_skill))
 		var shot_spec: Dictionary = (h["projectile"] as Dictionary).duplicate(true)
 		if skull_id == "c021" and _skill_name == "skill02-cankao" and _own("c021_feather_2") and _feathers > 0:
 			shot_spec["split"] = int(shot_spec.get("split", 0)) + _feathers
@@ -1555,11 +1853,13 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		_apply_skill_heal(h)
 		return
 	var did_hit := false
-	var dmg := int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)) + int(low_hp_skill)
+	var dmg := _stolen_skill_damage(int(h["damage"]) + damage_bonus + _buff_now() + int(_skill_damage_mod.get(_skill_name, 0)) + int(low_hp_skill))
 	if skull_id == "z002" and _skill_name == "skill13-" and _awaken_time > 0.0 and _form_node("z002_charm_2"):
 		dmg += 1 # 缚心·续：众生同狂全房伤害 +1
-	if skull_id == "c023" and _skill_name == "skill02" and _form_node("c023_lash_3"):
-		dmg += 1 # 鞭势·极：只加强 K 的尾鞭，持续段不受影响
+	if skull_id == "c023" and _skill_name == "skill02":
+		dmg += _c023_frost_bonus # 霜梅只加强本房 K 的唯一尾鞭，持续段不受影响
+		if _form_node("c023_lash_3"):
+			dmg += 1 # 鞭势·极
 	# 觉醒强化（银夜 P）：释放即加持本房间全伤 +N，与是否命中无关；一房一次，再放只剩伤害
 	var rb: Dictionary = h.get("room_buff", {})
 	if not rb.is_empty() and not _room_buff_used:
@@ -1866,9 +2166,11 @@ func _skill_hit_sustain() -> void:
 
 
 func _restore_hp(amount: int) -> void:
-	if state == State.DEAD or hp >= max_hp:
+	var cap := max_hp + extra_hp_cap()
+	if state == State.DEAD or hp >= cap or amount <= 0:
 		return
-	var heal := mini(amount, max_hp - hp)
+	var received := amount * (2 if skull_id == "z000" and has_battle_passive("z000_immortal") else 1)
+	var heal := mini(received, cap - hp)
 	hp += heal
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(heal, Color(0.45, 0.75, 0.5), 130.0)
@@ -1962,6 +2264,13 @@ func _recall_daggers() -> void:
 
 ## 敌人死亡回报由 c016（Boss 继承）发出；永久效果只归属于当前化身。
 func on_enemy_killed(_enemy: Node2D) -> void:
+	if skull_id == "z003" and has_battle_passive("z003_blood_cut") and _enemy.has_method("export_passives"):
+		var packet := Run.record_blood_cut(_enemy.call("export_passives"))
+		if not packet.is_empty():
+			var dn := DAMAGE_NUMBER.new()
+			dn.setup("血色切割 · 夺取 %d 被动" % (packet["passives"] as Array).size(), Color(0.78, 0.3, 0.38))
+			dn.global_position = global_position + Vector2(0, -175)
+			get_tree().current_scene.add_child(dn)
 	if skull_id == "c021" and _form_node("c021_dance_3"):
 		Run.c021_dance_kills = (Run.c021_dance_kills + 1) % 3
 		if Run.c021_dance_kills == 0:
@@ -2141,8 +2450,9 @@ func _apply_skill_heal(h: Dictionary) -> void:
 		heal_amt += used_precepts
 	if heal_amt > 0:
 		var total_heal := heal_amt + _heal_bonus
-		var missing := maxi(0, max_hp - hp)
-		var heal := mini(total_heal, missing)
+		var received := total_heal * (2 if skull_id == "z000" and has_battle_passive("z000_immortal") else 1)
+		var missing := maxi(0, max_hp + extra_hp_cap() - hp)
+		var heal := mini(received, missing)
 		if heal > 0:
 			hp += heal
 			hp_changed.emit(hp, max_hp)
@@ -2174,7 +2484,7 @@ func _deal_skill_tick(tick: Dictionary) -> void:
 		# both = 转鞭：鞭子一直在转，前后方都扫得到
 		if not (in_front or bool(tick.get("both", false))) or absf(dx) > float(tick["range"]) * range_scale * _tick_range_scale + _radius_of(p):
 			continue
-		_damage_enemy(p, int(tick["damage"]) + _tick_damage_bonus + damage_bonus + _buff_now() + _target_damage_bonus(p))
+		_damage_enemy(p, _stolen_skill_damage(int(tick["damage"]) + _tick_damage_bonus + damage_bonus + _buff_now()) + _target_damage_bonus(p))
 		hit_scored()
 		_on_build_hit(p, _skill_name)
 		_apply_hit_poison(p, tick) # 转鞭每一跳也挂毒：只要长鞭剑打中就有中毒，不是只认尾端
@@ -2336,7 +2646,8 @@ func _try_jump() -> void:
 
 
 func _try_dash() -> void:
-	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0 or _dash_gap > 0.0 or _dash_seal > 0.0 or _cripple_time > 0.0:
+	var flash_gap := skull_id == "c021" and has_battle_passive("c021_flash")
+	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0 or (_dash_gap > 0.0 and not flash_gap) or _dash_seal > 0.0 or _cripple_time > 0.0:
 		return
 	if skull_id == "z003" and _own("z003_returning_2") and _return_time > 0.0:
 		_return_dash()
@@ -2401,7 +2712,7 @@ func _return_dash() -> void:
 
 
 func _start_attack(idx: int) -> void:
-	if state != State.ATTACK and _attack_recovery > 0.0:
+	if state != State.ATTACK and _attack_recovery_active():
 		return
 	if skull_id == "z000" and _wind_final and _form_node("z000_wind_1"):
 		idx = attacks.size() - 1
@@ -2442,6 +2753,7 @@ func _start_attack(idx: int) -> void:
 	_attack_anim = anim
 	velocity.x = facing * float(atk["lunge"])
 	_play(anim, false)
+	_sync_stolen_sword_clone()
 	_play_sfx("weapon_sword") # 起手嗖一声
 	_queue(anim_map["idle"], true) # 打完自动回 idle，防止卡在收招帧
 	_idle_queued = true # 与 _start_skill 一致：idle 已在队列里，收招超时别再 _play 重开淡化
@@ -2480,6 +2792,12 @@ func _start_skill(n: String) -> void:
 	state = State.SKILL
 	_skill_name = n
 	_skill_cast_id += 1
+	if _stolen("c008_bell"):
+		_stolen_bell += 2 # 佛曰：每个非普通招式获得一层，每层抵挡两次伤害
+		_spawn_passive_text("佛曰 · 金钟 %d 层" % int(_stolen_bell / 2.0), Color(0.9, 0.75, 0.3))
+	if skull_id == "z003" and n == "skill10" and not _stolen_divine and _stolen("c032_divine_favor"):
+		_stolen_divine = true # 神眷只随首次 I 觉醒启用；P 仍是影殇原本的天倾与魅唤
+		_spawn_passive_text("神眷 · 神圣庇佑", Color(0.95, 0.82, 0.38))
 	_skill_cancel_ready = false
 	if skull_id == "z000" and n == "atk04":
 		_edge_k_hits.clear()
@@ -2561,6 +2879,8 @@ func _start_skill(n: String) -> void:
 	_stop_done = false
 	var room_penalty := float(_room_cd_uses.get(n, 0)) if _room_cd_cursed else 0.0
 	_skill_cd_set = float(cfg["cooldown"]) * cooldown_scale * _mastery_cd * _form_cd_scale * float(_skill_cd_mod.get(n, 1.0)) + room_penalty
+	if skull_id == "z000" and _z000_confidence_time > 0.0 and has_battle_passive("z000_lady"):
+		_skill_cd_set *= 0.5 # 淑女：只减半自信期间实际释放的技能
 	if skull_id == "z002" and n == "skill03" and _form_node("z002_echo_2"):
 		_skill_cd_set = maxf(0.1, _skill_cd_set - 1.0)
 	_skill_cds[n] = _skill_cd_set
@@ -2589,6 +2909,7 @@ func _start_skill(n: String) -> void:
 			_buff_timer += 2.0
 	velocity.x = facing * float(attacks[0]["lunge"]) * 0.6 # 起手小前冲
 	_play(_skill_anim, false, _skill_speed)
+	_sync_stolen_sword_clone()
 	_play_sfx("voice_skill_cast") # 技能起手嗡一声
 	# 其他技能排队 stand 防止收招空窗；银夜 I 必须保留原轨道供 _skill_tick 监听完成，收招时再切 stand。
 	if skull_id != "z003" or _skill_name != "skill10":
@@ -2596,12 +2917,149 @@ func _start_skill(n: String) -> void:
 		_idle_queued = true
 	else:
 		_idle_queued = false
+	if str(cfg.get("action", "")) == "skill_p":
+		_charm_call()
+
+
+func _stolen(id: String) -> bool:
+	return skull_id == "z003" and has_battle_passive("z003_blood_cut") and Run.has_stolen_passive(id)
+
+
+func _stolen_skill_damage(amount: int) -> int:
+	return maxi(1, amount - 1) if _stolen_bloodthirst and _stolen("c018_bloodthirst") else amount
+
+
+func _stolen_control_immune() -> bool:
+	return _stolen("c017_brute") or _stolen("c009_construct")
+
+
+func _stolen_dot_immune() -> bool:
+	return _stolen("c001_faith") or _stolen("c009_construct")
+
+
+## 炽热之心只响应怒焰真实扣血；普通命中只负责叠怒焰，不会直接回血或刷新技能。
+func on_fen_ding_burn_hit(dealt: int, _target: Node) -> void:
+	if dealt <= 0 or not _stolen("c015a1_burning_heart"):
+		return
+	_restore_hp(10)
+	for n in _skill_cds:
+		_skill_cds[n] = 0.0
+
+
+func _try_stolen_era(attacker: Node, move: Dictionary) -> void:
+	if not _stolen("c001_era") or not bool(move.get("wu_che_charge", false)):
+		return
+	var key := _enemy_cast_key(attacker, move)
+	if key.is_empty() and attacker != null and is_instance_valid(attacker):
+		key = str(attacker.get_instance_id())
+	if key.is_empty() or _stolen_era_contacts.has(key):
+		return
+	_stolen_era_contacts[key] = true
+	var past := global_position
+	if not _stolen_history.is_empty():
+		past = _stolen_history[0]["position"]
+	global_position = past
+	FX.spawn(get_tree().current_scene, "speedline", past, {"scale": 0.8, "mod": Color(0.55, 0.78, 0.82, 0.7)})
+	_spawn_passive_text("璀璨时代 · 回溯", Color(0.55, 0.78, 0.82))
+
+
+## 墨徒信仰把生命作为冲撞耐久：首次撞墙免费，之后每次撞墙失去一点。
+func _stolen_wall_tick() -> void:
+	if not _stolen("c001_faith"):
+		_stolen_wall_latch = false
+		return
+	if state != State.DASH or not is_on_wall():
+		_stolen_wall_latch = false
+		return
+	if _stolen_wall_latch:
+		return
+	_stolen_wall_latch = true
+	if _stolen_wall_free:
+		_stolen_wall_free = false
+		_spawn_passive_text("墨徒信仰 · 初撞免耗", Color(0.9, 0.75, 0.3))
+		return
+	hp = maxi(0, hp - 1)
+	hp_changed.emit(hp, max_hp)
+	_spawn_passive_text("耐久 -1", Color(0.9, 0.48, 0.3))
+	if hp <= 0:
+		die()
+
+
+func _try_stolen_madness_damage(amount: int, attacker: Node, move: Dictionary) -> bool:
+	if not _stolen("c009_madness"):
+		return false
+	var actual := mini(amount, max_hp)
+	max_hp = maxi(0, max_hp - amount)
+	hp = max_hp # 失心疯始终生命等于上限，受伤只失去等量上限
+	if Run.active:
+		Run.z003_madness_hp -= actual
+		Run.max_hp = max_hp
+		Run.hp = hp
+	_record_last_hit(attacker, move, actual)
+	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
+		attacker.call("on_player_hit", actual, move, self)
+	hp_changed.emit(hp, max_hp)
+	_spawn_number(actual, DMG_COLOR, 130.0)
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45})
+	if hp <= 0:
+		die()
+	return true
+
+
+func _stolen_death_burst() -> void:
+	if not _stolen("c037_burst"):
+		return
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or int(e.get("hp")) <= 0:
+			continue
+		var dx := p.global_position.x - global_position.x
+		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
+		if not in_front or absf(dx) > 480.0 + _radius_of(p) or absf(p.global_position.y - global_position.y) > 240.0:
+			continue
+		if _damage_enemy(p, 3) > 0 and int(e.get("hp")) > 0 and e.has_method("apply_room_cd_curse"):
+			e.call("apply_room_cd_curse")
+	FX.spawn(get_tree().current_scene, "ink_claw", global_position + Vector2(facing * 210.0, -100.0), {"scale": 2.2, "flip": facing < 0, "z": 6})
+
+
+## 魅唤附加在原 P 之后：原觉醒、伤害与冷却完全保留；友方不进入 enemies 或武车 _summons。
+func _charm_call() -> void:
+	if not has_battle_passive("z003_charm_call"):
+		return
+	if is_instance_valid(_charm_summon) and int(_charm_summon.get("hp")) > 0:
+		return
+	var packet := Run.random_stolen_packet()
+	if packet.is_empty():
+		return
+	var type_id := str(packet.get("type_id", ""))
+	var scene_path := str(packet.get("scene", ""))
+	if scene_path.is_empty():
+		scene_path = str(BossTypes.SCENES.get(type_id, ""))
+	if scene_path.is_empty():
+		return
+	var scene := load(scene_path) as PackedScene
+	if scene == null:
+		return
+	var ally := scene.instantiate() as Node2D
+	if ally == null:
+		return
+	var script_path := str(packet.get("script", ""))
+	if script_path.is_empty():
+		script_path = str(BossTypes.SCRIPT_OVERRIDES.get(type_id, ""))
+	if not script_path.is_empty() and ally.get_script().resource_path != script_path:
+		ally.set_script(load(script_path))
+	ally.set("type_id", type_id)
+	ally.set("player_ally", true)
+	get_parent().add_child(ally)
+	ally.global_position = global_position + Vector2(-facing * 100.0, 0.0)
+	_charm_summon = ally
 
 
 ## 立刻换成指定形态：拆旧骨架 → 重装形态数据 → 重建骨架
 func swap_skull(id: String) -> void:
 	if not Skulls.SKULLS.has(id) or id == skull_id:
 		return
+	_dismiss_stolen_sword_clone()
 	_set_blink(false) # 换头瞬间收掉闪现的碰撞例外
 	_invincible = false
 	_idle_queued = false
@@ -2727,7 +3185,7 @@ func _record_last_hit(attacker: Node, move: Dictionary, amount: int) -> void:
 
 
 func _apply_room_cd_curse() -> void:
-	if _room_cd_cursed:
+	if _room_cd_cursed or _saint_immune():
 		return
 	_room_cd_cursed = true
 	var dn := DAMAGE_NUMBER.new()
@@ -2749,9 +3207,21 @@ func _invincible_hit_feedback(attacker: Node, move: Dictionary) -> void:
 	Feel.hitstop(0.025)
 
 
+func _passive_block_feedback(attacker: Node, move: Dictionary, label: String) -> void:
+	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
+		attacker.call("on_player_hit", 0, move, self)
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.35})
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup(label, Color(0.9, 0.75, 0.3))
+	dn.global_position = global_position + Vector2(0, -150)
+	get_tree().current_scene.add_child(dn)
+	_play_sfx("gold")
+
+
 func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null, move: Dictionary = {}) -> void:
 	if state == State.DEAD:
 		return
+	_try_stolen_era(attacker, move)
 	if state == State.DASH and bool(move.get("wu_che_charge", false)):
 		wu_che_wanted = false
 	if _invincible:
@@ -2760,7 +3230,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	# 完美闪避：冲刺途中碰到"本应命中"的伤害——全部闪掉并发收益
 	# （小怪/Boss/投射物的伤害都走 hurt 这一个入口，挂这里全覆盖）
 	if state == State.DASH:
-		_perfect_dodge(attacker)
+		_perfect_dodge(attacker, amount)
 		return
 	# 刀客「亡命三刀」前两刀：只演受击、不扣血，也不进入受伤无敌/消耗护盾，
 	# 这样三刀能各自重播受击动画，最后的实伤不会被前两刀的无敌窗口吞掉。
@@ -2834,15 +3304,31 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		return
 	# 镰意绽花与墨颤削上限都是无直伤的特殊命中：先经过全部防御，再结算各自机制。
 	if bool(move.get("bloom", false)):
-		_apply_bloom(attacker, move)
+		if _saint_immune():
+			_passive_block_feedback(attacker, move, "圣僧")
+		else:
+			_apply_bloom(attacker, move)
 		return
 	if bool(move.get("mo_ting_sunder", false)):
-		_apply_mo_ting_sunder(attacker, move)
+		if _saint_immune():
+			_passive_block_feedback(attacker, move, "圣僧")
+		else:
+			_apply_mo_ting_sunder(attacker, move)
 		return
 	# 鸣钟觉醒后的攻击仍先经过闪避、招架、护盾与受伤无敌，再转为零伤圣光命中。
 	if bool(move.get("ming_zhong_zero", false)):
 		if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_ming_zhong_zero_hit"):
 			attacker.call("on_ming_zhong_zero_hit", move, self)
+		return
+	if amount > 0 and _stolen("c001_faith"):
+		_passive_block_feedback(attacker, move, "墨徒信仰")
+		return
+	if skull_id == "z003" and amount > 0 and has_battle_passive("z003_night") and randf() < 0.2:
+		_passive_block_feedback(attacker, move, "暗夜")
+		return
+	if amount > 0 and _stolen_bell > 0 and _stolen("c008_bell"):
+		_stolen_bell -= 1
+		_passive_block_feedback(attacker, move, "佛曰 · 抵挡")
 		return
 	# 通缉只强化武车亲自召唤的敌人；闪避、护盾、受伤无敌等未实伤路径不会加伤。
 	var summon_tag = attacker.get("wu_che_summon") if attacker != null and is_instance_valid(attacker) else false
@@ -2854,8 +3340,23 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		Run.guard_available = false # 护砚只在实际扣血时消耗，闪避/护盾不会浪费
 	amount = maxi(1, amount - (0 if _passives_disabled() else _damage_reduce) - temporary_reduce) # 所有减伤都遵守最低 1 伤
 	amount = _ming_zhong_amplify(amount) # 鸣钟易伤固定 +1，并把唯一一层重新续到 12 秒
+	if _stolen_flame_awakened and _stolen("c015a1_flame_bone"):
+		amount = int(ceil(float(amount) * 0.5))
+	if amount > 0 and _stolen_block > 0 and _stolen("c032_war_god"):
+		var absorbed := mini(_stolen_block, amount)
+		_stolen_block -= absorbed
+		amount -= absorbed
+		_spawn_passive_text("武神 · 格挡 %d" % _stolen_block, Color(0.9, 0.78, 0.36))
+		if amount <= 0:
+			_passive_block_feedback(attacker, move, "武神 · 格挡")
+			return
+	if _saint_immune():
+		amount = mini(amount, 3)
+	var buddha_guard := _consume_buddha_guard(amount, move)
 	_on_pipa_damaged(attacker)
 	amount = _try_pipa_scapegoat(amount, attacker)
+	if _try_stolen_madness_damage(amount, attacker, move):
+		return
 	# 只记录真正扣血的一击：闪避、护盾、受伤无敌与反伤都不会污染终局对演。
 	_record_last_hit(attacker, move, amount)
 	if skull_id == "c013" and _form_node("c013_meditation_2"):
@@ -2872,18 +3373,19 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	hp -= amount
 	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
 		attacker.call("on_player_hit", dealt, move, self)
-	if hp > 0 and bool(move.get("room_cd_curse", false)):
-		_apply_room_cd_curse()
-	if hp > 0 and bool(move.get("cut", false)):
-		_apply_cut(attacker, move, cast_key)
-	if hp > 0 and int(move.get("bleed", 0)) > 0:
-		_apply_bleed(int(move.get("bleed", 0)), attacker, move)
-	if hp > 0 and bool(move.get("mo_ting_burn", false)):
-		_apply_mo_ting_burn()
-	if hp > 0 and bool(move.get("fen_ding_burn", false)):
-		_apply_fen_ding_burn(attacker)
-	if hp > 0 and bool(move.get("ming_zhong_vulnerability", false)):
-		apply_ming_zhong_vulnerability()
+	if not _stolen("c009_construct"):
+		if hp > 0 and bool(move.get("room_cd_curse", false)):
+			_apply_room_cd_curse()
+		if hp > 0 and bool(move.get("cut", false)):
+			_apply_cut(attacker, move, cast_key)
+		if hp > 0 and int(move.get("bleed", 0)) > 0:
+			_apply_bleed(int(move.get("bleed", 0)), attacker, move)
+		if hp > 0 and bool(move.get("mo_ting_burn", false)):
+			_apply_mo_ting_burn()
+		if hp > 0 and bool(move.get("fen_ding_burn", false)):
+			_apply_fen_ding_burn(attacker)
+		if hp > 0 and bool(move.get("ming_zhong_vulnerability", false)):
+			apply_ming_zhong_vulnerability()
 	if skull_id == "c013" and _own("c013_ascetic_1"):
 		_precepts = mini(3, _precepts + 1)
 		var precept_dn := DAMAGE_NUMBER.new()
@@ -2902,26 +3404,28 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 			return
 		die()
 		return
+	if _stolen_control_immune():
+		return # 蛮力与机关造物保留伤害结算，但免疫普通控制、受击硬直和击退
 	# 升龙刀等实伤击飞：在普通受击与倒地链分支前覆盖竖直初速；防御与霸体规则不变。
 	var launch_y := float(move.get("launch_velocity_y", 0.0))
 	if launch_y < 0.0:
 		knockback.y = launch_y
 	var jump_seal := float(move.get("jump_seal", 0.0))
-	if jump_seal > 0.0:
+	if jump_seal > 0.0 and not _saint_immune():
 		_jump_seal = maxf(_jump_seal, jump_seal)
 		var seal_dn := DAMAGE_NUMBER.new()
 		seal_dn.setup("封跳", Color(0.85, 0.72, 0.42))
 		seal_dn.global_position = global_position + Vector2(0, -150)
 		get_tree().current_scene.add_child(seal_dn)
 	var dash_seal := float(move.get("dash_seal", 0.0))
-	if dash_seal > 0.0:
+	if dash_seal > 0.0 and not _saint_immune():
 		_dash_seal = maxf(_dash_seal, dash_seal)
 		var seal_dn := DAMAGE_NUMBER.new()
 		seal_dn.setup("封闪", Color(0.85, 0.72, 0.42))
 		seal_dn.global_position = global_position + Vector2(0, -150)
 		get_tree().current_scene.add_child(seal_dn)
 	var cripple := float(move.get("cripple", 0.0))
-	if cripple > 0.0:
+	if cripple > 0.0 and not _saint_immune():
 		_cripple_time = maxf(_cripple_time, cripple)
 		_jump_buf = 0.0
 		var cripple_dn := DAMAGE_NUMBER.new()
@@ -2929,14 +3433,14 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		cripple_dn.global_position = global_position + Vector2(0, -170)
 		get_tree().current_scene.add_child(cripple_dn)
 	var passive_seal := float(move.get("passive_seal", 0.0))
-	if passive_seal > 0.0:
+	if passive_seal > 0.0 and not _saint_immune():
 		apply_sui_yue_seal(passive_seal)
 		var seal_dn := DAMAGE_NUMBER.new()
 		seal_dn.setup("剥离 · 被动封印", Color(0.68, 0.48, 0.78))
 		seal_dn.global_position = global_position + Vector2(0, -190)
 		get_tree().current_scene.add_child(seal_dn)
 	var stun := float(move.get("stun", 0.0))
-	if stun > 0.0:
+	if stun > 0.0 and not _saint_immune() and not _stolen_control_immune():
 		_stun_time = maxf(_stun_time, stun)
 		var stun_dn := DAMAGE_NUMBER.new()
 		stun_dn.setup("眩晕", Color(0.9, 0.75, 0.3))
@@ -2958,7 +3462,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	if (poise or _skill_poise) and state == State.SKILL:
 		return
 	# 墨冲明确携带倒地标记；只有当前角色确有倒地链或倒地动画时才强制触发。
-	if bool(move.get("force_knockdown", false)):
+	if not buddha_guard and bool(move.get("force_knockdown", false)):
 		if not _knock_chain.is_empty():
 			_start_hurt_chain(knockback)
 			return
@@ -2967,7 +3471,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 			return
 	# 伤害过阈值直接倒地：播 fall → getup（起身段无敌），重型攻击的惩罚更直观；
 	# 形态表配了 knock_chain（力僧：重受击→浮空重受击→倒地→起身）就走整条链
-	if _knock_at < 999 and amount >= _knock_at:
+	if not buddha_guard and _knock_at < 999 and amount >= _knock_at:
 		if not _knock_chain.is_empty():
 			_start_hurt_chain(knockback)
 			return
@@ -3021,7 +3525,7 @@ func _apply_bloom(attacker: Node, move: Dictionary) -> void:
 
 ## 墨颤命中后把玩家定点在操控者正前方；主动释放前不吃重力、不接受移动输入。
 func mo_ting_hold(pos: Vector2) -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or _saint_immune():
 		return
 	_begin_attack_recovery_if_needed()
 	_set_blink(false)
@@ -3055,7 +3559,7 @@ func mo_ting_release() -> void:
 
 ## 鸣钟首段实伤后锁定正前方站位；后续段仍可结算伤害，但输入与重力不再推开玩家。
 func ming_zhong_hold(boss: Node2D) -> void:
-	if state == State.DEAD or boss == null:
+	if state == State.DEAD or boss == null or _saint_immune():
 		return
 	_begin_attack_recovery_if_needed()
 	_set_blink(false)
@@ -3089,7 +3593,7 @@ func release_ming_zhong_hold(boss: Node2D) -> void:
 
 
 func apply_ming_zhong_vulnerability() -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or _saint_immune():
 		return
 	_ming_zhong_vulnerable_time = 12.0
 	var dn := DAMAGE_NUMBER.new()
@@ -3099,7 +3603,7 @@ func apply_ming_zhong_vulnerability() -> void:
 
 
 func apply_ming_zhong_holy(stacks: int) -> void:
-	if stacks <= 0 or state == State.DEAD:
+	if stacks <= 0 or state == State.DEAD or _saint_immune():
 		return
 	_ming_zhong_holy += stacks
 	var dn := DAMAGE_NUMBER.new()
@@ -3161,6 +3665,8 @@ func mo_ting_laser_damage() -> int:
 
 
 func _apply_mo_ting_burn() -> void:
+	if _saint_immune():
+		return
 	var old_bonus := mini(3, int(_mo_ting_burn_stacks / 3))
 	_mo_ting_burn_stacks = mini(9, _mo_ting_burn_stacks + 1)
 	_mo_ting_burn_time = 6.0
@@ -3182,6 +3688,8 @@ func _mo_ting_burn_tick(delta: float) -> void:
 
 ## 怒焰只在招式真实扣血后叠层；新层按新间隔重启唯一的共享计时器。
 func _apply_fen_ding_burn(attacker: Node) -> void:
+	if _saint_immune():
+		return
 	if attacker == null or not is_instance_valid(attacker):
 		return
 	_fen_ding_burn_stacks += 1
@@ -3213,6 +3721,9 @@ func _fen_ding_burn_tick(delta: float) -> void:
 	_fen_ding_burn_left -= delta
 	if _fen_ding_burn_left > 0.0:
 		return
+	if _stolen_dot_immune():
+		_fen_ding_burn_left = fen_ding_burn_interval()
+		return
 	var amount := _ming_zhong_amplify(1)
 	var source := _fen_ding_burn_source
 	_on_pipa_damaged(source)
@@ -3234,7 +3745,7 @@ func _fen_ding_burn_tick(delta: float) -> void:
 
 ## 普通流血：每层每秒 1 伤、持续 3 秒、最多 5 层，新层刷新持续时间；双镰与青笠共用。
 func _apply_bleed(layers: int, attacker: Node, move: Dictionary) -> void:
-	if layers <= 0 or state == State.DEAD:
+	if layers <= 0 or state == State.DEAD or _saint_immune():
 		return
 	_bleed_stacks = mini(BLEED_MAX, _bleed_stacks + layers)
 	_bleed_time = BLEED_DUR
@@ -3258,7 +3769,7 @@ func _bleed_tick(delta: float) -> void:
 
 
 func _bleed_damage() -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or _stolen_dot_immune():
 		return
 	var amount := _ming_zhong_amplify(_bleed_stacks)
 	var attacker = _bleed_source.get("attacker") as Node
@@ -3286,6 +3797,8 @@ func _clear_bleed() -> void:
 
 ## 镖去实伤后登记一组割伤；同招第二段只扣直伤，不会重复登记。
 func _apply_cut(attacker: Node, move: Dictionary, cast_key: String) -> void:
+	if _saint_immune():
+		return
 	if bool(move.get("cut_per_segment", false)):
 		cast_key += ":seg:%d" % int(move.get("seg", 0))
 	if cast_key.is_empty() or _cut_casts.has(cast_key):
@@ -3320,10 +3833,12 @@ func _cut_tick(delta: float) -> void:
 
 ## 割伤是流血的细分结算：无硬直、无受击无敌、无击退，也不重新进入 hurt/阴影。
 func _cut_damage(cut: Dictionary) -> void:
-	if state == State.DEAD:
+	if state == State.DEAD or _stolen_dot_immune():
 		return
 	var amount := _ming_zhong_amplify(1)
-	var attacker = cut.get("attacker") as Node
+	var attacker = cut.get("attacker")
+	if not is_instance_valid(attacker):
+		attacker = null
 	_on_pipa_damaged(attacker)
 	amount = _try_pipa_scapegoat(amount, attacker)
 	var dealt := mini(amount, hp)
@@ -3344,7 +3859,14 @@ func _cut_damage(cut: Dictionary) -> void:
 ## 赐福与复活墨符相互独立；优先消耗赐福，两者齐备时一局可以起身两次。
 func _try_revive(knockback: Vector2) -> bool:
 	var can_revive := false
-	if Run.blessing == "revive" and not Run.blessing_used:
+	var red_butterfly := skull_id == "c021" and not Run.c021_red_butterfly_used and has_battle_passive("c021_red_butterfly")
+	if red_butterfly:
+		Run.c021_red_butterfly_used = true
+		Run.max_hp = Run.calculated_max_hp()
+		max_hp = Run.max_hp
+		_red_butterfly_left = 1.0
+		can_revive = true
+	elif Run.blessing == "revive" and not Run.blessing_used:
 		Run.blessing_used = true
 		can_revive = true
 	elif Run.supply_revive and not Run.supply_revive_used:
@@ -3353,7 +3875,9 @@ func _try_revive(knockback: Vector2) -> bool:
 	if not can_revive:
 		return false
 	_clear_bleed()
-	hp = mini(4, max_hp)
+	hp = max_hp if red_butterfly else mini(4, max_hp)
+	if Run.active:
+		Run.hp = hp
 	_hurt_invincible = 1.5 # 起身喘口气，别立刻又被围殴
 	hp_changed.emit(hp, max_hp)
 	state = State.HURT
@@ -3397,7 +3921,7 @@ func _spawn_number(amount: int, color: Color, height: float) -> void:
 ## 完美闪避：冲刺中"本应命中"的伤害全部闪掉，并给收益——
 ## 冲刺普通冷却立刻回零（仍受闪避后 0.5 秒最小间隔限制）、4s 全伤害 +2（与觉醒共用 buff 槽，取高者）、
 ## 0.5s 短无敌防同一轮攻击的后段在冲刺结束后立刻命中。
-func _perfect_dodge(attacker: Node = null) -> void:
+func _perfect_dodge(attacker: Node = null, incoming_damage: int = 0) -> void:
 	_dash_cd = 0.0 # 收益一：冷却回零
 	_hurt_invincible = maxf(_hurt_invincible, 0.5 + _dodge_time_bonus) # 冲刺窗口只有 0.16s，垫一层防后续段
 	_buff_damage = maxi(_buff_damage, 2 + _dodge_bonus) # 收益二：限时加伤（掠影加档）
@@ -3416,6 +3940,12 @@ func _perfect_dodge(attacker: Node = null) -> void:
 		var p := attacker as Node2D
 		if p != null and int(attacker.get("hp")) > 0:
 			_openings[p.get_instance_id()] = {"target": p, "time": 5.0}
+	if skull_id == "c021" and has_battle_passive("c021_flash") and incoming_damage > 0 \
+			and attacker != null and is_instance_valid(attacker) and int(attacker.get("hp")) > 0:
+		_damage_enemy(attacker, incoming_damage) # 闪身只回敬这一段原始伤害，不再叠加玩家加伤
+		var ap := attacker as Node2D
+		if ap != null:
+			FX.spawn(get_tree().current_scene, "slash", ap.global_position + Vector2(0, -60), {"scale": 0.45})
 	_play_sfx("weapon_sword") # 侧身擦过的嗖声当闪避音
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("完美闪避", Color(0.9, 0.75, 0.3)) # 金：奖励时刻
@@ -3432,6 +3962,8 @@ func die() -> void:
 	return_all_sui_yue_passives()
 	clear_fen_ding_burn()
 	state = State.DEAD
+	_dismiss_stolen_sword_clone()
+	_stolen_death_burst()
 	clear_ming_zhong_effects()
 	_set_blink(false) # 尸体也别穿怪
 	_reset_root_follow() # 死亡时收掉根骨补偿，尸体倒在实际站位
@@ -3455,15 +3987,23 @@ func die() -> void:
 # ---------- 内部工具 ----------
 
 ## 普攻无论是打完整段、移动/闪避取消，还是被技能与受击打断，都进入同一恢复窗口。
+func _attack_recovery_active() -> bool:
+	return _attack_recovery > 0.0 and not (skull_id == "c023" and has_battle_passive("c023_frost_plum"))
+
+
 func _begin_attack_recovery_if_needed() -> void:
 	if state != State.ATTACK:
 		return
-	_attack_recovery = maxf(_attack_recovery, 1.0)
+	if not (skull_id == "c023" and has_battle_passive("c023_frost_plum")):
+		_attack_recovery = maxf(_attack_recovery, 1.0)
 	_attack_queued = false
 	_attack_hits.clear()
 
 
 func _post_move() -> void:
+	_stolen_wall_tick()
+	if state == State.DEAD:
+		return
 	match state:
 		State.IDLE, State.RUN:
 			if not is_on_floor() and _coyote <= 0.0:

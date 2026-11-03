@@ -591,7 +591,7 @@ func _ready() -> void:
 					p("化身正式名不符 %s / %s：%s" % [str(id), str(kind), str(labels[kind])])
 		p("六化身全部现有普攻/技能正式名=%s 数值/机制/来历完整=%s（期望全 true）" % [form_names_ok, form_details_ok])
 		p("全部化身图鉴无旧标签/开发术语/资源键/占位文案=%s（期望 true）" % clean_text)
-		# 银夜变式池：揽月上霄与崩云各留 2 条，长夜明火只留 1 条；上 / 下键手动选择且不自动跳转
+		# 影殇变式池：揽月上霄与崩云各留 2 条，长夜明火只留 1 条；三条固有被动完整显示。
 		Meta.clears = 3
 		Meta.kills = 150
 		codex._select("z003")
@@ -599,6 +599,7 @@ func _ready() -> void:
 		var atk2 := -1
 		var k := -1
 		var i_skill := -1
+		var passive_labels: Array = []
 		for i in codex._acts.size():
 			var label := str(codex._acts[i]["label"])
 			if label == "揽月上霄":
@@ -607,14 +608,13 @@ func _ready() -> void:
 				k = i
 			elif label == "长夜明火":
 				i_skill = i
-		var has_empty_passive := false
-		for action in codex._acts:
-			has_empty_passive = has_empty_passive or str(action.get("kind", "")) == "passive"
-		p("银夜变式数：揽月上霄=%d 崩云=%d 长夜明火=%d 空白被动已隐藏=%s（期望 2 / 2 / 1 / true）" % [
+			if str(codex._acts[i].get("kind", "")) == "passive":
+				passive_labels.append(label)
+		p("影殇变式数：揽月上霄=%d 崩云=%d 长夜明火=%d 固有被动=%s（期望 2 / 2 / 1 / 暗夜、血色切割、魅唤）" % [
 			(codex._acts[atk2]["anims"] as Array).size() if atk2 >= 0 else 0,
 			(codex._acts[k]["anims"] as Array).size() if k >= 0 else 0,
 			(codex._acts[i_skill]["anims"] as Array).size() if i_skill >= 0 else 0,
-			str(not has_empty_passive)])
+			str(passive_labels)])
 		if k >= 0:
 			codex._pick(k)
 			await get_tree().create_timer(0.25).timeout

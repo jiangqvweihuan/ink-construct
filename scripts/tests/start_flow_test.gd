@@ -54,6 +54,18 @@ func _ready() -> void:
 	await _click(Vector2(850, 365)) # 狂澜
 	p("冒险狂澜 -> step=%d difficulty=%d（期望 2 / 3）" % [_step(_panel()), _difficulty(_panel())])
 	await _shot("run_04_character_adventure")
+	var scroll: ScrollContainer = null
+	for child in _panel().get_children():
+		if child is ScrollContainer:
+			scroll = child
+			break
+	if scroll != null:
+		var bar := scroll.get_h_scroll_bar()
+		p("选角滚动条：内容上限=%.1f 可视页=%.1f 可见=%s（期望上限大于可视页且可见）" % [bar.max_value, bar.page, bar.is_visible_in_tree()])
+		var rect := bar.get_global_rect()
+		await _drag(rect.position + Vector2(rect.size.x * 0.4, rect.size.y * 0.5), rect.end - Vector2(8, rect.size.y * 0.5))
+		p("拖动选角滚动条 -> offset=%d（期望 > 0）" % scroll.scroll_horizontal)
+		await _shot("run_04b_character_scrolled")
 	await _esc()
 	p("Esc 化身 -> step=%d（期望 1）" % _step(_panel()))
 	await _esc()
@@ -151,6 +163,28 @@ func _click(pos: Vector2, final := false) -> void:
 	get_viewport().push_input(up, true)
 	if final:
 		return
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+
+func _drag(from: Vector2, to: Vector2) -> void:
+	var down := InputEventMouseButton.new()
+	down.button_index = MOUSE_BUTTON_LEFT
+	down.pressed = true
+	down.position = from
+	get_viewport().push_input(down, true)
+	await get_tree().process_frame
+	for i in range(1, 9):
+		var move := InputEventMouseMotion.new()
+		move.position = from.lerp(to, float(i) / 8.0)
+		move.button_mask = MOUSE_BUTTON_MASK_LEFT
+		get_viewport().push_input(move, true)
+		await get_tree().process_frame
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.pressed = false
+	up.position = to
+	get_viewport().push_input(up, true)
 	await get_tree().process_frame
 	await get_tree().process_frame
 

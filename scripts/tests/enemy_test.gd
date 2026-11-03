@@ -7,12 +7,22 @@ const PlayerClass := preload("res://scripts/player/player.gd")
 const C016Class := preload("res://scripts/enemies/c016.gd")
 const EnemyTypes := preload("res://scripts/enemies/enemy_types.gd")
 
+class BurnSource extends Node:
+	var hits := 0
+	var dealt := 0
+
+	func on_fen_ding_burn_hit(amount: int, _target: Node) -> void:
+		hits += 1
+		dealt += amount
+
 var _log: FileAccess
 var _player: PlayerClass
 var _enemy: C016Class
 var _last_p_state := -1
 var _last_e_state := -1
 var _last_e_hp := -1
+var _checks := 0
+var _failed := 0
 
 
 func p(msg) -> void:
@@ -20,6 +30,13 @@ func p(msg) -> void:
 	if _log:
 		_log.store_line("[ET] " + str(msg))
 		_log.flush()
+
+
+func _check(ok: bool, label: String) -> void:
+	_checks += 1
+	if not ok:
+		_failed += 1
+	p(("PASS " if ok else "FAIL ") + label)
 
 
 func _ready() -> void:
@@ -168,6 +185,9 @@ func _ready() -> void:
 	# 12. 青魇剑主专项：礼剑连段、藏剑变式、祭剑强化、魔爆与房间诅咒。
 	await _qingyan_probe()
 
+	# 13. 夺取被动与魅唤：怒焰真实扣血回报、剑宗减半与友方击杀隔离。
+	_passive_interaction_probe()
+
 	# 第一只小怪尸体死后 ~1.7s 就 queue_free，精英段跑完它早没了，访问前必须判活
 	var e_state := "freed"
 	var e_hp := "-"
@@ -175,8 +195,8 @@ func _ready() -> void:
 		e_state = str(_enemy.state)
 		e_hp = str(_enemy.hp)
 	p("ALL DONE, enemy state=" + e_state + " hp=" + e_hp
-		+ " player state=" + str(_player.state))
-	get_tree().quit()
+		+ " player state=" + str(_player.state) + " checks=" + str(_checks) + " failed=" + str(_failed))
+	get_tree().quit(1 if _failed > 0 else 0)
 
 
 ## 全部普通怪与精英共用规则：首招无独立冷却，其余技能就绪优先，全部冷却才回普攻。
@@ -1173,6 +1193,53 @@ func _qingyan_probe() -> void:
 	front.queue_free()
 	back.queue_free()
 	await get_tree().process_frame
+
+
+func _passive_interaction_probe() -> void:
+	var e = load("res://scenes/enemies/c016.tscn").instantiate()
+	add_child(e)
+	e.set_physics_process(false)
+	e.hp = 4
+	var source := BurnSource.new()
+	add_child(source)
+	e.apply_player_burn(source)
+	e._player_burn_left = 0.0
+	var burn_hp: int = e.hp
+	e._player_burn_tick(0.016)
+	_check(e.hp == burn_hp - 1 and source.hits == 1 and source.dealt == 1,
+		"炽热之心只在怒焰实际扣血后回报一次")
+	source.queue_free()
+
+	e.max_hp = 6
+	e.hp = 1
+	e.state = e.State.IDLE
+	e.apply_sword_sect()
+	e.apply_sword_sect()
+	e._heal(1)
+	var fractional_ok: bool = e.hp == 1 and is_equal_approx(e._heal_fraction, 0.5)
+	e._heal(1)
+	fractional_ok = fractional_ok and e.hp == 2
+	e._heal(1)
+	e._heal(1)
+	_check(fractional_ok and e.hp == 3 and is_equal_approx(e._sword_sect_scale, 0.5),
+		"剑宗固定减半且累计小数治疗，重复命中不继续叠乘")
+
+	var ally = load("res://scenes/enemies/c016.tscn").instantiate()
+	ally.player_ally = true
+	add_child(ally)
+	ally.set_physics_process(false)
+	ally._find_target()
+	_check(ally.is_in_group("player_allies") and not ally.is_in_group("enemies") \
+		and ally._target != null and ally._target.is_in_group("enemies"),
+		"魅唤只从敌人组选择攻击目标")
+	var kills_before: int = Meta.kills
+	var score_before: int = Score.kills
+	var seen_before := int(Meta.seen.get("c016", 0))
+	ally.hp = 0
+	ally.die()
+	_check(Meta.kills == kills_before and Score.kills == score_before and int(Meta.seen.get("c016", 0)) == seen_before,
+		"魅唤死亡不计局外击杀、图鉴或本局战绩")
+	e.queue_free()
 
 
 func _spawn_brute(pos: Vector2) -> C016Class:

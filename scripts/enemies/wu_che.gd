@@ -234,7 +234,8 @@ func on_player_hit(amount: int, move: Dictionary, player: Node) -> void:
 	if amount <= 0 or not bool(move.get("wu_che_charge", false)):
 		return
 	_summon_bonus += 1
-	player.set("wu_che_wanted", true) # 只有一层；再次实伤只是保持并续到下一次闪避解除
+	if player.is_in_group("player"):
+		player.set("wu_che_wanted", true) # 只有一层；再次实伤只是保持并续到下一次闪避解除
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("通缉", Color(0.78, 0.38, 0.28))
 	dn.global_position = (player as Node2D).global_position + Vector2(0, -150)
@@ -308,6 +309,7 @@ func _spawn_one(elite: bool) -> void:
 	if e == null:
 		return
 	e.set("wu_che_summon", true)
+	e.set("player_ally", player_ally) # 只继承给本武车自己的子召唤，不触碰其他武车的 _summons
 	e.died.connect(_on_summon_died.bind(e))
 	get_parent().add_child(e)
 	e.global_position = _spawn_position()
@@ -370,7 +372,7 @@ func _direct_damage(_amount: int, _color: Color = DMG_COLOR) -> void:
 
 func die() -> void:
 	var pl := get_tree().get_first_node_in_group("player")
-	if pl != null:
+	if not player_ally and pl != null:
 		pl.set("wu_che_wanted", false)
 	hp = 0
 	super()

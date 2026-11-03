@@ -299,7 +299,7 @@ func _cast_tick(delta: float) -> void:
 func _run_cast_event(event: Dictionary) -> void:
 	if str(event["kind"]) == "awaken":
 		_hit_global(4)
-		hp = mini(max_hp, hp + int(round(float(max_hp) * 0.25)))
+		_heal(int(round(float(max_hp) * 0.25)))
 		_block += 10
 		_awakened = true
 		hp_changed.emit(hp, max_hp)
@@ -337,7 +337,9 @@ func _strike(target: Node, damage: int, extra: Dictionary = {}) -> void:
 
 func _hit_global(damage: int) -> void:
 	var targets: Array = []
-	if _charm_time > 0.0 or _frenzy_time > 0.0:
+	if player_ally:
+		targets.append_array(get_tree().get_nodes_in_group("enemies"))
+	elif _charm_time > 0.0 or _frenzy_time > 0.0:
 		targets.append_array(get_tree().get_nodes_in_group("enemies"))
 		if _charm_time <= 0.0:
 			targets.append_array(get_tree().get_nodes_in_group("player"))
@@ -400,8 +402,7 @@ func _on_contact(player: Node, move: Dictionary, dealt: int) -> void:
 		player.call("ming_zhong_hold", self)
 		_update_held_player()
 	if bool(move.get("ming_zhong_spin_heal", false)):
-		hp = mini(max_hp, hp + dealt)
-		hp_changed.emit(hp, max_hp)
+		_heal(dealt)
 
 
 func apply_frenzy(duration: float, empowered := false) -> void:
@@ -559,7 +560,7 @@ func _text(text: String, color: Color) -> void:
 func die() -> void:
 	_cleanup_cast()
 	var player := get_tree().get_first_node_in_group("player")
-	if player != null and player.has_method("clear_ming_zhong_effects"):
+	if not player_ally and player != null and player.has_method("clear_ming_zhong_effects"):
 		player.call("clear_ming_zhong_effects")
 	hp = 0
 	super()

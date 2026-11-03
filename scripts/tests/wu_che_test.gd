@@ -47,6 +47,7 @@ func _ready() -> void:
 	await _test_contact_and_wanted()
 	_test_passives()
 	_test_waves()
+	_test_charm_ally_isolation()
 	_test_edge_player()
 	_test_idle_and_death()
 	p("DONE checks=%d failed=%d" % [_checks, _failed])
@@ -302,6 +303,27 @@ func _test_waves() -> void:
 				elite_count += 1
 			e.set_physics_process(false)
 		_check(_b._summons.size() == total and elite_count == int(total / 4), "%d 人波次实际精英数量为 %d" % [total, int(total / 4)])
+
+
+func _test_charm_ally_isolation() -> void:
+	_reset_boss()
+	var ally = load("res://scenes/enemies/c016.tscn").instantiate()
+	ally.player_ally = true
+	_room.add_child(ally)
+	ally.set_physics_process(false)
+	ally.global_position = _p.global_position + Vector2(40, 0)
+	_check(ally.is_in_group("player_allies") and not ally.is_in_group("enemies"), "魅唤使用独立友方阵营")
+	_check(_b._summons.is_empty(), "外部魅唤不会进入武车自己的召唤列表")
+	ally._find_target()
+	_check(ally._target != null and ally._target.is_in_group("enemies") and ally._target != _p,
+		"魅唤只索敌敌人而不追击玩家")
+	var player_hp: int = _p.hp
+	ally._target = _p
+	ally._deal_hit()
+	_check(_p.hp == player_hp, "魅唤旧招命中玩家也不会造成伤害")
+	_b._start_charge()
+	_check(_b.state == _b.S_START and _b._current_anim == "skill01", "魅唤存在时武车仍能立即开始冲锋")
+	ally.queue_free()
 
 
 func _test_edge_player() -> void:

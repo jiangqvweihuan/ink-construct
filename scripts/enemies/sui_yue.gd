@@ -328,8 +328,7 @@ func on_player_hit(dealt: int, _move: Dictionary, _player: Node) -> void:
 	var heal := int(_eye_effect("heal_on_hit"))
 	if heal > 0 and _eye_heal_cd <= 0.0:
 		_eye_heal_cd = _eye_effect("heal_cooldown")
-		hp = mini(max_hp, hp + heal)
-		hp_changed.emit(hp, max_hp)
+		_heal(heal)
 	var refund := _eye_effect("cooldown_on_hit")
 	if refund > 0.0:
 		for key in _move_cds:
@@ -428,7 +427,7 @@ func die() -> void:
 	_cleanup_cast()
 	_return_eye()
 	var pl := get_tree().get_first_node_in_group("player")
-	if pl != null and pl.has_method("clear_sui_yue_effects"):
+	if not player_ally and pl != null and pl.has_method("clear_sui_yue_effects"):
 		pl.call("clear_sui_yue_effects")
 	hp = 0
 	super()

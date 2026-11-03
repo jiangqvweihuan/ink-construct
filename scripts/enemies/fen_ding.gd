@@ -356,8 +356,7 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 func on_fen_ding_burn_hit(amount: int, _player: Node) -> void:
 	if state == State.DEAD or amount <= 0:
 		return
-	hp = mini(max_hp, hp + 10)
-	hp_changed.emit(hp, max_hp)
+	_heal(10)
 	for move in _move_cds:
 		_move_cds[move] = 0.0
 
