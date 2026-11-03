@@ -42,10 +42,10 @@ const SKULLS := {
 		"low_hp_ratio": 0.2,
 		# 每段普攻：lock=锁定总时长，hits=命中时刻（动画秒），range=正前方判定距离，lunge=前冲速度
 		"attacks": [
-			{"anim": "atk01", "lock": 0.55, "hits": [0.34], "damage": 1, "range": 100.0, "lunge": 110.0},
-			{"anim": "atk02", "lock": 0.50, "hits": [0.14], "damage": 1, "range": 85.0, "lunge": 110.0},
+			{"anim": "atk01", "lock": 0.55, "hits": [0.34], "damage": 1, "range": 100.0, "lunge": 110.0, "cast_sfx": "assassin_basic_attack"},
+			{"anim": "atk02", "lock": 0.50, "hits": [0.14], "damage": 1, "range": 85.0, "lunge": 110.0, "cast_sfx": "assassin_basic_attack"},
 			# atk03 是回身横扫：匕尖甩到原点左侧 92px，判 both（前后都算命中）
-			{"anim": "atk03", "lock": 1.30, "hits": [0.26, 0.72], "damage": 1, "range": 95.0, "lunge": 120.0, "both": true},
+			{"anim": "atk03", "lock": 1.30, "hits": [0.26, 0.72], "damage": 1, "range": 95.0, "lunge": 120.0, "both": true, "cast_sfx": "assassin_basic_attack"},
 		],
 		"skills": {
 			# K 穿影突刺（第 19 号 skill01，1.567s）：0.75~1.28s 隐身前冲穿过敌人，1.30s 现身一刀。
@@ -73,7 +73,7 @@ const SKULLS := {
 			# 命中后定身 3 秒（期间敌人不能移动但可以出手），并从命中点分裂出第二把继续飞。
 			# 无 blink / teleport：位移只靠动画本身的根骨后跃（root_motion），不会出现闪现或残影。
 			"skill02-cankao": {
-				"action": "skill_ult", "cooldown": 9.0,
+				"action": "skill_ult", "cooldown": 9.0, "projectile_sfx": "assassin_projectile",
 				"root_motion": true, # 动画 1.2~1.42s 把根骨后挪约 430 骨架像素（≈170 世界像素）：节点跟着挪，收招后停在那里
 				"hits": [{
 					"at": 1.43, "damage": 2, "sfx": "skill_blade",
@@ -115,7 +115,7 @@ const SKULLS := {
 		# lock 锁满整段动画且 cancel=0：普攻间隔就是动画时长，播完才能接招或移动。
 		"attacks": [
 			{
-				"anim": "skill01", "lock": 1.883, "cancel": 0.0, "lunge": 110.0,
+				"anim": "skill01", "lock": 1.883, "cancel": 0.0, "lunge": 110.0, "cast_sfx": "weapon_blade",
 				"hits": [
 					{"at": 0.75, "damage": 2, "range": 372.0, "pull": 80.0, "sfx": "hit_heavy"},
 					{"at": 1.68, "damage": 3, "range": 145.0},
@@ -130,7 +130,7 @@ const SKULLS := {
 			# 全程任意一下打中都会让目标中毒（4 秒，每 0.5 秒扣 1 点；不叠层，重复命中只刷新时长）
 			# ranged_guard：转鞭期间免疫敌方投射物并原路弹回（工程暂无敌方投射物，接口已预埋）
 			"skill02": {
-				"action": "skill", "cooldown": 9.0,
+				"action": "skill", "cooldown": 9.0, "loop_sfx": "weapon_blade",
 				"ranged_guard": true,
 				"tick": {"from": 0.15, "to": 3.0, "interval": 0.5, "range": 130.0, "height": 140.0, "damage": 1, "both": true, "poison": 4.0},
 				"hits": [{"at": 3.6, "range": 500.0, "height": 150.0, "damage": 5, "sfx": "skill_blade", "poison": 4.0}],
@@ -166,15 +166,15 @@ const SKULLS := {
 		# 狼牙棒挥砸的落点在原点后方，所以普攻/挥砸类判 both，动画扫到哪边都能命中
 		# 两段普攻（第 16 号 + 第 18 号）：数值比原来 1/1/2 整体抬一档 -> 2 / 3
 		"attacks": [
-			{"anim": "skill02_01", "lock": 0.44, "hits": [0.13], "damage": 2, "range": 156.0, "lunge": 120.0, "both": true},
-			{"anim": "skill02_03", "lock": 0.47, "hits": [0.26], "damage": 3, "range": 185.0, "lunge": 130.0, "both": true},
+			{"anim": "skill02_01", "lock": 0.44, "hits": [0.13], "damage": 2, "range": 156.0, "lunge": 120.0, "both": true, "cast_sfx": "monk_basic_attack"},
+			{"anim": "skill02_03", "lock": 0.47, "hits": [0.26], "damage": 3, "range": 185.0, "lunge": 130.0, "both": true, "cast_sfx": "monk_basic_attack"},
 		],
 		"skills": {
 			# K 横扫（skill01 1.85s，动画不变）：两段挥棒
 			# 0.60s 第一段：前后 198px 全扫，3 伤 + 击退 620（撞人 1 伤）+ 落点定身 2 秒
 			# 1.66s 第二段：不打伤害，给自己挂金钟罩（免疫 1 次攻击，8 秒没挨打就自己散）
 			"skill01": {
-				"action": "skill", "cooldown": 3.5,
+				"action": "skill", "cooldown": 3.5, "cast_sfx": "monk_bell_quake",
 				"hits": [
 					{"at": 0.60, "range": 198.0, "height": 110.0, "damage": 3, "sfx": "skill_fist", "both": true,
 						"knockback": {"force": 620.0, "impact": 1}, "root": 2.0},
@@ -184,12 +184,13 @@ const SKULLS := {
 			# L 横扫（skill03 1.5s，动画不变）：伤害 1→3；命中晕眩 2 秒（不能移动也不能出手，立即打断起手）
 			"skill03": {
 				"action": "skill_sweep", "cooldown": 5.0,
+				"sfx_events": [{"at": 0.80, "sfx": "monk_vajra_wrath"}],
 				"hits": [{"at": 0.87, "range": 191.0, "height": 110.0, "damage": 3, "sfx": "voice_fan_hit", "stun": 2.0}],
 			},
 			# 全程举棒蓄力，3.05s 才砸下来：砸地只回血、不打伤害
 			# 定山：蓄力期间自身霸体 + 反伤（挨打把伤害弹回攻击者），砸地回 2 血——站桩挨打换血的坦克循环
 			"skill02": {
-				"action": "skill_ult", "cooldown": 9.0,
+				"action": "skill_ult", "cooldown": 9.0, "cast_sfx": "monk_meditation",
 				"poise": true,
 				"reflect": true,
 				"hits": [
@@ -256,9 +257,9 @@ const SKULLS := {
 			"atk04": {"action": "skill", "cooldown": 6.0, "poise": true,
 				"pool": ["atk04", "atk04_air"],
 				"hits": [
-					{"at": 0.16, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"},
-					{"at": 0.34, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"},
-					{"at": 0.50, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "skill_blade"}]},
+					{"at": 0.16, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "voice_fan_hit"},
+					{"at": 0.34, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "voice_fan_hit"},
+					{"at": 0.50, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "voice_fan_hit"}]},
 			# L 月华斩：第 64 / 58 号随机，两套动作都只按挥剑落点做近战判定，命中叠 1 层流血。
 			"skill02-": {"action": "skill_sweep", "cooldown": 8.0, "poise": true,
 				"pool": ["skill02-", "skill12"],
@@ -270,15 +271,15 @@ const SKULLS := {
 				"hits": [{"at": 0.48, "range": 110.0, "height": 120.0, "damage": 3, "sfx": "hit_heavy",
 					"launch": {"vx": 200.0, "vy": 780.0, "ignore_armor": true}}]},
 			# I 觉醒：第 54 / 57 / 70 号随机，释放期间霸体；动画播完起算 12s 觉醒窗口（O/P 解锁）
-			"skill08": {"action": "skill_i", "cooldown": 20.0, "poise": true, "align_max": true,
+			"skill08": {"action": "skill_i", "cooldown": 20.0, "poise": true, "align_max": true, "cast_sfx": "swordsman_swift_slash",
 				"pool": ["skill08", "skill11", "skill09_02"],
 				"awaken_time": 12.0, "hits": []},
 			# O 剑域三段（觉醒限定，第 55 号）：多段眩晕 → 横斩超远击退 + 流血 → 祈祷回血 + 加伤
 			"skill09": {"action": "skill_o", "cooldown": 14.0, "poise": true, "require_buff": true,
 				"hits": [
-					{"at": 0.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "hit_heavy"},
-					{"at": 1.3, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "hit_heavy"},
-					{"at": 1.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "hit_heavy"},
+					{"at": 0.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "voice_fan_hit"},
+					{"at": 1.3, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "voice_fan_hit"},
+					{"at": 1.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "voice_fan_hit"},
 					{"at": 3.0, "range": 260.0, "height": 130.0, "damage": 4, "sfx": "skill_blade", "bleed": 2,
 						"knockback": {"force": 900.0, "impact": 0, "ignore_armor": true}},
 					{"at": 5.2, "heal_ratio": 0.3, "self_buff": {"damage": 1, "time": 6.0}, "sfx": "voice_skill_cast"}]},
@@ -328,22 +329,22 @@ const SKULLS := {
 		],
 		"skills": {
 			# K 踏弦：67 / 95 随机。跟随素材根位移，只位移、无伤害，全程无敌并穿身。
-			"run-": {"action": "skill", "cooldown": 2.5, "speed": 1.4, "invincible": true, "root_motion": true, "phase": true,
+			"run-": {"action": "skill", "cooldown": 2.5, "speed": 1.4, "invincible": true, "root_motion": true, "phase": true, "cast_sfx": "pipa_string_step",
 				"pool": ["run-", "skill13_02-cankao"], "hits": []},
 			# L 黍离：73 / 74 随机，各自在曲终发穿透魔音；翻倍癫狂且至少 12 秒，释放即回 2。
-			"skill03": {"action": "skill_sweep", "cooldown": 8.0, "pool": ["skill03", "skill04"],
+			"skill03": {"action": "skill_sweep", "cooldown": 8.0, "pool": ["skill03", "skill04"], "cast_sfx": "pipa_taiyu",
 				"hit_at": {"skill03": 0.68, "skill04": 0.84}, "range": {"skill03": 0.0, "skill04": 0.0},
 				"height": 100.0, "damage": 3, "heal": 2, "sfx": "voice_skill_cast",
 				"projectile": {"speed": 650.0, "range": 520.0, "pierce": true, "style": "magic_sound", "frenzy_double": true}},
 			# U 摄心 / 众生同狂：同一配置、同一冷却；觉醒后只换演出与命中逻辑。
-			"skill13-": {"action": "skill_ult", "cooldown": 16.0,
+			"skill13-": {"action": "skill_ult", "cooldown": 16.0, "cast_sfx": "pipa_mind_snare",
 				"hits": [{"at": 0.72, "charm": true, "sfx": "voice_skill_cast"}],
 				"awaken": {"anim": "skill10", "invincible": true,
 					"hits": [{"at": 5.35, "damage": 1, "full_screen": true, "height": 9999.0, "frenzy": 12.0, "frenzy_empower": true, "sfx": "skill_boom"}]}},
 			# I 红尘劫：霸体而非无敌；曲终恢复已损生命一半并进入 8 秒觉醒。
-			"skill07_02": {"action": "skill_i", "cooldown": 24.0, "poise": true, "awaken_time": 8.0, "hits": []},
+			"skill07_02": {"action": "skill_i", "cooldown": 24.0, "poise": true, "awaken_time": 8.0, "hits": [], "cast_sfx": "pipa_mortal_tribulation"},
 			# O 八音断识：八段独立递减，每觉醒仅一次；六感尽失在命中时逐段结算。
-			"skill10_03": {"action": "skill_o", "cooldown": 1.0, "poise": true, "require_buff": true, "once_per_awaken": true,
+			"skill10_03": {"action": "skill_o", "cooldown": 1.0, "poise": true, "require_buff": true, "once_per_awaken": true, "loop_sfx": "pipa_eight_tones",
 				"hits": [
 					{"at": 0.55, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
 					{"at": 0.95, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
@@ -354,7 +355,7 @@ const SKULLS := {
 					{"at": 2.95, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
 					{"at": 3.65, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true, "sfx": "skill_boom"}]},
 			# P 心魔引：引爆全房状态，再把自身减益分赠所有存活目标。
-			"skill09": {"action": "skill_p", "cooldown": 22.0, "poise": true, "require_buff": true,
+			"skill09": {"action": "skill_p", "cooldown": 22.0, "poise": true, "require_buff": true, "cast_sfx": "pipa_inner_demon",
 				"hits": [{"at": 0.92, "mind_detonate": true, "sfx": "skill_boom"}]},
 		},
 		"hud_skills": ["run-", "skill03", "skill13-", "skill07_02", "skill10_03", "skill09"],
@@ -428,13 +429,13 @@ const SKULLS := {
 			# 击退机制：命中把敌人往攻击方向轰飞，撞到同伴双方吃组合伤害、撞墙自己再吃一下
 			"skill02": {
 				"action": "skill_sweep", "cooldown": 3.0, "poise": true,
-				"hits": [{"at": 0.71, "range": 95.0, "height": 90.0, "damage": 1, "sfx": "skill_fist",
+				"hits": [{"at": 0.71, "range": 95.0, "height": 90.0, "damage": 1, "sfx": "voice_fan_hit",
 					"knockback": {"force": 620.0, "impact": 1}}],
 			},
 			# U 拍地时停（skill06 1.567s）：0.5s 掌落大地，定住当前场景所有敌人——
 			# 杂兵 3s / 精英 2s / Boss 1s；无视霸体，连 Boss 技能前摇都打断（规则级控制）
 			"skill06": {
-				"action": "skill_ult", "cooldown": 14.0, "poise": true,
+				"action": "skill_ult", "cooldown": 14.0, "poise": true, "cast_sfx": "jiangqu_silence",
 				"stop": {"at": 0.5, "mob": 3.0, "elite": 2.0, "boss": 1.0},
 				"hits": [],
 			},
@@ -452,7 +453,7 @@ const SKULLS := {
 			#（不突兀），其 hit_at=99 收招帧补结算——瞬移后 path 从终点回扫整条位移路径。
 			# 觉醒加持后数值：伤害 6→8、冷却 12→10、命中叠 2 层流血
 			"skill11": {
-				"action": "skill_o", "cooldown": 10.0, "poise": true, "invincible": true, "require_buff": true,
+				"action": "skill_o", "cooldown": 10.0, "poise": true, "invincible": true, "require_buff": true, "cast_sfx": "jiangqu_hibiscus_slash",
 				"pool": ["skill11", "skill11-cankao", "skill23_03"],
 				"blink_from": 0.15, "blink_to": 0.90, "blink_speed": 800.0,
 				"teleport_anims": ["skill11-cankao"],

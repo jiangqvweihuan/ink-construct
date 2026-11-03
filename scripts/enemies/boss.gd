@@ -203,13 +203,15 @@ func _physics_process(delta: float) -> void:
 	_charge_cd = maxf(0.0, _charge_cd - delta)
 	_turn_cd = maxf(0.0, _turn_cd - delta)
 	if state >= S_ENTER:
-		# 自定义状态不走父类主循环，新状态与余滞要在这里独立计时。
-		_pipa_status_tick(delta)
+		# 自定义状态不走父类主循环，持续减益与余滞要在这里独立计时。
 		if _slow_timer > 0.0:
 			_slow_timer = maxf(0.0, _slow_timer - delta)
 			if _slow_timer <= 0.0:
 				_slow_scale = 1.0
 		_find_target()
+		_bleed_tick(delta)
+		_poison_tick(delta)
+		_pipa_status_tick(delta)
 		_custom_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
 		move_and_slide()

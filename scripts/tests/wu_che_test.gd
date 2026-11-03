@@ -45,6 +45,7 @@ func _ready() -> void:
 	_p.set_physics_process(false)
 	_test_difficulty()
 	_test_startup_and_first_wall()
+	await _test_time_stop_interrupts()
 	await _test_contact_and_wanted()
 	_test_passives()
 	_test_waves()
@@ -79,7 +80,7 @@ func _reset_boss() -> void:
 	_b.arena_left = 0.0
 	_b.arena_right = 1920.0
 	_b._charges_completed = 0
-	_b._charge_ghost = false
+	_b._set_ghost(false)
 	_b._charge_moving = false
 	_b._charge_contact_done = false
 	_b._summon_total = 0
@@ -160,6 +161,33 @@ func _test_startup_and_first_wall() -> void:
 	_b._physics_process(1.41)
 	_check(_b.facing == -1 and _b.state == _b.S_SUMMON and _b._current_anim == "skill02", "掉头后翻转朝向并播放 7 号召唤")
 	_check(_b._summon_total == 3, "第一轮召唤总数为 3")
+
+
+func _test_time_stop_interrupts() -> void:
+	for chain_state in [_b.S_START, _b.S_RUN, _b.S_BRAKE, _b.S_TURNING, _b.S_SUMMON]:
+		_reset_boss()
+		_b.state = chain_state
+		_b._charge_elapsed = 1.6
+		_b._charge_moving = true
+		_b._charge_contact_done = true
+		_b._summon_total = 4
+		_b._summon_index = 2
+		_b._summon_elites_left = 1
+		_b._state_timer = 1.0
+		_b._set_ghost(chain_state == _b.S_START or chain_state == _b.S_RUN)
+		_b.time_stop(1.0)
+		await get_tree().process_frame
+		_check(_b.state == _b.State.IDLE and _b._stop_timer > 0.0 and _b.velocity == Vector2.ZERO \
+			and not _b._charge_moving and not _b._charge_ghost and not _b.get_node("CollisionShape2D").disabled \
+			and _b._summon_total == 0 and _b._summon_index == 0 and _b._summon_elites_left == 0,
+			"时停取消状态 %d 并清理冲锋、召唤与碰撞" % chain_state)
+		var stopped_position: Vector2 = _b.global_position
+		var stopped_facing: int = _b.facing
+		_b._physics_process(0.5)
+		_b._end_stop()
+		_check(_b.state == _b.State.IDLE and _b.global_position == stopped_position and _b.facing == stopped_facing \
+			and _b._charge_elapsed == 0.0 and _b._summons.is_empty(),
+			"状态 %d 解冻后不会继续旧招或补发召唤" % chain_state)
 
 
 func _test_contact_and_wanted() -> void:

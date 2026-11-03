@@ -5,6 +5,7 @@ extends Node
 const PlayerClass := preload("res://scripts/player/player.gd")
 const C016Class := preload("res://scripts/enemies/c016.gd")
 const ProjectileClass := preload("res://scripts/systems/projectile.gd")
+const Settings := preload("res://scripts/ui/settings.gd")
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const ENEMY_SCENE := preload("res://scenes/enemies/c016.tscn")
 
@@ -42,6 +43,9 @@ func _check(ok: bool, label: String) -> void:
 func _ready() -> void:
 	seed(20261102)
 	_log = FileAccess.open("res://tests/pipa_test.log", FileAccess.WRITE)
+	# 测试场景不经过主菜单，SFX/Music 总线由 Settings 首次使用时创建，这里先补齐。
+	Settings._ensure_bus("SFX")
+	Settings._ensure_bus("Music")
 	Meta.persist = false
 	_saved_forms = Meta.form_nodes.duplicate(true)
 	_saved_mastery = Meta.mastery.duplicate(true)
@@ -71,6 +75,7 @@ func _ready() -> void:
 	_test_sorrow()
 	_test_permanent_nodes()
 	_test_state_boundaries()
+	_test_projectile_audio()
 
 	_clear_world()
 	Meta.form_nodes = _saved_forms
@@ -310,7 +315,8 @@ func _test_awaken_u() -> void:
 	behind.global_position.y = 1000.0
 	_p._awaken_time = 8.0
 	_p._start_skill("skill13-")
-	_check(_p._skill_anim == "skill10" and bool(_p._skill_runtime.get("invincible", false)), "觉醒 U 切换 skill10 演出并全程无敌")
+	_check(_p._skill_anim == "skill10" and bool(_p._skill_runtime.get("invincible", false)) \
+		and str(_p._skill_runtime.get("cast_sfx", "")) == "pipa_mind_snare", "觉醒 U 切换 skill10 演出、全程无敌并继承普通 U 起手音")
 	_p._skill_tick(5.3501)
 	_check(far.hp == 49 and behind.hp == 49, "觉醒 U 全屏无视距离、朝向与高度造成 1 伤")
 	_check(is_equal_approx(far._frenzy_time, 12.0) and far._frenzy_empowered \
@@ -634,12 +640,15 @@ func _test_state_boundaries() -> void:
 	_check(_p.state == PlayerClass.State.HURT and _p._skill_hits.is_empty() and _shots().is_empty(), "L 被受击中断后不会曲终补发魔音")
 	_p.state = PlayerClass.State.IDLE
 	_p._awaken_time = 0.0
+	_p._buff_timer = 0.0
+	_p._perfect_dodge()
 	var cast_id: int = _p._skill_cast_id
 	for action in ["skill_o", "skill_p"]:
 		Input.action_press(action)
 		_p._try_skill()
 		Input.action_release(action)
-	_check(_p._skill_cast_id == cast_id, "觉醒结束后 O 与 P 都立即重新锁定")
+	_check(_p._buff_timer > 0.0 and _p._awaken_time <= 0.0 and _p._skill_cast_id == cast_id,
+		"完美闪避只保留普通加伤，不会误解锁 O 与 P")
 
 	_p._pipa_sorrow_timer = 3.0
 	_p._pipa_awaken_count = 4
@@ -647,3 +656,67 @@ func _test_state_boundaries() -> void:
 	_p._apply_profile("z002")
 	_check(is_equal_approx(_p._pipa_sorrow_timer, 30.0) and _p._pipa_awaken_count == 0 \
 		and not _p._pipa_o_used and _p._skill_runtime.is_empty(), "新房重装形态时重置神伤计时与每房觉醒运行状态")
+
+	_reset_world(20, 1)
+	_enemy_at(0.0)
+	_p.skill_config["run-"]["pool"] = ["run-"]
+	_p._start_skill("run-")
+	_p._skill_tick(0.1)
+	_p._start_skill_loop("pipa_eight_tones")
+	_p._skill_hits.append({"at": 99.0})
+	_p._skill_audio_events.append({"at": 99.0, "sfx": "pipa_string_step"})
+	_p._delayed.append({"time": 99.0, "kind": "test"})
+	_p._skill_teleport = 50.0
+	_p._awaken_pending = 8.0
+	_p._skill_poise = true
+	_p._skill_reflect = true
+	_p._skill_ranged_guard = true
+	_p._skill_cancel_ready = true
+	_p._parry_ready = true
+	_p._bell_shell = true
+	_p._shield_hits = 1
+	_p._shield_time = 3.0
+	Run.supply_revive = true
+	Run.supply_revive_used = false
+	_p.hp = 0
+	var revived: bool = _p._try_revive(Vector2.ZERO)
+	_check(revived and _p.state == PlayerClass.State.HURT and _p.hp == 4 and not _p._skill_loop_active \
+		and not _p._loop_sfx_player.playing and not _p._blink_active and not _p._skill_root_follow \
+		and not _p._invincible, "技能中复活会停止循环音并收掉穿身、根骨跟随与技能无敌")
+	_check(_p._skill_hits.is_empty() and _p._skill_audio_events.is_empty() and _p._delayed.is_empty() \
+		and _p._skill_runtime.is_empty() and _p._skill_name.is_empty() and is_zero_approx(_p._skill_timer) \
+		and is_zero_approx(_p._skill_teleport) and is_zero_approx(_p._awaken_pending) \
+		and not _p._skill_poise and not _p._skill_reflect and not _p._skill_ranged_guard \
+		and not _p._skill_cancel_ready and not _p._parry_ready and not _p._bell_shell \
+		and _p._shield_hits == 0 and is_zero_approx(_p._shield_time), "复活清空技能待结算事件、运行配置与防御取消窗口")
+	Run.supply_revive = false
+	Run.supply_revive_used = false
+
+	_reset_world()
+	_check(_p._sfx_player.bus == "SFX" and _p._loop_sfx_player.bus == "SFX", "玩家普通与循环音效均走 SFX 总线")
+	_p.cooldown_scale = 0.5
+	_p._start_skill("skill03")
+	_p._skill_cds["skill03"] = 2.0
+	_p.state = PlayerClass.State.IDLE
+	_p._start_skill("run-")
+	_check(is_equal_approx(float(_p._skill_cd_totals["skill03"]), 4.0) \
+		and is_equal_approx(_p.get_skill_cd_ratio("skill03"), 0.5) \
+		and is_equal_approx(float(_p._skill_cd_totals["run-"]), 1.25) \
+		and is_equal_approx(_p.get_skill_cd_ratio("run-"), 1.0), "后续技能不会覆盖前一技能本次实际总冷却与比例")
+
+
+func _test_projectile_audio() -> void:
+	_reset_world()
+	var target = _enemy_at(0.0, 100)
+	var pr = ProjectileClass.new()
+	pr.setup(1, 0.0, 100.0, 1, "weapon_sword", false, 0.0, 1, "dagger")
+	add_child(pr)
+	pr.global_position = Vector2.ZERO
+	pr._physics_process(0.0)
+	var split_child_count := 0
+	for shot in _shots():
+		if shot._from_split:
+			split_child_count += 1
+	_check(target.hp == 99 and split_child_count == 1 and pr._sfx_player != null \
+		and pr._sfx_player.bus == "SFX" and pr._sfx_player.playing and not pr.visible \
+		and not pr.is_queued_for_deletion(), "分裂首次命中保留分裂行为并走统一命中音与 SFX 总线")

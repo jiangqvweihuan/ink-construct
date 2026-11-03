@@ -88,6 +88,7 @@ func _ready() -> void:
 	_test_eye()
 	_test_bell()
 	_test_pressure_and_seal()
+	_test_status_effects()
 	_test_cleanup()
 	Meta.battle_passives.erase("test_sui_future")
 	Meta.battle_passives.erase("test_sui_future_two")
@@ -108,6 +109,13 @@ func _reset_all(player_hp := 99) -> void:
 	_b.max_hp = 64
 	_b.hp = 64
 	_b._invincible = false
+	_b._bleed_stacks = 0
+	_b._bleed_time = 0.0
+	_b._bleed_acc = 0.0
+	_b._poison_time = 0.0
+	_b._poison_acc = 0.0
+	_b._slow_timer = 0.0
+	_b._slow_scale = 1.0
 	_b._attack_desire = 5.0
 	_b._approach_yield = 0.0
 	_b._retreat_left = 0.0
@@ -448,6 +456,36 @@ func _test_pressure_and_seal() -> void:
 	_p.state = 8
 	_p._physics_process(0.02)
 	_check(is_zero_approx(_p._passive_seal_time) and _p.damage_bonus == 3 and _p._form_node("c021_combo_1"), "剥离到期自动恢复被动且不改存档")
+
+
+func _test_status_effects() -> void:
+	_reset_all()
+	_p.global_position.x = 1800.0
+	_b._start_sui_move(_b.ARMS)
+	_b._cast_duration = 10.0
+	_b.apply_bleed(2)
+	_b.apply_poison(2.0)
+	_b.slow(4.0, 0.5)
+	var hp_before: int = _b.hp
+	_b._physics_process(1.0)
+	_check(_b.hp == hp_before - 4 and _b.state == _b.S_CAST, "施法状态持续推进两层流血与两次中毒")
+	_check(is_equal_approx(_b._slow_timer, 1.0), "施法状态持续推进余滞计时")
+
+	_reset_all()
+	_b._attack_desire = 0.0
+	_p.global_position.x = 1300.0
+	_b.slow(4.0, 0.5)
+	_b._chase_tick(0.5)
+	var expected := move_toward(0.0, _b.chase_speed * 0.5, _b.accel * 0.5)
+	_check(is_equal_approx(_b.velocity.x, expected), "普通追击速度应用余滞倍率")
+
+	_reset_all()
+	_b.state = _b.S_RETREAT
+	_b._retreat_left = 1.0
+	_b.slow(4.0, 0.5)
+	_b._retreat_tick(0.016)
+	expected = move_toward(0.0, _b.chase_speed * _b.RETREAT_SPEED_SCALE * 0.5, _b.accel * 0.016)
+	_check(is_equal_approx(_b.velocity.x, expected), "收招后撤速度应用余滞倍率")
 
 
 func _test_cleanup() -> void:

@@ -10,6 +10,14 @@ const Settings = preload("res://scripts/ui/settings.gd") # 改键回归用
 var _log: FileAccess
 var _menu: Node
 
+
+class SwapPlayerStub:
+	extends Node
+	var skull_id := "c021"
+
+	func swap_skull(id: String) -> void:
+		skull_id = id
+
 func p(msg) -> void:
 	print("[UI] ", msg)
 	if _log:
@@ -28,6 +36,7 @@ func _ready() -> void:
 	_menu = load("res://scenes/ui/main_menu.tscn").instantiate()
 	add_child(_menu)
 	await get_tree().create_timer(0.6).timeout
+	_assert_sfx_buses(_menu)
 	await _shot("01_main_menu")
 
 	# 致谢：左侧竖排入口 → 滚动名单（打开后必须真的在上移）
@@ -58,6 +67,7 @@ func _ready() -> void:
 	p("设置打开=%s（期望 true）" % (sp != null))
 	await _shot("02_settings_audio")
 	if sp != null:
+		_assert_sfx_buses(sp)
 		sp._switch_tab("画面")
 		await get_tree().process_frame
 		await _shot("02b_settings_video")
@@ -101,6 +111,7 @@ func _ready() -> void:
 	p("化身谱打开=%s（期望 true）" % (forms != null))
 	await _shot("03_codex")
 	if forms != null:
+		_assert_sfx_buses(forms)
 		forms._form_id = "c013"
 		forms._refresh()
 		await get_tree().create_timer(0.2).timeout
@@ -129,6 +140,7 @@ func _ready() -> void:
 	var shop = _find_panel("shop_panel.gd")
 	p("墨锭商栈打开=%s（期望 true）" % (shop != null))
 	if shop != null:
+		_assert_sfx_buses(shop)
 		await _shot("04d_shop_permanent")
 		shop._set_tab("supply")
 		Meta.buy("supply_revive")
@@ -163,6 +175,7 @@ func _ready() -> void:
 	await _shot("05_codex_enemy")
 
 	if codex != null:
+		_assert_sfx_buses(codex)
 		# 敌人页：默认播待机；点击「招式 1」后演示台切到该招式，右侧简介要挂击败次数与词条
 		var before := str(codex._current_anim)
 		codex._pick(0)
@@ -706,6 +719,56 @@ func _ready() -> void:
 		await get_tree().process_frame
 		p("图鉴点返回 -> 面板=%s（期望 false）" % (_find_panel("codex_panel.gd") != null))
 
+	# 强化前进：真实点击后立即禁用；同步直接重复调用也只能发出一次 proceed。
+	var upgrade = load("res://scenes/ui/upgrade_panel.tscn").instantiate()
+	_menu.add_child(upgrade)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_assert_sfx_buses(upgrade)
+	var proceed_calls: Array = [0]
+	var proceed_disabled_at_emit: Array = [false]
+	var before_proceed_audio: Array = _root_audio_players()
+	upgrade.proceed.connect(func():
+		proceed_calls[0] = int(proceed_calls[0]) + 1
+		proceed_disabled_at_emit[0] = upgrade._proceed_button.disabled
+		_assert_detached_sfx(_root_sfx_since(before_proceed_audio, upgrade.SFX_CLICK)))
+	await _click(Vector2(500, 614))
+	assert(int(proceed_calls[0]) == 1, "真实点击前进必须且只能发出一次 proceed")
+	assert(upgrade._proceed_button.disabled, "前进后实际按钮必须立即禁用")
+	assert(bool(proceed_disabled_at_emit[0]), "proceed 发出前按钮必须已经禁用")
+	upgrade._on_proceed()
+	assert(int(proceed_calls[0]) == 1, "直接重复调用前进不得再次发出 proceed")
+	p("强化前进真实输入/直接重复调用与转场音效断言通过")
+	upgrade.queue_free()
+	get_tree().paused = false
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# 换形抽签跨过 0.18 秒后的面板销毁；播放器仍由 root 持有并自行清理。
+	var swap_player := SwapPlayerStub.new()
+	_menu.add_child(swap_player)
+	var swap = load("res://scenes/ui/swap_panel.tscn").instantiate()
+	swap.setup(swap_player)
+	_menu.add_child(swap)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_assert_sfx_buses(swap)
+	Meta.purchases["buyout_c013"] = true
+	var before_swap_audio: Array = _root_audio_players()
+	swap.select("c013")
+	var swap_sfx := _root_sfx_since(before_swap_audio, swap.SFX_SWAP)
+	_assert_detached_sfx(swap_sfx)
+	assert(swap_player.skull_id == "c013", "换形仍必须调用真实换头入口")
+	var expect_swap_sfx_alive := swap_sfx.stream.get_length() > 0.35
+	await get_tree().create_timer(0.25).timeout
+	assert(not is_instance_valid(swap), "换形面板应按原时序关闭")
+	assert(not get_tree().paused, "换形关闭后必须恢复场景")
+	if expect_swap_sfx_alive:
+		assert(is_instance_valid(swap_sfx), "尚未播完的抽签音效不得随换形面板销毁")
+	p("换形抽签跨面板销毁与 SFX 总线断言通过")
+	swap_player.queue_free()
+	await get_tree().process_frame
+
 	Settings.reset_binds()
 	p("ALL DONE")
 	get_tree().quit()
@@ -716,6 +779,38 @@ func _find_panel(script_name: String) -> Node:
 		if c.get_script() != null and str(c.get_script().resource_path).ends_with(script_name):
 			return c
 	return null
+
+
+func _assert_sfx_buses(node: Node) -> void:
+	for child in node.get_children():
+		if child is AudioStreamPlayer:
+			assert(child.bus == "SFX", "%s 必须走 SFX 总线" % child.get_path())
+		_assert_sfx_buses(child)
+
+
+func _root_audio_players() -> Array:
+	var players: Array = []
+	for child in get_tree().root.get_children():
+		if child is AudioStreamPlayer:
+			players.append(child)
+	return players
+
+
+func _root_sfx_since(before: Array, stream: AudioStream) -> AudioStreamPlayer:
+	for child in get_tree().root.get_children():
+		if child is AudioStreamPlayer and not before.has(child) and child.stream == stream:
+			return child
+	return null
+
+
+func _assert_detached_sfx(sfx: AudioStreamPlayer) -> void:
+	assert(sfx != null, "转场音效必须创建 root 级播放器")
+	if sfx == null:
+		return
+	assert(sfx.get_parent() == get_tree().root, "转场音效不得挂在即将销毁的面板下")
+	assert(sfx.bus == "SFX", "转场音效必须走 SFX 总线")
+	assert(sfx.process_mode == Node.PROCESS_MODE_ALWAYS, "暂停中转场音效必须继续播放")
+	assert(sfx.finished.is_connected(sfx.queue_free), "转场音效结束后必须自行释放")
 
 
 ## 真实按键（改键录入走 _input 路径）

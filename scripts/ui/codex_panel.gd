@@ -13,6 +13,7 @@ const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
 const SpinePoseMixer = preload("res://scripts/systems/spine_pose_mixer.gd")
 const BossTypes = preload("res://scripts/enemies/boss_types.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -495,6 +496,7 @@ func _ready() -> void:
 	layer = 9
 	# 点击音常驻：切换条目 / 切页会整体重建界面，不能连它一起清掉
 	_sfx = AudioStreamPlayer.new()
+	_sfx.bus = "SFX"
 	add_child(_sfx)
 	_sfx.stream = SFX_CLICK
 	_build()
@@ -557,7 +559,7 @@ func _build() -> void:
 		for i in mini(entries.size(), CARD_MAX):
 			_make_card(entries[i], i)
 
-	_make_button("返  回", Vector2(70, 572), Vector2(130, 44), 20, _close)
+	_make_button("返  回", Vector2(70, 572), Vector2(130, 44), 20, _close, false, SFX_BACK)
 
 
 ## 重建：只留常驻节点（按钮不能在自身信号里销毁自己，故一律延迟调用）
@@ -586,6 +588,7 @@ func _refresh() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		_play_sfx(SFX_BACK)
 		_close()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_up") and _pool.size() > 1:
@@ -1483,7 +1486,7 @@ func _entry_label(parent: Control, text: String, y: float, font_size: int, color
 	parent.add_child(l)
 
 
-func _make_button(text: String, pos: Vector2, size: Vector2, font_size: int, cb: Callable, active := false) -> void:
+func _make_button(text: String, pos: Vector2, size: Vector2, font_size: int, cb: Callable, active := false, sfx: AudioStream = SFX_CLICK) -> void:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_clicked.png" if active else "res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_normal.png")
@@ -1501,9 +1504,18 @@ func _make_button(text: String, pos: Vector2, size: Vector2, font_size: int, cb:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(l)
 	b.pressed.connect(func():
-		_click_sfx()
+		_play_sfx(sfx)
 		cb.call())
 	add_child(b)
+
+
+func _play_sfx(stream: AudioStream) -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	get_tree().root.add_child(s)
+	s.stream = stream
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
 
 
 ## 点击音：复用常驻播放器（重建不清它），不每次点击都新建节点

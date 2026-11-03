@@ -360,6 +360,24 @@ func _on_summon_died(e) -> void:
 	_summons.erase(e)
 
 
+## 时停直接取消整条武撞链；已生成的召唤物保留，但未结算的召唤不再补发。
+func time_stop(dur: float) -> void:
+	if state == State.DEAD:
+		return
+	if state >= S_START and state <= S_SUMMON:
+		_release_token()
+		_attack_hits_left.clear()
+		_charge_elapsed = 0.0
+		_charge_moving = false
+		_charge_contact_done = false
+		_summon_total = 0
+		_summon_index = 0
+		_summon_elites_left = 0
+		_state_timer = 0.0
+		_enter_wait()
+	super(dur)
+
+
 ## 玩家攻击、流血与其他直接伤害都不能削减耐久，只保留命中反馈。
 func take_damage(amount: int, source_x: float) -> void:
 	if state == State.DEAD or amount <= 0:
@@ -382,5 +400,11 @@ func die() -> void:
 	var pl := get_tree().get_first_node_in_group("player")
 	if not player_ally and pl != null:
 		pl.set("wu_che_wanted", false)
+	# 正常循环本就会等召唤物清空；异常时序若仍有存活个体，死亡与后续先导期间不再行动。
+	for e in _summons:
+		if is_instance_valid(e) and int(e.get("hp")) > 0:
+			e.set("velocity", Vector2.ZERO)
+			e.set_physics_process(false)
+			e.set_process(false)
 	hp = 0
 	super()

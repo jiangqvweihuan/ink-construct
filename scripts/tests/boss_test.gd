@@ -57,7 +57,39 @@ func _ready() -> void:
 		b._charge_dir = 1
 		b._charge_hit_done = true
 		b._custom_tick(0.016)
-		p("boss slowed charge vx=%.1f（期望 %.1f）" % [b.velocity.x, float(b._charge.get("speed", 640.0)) * 0.45])
+		var expected_vx: float = float(b._charge.get("speed", 640.0)) * 0.45
+		p("boss slowed charge vx=%.1f（期望 %.1f）" % [b.velocity.x, expected_vx])
+		if not is_equal_approx(b.velocity.x, expected_vx):
+			p("FAIL 自定义冲锋未应用余滞倍率")
+			get_tree().quit(1)
+			return
+		b.state = old_state
+		b._state_timer = old_timer
+		b.velocity = Vector2.ZERO
+
+	# 基类自定义状态必须自行推进 DoT 与余滞；独立 Boss 由各自专项测试覆盖。
+	if b.get_script() == load("res://scripts/enemies/boss.gd"):
+		var old_state: int = b.state
+		var old_timer: float = b._state_timer
+		var hp_before: int = b.hp
+		var slow_before: float = b._slow_timer
+		b.apply_bleed(2)
+		b.apply_poison(2.0)
+		b.state = b.S_CHARGE_TELE
+		b._state_timer = 10.0
+		b._physics_process(1.0)
+		var status_ok: bool = b.hp == hp_before - 4 and is_equal_approx(b._slow_timer, maxf(0.0, slow_before - 1.0))
+		p("custom status DoT hp=%d/%d slow=%.2f（期望 %d/%.2f）" % [b.hp, hp_before, b._slow_timer, hp_before - 4, maxf(0.0, slow_before - 1.0)])
+		if not status_ok:
+			p("FAIL 基类自定义状态未持续推进 DoT 或余滞")
+			get_tree().quit(1)
+			return
+		b.hp = hp_before
+		b._bleed_stacks = 0
+		b._bleed_time = 0.0
+		b._bleed_acc = 0.0
+		b._poison_time = 0.0
+		b._poison_acc = 0.0
 		b.state = old_state
 		b._state_timer = old_timer
 		b.velocity = Vector2.ZERO

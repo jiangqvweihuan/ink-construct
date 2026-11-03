@@ -427,14 +427,25 @@ func _make_button(text: String, y: float, cb: Callable) -> void:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(l)
 	b.pressed.connect(func():
-		_play_sound(SFX_CLICK)
+		_play_transition_sound(SFX_CLICK)
 		cb.call())
 	add_child(b)
 
 
 func _play_sound(stream: AudioStream) -> void:
 	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
 	s.process_mode = Node.PROCESS_MODE_ALWAYS
 	add_child(s)
 	s.stream = stream
 	s.play()
+
+
+func _play_transition_sound(stream: AudioStream) -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	s.process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().root.add_child(s)
+	s.stream = stream
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)

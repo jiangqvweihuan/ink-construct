@@ -50,8 +50,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if not _running:
 		return
-	# 清理已失效（已死/被移除）的引用
-	_alive = _alive.filter(func(e): return is_instance_valid(e) and e.hp > 0)
+	# 这里只清理失效引用；存活列表必须由真实 died 回调移除，魔爆等死亡演出未完成不得清波。
+	_alive = _alive.filter(func(e): return is_instance_valid(e))
 	if _wave < 0:
 		return
 	_cd -= delta

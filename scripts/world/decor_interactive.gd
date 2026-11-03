@@ -6,7 +6,7 @@ extends Node2D
 
 const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")
 const FX := preload("res://scripts/systems/fx.gd")
-const SFX_PICKUP := preload("res://audio/sfx/decor_pickup.wav") # 卷轴/香炉触发
+const SFX_PICKUP := preload("res://audio/sfx/loot_pickup.wav") # 卷轴/香炉触发
 const SFX_STELE := preload("res://audio/sfx/decor_stele.wav") # 石碑触发
 
 const TRIGGER_RANGE := 90.0 # 走近触发半径
@@ -50,10 +50,8 @@ func _process(delta: float) -> void:
 func _trigger() -> void:
 	_fired = true
 	match kind:
-		"scroll": # 残卷：回血 +1
-			_player.hp = mini(int(_player.hp) + 1, int(_player.max_hp))
-			_player.hp_changed.emit(_player.hp, _player.max_hp)
-			_spawn_tip("+1 生命", Color(0.45, 0.75, 0.5))
+		"scroll": # 残卷：回血 +1，统一走玩家恢复入口以保留不朽与合法超额生命
+			_player._restore_hp(1)
 			_play_sfx(SFX_PICKUP)
 			FX.spawn(get_tree().current_scene, "decor_burst", global_position + Vector2(0, -40), {"scale": 0.55})
 		"censer": # 香炉：本局额外强化重随 +1
@@ -84,6 +82,7 @@ func _spawn_tip(text: String, color: Color) -> void:
 func _play_sfx(stream: AudioStream) -> void:
 	# 挂场景根：本体 queue_free 后音效照常播完
 	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
 	get_tree().current_scene.add_child(s)
 	s.stream = stream
 	s.play()

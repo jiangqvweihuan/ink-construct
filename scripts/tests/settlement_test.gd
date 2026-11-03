@@ -27,7 +27,7 @@ func _ready() -> void:
 		# 无归通关：连续斩杀两只不同 Boss，验证中间不弹强化、结算留下双印。
 		Run.start(Run.MODE_ADVENTURE, "c021", Run.DIFFICULTIES.size() - 1)
 		Run.room_index = Run.ROOMS.size()
-		Run.boss_queue = ["_debug", "c001"]
+		Run.boss_queue = ["_debug", "c008"]
 		Run.boss_id = "_debug"
 	else:
 		Run.start(Run.MODE_ADVENTURE, "c021", 3)
@@ -40,7 +40,10 @@ func _ready() -> void:
 		room._player.max_hp = 99
 		room._player.hp = 99
 		var waited := 0.0
+		var saw_first := false
 		var saw_second := false
+		var first_pressure := true
+		var second_pressure := false
 		while room.get_node_or_null("Settlement") == null and waited < 120.0:
 			room._player.max_hp = 99
 			room._player.hp = 99
@@ -48,12 +51,17 @@ func _ready() -> void:
 			var b = room._boss
 			if is_instance_valid(b) and b.hp > 0:
 				b.take_damage(8, b.global_position.x - 10.0)
-			if is_instance_valid(b) and str(b.type_id) == "c001" and not saw_second:
+			if is_instance_valid(b) and str(b.type_id) == "_debug" and not saw_first:
+				saw_first = true
+				first_pressure = bool(room._player.get("_sui_yue_pressure"))
+			if is_instance_valid(b) and str(b.type_id) == "c008" and not saw_second:
 				saw_second = true
-				p("第二只 Boss 已登场：phase=%d，强化面板=%s（期望 1 / false）" % [Run.boss_phase, room.get_node_or_null("Upgrade") != null])
+				second_pressure = bool(room._player.get("_sui_yue_pressure"))
+				p("第二只 Boss 已登场：phase=%d，强化面板=%s，碎岳压场=%s（期望 1 / false / true）" % [Run.boss_phase, room.get_node_or_null("Upgrade") != null, second_pressure])
 			await get_tree().create_timer(0.4).timeout
 			waited += 0.4
-		p("cleared, waited=%.1f second=%s defeated=%s（期望双 Boss）" % [waited, saw_second, str(Run.boss_defeated)])
+		p("cleared, waited=%.1f second=%s defeated=%s 首战压场=%s 二战压场=%s（期望首战无压场/二战压场）" % [waited, saw_second, str(Run.boss_defeated), first_pressure, second_pressure])
+		_check(not first_pressure and second_pressure, "无归连战第二只碎岳启用压场，第一只非碎岳不压场")
 		await get_tree().create_timer(1.0).timeout
 		await _shot("clear")
 		_check_ink(true)

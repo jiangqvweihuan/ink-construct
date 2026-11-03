@@ -3,6 +3,7 @@
 .godot_bak/
 /android/
 
-# 测试与调试产物
+# 测试、调试与导出产物
 tests/out/
 .screenshots/
+/build/

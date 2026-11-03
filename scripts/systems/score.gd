@@ -42,7 +42,7 @@ func reset() -> void:
 
 
 func _process(delta: float) -> void:
-	if _combo_left <= 0.0:
+	if get_tree().paused or _combo_left <= 0.0:
 		return
 	# 顿帧期间 time_scale 极低，delta 也变得极小，连击窗口不该被拉长，这里用真实时间
 	_combo_left -= delta / maxf(Engine.time_scale, 0.001)

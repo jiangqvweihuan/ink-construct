@@ -3,6 +3,7 @@ extends CanvasLayer
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const BattleStatus = preload("res://scripts/ui/battle_status.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
 ## 暂停菜单：Esc 继续，左侧导航，右侧查看全部战斗状态、被动与强化。
 
@@ -48,7 +49,7 @@ func _ready() -> void:
 	add_child(_close_button)
 	_text("战斗状态与被动", Vector2(500, 142), Vector2(500, 34), 23, PAPER, self)
 	_text("增益 / 减益 / 化身被动 / 夺取 / 局内强化", Vector2(500, 174), Vector2(500, 24), 14, DIM, self)
-	_make_button("继续战斗", 260, _resume)
+	_make_button("继续战斗", 260, _resume, null)
 	_make_button("设    置", 342, _open_settings)
 	_make_button("回主菜单", 424, _to_menu)
 	_text("Esc 返回战斗", Vector2(240, 510), Vector2(220, 28), 15, DIM, self)
@@ -69,7 +70,7 @@ func _text(text: String, pos: Vector2, dimensions: Vector2, font_size: int, colo
 	return l
 
 
-func _make_button(text: String, y: float, cb: Callable) -> void:
+func _make_button(text: String, y: float, cb: Callable, sfx: AudioStream = SFX_CLICK) -> void:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
@@ -81,10 +82,8 @@ func _make_button(text: String, y: float, cb: Callable) -> void:
 	var l := _text(text, Vector2.ZERO, b.size, 22, INK, b)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.pressed.connect(func():
-		var s := AudioStreamPlayer.new()
-		add_child(s)
-		s.stream = SFX_CLICK
-		s.play()
+		if sfx != null:
+			_play_sfx(sfx)
 		cb.call())
 	add_child(b)
 
@@ -159,9 +158,20 @@ func _open_settings() -> void:
 			_close_button.show())
 
 
+func _play_sfx(stream: AudioStream) -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	s.process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().root.add_child(s)
+	s.stream = stream
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
+
+
 func _resume() -> void:
 	if _resuming:
 		return
+	_play_sfx(SFX_BACK)
 	_resuming = true
 	get_tree().paused = false
 	queue_free()

@@ -70,7 +70,11 @@ const TYPES := {
 		"hit_at": {"skill01": 0.64, "skill02": 1.58, "skill03_2": [0.36, 0.80], "skill03_3": 0.20},
 		"ranges": {"skill01": 81.0, "skill02": 152.0, "skill03_2": [167.0, 161.0], "skill03_3": 150.0},
 		"damage": {"skill01": 2, "skill02": 2, "skill03_2": 1, "skill03_3": 2},
-		"hit_effects": {"skill02": {"jump_seal": 8.0}},
+		"hit_effects": {
+			"skill02": {"jump_seal": 8.0},
+			"skill03_2": {"pierce_hurt_invincible": true},
+			"skill03_3": {"pierce_hurt_invincible": true},
+		},
 		"hit_knockback": Vector2(140.0, 0.0), # 蛮力：每段实伤都短击退，不附加浮空
 		"super_armor": true, # 普通控制免疫；ignore_armor 与时停仍可穿透
 		"attack_chain": {"skill03_2": {"anim": "skill03_3", "recovery": 3.0}},

@@ -8,18 +8,23 @@ extends Node
 
 const TRACKS := {
 	"menu": "res://audio/music/home.wav",       # 御风引 · 仙风篇（素材库 home）
+	"menu_02": "res://audio/music/menu_02.wav",
 	"battle": "res://audio/music/battle.wav",   # 破阵 · 侠气篇（素材库 battle）
+	"boss": "res://audio/music/boss.wav",
 }
 const FADE := 0.9     # 交叉淡化时长（秒）
 const SILENT_DB := -42.0 # 淡出目标音量，相当于静音
 
 var _players: Array[AudioStreamPlayer] = []
+var _fades: Dictionary = {} # 播放器索引 -> 当前淡化；切换代际时先取消旧回调
 var _active := -1 # 当前正在播放的播放器索引，-1 表示还没有曲子在放
 var _current := "" # 当前曲目名，防同名重播
+var _menu_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS # 暂停菜单弹出时 BGM 不中断
+	_menu_rng.randomize()
 	for i in 2:
 		var p := AudioStreamPlayer.new()
 		p.bus = "Music"
@@ -30,6 +35,8 @@ func _ready() -> void:
 
 ## 播放指定曲目（带交叉淡化）。同名曲目已在播则直接返回，不重头播。
 func play_bgm(track: String) -> void:
+	if track == "menu":
+		track = "menu_02" if _menu_rng.randi() % 2 == 0 else "menu"
 	if track == _current:
 		return
 	var path = TRACKS.get(track)
@@ -50,6 +57,9 @@ func play_bgm(track: String) -> void:
 	var from := _active
 	var next := (1 - _active) if _active >= 0 else 0
 	_active = next
+	_cancel_fade(next)
+	if from >= 0:
+		_cancel_fade(from)
 
 	var p := _players[next]
 	p.stream = stream
@@ -57,13 +67,22 @@ func play_bgm(track: String) -> void:
 	p.play()
 
 	var tw_in := create_tween()
+	_fades[next] = tw_in
 	tw_in.tween_property(p, "volume_db", 0.0, FADE)
 
 	if from >= 0:
 		var old := _players[from]
 		var tw_out := create_tween()
+		_fades[from] = tw_out
 		tw_out.tween_property(old, "volume_db", SILENT_DB, FADE)
 		tw_out.tween_callback(_stop_player.bind(from))
+
+
+func _cancel_fade(i: int) -> void:
+	var tween: Tween = _fades.get(i)
+	if tween != null and tween.is_valid():
+		tween.kill()
+	_fades.erase(i)
 
 
 func _stop_player(i: int) -> void:

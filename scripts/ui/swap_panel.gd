@@ -9,6 +9,7 @@ const Skulls = preload("res://scripts/player/skulls.gd")
 
 const SFX_SWAP := preload("res://audio/sfx/swap_draw.wav")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -53,6 +54,7 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		_play_back_sfx()
 		_cancel()
 		get_viewport().set_input_as_handled()
 
@@ -67,13 +69,26 @@ func select(id: String) -> void:
 	# 抽签音效
 
 	var s := AudioStreamPlayer.new()
-	add_child(s)
+	s.bus = "SFX"
+	s.process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().root.add_child(s)
 	s.stream = SFX_SWAP
 	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
 	_player.swap_skull(id)
 	chosen.emit(id)
 	await get_tree().create_timer(0.18).timeout
 	_close()
+
+
+func _play_back_sfx() -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	s.process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().root.add_child(s)
+	s.stream = SFX_BACK
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
 
 
 func _cancel() -> void:
@@ -115,6 +130,7 @@ func _make_card(id: String, i: int) -> void:
 	else:
 		b.pressed.connect(func():
 			var s := AudioStreamPlayer.new()
+			s.bus = "SFX"
 			add_child(s)
 			s.stream = SFX_CLICK
 			s.play()

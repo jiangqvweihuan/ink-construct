@@ -5,6 +5,8 @@ extends CanvasLayer
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_PURCHASE := preload("res://audio/sfx/shop_purchase.wav")
+const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.82, 0.79, 0.72)
@@ -24,6 +26,7 @@ var _sfx: AudioStreamPlayer
 func _ready() -> void:
 	layer = 11
 	_sfx = AudioStreamPlayer.new()
+	_sfx.bus = "SFX"
 	_sfx.stream = SFX_CLICK
 	add_child(_sfx)
 	_build()
@@ -44,7 +47,7 @@ func _build() -> void:
 	add_child(win)
 	_text(self, "墨 锭 商 栈", Vector2(250, 52), Vector2(780, 58), 42, PAPER)
 	_text(self, "墨锭 %d" % Meta.ink, Vector2(250, 112), Vector2(780, 32), 23, RED)
-	_button(self, "返  回", Vector2(70, 66), Vector2(145, 48), _close)
+	_button(self, "返  回", Vector2(70, 66), Vector2(145, 48), _close, SFX_BACK)
 	var keys := TABS.keys()
 	for i in keys.size():
 		var key := str(keys[i])
@@ -93,9 +96,11 @@ func _shop_card(key: String, pos: Vector2) -> void:
 	var price := "已满级" if cost < 0 and not item.has("supply") else ("库存已满" if cost < 0 else "%d 墨锭" % cost)
 	_text(b, price, Vector2(18, 86), Vector2(454, 28), 18, RED if not b.disabled else DIM)
 	b.pressed.connect(func():
-		_click()
 		if Meta.buy(key):
-			call_deferred("_refresh"))
+			_play_sfx(SFX_PURCHASE)
+			call_deferred("_refresh")
+		else:
+			_click())
 
 
 func _build_appearance() -> void:
@@ -141,8 +146,18 @@ func _close() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		_play_sfx(SFX_BACK)
 		_close()
 		get_viewport().set_input_as_handled()
+
+
+func _play_sfx(stream: AudioStream) -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	get_tree().root.add_child(s)
+	s.stream = stream
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
 
 
 func _click() -> void:
@@ -150,7 +165,7 @@ func _click() -> void:
 		_sfx.play()
 
 
-func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callable) -> TextureButton:
+func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callable, sfx: AudioStream = SFX_CLICK) -> TextureButton:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
@@ -161,7 +176,7 @@ func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callab
 	parent.add_child(b)
 	_text(b, text, Vector2.ZERO, size, 19, INK)
 	b.pressed.connect(func():
-		_click()
+		_play_sfx(sfx)
 		cb.call())
 	return b
 

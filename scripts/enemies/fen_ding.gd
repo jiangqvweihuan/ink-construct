@@ -81,8 +81,14 @@ func _physics_process(delta: float) -> void:
 	for move in _move_cds:
 		_move_cds[move] = maxf(0.0, float(_move_cds[move]) - delta)
 	if state == S_CAST or state == S_AWAKEN:
-		_pipa_status_tick(delta)
+		if _slow_timer > 0.0:
+			_slow_timer = maxf(0.0, _slow_timer - delta)
+			if _slow_timer <= 0.0:
+				_slow_scale = 1.0
 		_find_target()
+		_bleed_tick(delta)
+		_poison_tick(delta)
+		_pipa_status_tick(delta)
 		if state == S_CAST:
 			_cast_tick(delta)
 		else:
@@ -107,6 +113,7 @@ func _chase_tick(delta: float) -> void:
 	facing = 1 if dx >= 0.0 else -1
 	_apply_facing()
 	var dist := absf(dx)
+	var speed := chase_speed * _slow_scale
 	var player_vx := 0.0
 	var target_velocity = _target.get("velocity")
 	if typeof(target_velocity) == TYPE_VECTOR2:
@@ -120,18 +127,18 @@ func _chase_tick(delta: float) -> void:
 	if _attack_desire < ATTACK_DESIRE_TIME:
 		if approaching and dist < HOLD_DISTANCE:
 			if _approach_yield < YIELD_DISTANCE:
-				var yield_step := minf(chase_speed * delta, YIELD_DISTANCE - _approach_yield)
+				var yield_step := minf(speed * delta, YIELD_DISTANCE - _approach_yield)
 				_approach_yield += yield_step
-				velocity.x = move_toward(velocity.x, -facing * chase_speed, accel * delta)
+				velocity.x = move_toward(velocity.x, -facing * speed, accel * delta)
 				_play(str(_anim_map["chase"]), true)
 				return
 			_attack_desire = ATTACK_DESIRE_TIME
 		elif dist > HOLD_DISTANCE + HOLD_TOLERANCE:
-			velocity.x = move_toward(velocity.x, facing * chase_speed, accel * delta)
+			velocity.x = move_toward(velocity.x, facing * speed, accel * delta)
 			_play(str(_anim_map["chase"]), true)
 			return
 		elif dist < HOLD_DISTANCE - HOLD_TOLERANCE:
-			velocity.x = move_toward(velocity.x, -facing * chase_speed, accel * delta)
+			velocity.x = move_toward(velocity.x, -facing * speed, accel * delta)
 			_play(str(_anim_map["chase"]), true)
 			return
 		else:
@@ -147,7 +154,7 @@ func _chase_tick(delta: float) -> void:
 	if dy <= 190.0 and dist <= release_reach + _radius_of(_target):
 		_start_fen_move(_planned_move)
 		return
-	velocity.x = move_toward(velocity.x, facing * chase_speed, accel * delta)
+	velocity.x = move_toward(velocity.x, facing * speed, accel * delta)
 	_play(str(_anim_map["chase"]), true)
 
 

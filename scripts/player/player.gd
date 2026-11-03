@@ -40,7 +40,33 @@ const SFX_PRECACHE := [
 	"dash_step",      # 冲刺脚步（踏地）
 	"skill_boom",     # 金钟罩上罩（力僧 K 第二段）
 	"gold",           # 金钟罩挡下攻击（金属清响）
+	"weapon_blade",
+	"assassin_basic_attack",
+	"assassin_projectile",
+	"monk_basic_attack",
+	"monk_bell_quake",
+	"monk_vajra_wrath",
+	"monk_meditation",
+	"swordsman_swift_slash",
+	"jiangqu_silence",
+	"jiangqu_hibiscus_slash",
+	"pipa_eight_tones",
+	"pipa_inner_demon",
+	"pipa_mind_snare",
+	"pipa_taiyu",
+	"pipa_mortal_tribulation",
+	"pipa_string_step",
+	"golden_bell_block",
+	"heal",
+	"player_footstep",
+	"player_hurt_sharp",
+	"player_hurt_blunt",
 ]
+
+var _loop_sfx_player: AudioStreamPlayer
+var _skill_loop_active := false
+var _skill_audio_events: Array = []
+var _footstep_timer := 0.0
 
 @export var run_speed := 240.0
 @export var accel := 2200.0    # 启动加速度（"踩油门"）
@@ -284,6 +310,7 @@ var _skill_dur := 0.0 # 本次技能动画真实时长
 var _skill_hits: Array = [] # 尚未结算的命中段（按 at 升序，逐个弹出）
 var _skill_start_x := 0.0 # 技能起手 x，path 命中判定的路径起点
 var _skill_cds := {} # 技能名 -> 剩余冷却
+var _skill_cd_totals := {} # 技能名 -> 本次实际总冷却（各技能独立，供 HUD 比例使用）
 var _room_cd_cursed := false # 魔爆：仅当前玩家所在房间有效，重建玩家即自然清除
 var _room_cd_uses: Dictionary = {} # 诅咒后各技能已使用次数；下次冷却每次再 +1 秒
 var _skill_durations := {} # 技能名 -> 动画真实时长，setup 时缓存
@@ -690,7 +717,12 @@ func _expire_bait() -> void:
 
 func _setup_sfx() -> void:
 	_sfx_player = AudioStreamPlayer.new()
+	_sfx_player.bus = "SFX"
 	add_child(_sfx_player)
+	_loop_sfx_player = AudioStreamPlayer.new()
+	_loop_sfx_player.bus = "SFX"
+	add_child(_loop_sfx_player)
+	_loop_sfx_player.finished.connect(_on_skill_loop_finished)
 	for n in SFX_PRECACHE:
 		var r := load(SFX_BASE + n + ".wav")
 		if r != null:
@@ -704,6 +736,28 @@ func _play_sfx(sfx_name: String) -> void:
 	if s != null:
 		_sfx_player.stream = s
 		_sfx_player.play()
+
+
+func _start_skill_loop(sfx_name: String) -> void:
+	_stop_skill_loop()
+	var source = _sfx_cache.get(sfx_name)
+	if source == null:
+		return
+	_skill_loop_active = true
+	_loop_sfx_player.stream = source
+	_loop_sfx_player.play()
+
+
+func _on_skill_loop_finished() -> void:
+	if _skill_loop_active and is_instance_valid(_loop_sfx_player):
+		_loop_sfx_player.play()
+
+
+func _stop_skill_loop() -> void:
+	_skill_loop_active = false
+	if is_instance_valid(_loop_sfx_player):
+		_loop_sfx_player.stop()
+		_loop_sfx_player.stream = null
 
 
 func _setup_spine() -> void:
@@ -730,6 +784,7 @@ func _setup_spine() -> void:
 	# 随机池技能（银夜 I/O）：池里每个动画都要缓存，时长按抽中的那个走
 	_skill_durations.clear()
 	_skill_cds.clear()
+	_skill_cd_totals.clear()
 	for n in skill_config:
 		var names: Array = (skill_config[n].get("pool", [n]) as Array).duplicate()
 		var alternate: Dictionary = skill_config[n].get("awaken", {})
@@ -743,6 +798,7 @@ func _setup_spine() -> void:
 			else:
 				push_error("Player: 技能动画不存在 " + str(an))
 		_skill_cds[n] = 0.0
+		_skill_cd_totals[n] = 0.0
 	# 普攻随机池（银夜三段）：抽中哪段动画，锁定时长就是哪段的真实时长
 	_attack_durations.clear()
 	for atk in attacks:
@@ -1013,6 +1069,13 @@ func _ground_move(delta: float) -> void:
 		# 松油门立刻重刹，跟动作游戏的手感走——停下比起步快
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 		_set_state(State.IDLE)
+	_footstep_timer = maxf(0.0, _footstep_timer - delta)
+	if state == State.RUN and is_on_floor() and absf(velocity.x) > 20.0:
+		if _footstep_timer <= 0.0:
+			_play_sfx("player_footstep")
+			_footstep_timer = 0.32
+	else:
+		_footstep_timer = 0.0
 	_try_jump()
 	_try_dash()
 	if Input.is_action_just_pressed("attack") and not _attack_recovery_active():
@@ -1668,6 +1731,9 @@ func _skill_tick(delta: float) -> void:
 		if state == State.DASH:
 			return
 	var t: float = (_skill_dur - _skill_timer) * _skill_speed # 动画时间：慢放技能的时刻表按动画帧标定，与 cfg 的 at/blink 对齐
+	while not _skill_audio_events.is_empty() and t >= float(_skill_audio_events[0].get("at", 0.0)):
+		var event: Dictionary = _skill_audio_events.pop_front()
+		_play_sfx(str(event.get("sfx", "")))
 	# 根骨跟随（root_motion）：动画把根骨挪了多远，节点就跟着挪多远，再用 sprite 反向抵消同一份量——
 	# 画面看到的动作与原来一模一样，但人物真的走到了动画终点（命中判定 / 投射物出手点也都在正确位置）
 	if _skill_root_follow and _root_bone != null:
@@ -2180,6 +2246,7 @@ func _restore_hp(amount: int) -> void:
 	hp += heal
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(heal, Color(0.45, 0.75, 0.5), 130.0)
+	_play_sfx("heal")
 
 
 ## 投射物统一回报：连击与技能回血；具体流派派生由各自的命中回调处理。
@@ -2466,6 +2533,7 @@ func _apply_skill_heal(h: Dictionary) -> void:
 			dn.setup("回血 +%d" % heal, Color(0.45, 0.75, 0.5))
 			dn.global_position = global_position + Vector2(0, -130)
 			get_tree().current_scene.add_child(dn)
+			_play_sfx("heal")
 		if used_precepts > 0:
 			_precepts = 0
 			var overflow := maxi(0, total_heal - missing)
@@ -2549,6 +2617,9 @@ func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0)
 		self, from_skill, _skill_cast_id, effects)
 	pr.global_position = global_position + Vector2(facing * 36.0, -52.0 + y_off)
 	get_tree().current_scene.add_child(pr)
+	var flight_sfx := str(_skill_runtime.get("projectile_sfx", "")) if from_skill else ""
+	if flight_sfx != "":
+		_play_sfx(flight_sfx)
 
 
 ## 当前该用的待机动画：残血形态（weak 之类）优先，其余回普通 stand
@@ -2622,7 +2693,7 @@ func get_skill_cd_ratio(n: String) -> float:
 	var cfg: Dictionary = skill_config.get(n, {})
 	if cfg.is_empty():
 		return 0.0
-	var total: float = cfg["cooldown"]
+	var total := float(_skill_cd_totals.get(n, 0.0))
 	if total <= 0.0:
 		return 0.0
 	var cd: float = _skill_cds.get(n, 0.0)
@@ -2760,7 +2831,7 @@ func _start_attack(idx: int) -> void:
 	velocity.x = facing * float(atk["lunge"])
 	_play(anim, false)
 	_sync_stolen_sword_clone()
-	_play_sfx("weapon_sword") # 起手嗖一声
+	_play_sfx(str(atk.get("cast_sfx", "weapon_sword"))) # 起手嗖一声
 	_queue(anim_map["idle"], true) # 打完自动回 idle，防止卡在收招帧
 	_idle_queued = true # 与 _start_skill 一致：idle 已在队列里，收招超时别再 _play 重开淡化
 
@@ -2773,8 +2844,8 @@ func _try_skill() -> void:
 		var cfg: Dictionary = skill_config[n]
 		if not Input.is_action_just_pressed(cfg["action"]) or _skill_cds.get(n, 0.0) > 0.0:
 			continue
-		# 觉醒限定技（O/P）：剑仙看剑意觉醒窗口 _awaken_time，银夜看觉醒加伤 _buff_timer，都不在则按了也不响应
-		if bool(cfg.get("require_buff", false)) and _awaken_time <= 0.0 and _buff_timer <= 0.0:
+		# 觉醒限定技（O/P）只认真正觉醒窗口；完美闪避等普通加伤不能解锁。
+		if bool(cfg.get("require_buff", false)) and _awaken_time <= 0.0:
 			continue
 		if skull_id == "z002" and bool(cfg.get("once_per_awaken", false)) and _pipa_o_used:
 			continue
@@ -2814,9 +2885,12 @@ func _start_skill(n: String) -> void:
 		cfg = (base_cfg["awaken"] as Dictionary).duplicate(true)
 		cfg["action"] = base_cfg["action"]
 		cfg["cooldown"] = base_cfg["cooldown"]
+		if not cfg.has("cast_sfx"):
+			cfg["cast_sfx"] = str(base_cfg.get("cast_sfx", ""))
 		if cfg.has("anim"):
 			cfg["pool"] = [str(cfg["anim"])]
 	_skill_runtime = cfg.duplicate(true)
+	_skill_audio_events = (cfg.get("sfx_events", []) as Array).duplicate(true)
 	if skull_id == "z002" and bool(cfg.get("once_per_awaken", false)):
 		_pipa_o_used = true
 		_pipa_wave_hits.clear()
@@ -2889,6 +2963,7 @@ func _start_skill(n: String) -> void:
 		_skill_cd_set *= 0.5 # 淑女：只减半自信期间实际释放的技能
 	if skull_id == "z002" and n == "skill03" and _form_node("z002_echo_2"):
 		_skill_cd_set = maxf(0.1, _skill_cd_set - 1.0)
+	_skill_cd_totals[n] = _skill_cd_set
 	_skill_cds[n] = _skill_cd_set
 	if _room_cd_cursed:
 		_room_cd_uses[n] = int(_room_cd_uses.get(n, 0)) + 1
@@ -2913,10 +2988,17 @@ func _start_skill(n: String) -> void:
 		_buff_timer = float(cfg.get("buff_time", 8.0))
 		if skull_id == "z003" and n == "skill10" and _form_node("z003_return_2"):
 			_buff_timer += 2.0
+		if skull_id == "z003" and n == "skill10":
+			_awaken_time = _buff_timer # 影殇 I 与加伤同时建立等长的真正觉醒窗口
 	velocity.x = facing * float(attacks[0]["lunge"]) * 0.6 # 起手小前冲
 	_play(_skill_anim, false, _skill_speed)
 	_sync_stolen_sword_clone()
-	_play_sfx("voice_skill_cast") # 技能起手嗡一声
+	var loop_sfx := str(cfg.get("loop_sfx", ""))
+	if loop_sfx != "":
+		_start_skill_loop(loop_sfx)
+	else:
+		_stop_skill_loop()
+		_play_sfx(str(cfg.get("cast_sfx", "voice_skill_cast"))) # 技能起手嗡一声
 	# 其他技能排队 stand 防止收招空窗；银夜 I 必须保留原轨道供 _skill_tick 监听完成，收招时再切 stand。
 	if skull_id != "z003" or _skill_name != "skill10":
 		_queue(anim_map["idle"], true)
@@ -2987,7 +3069,7 @@ func _stolen_wall_tick() -> void:
 	hp = maxi(0, hp - 1)
 	hp_changed.emit(hp, max_hp)
 	_spawn_passive_text("耐久 -1", Color(0.9, 0.48, 0.3))
-	if hp <= 0:
+	if hp <= 0 and not _try_revive(Vector2.ZERO):
 		die()
 
 
@@ -3007,7 +3089,7 @@ func _try_stolen_madness_damage(amount: int, attacker: Node, move: Dictionary) -
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(actual, DMG_COLOR, 130.0)
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45})
-	if hp <= 0:
+	if hp <= 0 and not _try_revive(Vector2.ZERO):
 		die()
 	return true
 
@@ -3065,6 +3147,7 @@ func _charm_call() -> void:
 func swap_skull(id: String) -> void:
 	if not Skulls.SKULLS.has(id) or id == skull_id:
 		return
+	_stop_skill_loop()
 	_dismiss_stolen_sword_clone()
 	_set_blink(false) # 换头瞬间收掉闪现的碰撞例外
 	_invincible = false
@@ -3249,6 +3332,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		_hurt_getup_dur = 0.0
 		var feedback_anim := str(anim_map["hurt"])
 		_hurt_timer = maxf(hurt_time, float(_anim_durations.get(feedback_anim, hurt_time)))
+		_stop_skill_loop()
 		velocity = knockback
 		_idle_queued = false
 		_play_sfx("hit_fist")
@@ -3303,7 +3387,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		shield_dn.global_position = global_position + Vector2(0, -150)
 		get_tree().current_scene.add_child(shield_dn)
 		FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.5})
-		_play_sfx("gold")
+		_play_sfx("golden_bell_block")
 		Feel.hitstop(0.06)
 		Feel.shake(3.0, 0.1)
 		_shield_heal_once()
@@ -3400,7 +3484,14 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		get_tree().current_scene.add_child(precept_dn)
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(amount, DMG_COLOR, 130.0)
-	_play_sfx("hit_fist") # 玩家受伤闷拳声
+	var hurt_sfx := "hit_fist"
+	if attacker != null and is_instance_valid(attacker):
+		var attacker_id = attacker.get("type_id")
+		if attacker_id == null:
+			attacker_id = attacker.get("skull_id")
+		if attacker_id != null:
+			hurt_sfx = "player_hurt_blunt" if str(attacker_id) in ["c013", "z002", "c001", "c032", "c015a1"] else "player_hurt_sharp"
+	_play_sfx(hurt_sfx)
 	# 水墨受击花在胸口炸开，flip 跟击退方向（击退朝右 = 攻击来自左侧）
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45, "flip": knockback.x > 0.0})
 	Feel.hitstop(0.05) # 挨打也要"一僵"：受击反馈和打人一样重要
@@ -3467,6 +3558,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	# 霸体（力僧形态专属 + 定山技能自带）：技能期间挨打开着招式硬吃，掉血但不进硬直、不打断技能
 	if (poise or _skill_poise) and state == State.SKILL:
 		return
+	_stop_skill_loop()
 	# 墨冲明确携带倒地标记；只有当前角色确有倒地链或倒地动画时才强制触发。
 	if not buddha_guard and bool(move.get("force_knockdown", false)):
 		if not _knock_chain.is_empty():
@@ -3880,7 +3972,32 @@ func _try_revive(knockback: Vector2) -> bool:
 		can_revive = true
 	if not can_revive:
 		return false
+	if max_hp <= 0 and _stolen("c009_madness"):
+		Run.max_hp = maxi(1, Run.calculated_max_hp())
+		max_hp = Run.max_hp
 	_clear_bleed()
+	_stop_skill_loop()
+	_begin_attack_recovery_if_needed()
+	_set_blink(false)
+	_reset_root_follow()
+	_skill_hits.clear()
+	_skill_audio_events.clear()
+	_delayed.clear()
+	_skill_runtime.clear()
+	_skill_name = ""
+	_skill_timer = 0.0
+	_skill_teleport = 0.0
+	_skill_tick_acc = 0.0
+	_awaken_pending = 0.0
+	_invincible = false
+	_skill_poise = false
+	_skill_reflect = false
+	_skill_ranged_guard = false
+	_skill_cancel_ready = false
+	_parry_ready = false
+	_bell_shell = false
+	_shield_hits = 0
+	_shield_time = 0.0
 	hp = max_hp if red_butterfly else mini(4, max_hp)
 	if Run.active:
 		Run.hp = hp
@@ -3890,9 +4007,6 @@ func _try_revive(knockback: Vector2) -> bool:
 	_hurt_phase = ""
 	_hurt_getup_dur = 0.0
 	_hurt_timer = float(_anim_durations.get(str(anim_map["getup"]), hurt_time))
-	_skill_poise = false
-	_skill_reflect = false
-	_skill_ranged_guard = false
 	velocity = knockback
 	_play(anim_map["getup"], false)
 	_queue(anim_map["idle"], true)
@@ -3962,6 +4076,7 @@ func _perfect_dodge(attacker: Node = null, incoming_damage: int = 0) -> void:
 
 
 func die() -> void:
+	_stop_skill_loop()
 	_mo_ting_grabbed = false
 	_passive_seal_time = 0.0
 	_stun_time = 0.0
@@ -4034,6 +4149,8 @@ func _post_move() -> void:
 func _set_state(new_state: int) -> void:
 	if state == new_state:
 		return
+	if state == State.SKILL:
+		_stop_skill_loop()
 	_begin_attack_recovery_if_needed()
 	state = new_state
 	match state:

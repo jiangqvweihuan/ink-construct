@@ -289,6 +289,9 @@ func difficulty_label() -> String:
 
 func _roll_bosses() -> void:
 	var pool := BossTypes.ROSTER.duplicate()
+	# 无尽跨层不能连续抽到同一只；池内至少两只时排除上一层的 Boss。
+	if mode == MODE_ENDLESS and boss_id != "" and pool.size() > 1:
+		pool.erase(boss_id)
 	pool.shuffle()
 	boss_queue = []
 	var amount := 2 if mode == MODE_ADVENTURE and difficulty == DIFFICULTIES.size() - 1 else 1

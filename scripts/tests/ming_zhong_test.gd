@@ -63,6 +63,7 @@ func _ready() -> void:
 	_test_awaken()
 	_test_block_and_hurt()
 	_test_interruptions()
+	_test_status_effects()
 	_test_root_motion()
 	await _test_pursuit_root_motion()
 	await _test_hud_bar()
@@ -83,6 +84,13 @@ func _reset_all(player_hp := 99) -> void:
 	_b.max_hp = 68
 	_b.hp = 68
 	_b._invincible = false
+	_b._bleed_stacks = 0
+	_b._bleed_time = 0.0
+	_b._bleed_acc = 0.0
+	_b._poison_time = 0.0
+	_b._poison_acc = 0.0
+	_b._slow_timer = 0.0
+	_b._slow_scale = 1.0
 	_b._awakened = false
 	_b._heroic = false
 	_b._cast_heroic = false
@@ -286,6 +294,36 @@ func _test_interruptions() -> void:
 	_check(_p._ming_zhong_holder == _b, "时停测试前四连击首段已固定玩家")
 	_b.time_stop(1.0)
 	_check(_p._ming_zhong_holder == null and _b._cast_events.is_empty() and _b.state == CHASE, "时停打断四连击并解除定点与待结算伤害")
+
+
+func _test_status_effects() -> void:
+	_reset_all()
+	_p.global_position.x = 1800.0
+	_b._start_ming_move(_b.COMBO)
+	_b._cast_duration = 10.0
+	_b.apply_bleed(2)
+	_b.apply_poison(2.0)
+	_b.slow(4.0, 0.5)
+	var hp_before: int = _b.hp
+	_b._physics_process(1.0)
+	_check(_b.hp == hp_before - 4 and _b.state == _b.S_CAST, "施法状态持续推进两层流血与两次中毒")
+	_check(is_equal_approx(_b._slow_timer, 1.0), "施法状态持续推进余滞计时")
+
+	_reset_all()
+	_b._attack_desire = 0.0
+	_p.global_position.x = 1300.0
+	_b.slow(4.0, 0.5)
+	_b._chase_tick(0.5)
+	var expected := move_toward(0.0, _b.chase_speed * 0.5, _b.accel * 0.5)
+	_check(is_equal_approx(_b.velocity.x, expected), "普通追击速度应用余滞倍率")
+
+	_reset_all()
+	_b.state = _b.S_RETREAT
+	_b._retreat_left = 1.0
+	_b.slow(4.0, 0.5)
+	_b._retreat_tick(0.016)
+	expected = move_toward(0.0, _b.chase_speed * 1.25 * 0.5, _b.accel * 0.016)
+	_check(is_equal_approx(_b.velocity.x, expected), "收招后撤速度应用余滞倍率")
 
 
 func _test_root_motion() -> void:

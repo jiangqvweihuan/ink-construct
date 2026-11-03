@@ -78,15 +78,27 @@ func _physics_process(delta: float) -> void:
 	for move in _move_cds:
 		_move_cds[move] = maxf(0.0, float(_move_cds[move]) - cd_delta)
 	if state == S_CAST:
-		_pipa_status_tick(delta)
+		if _slow_timer > 0.0:
+			_slow_timer = maxf(0.0, _slow_timer - delta)
+			if _slow_timer <= 0.0:
+				_slow_scale = 1.0
 		_find_target()
+		_bleed_tick(delta)
+		_poison_tick(delta)
+		_pipa_status_tick(delta)
 		_cast_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
 		move_and_slide()
 		return
 	if state == S_RETREAT:
-		_pipa_status_tick(delta)
+		if _slow_timer > 0.0:
+			_slow_timer = maxf(0.0, _slow_timer - delta)
+			if _slow_timer <= 0.0:
+				_slow_scale = 1.0
 		_find_target()
+		_bleed_tick(delta)
+		_poison_tick(delta)
+		_pipa_status_tick(delta)
 		_retreat_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
 		move_and_slide()
@@ -105,7 +117,7 @@ func _chase_tick(delta: float) -> void:
 	facing = 1 if dx >= 0.0 else -1
 	_apply_facing()
 	var dist := absf(dx)
-	var speed := chase_speed * (1.0 + _eye_effect("speed"))
+	var speed := chase_speed * (1.0 + _eye_effect("speed")) * _slow_scale
 	if _planned_move.is_empty() and _attack_desire >= ATTACK_DESIRE_TIME:
 		_planned_move = _choose_move(dist)
 	if not _planned_move.is_empty():
@@ -170,7 +182,7 @@ func _retreat_tick(delta: float) -> void:
 	facing = 1 if dx >= 0.0 else -1
 	_apply_facing()
 	_retreat_left = maxf(0.0, _retreat_left - delta)
-	var speed := chase_speed * RETREAT_SPEED_SCALE * (1.0 + _eye_effect("speed"))
+	var speed := chase_speed * RETREAT_SPEED_SCALE * (1.0 + _eye_effect("speed")) * _slow_scale
 	velocity.x = move_toward(velocity.x, -facing * speed, accel * delta)
 	_play(str(_anim_map["chase"]), true, MOVE_ANIM_SPEED)
 	if _retreat_left <= 0.0:

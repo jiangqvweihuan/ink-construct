@@ -49,10 +49,20 @@ func _ready() -> void:
 	var sz2 := DisplayServer.window_get_size()
 	p("延迟后窗口保持: %s -> %s" % [sz2, "PASS" if sz2 == Vector2i(1600, 900) else "FAIL"])
 
+	# 6. BGM 快速 A→B→A：第一次切换遗留的淡出回调不得误停第三次复用播放器的新曲。
+	BGM.play_bgm("battle")
+	await get_tree().create_timer(0.2).timeout
+	BGM.play_bgm("boss")
+	BGM.play_bgm("battle")
+	var bgm_ok: bool = BGM._current == "battle" and BGM._players[BGM._active].playing
+	await get_tree().create_timer(BGM.FADE + 0.3).timeout
+	bgm_ok = bgm_ok and BGM._current == "battle" and BGM._players[BGM._active].playing
+	p("BGM 快速 A→B→A 后新曲仍在播: %s" % ("PASS" if bgm_ok else "FAIL"))
+
 	# 还原默认，别污染用户配置
 	Settings.set_resolution(Vector2i(1280, 720))
 	Settings.set_music(1.0)
 	Settings.set_sfx(1.0)
 	p("已还原默认设置")
 	p("ALL DONE")
-	get_tree().quit()
+	get_tree().quit(1 if not bgm_ok else 0)

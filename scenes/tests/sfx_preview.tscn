@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://c08ob25uce8kj"]
-
-[ext_resource type="Script" path="res://scripts/tests/sfx_preview.gd" id="1"]
-
-[node name="SfxPreview" type="Node2D" unique_id=766493700]
-script = ExtResource("1")

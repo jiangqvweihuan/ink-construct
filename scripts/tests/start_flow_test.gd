@@ -27,6 +27,11 @@ func _ready() -> void:
 
 	await _click(Vector2(110, 624))
 	p("点开始游戏 -> 面板=%s step=%d（期望 true / 0）" % [_panel() != null, _step(_panel())])
+	var initial_panel := _panel()
+	assert(initial_panel != null, "开始面板必须打开")
+	initial_panel._start_run()
+	assert(not initial_panel._starting, "模式/角色校验失败不得锁死后续启程")
+	assert(initial_panel._sfx.bus == "SFX", "开始面板常驻点击音必须走 SFX 总线")
 	await _shot("run_01_mode")
 
 	await _click(Vector2(840, 365)) # 无尽
@@ -123,6 +128,11 @@ func _ready() -> void:
 	await _click(Vector2(635, 365)) # 惊锋
 	await _click(Vector2(150, 360))
 	p("即将启程：mode=%s difficulty=%d skull=%s（期望 adventure / 2 / c021）" % [_mode(_panel()), _difficulty(_panel()), str(_panel().get("_char"))])
+	Meta.persist = false
+	Meta.inventory["supply_revive"] = 2
+	await _click(Vector2(507, 553)) # 复活墨符：真实选择两件同类补给，供重复启程回归使用。
+	assert(_panel()._supply == "supply_revive", "启程前必须选中复活墨符")
+	assert(_panel()._start_button != null, "必须持有实际启程按钮")
 	# 点击后当前测试场景会被房间替换；由 SceneTree 自身持有退出计时器。
 	get_tree().create_timer(1.5).timeout.connect(get_tree().quit)
 	await _click(Vector2(1040, 616), true)
@@ -183,6 +193,28 @@ func _click(pos: Vector2, final := false) -> void:
 	up.position = pos
 	get_viewport().push_input(up, true)
 	if final:
+		var panel := _panel()
+		assert(panel != null, "真实点击启程后面板在切场景前应仍可检查")
+		if panel == null:
+			return
+		assert(bool(panel.get("_starting")), "第一次有效启程必须置位防重标记")
+		var start_button := panel.get("_start_button") as TextureButton
+		assert(start_button != null and start_button.disabled, "第一次启程必须立即禁用实际按钮")
+		assert(Meta.supply_count("supply_revive") == 1, "第一次启程必须只消耗一件补给")
+		panel._start_run() # 切场景尚未提交时同步重复调用。
+		assert(Meta.supply_count("supply_revive") == 1, "重复启程不得消耗第二件补给")
+		assert(Run.supply_revive, "重复启程不得重置已带入的补给")
+		var embark_sfx: AudioStreamPlayer = null
+		for child in get_tree().root.get_children():
+			if child is AudioStreamPlayer and child.stream == panel.SFX_RUN_EMBARK:
+				embark_sfx = child
+				break
+		assert(embark_sfx != null, "启程音效应由 root 级播放器播放")
+		if embark_sfx != null:
+			assert(embark_sfx.bus == "SFX", "启程音效必须走 SFX 总线")
+			assert(embark_sfx.get_parent() == get_tree().root, "启程音效不得随开始面板销毁")
+			assert(embark_sfx.finished.is_connected(embark_sfx.queue_free), "启程音效结束后必须自行释放")
+		p("启程真实输入/直接重复调用、按钮禁用、单件消耗与 SFX 总线断言通过")
 		return
 	await get_tree().process_frame
 	await get_tree().process_frame

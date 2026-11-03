@@ -7,6 +7,7 @@ extends CanvasLayer
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const BODY_FONT = preload("res://art/ui/fonts/pangmen.ttf") # 庞门正道粗书体：正文
 const TITLE_FONT = preload("res://art/ui/fonts/slidefu_regular.ttf") # 演示佛系体：标题 / 章节
+const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.66, 0.63, 0.58)
@@ -97,6 +98,12 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
+		var s := AudioStreamPlayer.new()
+		s.bus = "SFX"
+		get_tree().root.add_child(s)
+		s.stream = SFX_BACK
+		s.play()
+		s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
 		queue_free()
 
 

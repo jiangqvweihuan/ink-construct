@@ -479,7 +479,9 @@ func debug_unlock_all() -> void:
 func _save() -> void:
 	if not persist:
 		return
-	var f := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	# 先完整写入临时文件并关闭，再替换正式存档，避免中断留下半份 JSON。
+	var temp_path := SAVE_PATH + ".tmp"
+	var f := FileAccess.open(temp_path, FileAccess.WRITE)
 	if f == null:
 		return
 	f.store_string(JSON.stringify({
@@ -487,6 +489,14 @@ func _save() -> void:
 		"purchases": purchases, "form_nodes": form_nodes, "inventory": inventory,
 		"selected_supply": selected_supply, "seen": seen,
 	}))
+	f.close()
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(temp_path), ProjectSettings.globalize_path(SAVE_PATH))
+	if err != OK and FileAccess.file_exists(SAVE_PATH):
+		# Windows 上 rename 覆盖已有文件会失败：先删旧档再重试，仍有极短窗口缺档但不会损坏。
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+		err = DirAccess.rename_absolute(ProjectSettings.globalize_path(temp_path), ProjectSettings.globalize_path(SAVE_PATH))
+	if err != OK:
+		push_error("Meta: 存档替换失败，错误码 %d" % err)
 
 
 func _load() -> void:

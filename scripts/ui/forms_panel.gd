@@ -7,6 +7,9 @@ extends CanvasLayer
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_META_UPGRADE_01 := preload("res://audio/sfx/meta_upgrade_01.wav")
+const SFX_META_UPGRADE_02 := preload("res://audio/sfx/meta_upgrade_02.wav")
+const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -17,11 +20,14 @@ const TIER_NAMES := ["初", "续", "极"]
 
 var _form_id := ""
 var _sfx: AudioStreamPlayer
+var _upgrade_sfx_rng := RandomNumberGenerator.new()
 
 
 func _ready() -> void:
 	layer = 9
+	_upgrade_sfx_rng.randomize()
 	_sfx = AudioStreamPlayer.new()
+	_sfx.bus = "SFX"
 	_sfx.stream = SFX_CLICK
 	add_child(_sfx)
 	_build()
@@ -50,7 +56,7 @@ func _build_overview() -> void:
 	_text(self, "化 身 谱", Vector2(250, 48), Vector2(780, 58), 44, PAPER)
 	_text(self, "墨锭 %d" % Meta.ink, Vector2(250, 108), Vector2(780, 30), 23, RED)
 	_text(self, "累计击杀 %d ｜ 通关 %d" % [Meta.kills, Meta.clears], Vector2(250, 140), Vector2(780, 26), 15, DIM)
-	_button(self, "返  回", Vector2(70, 66), Vector2(140, 48), _close)
+	_button(self, "返  回", Vector2(70, 66), Vector2(140, 48), _close, SFX_BACK)
 
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(80, 185)
@@ -99,7 +105,7 @@ func _build_form_detail() -> void:
 	var unlocked := Meta.is_unlocked(_form_id)
 	_text(self, "%s · %s" % [profile["label"], profile.get("name", "")], Vector2(240, 48), Vector2(800, 54), 38, PAPER)
 	_text(self, "墨锭 %d ｜ 契合 %s" % [Meta.ink, Meta.mastery_text(_form_id)], Vector2(240, 105), Vector2(800, 28), 19, RED)
-	_button(self, "返回总览", Vector2(65, 62), Vector2(155, 46), _back)
+	_button(self, "返回总览", Vector2(65, 62), Vector2(155, 46), _back, SFX_BACK)
 	if Meta.form_spent(_form_id) > 0:
 		_button(self, "重置修炼", Vector2(1020, 65), Vector2(165, 46), _reset_form)
 
@@ -168,11 +174,13 @@ func _node_card(id: String, pos: Vector2, unlocked: bool) -> void:
 			status = "%d 墨锭 · %s" % [Meta.node_cost(id), "点击修炼" if Meta.can_learn(id) else "墨锭不足"]
 	_text(b, status, Vector2(12, 73), Vector2(316, 22), 14, GOLD if Meta.can_refund(id) or Meta.can_learn(id) else DIM)
 	b.pressed.connect(func():
-		_click()
 		if owned:
+			_click()
 			Meta.refund_node(id)
+		elif Meta.learn_node(id):
+			_play_sfx(SFX_META_UPGRADE_01 if _upgrade_sfx_rng.randi() % 2 == 0 else SFX_META_UPGRADE_02)
 		else:
-			Meta.learn_node(id)
+			_click()
 		call_deferred("_refresh"))
 
 
@@ -205,12 +213,22 @@ func _refresh() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
+		_play_sfx(SFX_BACK)
 		_back()
 		get_viewport().set_input_as_handled()
 
 
 func _close() -> void:
 	queue_free()
+
+
+func _play_sfx(stream: AudioStream) -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	get_tree().root.add_child(s)
+	s.stream = stream
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
 
 
 func _click() -> void:
@@ -232,7 +250,7 @@ func _plate(pos: Vector2, size: Vector2, bright := false) -> TextureRect:
 	return r
 
 
-func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callable) -> TextureButton:
+func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callable, sfx: AudioStream = SFX_CLICK) -> TextureButton:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
@@ -243,7 +261,7 @@ func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callab
 	parent.add_child(b)
 	_text(b, text, Vector2.ZERO, size, 18, INK)
 	b.pressed.connect(func():
-		_click()
+		_play_sfx(sfx)
 		cb.call())
 	return b
 

@@ -85,6 +85,7 @@ func _ready() -> void:
 				await _shot("03_enemy_hit")
 		guard += 1
 	await _shot("04_enemy_dead")
+	_test_score_pause()
 	await _test_hud_overhaul()
 
 	var enemy_hp: int = _enemy.hp if is_instance_valid(_enemy) else 0
@@ -98,6 +99,23 @@ func _check(ok: bool, label: String) -> void:
 	if not ok:
 		_failed += 1
 	p(("PASS " if ok else "FAIL ") + label)
+
+
+func _test_score_pause() -> void:
+	var previous_time_scale := Engine.time_scale
+	Engine.time_scale = 1.0
+	Score.reset()
+	Score.add_hit()
+	var left: float = Score._combo_left
+	get_tree().paused = true
+	Score._process(0.5)
+	_check(Score.combo == 1 and is_equal_approx(Score._combo_left, left), "暂停时连击窗口不递减")
+	get_tree().paused = false
+	Engine.time_scale = 0.05
+	Score._process(0.005)
+	_check(Score.combo == 1 and is_equal_approx(Score._combo_left, left - 0.1), "恢复后仍按顿帧真实时间递减")
+	Engine.time_scale = previous_time_scale
+	Score.reset()
 
 
 func _test_hud_overhaul() -> void:

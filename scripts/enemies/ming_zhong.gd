@@ -119,15 +119,27 @@ func _physics_process(delta: float) -> void:
 	for move in _move_cds:
 		_move_cds[move] = maxf(0.0, float(_move_cds[move]) - delta)
 	if state == S_CAST:
-		_pipa_status_tick(delta)
+		if _slow_timer > 0.0:
+			_slow_timer = maxf(0.0, _slow_timer - delta)
+			if _slow_timer <= 0.0:
+				_slow_scale = 1.0
 		_find_target()
+		_bleed_tick(delta)
+		_poison_tick(delta)
+		_pipa_status_tick(delta)
 		_cast_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
 		move_and_slide()
 		return
 	if state == S_RETREAT:
-		_pipa_status_tick(delta)
+		if _slow_timer > 0.0:
+			_slow_timer = maxf(0.0, _slow_timer - delta)
+			if _slow_timer <= 0.0:
+				_slow_scale = 1.0
 		_find_target()
+		_bleed_tick(delta)
+		_poison_tick(delta)
+		_pipa_status_tick(delta)
 		_retreat_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
 		move_and_slide()
@@ -156,7 +168,7 @@ func _chase_tick(delta: float) -> void:
 		if dy <= 190.0 and dist <= release_reach + _radius_of(_target):
 			_start_ming_move(_planned_move)
 			return
-		velocity.x = move_toward(velocity.x, facing * chase_speed * 1.45, accel * delta)
+		velocity.x = move_toward(velocity.x, facing * chase_speed * 1.45 * _slow_scale, accel * delta)
 		_play(CHASE_ANIM, true, 1.25)
 		return
 
@@ -170,15 +182,15 @@ func _chase_tick(delta: float) -> void:
 		_approach_yield = 0.0
 	_attack_desire = minf(ATTACK_DESIRE_TIME, _attack_desire + delta * (1.7 if retreating and dist > HOLD_DISTANCE else 1.0))
 	if approaching and dist < HOLD_DISTANCE and _approach_yield < 90.0:
-		var step := minf(chase_speed * delta, 90.0 - _approach_yield)
+		var step := minf(chase_speed * _slow_scale * delta, 90.0 - _approach_yield)
 		_approach_yield += step
-		velocity.x = move_toward(velocity.x, -facing * chase_speed, accel * delta)
+		velocity.x = move_toward(velocity.x, -facing * chase_speed * _slow_scale, accel * delta)
 		_play("run", true, 1.2)
 	elif dist > HOLD_DISTANCE + HOLD_TOLERANCE:
-		velocity.x = move_toward(velocity.x, facing * chase_speed, accel * delta)
+		velocity.x = move_toward(velocity.x, facing * chase_speed * _slow_scale, accel * delta)
 		_play("run", true, 1.2)
 	elif dist < HOLD_DISTANCE - HOLD_TOLERANCE:
-		velocity.x = move_toward(velocity.x, -facing * chase_speed, accel * delta)
+		velocity.x = move_toward(velocity.x, -facing * chase_speed * _slow_scale, accel * delta)
 		_play("run", true, 1.2)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
@@ -204,7 +216,7 @@ func _retreat_tick(delta: float) -> void:
 	facing = 1 if dx >= 0.0 else -1
 	_apply_facing()
 	_retreat_left = maxf(0.0, _retreat_left - delta)
-	velocity.x = move_toward(velocity.x, -facing * chase_speed * 1.25, accel * delta)
+	velocity.x = move_toward(velocity.x, -facing * chase_speed * 1.25 * _slow_scale, accel * delta)
 	_play(RETREAT_ANIM, true, 1.35)
 	if _retreat_left <= 0.0:
 		_set_state(State.CHASE)

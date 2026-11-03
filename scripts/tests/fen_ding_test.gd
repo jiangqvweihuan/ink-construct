@@ -64,6 +64,7 @@ func _ready() -> void:
 	_test_burn()
 	_test_awaken()
 	await _test_rise()
+	_test_status_effects()
 	_test_cleanup()
 	p("DONE checks=%d failed=%d" % [_checks, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
@@ -76,6 +77,13 @@ func _reset_all(player_hp := 99) -> void:
 	_b.max_hp = 68
 	_b.hp = 68
 	_b._invincible = false
+	_b._bleed_stacks = 0
+	_b._bleed_time = 0.0
+	_b._bleed_acc = 0.0
+	_b._poison_time = 0.0
+	_b._poison_acc = 0.0
+	_b._slow_timer = 0.0
+	_b._slow_scale = 1.0
 	_b._awakened = false
 	_b._attack_desire = 5.0
 	_b._approach_yield = 0.0
@@ -289,6 +297,35 @@ func _test_rise() -> void:
 	_p.global_position.x = 1800.0
 	_b._cast_tick(0.36)
 	_check(_p.hp == 99 and _p._fen_ding_burn_stacks == 0, "离开半径 110 的火区后不受伤也不叠层")
+
+
+func _test_status_effects() -> void:
+	_reset_all()
+	_p.global_position.x = 1800.0
+	_b._start_fen_move(_b.CRUSH)
+	_b.apply_bleed(2)
+	_b.apply_poison(2.0)
+	_b.slow(4.0, 0.5)
+	var hp_before: int = _b.hp
+	_b._physics_process(1.0)
+	_check(_b.hp == hp_before - 4 and _b.state == _b.S_CAST, "施法状态持续推进两层流血与两次中毒")
+	_check(is_equal_approx(_b._slow_timer, 1.0), "施法状态持续推进余滞计时")
+
+	_reset_all()
+	_b._attack_desire = 0.0
+	_p.global_position.x = 1300.0
+	_b.slow(4.0, 0.5)
+	_b._chase_tick(0.5)
+	var expected := move_toward(0.0, _b.chase_speed * 0.5, _b.accel * 0.5)
+	_check(is_equal_approx(_b.velocity.x, expected), "普通追击速度应用余滞倍率")
+
+	_reset_all()
+	_b._attack_desire = 0.0
+	_p.global_position.x = 550.0
+	_b.slow(4.0, 0.5)
+	_b._chase_tick(0.5)
+	expected = move_toward(0.0, _b.chase_speed * 0.5, _b.accel * 0.5)
+	_check(is_equal_approx(_b.velocity.x, expected), "近距离退让速度应用余滞倍率")
 
 
 func _test_cleanup() -> void:

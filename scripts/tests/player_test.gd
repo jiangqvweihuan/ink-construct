@@ -378,12 +378,30 @@ func _ready() -> void:
 		hp6, mul6, Run.boss_hp_scale(), Run.boss_cd_scale()])
 	p("HUD 模式文本（第6层第1间）：%s" % ("无尽 · 第 6 层 · 1/3"))
 
+	# 无尽跨层：Boss 抽选必须排除上一层那只，保证跨层不重复登场。
+	var prev_boss := str(Run.boss_id)
+	var prev_queue: Array = Run.boss_queue.duplicate()
+	var prev_depth := Run.depth
+	var prev_room := Run.room_index
+	Run.room_index = Run.ROOMS.size() + 1
+	Run.advance()
+	var cross_ok: bool = Run.depth == prev_depth + 1 and Run.boss_id != prev_boss \
+		and not Run.boss_queue.has(prev_boss) and Run.boss_queue.size() == 1
+	p("无尽跨层 Boss 上一只=%s 新=%s 队列=%s 层数=%d（期望换只且不含上一只）" % [prev_boss, Run.boss_id, str(Run.boss_queue), Run.depth])
+	_check(cross_ok, "无尽跨层 Boss 不重复登场")
+	Run.depth = prev_depth
+	Run.room_index = prev_room
+	Run.boss_id = prev_boss
+	Run.boss_queue = prev_queue
+
 	_permanent_progression_check()
+	_meta_atomic_save_regression()
 	await _new_build_regression()
 	await _assassin_cut_regression()
 	_dualsickle_regression()
 	_qingli_regression()
 	await _innate_passive_regression()
+	await _minimal_player_fix_regression()
 	p("PASSIVE DONE checks=%d failed=%d" % [_checks, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -465,6 +483,39 @@ func _permanent_progression_check() -> void:
 	_player.hurt(3)
 	p("红蝶首死=%s 墨符第二次复活 hp=%d 已消耗=%s 库存=%d（期望 true/4/true/0）" % [
 		red_first, _player.hp, Run.supply_revive_used, Meta.supply_count("supply_revive")])
+
+
+## 原子存档回归：完整写入 .tmp 后替换正式存档；覆盖既有 meta.json 的 rename 行为。
+## 先备份真实存档内容，测试后原样还原，不让测试数据污染玩家进度。
+func _meta_atomic_save_regression() -> void:
+	var existed := FileAccess.file_exists(Meta.SAVE_PATH)
+	var original := ""
+	if existed:
+		var rf := FileAccess.open(Meta.SAVE_PATH, FileAccess.READ)
+		if rf != null:
+			original = rf.get_as_text()
+	Meta.persist = true
+	Meta.kills = 4242
+	Meta._save()
+	var saved_ok: bool = FileAccess.file_exists(Meta.SAVE_PATH)
+	var data: Variant = null
+	if saved_ok:
+		var sf := FileAccess.open(Meta.SAVE_PATH, FileAccess.READ)
+		data = JSON.parse_string(sf.get_as_text()) if sf != null else null
+	var read_kills: Variant = data.get("kills", -1) if data is Dictionary else -1
+	saved_ok = saved_ok and data is Dictionary and int(read_kills) == 4242
+	var tmp_left: bool = FileAccess.file_exists(Meta.SAVE_PATH + ".tmp")
+	p("Meta 原子存档: 存在=%s 读取kills=%s tmp残留=%s" % [saved_ok, str(read_kills), tmp_left])
+	_check(saved_ok and not tmp_left, "Meta 临时文件替换正式存档且不留 .tmp 残留")
+	# 还原真实存档：存在过就写回原文，否则删除测试写出的文件。
+	var wf := FileAccess.open(Meta.SAVE_PATH, FileAccess.WRITE)
+	if existed and wf != null:
+		wf.store_string(original)
+	elif not existed:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(Meta.SAVE_PATH))
+	if tmp_left:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(Meta.SAVE_PATH + ".tmp"))
+	Meta.persist = false
 
 
 ## 新局内流派的关键状态链：多层盾、封脉、空中派生、落匕/影饵、漏刻与去来。
@@ -1091,6 +1142,41 @@ func _innate_passive_regression() -> void:
 	_check(not is_instance_valid(_player._stolen_sword_clone) and mirror.is_queued_for_deletion(),
 		"玩家死亡时凝华虚影立即消散")
 	mirror_target.queue_free()
+
+
+func _minimal_player_fix_regression() -> void:
+	# 影殇 I 的普通加伤与真正觉醒窗口等长。
+	_prepare_innate("z003")
+	_player._awaken_time = 0.0
+	_player._start_skill("skill10")
+	_check(_player._awaken_time > 0.0 and is_equal_approx(_player._awaken_time, _player._buff_timer),
+		"影殇 I 同时建立与加伤等长的真正觉醒窗口")
+
+	# 失心疯上限归零且有复活资源：先恢复有效上限，再按原规则以 1 血起身。
+	_prepare_innate("z003")
+	Run.z003_stolen = {"test:mob": {"passives": ["c009_madness"]}}
+	Run.max_hp_loss = 7
+	Run.max_hp = 1
+	Run.hp = 1
+	Run.supply_revive = true
+	_player.max_hp = 1
+	_player.hp = 1
+	_player._try_stolen_madness_damage(1, null, {})
+	_check(_player.state == _player.State.HURT and _player.max_hp == 1 and _player.hp == 1 \
+		and Run.max_hp == 1 and Run.hp == 1 and Run.supply_revive_used,
+		"失心疯零上限复活先恢复并同步有效上限，再以 1 血起身")
+
+	# 没有复活资源时维持原死亡路径，不提前恢复上限或消耗资源。
+	_prepare_innate("z003")
+	Run.z003_stolen = {"test:mob": {"passives": ["c009_madness"]}}
+	Run.max_hp_loss = 7
+	Run.max_hp = 1
+	Run.hp = 1
+	_player.max_hp = 1
+	_player.hp = 1
+	_player._try_stolen_madness_damage(1, null, {})
+	_check(_player.state == _player.State.DEAD and _player.max_hp == 0 and Run.max_hp == 0 \
+		and not Run.supply_revive_used, "失心疯零上限无复活资源仍正常死亡且不提前恢复上限")
 
 
 func _spawn_real_enemy(type_id: String, pos := Vector2(500, 560)):

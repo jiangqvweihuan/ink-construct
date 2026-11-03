@@ -511,6 +511,7 @@ func _brute_probe() -> void:
 		and is_equal_approx(e.global_position.x, start_x) and e._chain_next == "skill03_3" \
 		and is_equal_approx(float(e._attack_rule_cds["skill03_2"]), 19.2) \
 		and is_equal_approx(float(e._advance_map["skill03_2"]), 85.0)
+	var chain_cast_id: int = e._attack_cast_id
 	hp_before = _player.hp
 	e._attack_tick(0.35)
 	e.global_position.x += e.velocity.x * 0.35 # 手动帧推进也要同步攻击步进，否则首劈仍停在 200px 外
@@ -518,7 +519,6 @@ func _brute_probe() -> void:
 	e._attack_tick(0.01)
 	e.global_position.x += e.velocity.x * 0.01
 	var first_hit: bool = _player.hp == hp_before - Run.enemy_damage(1)
-	_player._hurt_invincible = 0.0
 	hp_before = _player.hp
 	# 小步同步推进：大步长若先判定再补位移，会在第二劈瞬间制造实战不存在的假超程。
 	for i in 45:
@@ -529,8 +529,7 @@ func _brute_probe() -> void:
 	e._attack_tick(e._attack_timer + 0.001)
 	var second_stage: bool = e.state == e.State.ATTACK and e._current_anim == "skill03_3" \
 		and e._chain_next.is_empty() and is_equal_approx(e._recovery_after_attack, 3.0) \
-		and is_equal_approx(e.velocity.x, 0.0)
-	_player._hurt_invincible = 0.0
+		and is_equal_approx(e.velocity.x, 0.0) and e._attack_cast_id == chain_cast_id
 	hp_before = _player.hp
 	e._attack_tick(0.19)
 	var no_early_final: bool = _player.hp == hp_before
@@ -548,6 +547,21 @@ func _brute_probe() -> void:
 			and e._current_anim == "stand" and e._root_timer <= 0.0 and e._stun_timer <= 0.0
 	recovery_ok = recovery_ok and e._recovery_timer <= 0.0
 	p("赶山三斧 追击触发不瞬移=%s 蓄力无判=%s 三劈实伤=%s/%s/%s 前半推进=%s 后半原地=%s 力竭3秒=%s（期望全 true）" % [chain_ok, no_early_chain_hit and no_early_final, first_hit, second_hit, final_hit, advance_ok, second_stage, recovery_ok])
+	_check(first_hit and second_hit and final_hit and second_stage,
+		"赶山三斧全程保留cast key，0.8秒受击无敌不吞同连段")
+
+	# 独立重新起手必须生成新编号，不能借用上一连段的穿透身份。
+	_player.global_position = Vector2(500, 560)
+	e.global_position = Vector2(580, 560)
+	e.facing = -1
+	e._apply_facing()
+	hp_before = _player.hp
+	e._start_attack("skill01")
+	var new_cast_blocked: bool = e._attack_cast_id != chain_cast_id
+	e._deal_hit(0)
+	new_cast_blocked = new_cast_blocked and _player.hp == hp_before
+	_check(new_cast_blocked, "赶山三斧独立新起手不穿上次受击无敌")
+	e._release_token()
 
 	# 长冷却期间不能再次触发，到点后仍可从同一追击窗口起手。
 	_player.global_position.x = 700.0
@@ -820,6 +834,36 @@ func _dualsickle_probe() -> void:
 	e._deal_hit(0)
 	var blood_hit_ok: bool = _player.hp == hp_before - maxi(1, Run.enemy_damage(2) - 1) and e.hp == 11
 	p("嗜血 虚弱待机/巡逻/追击=%s/%s/%s 回血恢复外观且被动常驻=%s 非虚弱技能-1并吸血=%s（期望全 true）" % [weak_idle_ok, weak_patrol_ok, weak_chase_ok, recovered_ok, blood_hit_ok])
+
+	# 绽花的零伤回调只有在 _apply_bloom 真正结算后才减冷却并嗜血回血。
+	e.hp = 10
+	e._skill_cooldown_scale = 1.0
+	var bloom_loss_before: int = Run.max_hp_loss
+	_reset_brute_player(Vector2(500, 560))
+	_player._hurt_invincible = 0.8
+	e._start_attack("skill03")
+	e._deal_hit(0)
+	var bloom_hurt_block: bool = e.hp == 10 and is_equal_approx(e._skill_cooldown_scale, 1.0) \
+		and Run.max_hp_loss == bloom_loss_before
+	_reset_brute_player(Vector2(500, 560))
+	_player._invincible = true
+	e._start_attack("skill03")
+	e._deal_hit(0)
+	var bloom_skill_block: bool = e.hp == 10 and is_equal_approx(e._skill_cooldown_scale, 1.0) \
+		and Run.max_hp_loss == bloom_loss_before
+	_reset_brute_player(Vector2(500, 560))
+	_player._shield_hits = 1
+	e._start_attack("skill03")
+	e._deal_hit(0)
+	var bloom_shield_block: bool = e.hp == 10 and is_equal_approx(e._skill_cooldown_scale, 1.0) \
+		and Run.max_hp_loss == bloom_loss_before
+	_reset_brute_player(Vector2(500, 560))
+	e._start_attack("skill03")
+	e._deal_hit(0)
+	var bloom_effective: bool = e.hp == 11 and is_equal_approx(e._skill_cooldown_scale, 0.5) \
+		and Run.max_hp_loss == bloom_loss_before + 2
+	_check(bloom_hurt_block and bloom_skill_block and bloom_shield_block and bloom_effective,
+		"绽花受击/技能无敌与护盾不增益，真实零伤结算仍减CD并嗜血")
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame
@@ -952,6 +996,28 @@ func _qingli_probe() -> void:
 		and clone._sword_intent == 0 and clone._sword_clone_node == null
 	p("凝华旋斩 镜像同伤/封闪8秒/不叠层不繁殖=%s（期望 true）" % mirror_spin_ok)
 
+	# 本体时停/晕眩同步打断分身；控制期间不得被后续同步调用重新拉起。
+	e.time_stop(1.0)
+	var clone_control_ok: bool = e._stop_timer > 0.0 and is_equal_approx(clone._stop_timer, e._stop_timer) \
+		and clone.state == clone.State.IDLE and clone._attack_hits_left.is_empty() \
+		and clone.sprite.process_mode == Node.PROCESS_MODE_DISABLED and C016Class._attacker == null
+	clone._sword_sync_attack("skill01")
+	clone_control_ok = clone_control_ok and clone.state == clone.State.IDLE
+	clone._physics_process(0.4)
+	clone_control_ok = clone_control_ok and clone._stop_timer > 0.0 and clone.state == clone.State.IDLE
+	clone._physics_process(0.7)
+	clone_control_ok = clone_control_ok and clone._stop_timer <= 0.0 \
+		and clone.sprite.process_mode == Node.PROCESS_MODE_INHERIT
+	e._end_stop()
+	e.stun(1.0)
+	clone_control_ok = clone_control_ok and e._stun_timer > 0.0 \
+		and is_equal_approx(clone._stun_timer, e._stun_timer) and clone.state == clone.State.IDLE
+	clone._sword_sync_attack("skill02")
+	clone_control_ok = clone_control_ok and clone.state == clone.State.IDLE
+	clone._physics_process(1.1)
+	clone_control_ok = clone_control_ok and clone._stun_timer <= 0.0 and clone.state == clone.State.IDLE
+	_check(clone_control_ok, "青笠分身同步时停/晕眩，控制中拒绝同步起手并正常解除")
+
 	# 本体死亡立即撤走分身。
 	e.take_damage(999, _player.global_position.x)
 	await get_tree().process_frame
@@ -1083,20 +1149,35 @@ func _qingyan_probe() -> void:
 	e.queue_free()
 	await get_tree().process_frame
 
-	# 半血本身不触发，严格低于一半才祭剑；回满与强化只激活一次。
+	# 半血本身不触发，严格低于一半才祭剑；他人持令牌时只回满排队，不得抢招。
 	e = load("res://scenes/enemies/c037_elite.tscn").instantiate()
 	e.position = Vector2(580, 560)
 	add_child(e)
 	e.set_physics_process(false)
 	e._target = _player
+	var blocker = load("res://scenes/enemies/c016.tscn").instantiate()
+	blocker.position = Vector2(900, 560)
+	add_child(blocker)
+	blocker.set_physics_process(false)
+	blocker._target = _player
+	blocker._start_attack("skill01")
 	e.take_damage(12, _player.global_position.x)
 	var limit_half: bool = e.hp == 12 and not e._limit_used
 	e.take_damage(1, _player.global_position.x)
-	var limit_ok: bool = limit_half and e._limit_used and e.hp == e.max_hp and e._cut_every_segment \
+	var limit_wait: bool = limit_half and e._limit_used and e._limit_pending and e.hp == e.max_hp \
+		and e._cut_every_segment and C016Class._attacker == blocker and e.state != e.State.ATTACK
+	e.take_damage(1, _player.global_position.x)
+	limit_wait = limit_wait and e.hp == e.max_hp - 1 and e._limit_pending
+	e.time_stop(1.0)
+	blocker._release_token()
+	e._try_start_limit()
+	var limit_stop: bool = e._limit_pending and e.state != e.State.ATTACK
+	e._end_stop()
+	e._try_start_limit()
+	var limit_ok: bool = limit_wait and limit_stop and not e._limit_pending and C016Class._attacker == e \
 		and e._attack_move == "jijian" and ["skill04", "skill04-cankao"].has(e._attack_visual) \
 		and e._attack_hits_left.is_empty() and not e._hurt_chain_active
-	e.take_damage(1, _player.global_position.x)
-	limit_ok = limit_ok and e.hp == e.max_hp - 1
+	_check(limit_ok, "祭剑严格跨半血一次，令牌竞争与时停只排队不起手")
 	_reset_brute_player(Vector2(500, 560))
 	e._set_state(e.State.IDLE)
 	e._start_attack("skill01")
@@ -1107,8 +1188,25 @@ func _qingyan_probe() -> void:
 	for cut in _player._cuts:
 		cut_keys[str(cut["key"])] = true
 	empowered_ok = empowered_ok and cut_keys.size() == 3
-	p("断楹祭剑 半血不触发/低于半血回满/每实体一次=%s 强化后每段独立割伤=%s（期望全 true）" % [limit_ok, empowered_ok])
+	p("断楹祭剑 半血/回满/令牌等待/每实体一次=%s 强化后每段独立割伤=%s（期望全 true）" % [limit_ok, empowered_ok])
+	e._release_token()
 	e.queue_free()
+	blocker.queue_free()
+	await get_tree().process_frame
+
+	# 非致命 DoT 共用严格阈值；先回满并排/起祭剑，不能留在旧受击状态。
+	var dot = load("res://scenes/enemies/c037_elite.tscn").instantiate()
+	dot.position = Vector2(580, 560)
+	add_child(dot)
+	dot.set_physics_process(false)
+	dot._target = _player
+	dot.hp = 13
+	dot._direct_damage(2)
+	_check(dot.hp == dot.max_hp and dot._limit_used and not dot._limit_pending \
+		and dot._attack_move == "jijian" and not dot._hurt_chain_active,
+		"DoT跨严格半血触发一次祭剑并回满")
+	dot._release_token()
+	dot.queue_free()
 	await get_tree().process_frame
 
 	# 高伤链：5 伤不倒，6 伤触发，最后固定使用 9 号 getup。
@@ -1150,19 +1248,38 @@ func _qingyan_probe() -> void:
 	back.set_physics_process(false)
 	var burst_done := {"value": false}
 	caster.died.connect(func(): burst_done["value"] = true)
+	var wave_done := {"cleared": false, "all": false}
+	var spawner = load("res://scripts/systems/wave_spawner.gd").new()
+	spawner.waves = [{"count": 0}]
+	spawner.wave_cleared.connect(func(_index): wave_done["cleared"] = true)
+	spawner.all_cleared.connect(func(): wave_done["all"] = true)
+	add_child(spawner)
+	spawner.set_process(false)
+	spawner._cd = 0.0
+	spawner._alive.append(caster)
+	caster.died.connect(spawner._on_enemy_died.bind(caster))
 	hp_before = _player.hp
 	var front_hp: int = front.hp
 	var back_hp: int = back.hp
 	caster.take_damage(caster.hp, caster.global_position.x - 10.0)
-	var delayed_ok: bool = caster.state == caster.State.DEAD and caster._current_anim == "getup" and not burst_done["value"]
+	spawner._process(0.0)
+	var delayed_ok: bool = caster.state == caster.State.DEAD and caster._current_anim == "getup" and not burst_done["value"] \
+		and spawner._alive.has(caster) and not wave_done["cleared"]
 	await get_tree().create_timer(0.9).timeout
+	spawner._process(0.0)
 	delayed_ok = delayed_ok and caster._current_anim == "transform" and not burst_done["value"] \
-		and _player.hp == hp_before and front.hp == front_hp and not front._room_cd_cursed
+		and _player.hp == hp_before and front.hp == front_hp and not front._room_cd_cursed \
+		and spawner._alive.has(caster) and not wave_done["cleared"]
 	await get_tree().create_timer(3.7).timeout
+	spawner._process(0.0)
 	var burst_hit_ok: bool = _player.hp == hp_before - 3 and front.hp == front_hp - 3 and back.hp == back_hp \
-		and _player._room_cd_cursed and front._room_cd_cursed and not back._room_cd_cursed and not burst_done["value"]
+		and _player._room_cd_cursed and front._room_cd_cursed and not back._room_cd_cursed and not burst_done["value"] \
+		and spawner._alive.has(caster) and not wave_done["cleared"]
 	await get_tree().create_timer(0.3).timeout
+	spawner._process(0.0)
 	delayed_ok = delayed_ok and burst_done["value"]
+	_check(delayed_ok and wave_done["cleared"] and wave_done["all"] and spawner._wave == -1,
+		"魔爆hp归零与演出期间不清波，真实died后才结算波次")
 	p("魔爆 起身/22号变身/延迟死亡信号=%s 前方敌我3伤与魔诅/后方无伤=%s（期望全 true）" % [delayed_ok, burst_hit_ok])
 
 	# 玩家与敌人的独立冷却都在每次使用后再 +1；新实例等同于换房，不继承魔诅。
@@ -1192,6 +1309,7 @@ func _qingyan_probe() -> void:
 	caster.queue_free()
 	front.queue_free()
 	back.queue_free()
+	spawner.queue_free()
 	await get_tree().process_frame
 
 

@@ -83,8 +83,10 @@
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
-| BGM | `scripts/audio/bgm.gd`（autoload BGM） | 双 AudioStreamPlayer 交叉淡化（0.9s）；menu = 御风引（home.wav）/ battle = 破阵（battle.wav）；Music 总线；同名曲目不重播，暂停不中断；WAV 循环靠导入参数 loop_mode=2 |
-| 音效 | `audio/sfx/` ~28 条 wav | 玩家：普攻起手 weapon_sword、命中 voice_sword_hit、技能起手 voice_skill_cast、各技能命中按 skulls 表 `sfx` 字段（hit_heavy / skill_fist / voice_fan_hit / skill_blade 等）、受伤 hit_fist、**冲刺 dash_step**；敌人：telegraph 预警、hit_qi 受击；Boss：boss_entrance 登场、**冲锋碾压 boss_skill_hit、火区喷发 fire_burst**；UI：click 全覆盖、swap_draw、level_up、settle/win/lose；拾取 pickup/gold |
+| BGM | `scripts/audio/bgm.gd`（autoload BGM） | 双 AudioStreamPlayer 交叉淡化（0.9s）；每次进入主菜单从 `home.wav` / `menu_02.wav` 随机一首，普通房使用 `battle.wav`，Boss 对峙演出结束后切入 `boss.wav`；Music 总线；同名曲目不重播，暂停不中断；WAV 循环靠导入参数 `loop_mode=2` |
+| 音效 | `audio/sfx/` + `scripts/player/skulls.gd` | 2026-11-03 批次已接完 43 条素材：30 条新 SFX、2 首新 BGM、11 条哈希相同复用；角色/Boss 专属优先，覆盖六化身普攻与技能起手、技能循环、定时事件、投射物、墨霆真实落地，以及脚步、分类受伤、实际回血、金钟罩逐层抵挡、房内战利品、房间奖励、购买、永久升级和真实返回/Esc；未提供新音的事件继续保留默认音，伤害、判定、冷却、位移与 AI 不变 |
+
+本轮验证：资源导入与主场景启动通过；`player_test`、`enemy_test`、`room_test`、`boss_test`、`mo_ting_test`（88 项）、`ui_test`、`start_flow_test`、`pipa_test`（117 项）均通过，无脚本或音频加载错误。实际听感与音量平衡由用户播放验收。
 
 ### 素材管线
 
@@ -105,7 +107,7 @@
 | 绛弦专项 | `pipa_test.tscn`：四段魔音、全体普攻恢复与闪避间隔、六技能、癫狂 / 魅惑 / 六感尽失、万狂同奏九卡、三被动及状态边界，共 117 项检查 |
 | Boss | `boss_test.tscn`（`BOSS_ID=c009\|c015a1\|c001\|c008\|c032\|_debug`，通用 Boss 冒烟；C009 / C015a1 / C001 / C008 改用专项）、`mo_ting_test.tscn`（墨霆真实房间先导 + 六招 / 双被动 / 破招 / 公共欲望 / 贴近真实命中，共 88 项断言）、`fen_ding_test.tscn`（焚鼎真实房间先导 + 四招 / 怒焰 / 双被动 / 公共欲望 / 力僧实际三伤联动，共 69 项断言）、`wu_che_test.tscn`（武车耐久 / 武撞 / 双被动 / 通缉 / 召唤波次 / 死亡，共 62 项断言）、`sui_yue_test.tscn`（碎岳真实房间 + 四招 / 双被动 / 佛眼夺取与归还 / 公共欲望 / 贴近真实命中，共 95 项断言）、`ming_zhong_test.tscn`（鸣钟真实房间 + 四招 / 根骨位移 / 英勇 / 易伤 / 双被动 / 时停与死亡清理 / 贴近真实命中，共 72 项断言）、`boss_bg_tour.tscn`（五房背景巡游）、`boss_cand_probe.tscn` |
 | 结算 | `settlement_clear_test.tscn` / `settlement_dead_test.tscn`：通关分支实测无归双 Boss 连战、中间不弹强化与双讨伐印；阵亡分支先换银夜再记录真实敌人最后一击，验证对演、倒地与重开继承形态 / 模式 / 难度；两支均断言墨锭 = 基础 2 + 击杀/2 + 已清房间×5 + 通关 25 + 聚墨加成，测试不写真实存档 |
-| 特效/音效 | `fx_test.tscn`、`sfx_preview.tscn` |
+| 特效/音效 | `fx_test.tscn` |
 | 骨架探针 | `range_probe.tscn`、`spine_probe.tscn`、`spine_test.tscn`、`hit_probe.tscn`、`hook_probe.tscn`、`anim_list.tscn`（自动扫描全部骨架 → `tests/anim_list.log`）、`anim_viewer.tscn`（可视化查看器：←→ 切骨架、↑↓ 切动画、空格重播、L 循环）、`anim_sheet.tscn`、`anim_event_probe.tscn`、`face_check.tscn` |
 | 战斗/UI 交互 | `combat_test.tscn`、`player_test.tscn`、`enemy_test.tscn`、`enemy_hit_test.tscn`、`skill_test.tscn`、`skill_preview.tscn`、`twitch_test.tscn`、`ui_test.tscn`（主菜单/设置 → 化身谱滚动总览、买断与修炼页 → 独立商店四页签及补给库存 → 图鉴两页）；`player_test` 另覆盖 54 节点、学习/退款/重置、永久战斗效果、重随券、护砚与复活墨符；`settings_test.tscn`、`font_probe.tscn` |
 | 开局流程（真鼠标） | `start_flow_test.tscn`：把主菜单挂进来，用 `push_input(ev, true)` 发真实鼠标/键盘事件点一遍「开始游戏 → 择路 → 问境 → 化身 → 启程」，另覆盖上一步、返回、连点与 Esc；断言五档普通怪数量 / 攻击、精英不增量、默认落笔、无尽跨层已清房间计数及最终开局参数。**`pressed.emit()` 不走 BaseButton 输入路径，模拟不出真实点击的崩溃，UI 回归优先用这个** |

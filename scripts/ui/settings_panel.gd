@@ -3,6 +3,7 @@ extends Control
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Settings = preload("res://scripts/ui/settings.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
 signal closed
 
@@ -86,6 +87,7 @@ func _ready() -> void:
 	Settings.apply_all()
 	_draft = Settings.snapshot()
 	_sfx = AudioStreamPlayer.new()
+	_sfx.bus = "SFX"
 	_sfx.stream = SFX_CLICK
 	add_child(_sfx)
 
@@ -179,7 +181,13 @@ func _close() -> void:
 	_closing = true
 	_capturing = ""
 	Settings.apply_snapshot(_draft)
-	_sfx.play()
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	s.process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().root.add_child(s)
+	s.stream = SFX_BACK
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
 	closed.emit()
 	hide()
 	await get_tree().create_timer(0.15).timeout

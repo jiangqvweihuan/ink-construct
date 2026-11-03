@@ -9,6 +9,7 @@ signal proceed
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const SFX_LEVEL := preload("res://audio/sfx/level_up.wav")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_REWARD := preload("res://audio/sfx/room_reward.wav")
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -18,6 +19,8 @@ var _card_root: Node
 var _bought := false
 var _rerolls_left := 0
 var _reroll_button: TextureButton
+var _proceed_button: TextureButton
+var _proceeding := false
 var title_text := "" # 试炼场等复用入口可覆盖标题；正式房间留空
 var proceed_text := "继续前进"
 
@@ -29,6 +32,7 @@ func _ready() -> void:
 	_cards = Run.roll_cards(3)
 	_rerolls_left = Meta.shop_level("upgrade_reroll") + int(Run.blessing == "reroll") # 每个强化面板恢复永久与赐福次数
 	var sfx := AudioStreamPlayer.new()
+	sfx.bus = "SFX"
 	add_child(sfx)
 	sfx.stream = SFX_LEVEL
 	sfx.play()
@@ -55,9 +59,19 @@ func _ready() -> void:
 	add_child(_card_root)
 	_build_cards()
 
-	_make_button(proceed_text, 584, func(): proceed.emit(), 380.0)
+	_proceed_button = _make_button(proceed_text, 584, _on_proceed, 380.0, null)
 	_reroll_button = _make_button("", 584, _reroll, 660.0)
 	_update_reroll()
+
+
+func _on_proceed() -> void:
+	if _proceeding:
+		return
+	_proceeding = true
+	if is_instance_valid(_proceed_button):
+		_proceed_button.disabled = true
+	_play_transition_sfx(SFX_CLICK)
+	proceed.emit()
 
 
 func _reroll() -> void:
@@ -124,12 +138,7 @@ func _build_cards() -> void:
 			b.modulate = Color(1, 1, 1, 0.4)
 			b.disabled = true
 		else:
-			b.pressed.connect(func():
-				var s := AudioStreamPlayer.new()
-				add_child(s)
-				s.stream = SFX_CLICK
-				s.play()
-				_on_card(key))
+			b.pressed.connect(func(): _on_card(key))
 
 		# 顶部：图标、流派名、层级各自占位，长标题不会再顶到层级标签。
 		var icon := TextureRect.new()
@@ -206,14 +215,35 @@ func _on_card(key: String) -> void:
 	if _bought:
 		return
 	if not Run.buy(key):
+		_play_sfx(SFX_CLICK)
 		return
+	_play_sfx(SFX_REWARD)
 	_bought = true
 	_build_cards()
 	_update_reroll()
 	purchased.emit()
 
 
-func _make_button(text: String, y: float, cb: Callable, x := 520.0) -> TextureButton:
+func _play_sfx(stream: AudioStream) -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	add_child(s)
+	s.stream = stream
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
+
+
+func _play_transition_sfx(stream: AudioStream) -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	s.process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().root.add_child(s)
+	s.stream = stream
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
+
+
+func _make_button(text: String, y: float, cb: Callable, x := 520.0, sfx: AudioStream = SFX_CLICK) -> TextureButton:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
@@ -231,10 +261,8 @@ func _make_button(text: String, y: float, cb: Callable, x := 520.0) -> TextureBu
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(l)
 	b.pressed.connect(func():
-		var s := AudioStreamPlayer.new()
-		add_child(s)
-		s.stream = SFX_CLICK
-		s.play()
+		if sfx != null:
+			_play_sfx(sfx)
 		cb.call())
 	add_child(b)
 	return b

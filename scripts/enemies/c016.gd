@@ -10,6 +10,8 @@ const FX := preload("res://scripts/systems/fx.gd")
 const SpinePoseMixer := preload("res://scripts/systems/spine_pose_mixer.gd")
 const DMG_COLOR := Color(0.66, 0.2, 0.16) # 朱砂：敌人受伤数字
 const SFX_HIT_QI := preload("res://audio/sfx/hit_qi.wav")
+const SFX_HIT_FAN := preload("res://audio/sfx/hit_fan.wav")
+const SFX_HEAL := preload("res://audio/sfx/heal.wav")
 const SFX_TELEGRAPH := preload("res://audio/sfx/telegraph.wav")
 const PLAYER_BURN_INTERVALS := [60.0, 58.0, 54.0, 48.0, 40.0, 30.0, 18.0, 10.0]
 
@@ -68,6 +70,7 @@ var _opening_restore_at := 0.0
 var _opening_restored := true
 var _limit: Dictionary = {} # 半血限定技：每个实体仅一次，回满并强化后续命中
 var _limit_used := false
+var _limit_pending := false # 已触发但尚在等全局出手令牌；等待期间不得抢招或改出普通攻击
 var _cut_every_segment := false
 var _death_burst: Dictionary = {} # 死亡后延迟结算，先完成起身、变身与最后一击
 var _turn_stacks: Dictionary = {} # 「转」按目标实例独立累积的实伤次数
@@ -200,6 +203,7 @@ func _ready() -> void:
 	_setup_spine()
 	_make_hp_bar()
 	_sfx_player = AudioStreamPlayer.new()
+	_sfx_player.bus = "SFX"
 	add_child(_sfx_player)
 	if _is_sword_clone:
 		# 凝华分身不可选中、不占敌人组与出手令牌；无敌且不会触发击杀/结算逻辑。
@@ -412,6 +416,15 @@ func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
 		return
 	if _is_sword_clone:
+		# 凝华分身不占令牌，但必须独立推进本体同步来的控制计时。
+		if _stop_timer > 0.0:
+			_stop_timer -= delta
+			if _stop_timer <= 0.0:
+				_end_stop() # 虚影解冻不触发玩家的单体时停结束回报
+			return
+		if _stun_timer > 0.0:
+			_stun_tick(delta)
+			return
 		_sword_clone_tick(delta)
 		return
 	# 时间暂停（银夜 U）：彻底定住——不走 AI、不吃重力、动画冻结，到点恢复
@@ -433,6 +446,9 @@ func _physics_process(delta: float) -> void:
 	_poison_tick(delta) # 中毒同理：时停期间不跳毒
 	_regen_tick(delta) # 山民：时停冻结，其他状态照常计时
 	_pipa_status_tick(delta)
+	if state == State.DEAD:
+		return
+	_try_start_limit() # DoT 或状态伤害触发祭剑后，也在本轮普通 AI 前排队取得令牌
 
 	# 晕眩（力僧 L）：比定身更强——站桩发愣，不出手也不移动（放在定身之前结算）
 	if _stun_timer > 0.0:
@@ -692,8 +708,10 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 	_attack_move = anim
 	# 六感尽失只惩罚非普攻的独立起手；连段接续不重复触发。
 	if not continue_chain and anim != basic_anim:
+		var limit_was_used := _limit_used
 		_trigger_six_senses()
-		if state == State.DEAD:
+		# 神伤可能跨祭剑阈值并嵌套起手；外层旧招必须到此为止，不能覆盖祭剑状态。
+		if state == State.DEAD or _limit_used != limit_was_used:
 			return
 	_attack_visual = str(_move_anims.get(anim, anim))
 	if _move_pool.has(anim):
@@ -703,7 +721,9 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		var visuals: Array = _limit.get("pool", [])
 		if not visuals.is_empty():
 			_attack_visual = str(visuals[randi() % visuals.size()])
-	_attack_cast_id += 1
+	# 连段收尾仍属同一次出手：保留 cast key 才能按配置穿过本连段前段造成的受击无敌。
+	if not continue_chain:
+		_attack_cast_id += 1
 	var chain: Dictionary = _attack_chain.get(anim, {})
 	_chain_next = str(chain.get("anim", ""))
 	if _attack_rules.has(anim):
@@ -870,11 +890,11 @@ func _sword_intent_now() -> int:
 	return _sword_intent
 
 
-## 只有玩家 hurt 真正结算后才回调：闪避、护盾、受击无敌、反伤都不会触发回血或绽花增益。
+## 实伤回报用于回血；绽花则要区分 _apply_bloom 与同样回报 0 伤的无敌反馈。
 func on_player_hit(amount: int, move: Dictionary, _player: Node) -> void:
 	if state == State.DEAD:
 		return
-	var bloom := bool(move.get("bloom", false))
+	var bloom := bool(move.get("bloom", false)) and _bloom_settled(_player, move)
 	if bloom and _skill_cooldown_scale > 0.5:
 		_skill_cooldown_scale = 0.5
 		_attack_cd *= _skill_cooldown_scale
@@ -893,6 +913,16 @@ func on_player_hit(amount: int, move: Dictionary, _player: Node) -> void:
 		dn.setup("转 · 叠剑 %d" % int(_turn_stacks[id]), Color(0.48, 0.72, 0.62))
 		dn.global_position = global_position + Vector2(0, _number_y - 18.0)
 		get_tree().current_scene.add_child(dn)
+
+
+## _apply_bloom 会先进入 HURT 并移到攻击者正上方，再回报攻击者；防御零伤反馈没有这两步。
+## 不用 amount>0 判断，绽花合法命中本身就是 effect_only 的零直伤。
+func _bloom_settled(player, move: Dictionary) -> bool:
+	if not player is Node2D or not player.has_method("_apply_bloom"):
+		return false
+	var lift := float(move.get("lift_height", 120.0))
+	var bloom_pos: Vector2 = global_position + Vector2(0.0, -lift)
+	return player.state == player.State.HURT and (player as Node2D).global_position.is_equal_approx(bloom_pos)
 
 
 func _gain_sword_intent(amount: int) -> void:
@@ -936,7 +966,7 @@ func _make_sword_clone_visual() -> void:
 
 
 func _sword_sync_attack(anim: String) -> void:
-	if not _is_sword_clone or not is_instance_valid(_sword_owner):
+	if not _is_sword_clone or not is_instance_valid(_sword_owner) or _stop_timer > 0.0 or _stun_timer > 0.0:
 		return
 	_target = _sword_owner.get("_target") as Node2D
 	facing = int(_sword_owner.get("facing"))
@@ -1011,6 +1041,8 @@ func _heal(amount: int) -> void:
 	hp += actual
 	if hp >= max_hp:
 		_heal_fraction = 0.0
+	_sfx_player.stream = SFX_HEAL
+	_sfx_player.play()
 	_update_hp_bar()
 	if has_signal("hp_changed"):
 		emit_signal("hp_changed", hp, max_hp)
@@ -1020,18 +1052,39 @@ func _heal(amount: int) -> void:
 	get_tree().current_scene.add_child(dn)
 
 
+func _check_limit() -> bool:
+	if _limit.is_empty() or _limit_used or hp <= 0 or hp * 2 >= max_hp:
+		return false
+	_trigger_limit()
+	return true
+
+
 func _trigger_limit() -> void:
+	if _limit_used or state == State.DEAD:
+		return
 	_limit_used = true
+	_limit_pending = true
 	_cut_every_segment = true
 	_hurt_chain_active = false
 	_hurt_chain.clear()
 	_clear_attack_chain()
 	_attack_hits_left.clear()
 	_release_token()
+	state = State.IDLE
+	velocity = Vector2.ZERO
+	_idle_queued = false
+	_play(str(_anim_map["idle"]), true)
 	_heal(max_hp)
-	_start_attack(str(_limit.get("move", "jijian")))
+	_try_start_limit()
 	FX.spawn(get_tree().current_scene, "telegraph", global_position,
 		{"scale": _scale * 1.8, "mod": Color(0.45, 0.9, 0.72, 0.95)})
+
+
+func _try_start_limit() -> void:
+	if not _limit_pending or state == State.DEAD or hp <= 0 or _stop_timer > 0.0 or not _can_attack():
+		return
+	_limit_pending = false
+	_start_attack(str(_limit.get("move", "jijian")))
 
 
 ## 魔爆对敌人的房间诅咒：只延长有独立冷却的招式，每次使用后再增加 1 秒。
@@ -1448,7 +1501,8 @@ func export_passives() -> Dictionary:
 func time_stop(dur: float) -> void:
 	if state == State.DEAD:
 		return
-	_release_token() # 令牌必须交还，否则定身结束后别的怪永远等不到出手
+	if not _is_sword_clone:
+		_release_token() # 令牌必须交还，否则定身结束后别的怪永远等不到出手
 	if state == State.ATTACK or state == State.FLY:
 		# 打断前摇/浮空：定身结束从站立重新组织进攻
 		_clear_attack_chain()
@@ -1460,6 +1514,8 @@ func time_stop(dur: float) -> void:
 	_stop_timer = dur
 	if sprite != null:
 		sprite.process_mode = Node.PROCESS_MODE_DISABLED # 冻结动画推进
+	if not _is_sword_clone and is_instance_valid(_sword_clone_node):
+		_sword_clone_node.call("time_stop", dur)
 
 
 func _end_stop(natural := false) -> void:
@@ -1512,13 +1568,16 @@ func stun(dur: float, _ignore_armor := false) -> void:
 	_clear_attack_chain()
 	_stun_timer = maxf(_stun_timer, dur)
 	_root_timer = 0.0 # 晕眩覆盖定身：更强的控制接管
-	_release_token()
+	if not _is_sword_clone:
+		_release_token()
 	_attack_hits_left.clear()
 	if state == State.ATTACK:
 		state = State.IDLE
 		velocity = Vector2.ZERO
 		_idle_queued = false
 		_play(str(_anim_map["idle"]), true)
+	if not _is_sword_clone and is_instance_valid(_sword_clone_node):
+		_sword_clone_node.call("stun", dur, true)
 	_flash()
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("晕眩", Color(0.62, 0.78, 0.95)) # 淡蓝：和定身的金色区分开
@@ -1656,6 +1715,8 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 	if hp <= 0:
 		_end_stop()
 		die()
+		return
+	_check_limit()
 
 
 ## 砸落（银夜空中派生）：直线下坠，落地只向玩家回报一次，再接原有落地硬直。
@@ -1757,14 +1818,18 @@ func take_damage(amount: int, source_x: float) -> void:
 	# 时停中挨打：伤害/数字/白闪照给，但不进硬直、不解定身；打死则先解冻再走死亡流程
 	if _stop_timer > 0.0:
 		hp -= amount
+		_sfx_player.stream = SFX_HIT_FAN if _elite else SFX_HIT_QI
+		_sfx_player.play()
 		_spawn_number(amount)
 		_update_hp_bar()
 		if hp <= 0:
 			_end_stop()
 			die()
+			return
+		_check_limit() # 时停中只回满并排入等待，解冻前不得实际起手
 		return
 	hp -= amount
-	_sfx_player.stream = SFX_HIT_QI
+	_sfx_player.stream = SFX_HIT_FAN if _elite else SFX_HIT_QI
 	_sfx_player.play()
 	_spawn_number(amount)
 	_update_hp_bar()
@@ -1776,8 +1841,7 @@ func take_damage(amount: int, source_x: float) -> void:
 		die()
 		return
 	# 断楹祭剑：严格低于半血才触发；回满并取消当前受击/出手，每个实体仅一次。
-	if not _limit.is_empty() and not _limit_used and hp * 2 < max_hp:
-		_trigger_limit()
+	if _check_limit():
 		return
 	# 半血狂暴（青笠）：跌破阈值触发一次，出手更密、追得更紧——越残越凶
 	if _enrage_below > 0.0 and not _enraged and float(hp) / float(max_hp) <= _enrage_below:
@@ -1829,6 +1893,7 @@ func die() -> void:
 	_end_stop() # 时停中被打死：先解冻，死亡动画才播得出来
 	_dismiss_sword_clone()
 	state = State.DEAD
+	_limit_pending = false
 	_clear_attack_chain()
 	_attack_hits_left.clear()
 	_hurt_chain_active = false

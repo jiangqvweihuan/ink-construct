@@ -61,6 +61,7 @@ func _ready() -> void:
 	if _sfx != "":
 		_sfx_stream = load("res://audio/sfx/" + _sfx + ".wav")
 		_sfx_player = AudioStreamPlayer.new()
+		_sfx_player.bus = "SFX"
 		add_child(_sfx_player)
 	queue_redraw()
 
@@ -161,6 +162,7 @@ func _physics_process(delta: float) -> void:
 			Feel.hitstop(0.04)
 			Feel.shake(3.0, 0.1)
 			# 分裂（双刺 U）：第一把钉进敌人，第二把从命中点继续飞，忽略刚命中的目标防重复掉血
+			var split_hit := false
 			if _split_left > 0:
 				_split_left -= 1
 				var child = get_script().new()
@@ -171,9 +173,8 @@ func _physics_process(delta: float) -> void:
 				child._hit_list.append(e.get_instance_id())
 				child.global_position = global_position + Vector2(_dir * 34.0 * _size, 0.0)
 				get_tree().current_scene.add_child(child)
-				queue_free()
-				return
-			if _pierce or _pierce_left > 0: # 记下这个目标继续飞；有限穿透只消耗次数，不与无限穿透混淆
+				split_hit = true
+			if not split_hit and (_pierce or _pierce_left > 0): # 记下这个目标继续飞；有限穿透只消耗次数，不与无限穿透混淆
 				if not _pierce:
 					_pierce_left -= 1
 				_hit_list.append(e.get_instance_id())

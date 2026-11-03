@@ -3,6 +3,8 @@ extends Control
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Settings = preload("res://scripts/ui/settings.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_START_OPEN := preload("res://audio/sfx/ui_start_open.wav")
+const SFX_SHOP_OPEN := preload("res://audio/sfx/shop_open.wav")
 const BG_VIDEO := preload("res://art/ui/menu/bg_swordsman.ogv")
 const TITLE_FONT := preload("res://art/ui/fonts/slidefu_regular.ttf") # 演示佛系体：主标题书法
 
@@ -32,10 +34,12 @@ func _ready() -> void:
 	BGM.play_bgm("menu") # 主菜单 BGM（御风引）
 
 	_sfx = AudioStreamPlayer.new()
+	_sfx.bus = "SFX"
 	_sfx.stream = SFX_CLICK
 	add_child(_sfx)
 
 	_hover_sfx = AudioStreamPlayer.new()
+	_hover_sfx.bus = "SFX"
 	_hover_sfx.stream = SFX_CLICK
 	_hover_sfx.volume_db = -10.0 # 悬停只给一声轻响，别跟点击同一音量
 	add_child(_hover_sfx)
@@ -199,6 +203,7 @@ func _on_hover(idx: int, on: bool) -> void:
 
 func _on_click(ev: InputEvent, idx: int) -> void:
 	if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+		_sfx.stream = SFX_START_OPEN if idx == 0 else (SFX_SHOP_OPEN if idx == 2 else SFX_CLICK)
 		_sfx.play()
 		var cb: Callable = _items[idx]["cb"]
 		cb.call()

@@ -6,6 +6,8 @@ extends CanvasLayer
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
+const SFX_RUN_EMBARK := preload("res://audio/sfx/run_embark.wav")
+const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -24,6 +26,8 @@ var _char := ""
 var _step := 0 # 0 择路 / 1 问境 / 2 化身
 var _supply := ""
 var _sfx: AudioStreamPlayer
+var _start_button: TextureButton
+var _starting := false
 var _portrait: TextureRect = null
 
 
@@ -31,6 +35,7 @@ func _ready() -> void:
 	layer = 10
 	_supply = Meta.selected_supply
 	_sfx = AudioStreamPlayer.new()
+	_sfx.bus = "SFX"
 	_sfx.stream = SFX_CLICK
 	add_child(_sfx)
 	_build()
@@ -40,6 +45,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
 		return
 	get_viewport().set_input_as_handled()
+	_play_sfx(SFX_BACK)
 	if _step > 0:
 		_step -= 1
 		_refresh()
@@ -77,15 +83,15 @@ func _build() -> void:
 			var modes := MODES.keys()
 			for i in modes.size():
 				_mode_card(str(modes[i]), i)
-			_button("返  回", 530, 585, _close)
+			_button("返  回", 530, 585, _close, SFX_BACK)
 		1:
 			for i in Run.DIFFICULTIES.size():
 				_difficulty_card(i)
-			_button("上 一 步", 100, 585, _back)
+			_button("上 一 步", 100, 585, _back, SFX_BACK)
 		2:
 			_character_step()
-			_button("上 一 步", 100, 590, _back)
-			_button("启  程", 930, 590, _start_run)
+			_button("上 一 步", 100, 590, _back, SFX_BACK)
+			_start_button = _button("启  程", 930, 590, _start_run, null)
 	_label("墨 构 · 一 卷 一 行", 624, 12, DIM)
 
 
@@ -96,6 +102,7 @@ func _refresh() -> void:
 		remove_child(c)
 		c.queue_free()
 	_portrait = null
+	_start_button = null
 	_build()
 
 
@@ -142,11 +149,26 @@ func _ensure_char() -> void:
 
 
 func _start_run() -> void:
+	if _starting:
+		return
 	if _mode == "" or _char == "" or not Meta.is_unlocked(_char):
 		return
+	_starting = true
+	if is_instance_valid(_start_button):
+		_start_button.disabled = true
+	_play_sfx(SFX_RUN_EMBARK)
 	Meta.select_supply(_supply)
 	Run.start(_mode, _char, _difficulty)
 	get_tree().change_scene_to_file("res://scenes/world/room_01.tscn")
+
+
+func _play_sfx(stream: AudioStream) -> void:
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	get_tree().root.add_child(s)
+	s.stream = stream
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
 
 
 func _click_sfx() -> void:
@@ -356,9 +378,11 @@ func _supply_selector() -> void:
 			_refresh())
 
 
-func _button(text: String, x: float, y: float, cb: Callable) -> void:
+func _button(text: String, x: float, y: float, cb: Callable, sfx: AudioStream = SFX_CLICK) -> TextureButton:
 	var b := _texture_card(Vector2(x, y), Vector2(220, 52))
 	_card_text(b, text, Vector2.ZERO, b.size, 22, INK)
 	b.pressed.connect(func():
-		_click_sfx()
+		if sfx != null:
+			_play_sfx(sfx)
 		cb.call())
+	return b

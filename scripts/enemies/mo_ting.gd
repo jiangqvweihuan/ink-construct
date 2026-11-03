@@ -338,12 +338,16 @@ func _run_cast_event(event: Dictionary) -> void:
 		"tremor_sunder":
 			_hit_held(0, {"mo_ting_sunder": true})
 		"slam":
+			_sfx_player.stream = preload("res://audio/sfx/mo_ting_slam.wav")
+			_sfx_player.play()
 			_hit_front(5, 370.0, 190.0, {"cripple": 5.0}, Vector2(facing * 420.0, -180.0))
 			Feel.shake(10.0, 0.3)
 			_fx_play({"name": "crack", "scale": 0.75}, Vector2(facing * GROUND_IMPACT_X, 0.0))
 		"leap_lift":
 			velocity.y = -600.0
 		"leap_land":
+			_sfx_player.stream = preload("res://audio/sfx/mo_ting_slam.wav")
+			_sfx_player.play()
 			velocity.x = 0.0
 			velocity.y = 0.0
 			_hit_front(4, 350.0, 200.0, {"cripple": 5.0}, Vector2(facing * 980.0, -340.0))

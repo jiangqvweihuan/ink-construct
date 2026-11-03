@@ -19,6 +19,7 @@ var _spawner
 var _boss
 var _hud
 var _ended := false
+var _proceeding := false
 var _log: FileAccess
 
 
@@ -241,6 +242,7 @@ func _spawn_boss() -> void:
 		var intro := BOSS_DUEL_INTRO.new()
 		intro.name = "BossDuelIntro"
 		intro.setup(_player, _boss)
+		intro.finished.connect(func(): BGM.play_bgm("boss"))
 		add_child(intro)
 
 
@@ -281,12 +283,19 @@ func _on_boss_died() -> void:
 	if not Run.boss_defeated.has(Run.boss_id):
 		Run.boss_defeated.append(Run.boss_id)
 	await get_tree().create_timer(1.6).timeout
+	# 首 Boss 倒地等待期也可能阵亡；不能让 _ended 吞掉死亡信号后直接开第二战。
+	if is_instance_valid(_player) and _player.state == _player.State.DEAD:
+		_ended = false
+		_on_player_died()
+		return
 	# 无归二连战：只回 2 血，不回满、不弹强化；第二只仍在当前房间直接登场。
 	if Run.mode == Run.MODE_ADVENTURE and Run.difficulty == Run.DIFFICULTIES.size() - 1 and Run.boss_phase == 0:
 		Run.boss_phase = 1
 		Run.boss_id = str(Run.boss_queue[1])
-		Run.hp = mini(Run.max_hp, Run.hp + 2)
 		if is_instance_valid(_player):
+			_player.set_sui_yue_pressure(Run.boss_id == "c008")
+			_player._restore_hp(2)
+			Run.snapshot(_player)
 			Run.apply_to(_player)
 		_spawn_boss()
 		_hud.show_boss(_boss)
@@ -357,6 +366,9 @@ func _on_upgrade_bought() -> void:
 
 
 func _on_proceed() -> void:
+	if _proceeding:
+		return
+	_proceeding = true
 	Run.advance()
 	get_tree().paused = false # 强化面板是时停的，进下一层前必须恢复
 	get_tree().change_scene_to_file("res://scenes/world/room_01.tscn")
