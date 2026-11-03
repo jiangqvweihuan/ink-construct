@@ -24,6 +24,7 @@ var _char := ""
 var _step := 0 # 0 择路 / 1 问境 / 2 化身
 var _supply := ""
 var _sfx: AudioStreamPlayer
+var _portrait: TextureRect = null
 
 
 func _ready() -> void:
@@ -94,6 +95,7 @@ func _refresh() -> void:
 			continue
 		remove_child(c)
 		c.queue_free()
+	_portrait = null
 	_build()
 
 
@@ -264,11 +266,16 @@ func _character_step() -> void:
 	_rule(Vector2(782, 246), Vector2(1, 270))
 	if _char != "":
 		var profile: Dictionary = Skulls.get_profile(_char)
-		_text(str(profile["label"]), Vector2(812, 246), Vector2(160, 38), 26, GOLD if bool(profile.get("hero", false)) else PAPER, HORIZONTAL_ALIGNMENT_LEFT)
-		_text(str(profile.get("name", "")), Vector2(812, 286), Vector2(160, 26), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT)
-		_text("动 作 预 览", Vector2(800, 326), Vector2(360, 24), 13, RED)
-		_rule(Vector2(850, 522), Vector2(260, 2))
-		_make_preview()
+		_text(str(profile["label"]), Vector2(812, 240), Vector2(220, 38), 26, GOLD if bool(profile.get("hero", false)) else PAPER, HORIZONTAL_ALIGNMENT_LEFT)
+		_text(str(profile.get("name", "")), Vector2(812, 278), Vector2(220, 26), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT)
+		var portrait_path := str(profile.get("portrait", ""))
+		if portrait_path != "" and ResourceLoader.exists(portrait_path):
+			_make_portrait(portrait_path)
+			_text("角 色 原 画", Vector2(800, 540), Vector2(360, 22), 12, RED)
+		else:
+			_text("动 作 预 览", Vector2(800, 326), Vector2(360, 24), 13, RED)
+			_rule(Vector2(850, 522), Vector2(260, 2))
+			_make_preview()
 	_supply_selector()
 
 
@@ -303,6 +310,17 @@ func _char_card(id: String, i: int, parent: Control) -> void:
 		_card_text(card, "？？？", Vector2(0, 34), Vector2(122, 38), 22, PAPER)
 		_card_text(card, Meta.unlock_hint(id), Vector2(8, 94), Vector2(106, 76), 12, DIM)
 		_card_text(card, "尚未解锁", Vector2(0, 202), Vector2(122, 24), 12, RED)
+
+
+func _make_portrait(path: String) -> void:
+	_portrait = TextureRect.new()
+	_portrait.texture = load(path)
+	_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_portrait.position = Vector2(792, 300)
+	_portrait.size = Vector2(368, 238)
+	_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_portrait)
 
 
 func _make_preview() -> void:

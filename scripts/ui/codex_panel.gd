@@ -473,6 +473,8 @@ var _sel := "" # 当前选中的条目 id
 var _sfx: AudioStreamPlayer
 
 var _preview = null # 演示台用的 SpineSprite
+var _portrait: TextureRect = null
+var _show_portrait := true # 有原画的条目默认展示原画；动作页保留完整 Spine 演示
 var _pose_mixer = null
 var _pending_anim := ""
 var _idle_anim := "" # 待机动画名（默认演示 / 取消选中时回到这里）
@@ -566,6 +568,7 @@ func _refresh() -> void:
 		remove_child(c)
 		c.queue_free()
 	_preview = null
+	_portrait = null
 	_pose_mixer = null
 	_pending_anim = ""
 	_desc_rt = null
@@ -692,14 +695,24 @@ func _build_detail() -> void:
 	stage.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(stage)
 
+	var portrait_path := str(m.get("portrait", ""))
+	var has_portrait := not m.is_empty() and not bool(m["locked"]) and portrait_path != "" and ResourceLoader.exists(portrait_path)
+	var showing_art := has_portrait and _show_portrait
+	if has_portrait:
+		_make_button("原 画", Vector2(688, 94), Vector2(78, 28), 13, _set_portrait_view.bind(true), _show_portrait)
+		_make_button("动 作", Vector2(774, 94), Vector2(78, 28), 13, _set_portrait_view.bind(false), not _show_portrait)
+
 	# 演示先画：甩出演示台的刀光会被后面的文字 / 卡片盖住，不会糊字
 	var data = null
 	if not m.is_empty() and not bool(m["locked"]):
-		data = load(str(m["data"]))
-		if data == null or not data.call("is_skeleton_data_loaded"):
-			data = null
+		if showing_art:
+			_make_portrait(portrait_path)
 		else:
-			_make_preview(data, float(m["view_scale"]), str(m["idle"]))
+			data = load(str(m["data"]))
+			if data == null or not data.call("is_skeleton_data_loaded"):
+				data = null
+			else:
+				_make_preview(data, float(m["view_scale"]), str(m["idle"]))
 
 	# 技能解析面板（点击动作按钮后填充）
 	_desc_rt = RichTextLabel.new()
@@ -764,6 +777,10 @@ func _build_detail() -> void:
 		_desc_rt.text = "[color=#8a857a]%s[/color]" % str(m["lore"])
 		return
 
+	if showing_art:
+		_desc_rt.text = "[color=#8a857a]完整角色原画。点击上方「动作」可查看待机、招式与机制解析。[/color]"
+		return
+
 	if data == null:
 		_desc_rt.text = "[color=#8a857a]演示暂时不可用，仍可查看文字资料。[/color]"
 		return
@@ -801,6 +818,7 @@ func _model(id: String) -> Dictionary:
 			"tags": (TAGS.get(id, []) as Array).duplicate(),
 			"lore": str(LORE.get(id, "")),
 			"data": str(t["data"]),
+			"portrait": str(t.get("portrait", "")),
 			"view_scale": _enemy_scale(t, is_boss),
 			"idle": str(t["anim"]["idle"]),
 			"actions": _enemy_actions(t, is_boss, id),
@@ -819,6 +837,7 @@ func _model(id: String) -> Dictionary:
 		"tags": (TAGS.get(id, []) as Array).duplicate(),
 		"lore": str(LORE.get(id, "")),
 		"data": str(p["data"]),
+		"portrait": str(p.get("portrait", "")),
 		"view_scale": float(p["scale"]) * 1.45, # 游戏内 128px 高，图鉴里放大到约 186px
 		"idle": str(p["anim"]["idle"]),
 		"actions": _form_actions(p, id),
@@ -1175,6 +1194,17 @@ func _cd_for(a: Dictionary) -> float:
 
 # ---------- 演示 / 动作按钮 ----------
 
+func _make_portrait(path: String) -> void:
+	_portrait = TextureRect.new()
+	_portrait.texture = load(path)
+	_portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_portrait.position = Vector2(STAGE_X, STAGE_Y)
+	_portrait.size = Vector2(STAGE_W, STAGE_H)
+	_portrait.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_portrait)
+
+
 func _make_preview(data, view_scale: float, idle: String) -> void:
 	var sprite = ClassDB.instantiate("SpineSprite")
 	add_child(sprite)
@@ -1389,10 +1419,18 @@ func _play(anim: String, sequence: Array = [], hold_last := false) -> void:
 		st.call("add_animation", _idle_anim, 0.0, true, 0) # 完整连段演完回待机，不循环第一小段
 
 
+func _set_portrait_view(enabled: bool) -> void:
+	if _show_portrait == enabled:
+		return
+	_show_portrait = enabled
+	call_deferred("_refresh")
+
+
 func _select(id: String) -> void:
 	if _sel == id:
 		return
 	_sel = id
+	_show_portrait = true
 	_click_sfx()
 	call_deferred("_refresh")
 
@@ -1402,6 +1440,7 @@ func _switch_tab(tab: int) -> void:
 		return
 	_tab = tab
 	_sel = ""
+	_show_portrait = true
 	_click_sfx()
 	call_deferred("_refresh")
 

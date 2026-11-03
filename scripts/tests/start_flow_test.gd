@@ -37,7 +37,28 @@ func _ready() -> void:
 	p("点「无归」-> step=%d difficulty=%d（期望 2 / 4）" % [_step(_panel()), _difficulty(_panel())])
 	await _click(Vector2(150, 360)) # 选中双刺，不直接开局
 	p("点角色卡 -> step=%d char=%s scene=%s（选中但不启程）" % [_step(_panel()), str(_panel().get("_char")), get_tree().current_scene.name])
+	var char_panel := _panel()
+	p("双刺选角原画=%s 完整容纳=%s（期望 true / true）" % [
+		is_instance_valid(char_panel._portrait) and char_panel._portrait.texture != null,
+		is_instance_valid(char_panel._portrait) and char_panel._portrait.stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED])
 	await _shot("run_03_character_preview")
+
+	# 没有原画的力僧仍显示原有 Spine 动作，不留空框；随后恢复双刺继续旧流程。
+	var purchases_before: Dictionary = Meta.purchases.duplicate()
+	Meta.purchases["buyout_c013"] = true
+	char_panel._pick_char("c013")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var has_spine := false
+	for child in char_panel.get_children():
+		if child.get_class() == "SpineSprite":
+			has_spine = true
+	p("力僧缺原画回退：原画为空=%s Spine动作=%s（期望 true / true）" % [char_panel._portrait == null, has_spine])
+	await _shot("run_03b_character_spine_fallback")
+	Meta.purchases = purchases_before
+	char_panel._pick_char("c021")
+	await get_tree().process_frame
+	await get_tree().process_frame
 
 	await _click(Vector2(210, 616))
 	p("化身页上一步 -> step=%d（期望 1）" % _step(_panel()))

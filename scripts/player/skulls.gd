@@ -18,6 +18,7 @@ const SKULLS := {
 		"label": "双刺", # 代称：红缨双匕 + 面纱长裙的女刺客造型
 		"name": "冷红绫",
 		"data": "res://art/characters/player/c021_data.tres",
+		"portrait": "res://art/characters/portraits/c021.png",
 		"scale": 0.394,
 		"anim": {
 			"idle": "stand",
@@ -204,6 +205,7 @@ const SKULLS := {
 		"name": "洛惊鸿",
 		"hero": true, # 英雄级主角：K/L/U 普通技 + I 觉醒 + O/P 觉醒技（规范见 PROGRESS.md）
 		"data": "res://art/characters/player/skulls/z000/z000_data.tres",
+		"portrait": "res://art/characters/portraits/z000.png",
 		"scale": 0.448, # 骨架 285.7px -> 128px
 		"body_radius": 30.0, # 标准体型
 		"anim": {
@@ -294,6 +296,7 @@ const SKULLS := {
 		"name": "苏挽音",
 		"hero": true,
 		"data": "res://art/characters/enemies/z002/z002_data.tres",
+		"portrait": "res://art/characters/portraits/z002.png",
 		"scale": 0.415, # 骨架约 308.6px -> 128px，与其他英雄同高
 		"body_radius": 30.0,
 		"anim": {
@@ -364,6 +367,7 @@ const SKULLS := {
 		"name": "将去未还",
 		"hero": true, # 英雄级主角：K/L/U 普通技 + I 觉醒 + O/P 觉醒技（规范见 PROGRESS.md）
 		"data": "res://art/characters/player/skulls/z003/z003_data.tres",
+		"portrait": "res://art/characters/portraits/z003.png",
 		"scale": 0.431, # 骨架 297.1px -> 128px
 		"anim": {
 			"idle": "stand",

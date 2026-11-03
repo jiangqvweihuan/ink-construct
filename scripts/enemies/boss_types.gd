@@ -73,6 +73,7 @@ const BOSSES := {
 	"c009": {
 		"label": "墨霆",
 		"data": "res://art/characters/enemies/bosses/c009/c009_data.tres",
+		"portrait": "res://art/characters/portraits/c009.png",
 		"scale": 0.55,
 		"body_radius": 100.0,
 		# 动画 3/4：受击 def_break、追击 run；动画 5 skill01 只用于 Boss 房先导。
@@ -199,6 +200,7 @@ const BOSSES := {
 	"c008": {
 		"label": "碎岳",
 		"data": "res://art/characters/enemies/bosses/c008/c008_data.tres",
+		"portrait": "res://art/characters/portraits/c008.png",
 		"scale": 0.55,
 		"body_radius": 95.0,
 		# 保留原有受击、移动与倒地动画。

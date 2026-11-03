@@ -36,6 +36,11 @@ func _ready() -> void:
 	var credits = _find_panel("credits_panel.gd")
 	p("致谢打开=%s（期望 true）" % (credits != null))
 	if credits != null:
+		var has_placeholder := false
+		for entry in credits.CREDITS:
+			var text := str(entry["s"])
+			has_placeholder = has_placeholder or text.contains("【") or text.contains("】")
+		p("致谢模板占位已清空=%s（期望 true）" % (not has_placeholder))
 		p("致谢滚动 offset=%.1f（期望 > 0）" % credits._offset)
 		await _shot("01b_credits")
 		# 致谢期间点主菜单区域不能穿透（全屏遮罩必须吃掉点击）
@@ -149,6 +154,7 @@ func _ready() -> void:
 	Meta.add_enemy_kill("c012")
 	Meta.add_enemy_kill("c037")
 	Meta.add_enemy_kill("c009")
+	Meta.add_enemy_kill("c008")
 	Meta.add_enemy_kill("c032")
 	_menu._open_codex()
 	await get_tree().create_timer(0.5).timeout
@@ -527,6 +533,29 @@ func _ready() -> void:
 						p("文案穿帮 %s / %s / %s" % [str(id), str(action.get("label", "")), str(term)])
 		p("全部敌人与Boss图鉴无开发术语/资源键/占位文案=%s（期望 true）" % clean_text)
 
+		# 有原画的首领默认展示完整立绘；切到动作后才创建 Spine 与招式按钮。
+		codex._select("c009")
+		await get_tree().create_timer(0.3).timeout
+		p("墨霆图鉴默认原画=%s 完整容纳=%s 动作未提前加载=%s（期望全 true）" % [
+			is_instance_valid(codex._portrait) and codex._portrait.texture != null,
+			is_instance_valid(codex._portrait) and codex._portrait.stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED,
+			codex._preview == null and codex._acts.is_empty()])
+		await _shot("06g_codex_mo_ting_portrait")
+		codex._set_portrait_view(false)
+		await get_tree().create_timer(0.3).timeout
+		p("墨霆切到动作=%s 招式数=%d（期望 true / >0）" % [is_instance_valid(codex._preview), codex._acts.size()])
+		codex._set_portrait_view(true)
+		await get_tree().create_timer(0.3).timeout
+		p("墨霆切回原画=%s 动作已卸载=%s（期望 true / true）" % [
+			is_instance_valid(codex._portrait), codex._preview == null and codex._acts.is_empty()])
+		codex._select("c008")
+		await get_tree().create_timer(0.3).timeout
+		p("碎岳图鉴默认原画=%s（期望 true）" % (is_instance_valid(codex._portrait) and codex._portrait.texture != null))
+		await _shot("06h_codex_sui_yue_portrait")
+		codex._set_portrait_view(false)
+		await get_tree().create_timer(0.3).timeout
+		p("碎岳切到动作=%s 招式数=%d（期望 true / >0）" % [is_instance_valid(codex._preview), codex._acts.size()])
+
 		# 已收录的 Boss 详情（c032 四招与双被动）；无正式来历的区块应直接省略。
 		codex._select("c032")
 		await get_tree().create_timer(0.3).timeout
@@ -552,9 +581,28 @@ func _ready() -> void:
 		await get_tree().create_timer(0.3).timeout
 		p("切到化身页 -> 选中=%s（期望 c021）" % str(codex._sel))
 		await _shot("08_codex_form")
+		# 缺原画的化身仍直接展示 Spine，不留空展示框。
+		codex._select("c013")
+		await get_tree().create_timer(0.3).timeout
+		p("力僧缺原画回退：原画为空=%s 动作可用=%s（期望 true / true）" % [
+			codex._portrait == null, is_instance_valid(codex._preview) and not codex._acts.is_empty()])
+		await _shot("08a_codex_form_fallback")
+		Meta.clears = 1
+		codex._select("z000")
+		await get_tree().create_timer(0.3).timeout
+		p("剑仙图鉴默认原画=%s 动作未提前加载=%s（期望 true / true）" % [
+			is_instance_valid(codex._portrait) and codex._portrait.texture != null,
+			codex._preview == null and codex._acts.is_empty()])
+		await _shot("08a_codex_sword_portrait")
 		Meta.clears = 5
 		Meta.kills = 300
 		codex._select("z002")
+		await get_tree().create_timer(0.3).timeout
+		p("绛弦图鉴默认原画=%s 动作未提前加载=%s（期望 true / true）" % [
+			is_instance_valid(codex._portrait) and codex._portrait.texture != null,
+			codex._preview == null and codex._acts.is_empty()])
+		await _shot("08b_codex_pipa_portrait")
+		codex._set_portrait_view(false)
 		await get_tree().create_timer(0.3).timeout
 		await _shot("08b_codex_pipa")
 		var pipa_passives: Array = []
@@ -608,6 +656,12 @@ func _ready() -> void:
 		Meta.clears = 3
 		Meta.kills = 150
 		codex._select("z003")
+		await get_tree().create_timer(0.3).timeout
+		p("影殇图鉴默认原画=%s 动作未提前加载=%s（期望 true / true）" % [
+			is_instance_valid(codex._portrait) and codex._portrait.texture != null,
+			codex._preview == null and codex._acts.is_empty()])
+		await _shot("09_codex_z003_portrait")
+		codex._set_portrait_view(false)
 		await get_tree().create_timer(0.3).timeout
 		var atk2 := -1
 		var k := -1
