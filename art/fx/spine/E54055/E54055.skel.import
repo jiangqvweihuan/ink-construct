@@ -1,0 +1,14 @@
+[remap]
+
+importer="spine.skel"
+type="SpineSkeletonFileResource"
+uid="uid://b52tt3n2pllml"
+path="res://.godot/imported/E54055.skel-026878a0735a85443f97edc91e96fa9f.spskel"
+
+[deps]
+
+source_file="res://art/fx/spine/E54055/E54055.skel"
+dest_files=["res://.godot/imported/E54055.skel-026878a0735a85443f97edc91e96fa9f.spskel"]
+
+[params]
+

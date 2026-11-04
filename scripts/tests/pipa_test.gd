@@ -5,6 +5,7 @@ extends Node
 const PlayerClass := preload("res://scripts/player/player.gd")
 const C016Class := preload("res://scripts/enemies/c016.gd")
 const ProjectileClass := preload("res://scripts/systems/projectile.gd")
+const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const Settings := preload("res://scripts/ui/settings.gd")
 const PLAYER_SCENE := preload("res://scenes/player/player.tscn")
 const ENEMY_SCENE := preload("res://scenes/enemies/c016.tscn")
@@ -76,6 +77,7 @@ func _ready() -> void:
 	_test_permanent_nodes()
 	_test_state_boundaries()
 	_test_projectile_audio()
+	_test_spine_fx()
 
 	_clear_world()
 	Meta.form_nodes = _saved_forms
@@ -93,7 +95,7 @@ func _clear_world() -> void:
 			e.free()
 	_enemies.clear()
 	for child in get_children():
-		if child.get_script() == ProjectileClass:
+		if child.get_script() == ProjectileClass or child.has_meta("fx_id"):
 			child.free()
 	if is_instance_valid(_p):
 		_p.free()
@@ -630,6 +632,8 @@ func _test_state_boundaries() -> void:
 	_check(not _p._blink_active and not _p._skill_root_follow and not _p._invincible \
 		and _p._skill_runtime.is_empty() and _p._skill_hits.is_empty(), "K 位移中换头会清理穿身、根骨跟随、无敌与待结算段")
 	_p.swap_skull("z002")
+	_p.skill_config = (_p.skill_config as Dictionary).duplicate(true)
+	_p.skill_config["run-"]["pool"] = ["run-"]
 	_p._start_skill("run-")
 	_check(_p.skull_id == "z002" and _p._skill_anim == "run-" and not _p._skill_runtime.is_empty(), "换回绛弦后技能运行配置使用独立副本，可再次起手")
 
@@ -703,6 +707,97 @@ func _test_state_boundaries() -> void:
 		and is_equal_approx(_p.get_skill_cd_ratio("skill03"), 0.5) \
 		and is_equal_approx(float(_p._skill_cd_totals["run-"]), 1.25) \
 		and is_equal_approx(_p.get_skill_cd_ratio("run-"), 1.0), "后续技能不会覆盖前一技能本次实际总冷却与比例")
+
+
+func _direct_spine(root: Node, fx_id := "", role := "") -> Array:
+	var out: Array = []
+	for child in root.get_children():
+		if not child.has_meta("fx_id"):
+			continue
+		if not fx_id.is_empty() and str(child.get_meta("fx_id")) != fx_id:
+			continue
+		if not role.is_empty() and str(child.get_meta("fx_role", "")) != role:
+			continue
+		out.append(child)
+	return out
+
+
+func _test_spine_fx() -> void:
+	# 第四段普攻：飞行为 E54055，真实命中才生成 E54056；癫狂沿用 C016 状态所有者。
+	_reset_world()
+	var target = _enemy_at(100.0, 100)
+	_p._start_attack(3)
+	_p._attack_tick(0.82)
+	var shots := _shots()
+	_check(shots.size() == 1 and is_instance_valid(shots[0]._spine_fx) \
+		and str(shots[0]._spine_fx.get_meta("fx_id")) == "E54055" \
+		and str(shots[0]._spine_fx.get_meta("fx_anim")) == "action", "第四段远程剑气飞行使用 E54055 action")
+	if not shots.is_empty():
+		shots[0]._physics_process(0.02)
+		var hit_nodes := _direct_spine(self, "E54056", "hit")
+		_check(hit_nodes.size() == 1 and str(hit_nodes[0].get_meta("fx_anim")) == "action",
+			"第四段剑气真实命中生成 E54056 action")
+		target._sync_status_effects()
+		var frenzy_fx = target._status_fx.get("frenzy")
+		_check(is_instance_valid(frenzy_fx) and str(frenzy_fx.get_meta("fx_id")) == "E52007" \
+			and is_equal_approx(float(frenzy_fx._lifetime), -1.0), "癫狂由目标持有点头顶 E52007 持续特效")
+		target._frenzy_time = 0.0
+		target._sync_status_effects()
+		_check(not target._status_fx.has("frenzy") and frenzy_fx.is_queued_for_deletion(), "癫狂结束由目标释放 E52007")
+
+	# 黍离：height 是投射物本地拟合尺寸，父节点再乘一次 _size；动画速度跟实际弹速同比。
+	_reset_world()
+	_p.skill_config["skill03"]["pool"] = ["skill03"]
+	_p.skill_config["skill03"]["projectile"]["scale"] = 1.75
+	_p.skill_config["skill03"]["projectile"]["speed"] = 780.0
+	_p._start_skill("skill03")
+	_p._skill_tick(0.6801)
+	shots = _shots()
+	_check(shots.size() == 1 and str(shots[0]._effects.get("fx_id", "")) == "E100129" \
+		and is_equal_approx(float(shots[0]._effects.get("fx_height", 0.0)), 110.0) \
+		and is_equal_approx(float(shots[0]._size), 1.75) \
+		and is_equal_approx(float(shots[0]._effects.get("fx_speed", 0.0)), 1.2),
+		"黍离 E100129 高度保持 110、父节点负责尺寸倍率且弹速比例为 1.2")
+	if not shots.is_empty():
+		_check(is_instance_valid(shots[0]._spine_fx) and is_equal_approx(float(shots[0]._spine_fx._fit_height), 110.0) \
+			and bool(shots[0]._spine_fx._center), "黍离运行时按 bounds 拟合高度并居中对齐")
+
+	# I 的起手演出与真正的觉醒持续特效分属两个阶段。
+	_reset_world(20, 3)
+	_p._start_skill("skill07_02")
+	var cast_nodes := _direct_spine(_p, "E53174", "awaken_cast")
+	_check(cast_nodes.size() == 1 and str(cast_nodes[0].get_meta("fx_anim")) == "action" \
+		and not is_instance_valid(_p._awaken_spine), "苏挽音 I 起手仅生成 E53174，不提前生成觉醒环绕")
+	_p._skill_tick(_p._skill_timer + 0.001)
+	var awaken = _p._awaken_spine
+	_check(is_instance_valid(awaken) and str(awaken.get_meta("fx_id")) == "E100172" \
+		and str(awaken.get_meta("fx_anim")) == "action", "苏挽音 I 收招后生成 E100172 持续环绕")
+	_p._awaken_time = 0.0
+	_p._sync_persistent_spine()
+	_check(_p._awaken_spine == null and awaken.is_queued_for_deletion(), "苏挽音觉醒结束释放 E100172")
+
+	# O 只补视觉剑气，原八段战斗判定保持原样。
+	_reset_world()
+	_p._awaken_time = 8.0
+	_p._start_skill("skill10_03")
+	shots = _shots()
+	_check(shots.size() == 1 and ["E53008", "E53009"].has(str(shots[0]._effects.get("fx_id", ""))) \
+		and bool(shots[0]._effects.get("visual_only", false)) and shots[0]._damage == 0 \
+		and _p._skill_hits.size() == 8, "苏挽音 O 随机二选一生成视觉剑气且保留八段判定")
+
+	# 神伤以视口宽度拟合 6400 原始素材，视觉中心仍位于玩家上方。
+	_reset_world()
+	_p._pipa_sorrow_timer = 0.0
+	_p._pipa_passive_tick(0.01)
+	var sorrow_nodes := _direct_spine(self, "E54061", "sorrow")
+	_check(sorrow_nodes.size() == 1 and is_equal_approx(float(sorrow_nodes[0]._fit_width), get_viewport().get_visible_rect().size.x) \
+		and bool(sorrow_nodes[0]._center) and sorrow_nodes[0].position.is_equal_approx(Vector2(0.0, -180.0)),
+		"神伤 E54061 按视口宽度拟合并居中于玩家上方")
+	if not sorrow_nodes.is_empty():
+		var data = SpineFX.data("E54061")
+		var animation = data.call("find_animation", "action")
+		_check(is_equal_approx(float(sorrow_nodes[0]._lifetime), float(animation.call("get_duration"))),
+			"神伤一次性特效按 action 真实时长销毁")
 
 
 func _test_projectile_audio() -> void:

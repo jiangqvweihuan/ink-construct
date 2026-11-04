@@ -76,6 +76,8 @@ class PassiveTarget extends Node2D:
 
 const OUT_DIR := "res://tests/out/"
 const PlayerClass := preload("res://scripts/player/player.gd")
+const ProjectileClass := preload("res://scripts/systems/projectile.gd")
+const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 
 var _log: FileAccess
@@ -402,6 +404,7 @@ func _ready() -> void:
 	_qingli_regression()
 	await _innate_passive_regression()
 	await _minimal_player_fix_regression()
+	await _player_spine_regression()
 	p("PASSIVE DONE checks=%d failed=%d" % [_checks, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -1177,6 +1180,192 @@ func _minimal_player_fix_regression() -> void:
 	_player._try_stolen_madness_damage(1, null, {})
 	_check(_player.state == _player.State.DEAD and _player.max_hp == 0 and Run.max_hp == 0 \
 		and not Run.supply_revive_used, "失心疯零上限无复活资源仍正常死亡且不提前恢复上限")
+
+
+func _direct_spine(root: Node, fx_id := "", role := "") -> Array:
+	var out: Array = []
+	for child in root.get_children():
+		if not child.has_meta("fx_id"):
+			continue
+		if not fx_id.is_empty() and str(child.get_meta("fx_id")) != fx_id:
+			continue
+		if not role.is_empty() and str(child.get_meta("fx_role", "")) != role:
+			continue
+		out.append(child)
+	return out
+
+
+func _clear_spine_regression_world() -> void:
+	for child in get_children():
+		if child.has_meta("fx_id") or child.get_script() == ProjectileClass:
+			child.free()
+
+
+func _player_spine_regression() -> void:
+	# 闪避是一次性世界特效，寿命必须取真实动画时长，结束后由 SpineFX 自己释放。
+	_clear_spine_regression_world()
+	_prepare_innate("c021")
+	_player._dash_cd = 0.0
+	_player._dash_gap = 0.0
+	Input.action_press("dash")
+	_player._try_dash()
+	Input.action_release("dash")
+	var dash_nodes := _direct_spine(self, "E53026", "dash")
+	_check(dash_nodes.size() == 1, "闪避在身后生成唯一 E53026")
+	if not dash_nodes.is_empty():
+		var dash_fx = dash_nodes[0]
+		var dash_data = SpineFX.data("E53026")
+		var dash_animation = dash_data.call("find_animation", "action")
+		var dash_duration := float(dash_animation.call("get_duration"))
+		_check(str(dash_fx.get_meta("fx_anim")) == "action" and is_equal_approx(float(dash_fx._lifetime), dash_duration),
+			"闪避使用 action 并按真实动画时长自动销毁")
+		dash_fx._process(dash_duration + 0.01)
+		_check(dash_fx.is_queued_for_deletion(), "闪避动画到期后进入释放队列")
+		await get_tree().process_frame
+		_check(not is_instance_valid(dash_fx), "闪避一次性节点已实际释放")
+
+	# 金钟罩复用同一持续节点，层数归零立即释放。
+	_prepare_innate("c013")
+	_player._apply_self_shield({"hits": 1, "time": 8.0})
+	var shield = _player._shield_spine
+	_check(is_instance_valid(shield) and str(shield.get_meta("fx_id")) == "E52025" \
+		and str(shield.get_meta("fx_anim")) == "action1" and is_equal_approx(float(shield._lifetime), -1.0),
+		"金钟罩生成 E52025 action1 持续特效")
+	_player._apply_self_shield({"hits": 1, "time": 8.0})
+	_check(_player._shield_spine == shield and _direct_spine(_player, "E52025", "shield").size() == 1,
+		"金钟罩刷新不重复生成节点")
+	_player._shield_hits = 0
+	_player._shield_time = 0.0
+	_player._sync_persistent_spine()
+	_check(_player._shield_spine == null and shield.is_queued_for_deletion(), "金钟罩归零立即释放持续特效")
+
+	# 双刺 U 的持续节点无论自然收招还是受击打断都不能残留。
+	_prepare_innate("c021")
+	_player._start_skill("skill02-cankao")
+	var skill_fx = _player._skill_spine
+	_check(is_instance_valid(skill_fx) and str(skill_fx.get_meta("fx_id")) == "E54151" \
+		and str(skill_fx.get_meta("fx_anim")) == "action1", "双刺 U 从起手生成 E54151 持续特效")
+	_player._skill_tick(_player._skill_timer + 0.001)
+	_check(_player._skill_spine == null and skill_fx.is_queued_for_deletion(), "双刺 U 自然收招释放持续特效")
+	_clear_spine_regression_world()
+	_prepare_innate("c021")
+	_player._start_skill("skill02-cankao")
+	skill_fx = _player._skill_spine
+	_player.hurt(1)
+	_check(_player._skill_spine == null and skill_fx.is_queued_for_deletion(), "双刺 U 受击打断同样释放持续特效")
+
+	# 定山 K/L 以运行时 bounds 匹配实际范围，不再直接放大原始巨型骨架。
+	_clear_spine_regression_world()
+	_prepare_innate("c013")
+	_player.global_position = Vector2.ZERO
+	_player.facing = 1
+	_player._start_skill("skill01")
+	_player._skill_tick(0.6001)
+	var k_nodes := _direct_spine(self, "E54063", "skill_hit")
+	_check(k_nodes.size() == 1 and is_equal_approx(float(k_nodes[0]._fit_width), 396.0) \
+		and bool(k_nodes[0]._center) and k_nodes[0].global_position.is_equal_approx(_player.global_position),
+		"定山 K 以自身为中心且视觉宽度匹配双向 198 范围")
+	_clear_spine_regression_world()
+	_prepare_innate("c013")
+	_player.global_position = Vector2.ZERO
+	_player.facing = 1
+	_player._start_skill("skill03")
+	_player._skill_tick(0.8701)
+	var l_nodes := _direct_spine(self, "E53201", "skill_hit")
+	_check(l_nodes.size() == 1 and is_equal_approx(float(l_nodes[0]._fit_width), 191.0) \
+		and bool(l_nodes[0]._center) and l_nodes[0].global_position.is_equal_approx(Vector2(191.0, 0.0)),
+		"定山 L 居中于实际最远落点并匹配技能范围")
+
+	# 剑仙 I 只有收招进入真实觉醒窗口后才出现持续环绕，归零即释放。
+	_prepare_innate("z000")
+	_player._start_skill("skill08")
+	_check(_player._awaken_pending > 0.0 and not is_instance_valid(_player._awaken_spine), "剑仙 I 曲终前不提前生成觉醒环绕")
+	_player._skill_tick(_player._skill_timer + 0.001)
+	var awaken = _player._awaken_spine
+	_check(is_instance_valid(awaken) and str(awaken.get_meta("fx_id")) == "E100177" \
+		and str(awaken.get_meta("fx_anim")) == "action", "剑仙觉醒真实时点生成 E100177")
+	_player._awaken_time = 0.0
+	_player._sync_persistent_spine()
+	_check(_player._awaken_spine == null and awaken.is_queued_for_deletion(), "剑仙觉醒结束释放环绕")
+
+	# 将去未还 U 固定在身后世界坐标，收招不移除，独立存活满 5 秒。
+	_clear_spine_regression_world()
+	_prepare_innate("z003")
+	_player.global_position = Vector2.ZERO
+	_player.facing = 1
+	_player._start_skill("skill06")
+	var world_fx = _player._world_skill_spine
+	var world_pos: Vector2 = world_fx.global_position
+	_check(is_instance_valid(world_fx) and str(world_fx.get_meta("fx_id")) == "E100006" \
+		and is_equal_approx(float(_player._world_skill_spine_left), 5.0), "将去未还 U 生成独立 5 秒世界特效")
+	_player.global_position.x += 200.0
+	_player._spine_fx_tick(0.0)
+	_player._set_state(PlayerClass.State.IDLE)
+	_check(is_instance_valid(world_fx) and not world_fx.is_queued_for_deletion() \
+		and world_fx.global_position.is_equal_approx(world_pos), "将去未还 U 不跟随且收招后仍保留")
+	_player._spine_fx_tick(4.9)
+	_check(is_instance_valid(world_fx) and not world_fx.is_queued_for_deletion(), "将去未还 U 在 4.9 秒仍存在")
+	_player._spine_fx_tick(0.1001)
+	_check(_player._world_skill_spine == null and world_fx.is_queued_for_deletion(), "将去未还 U 满 5 秒后释放")
+
+	# 将去未还 P 的全屏演出统一交给 SpineFX 延迟测量，不再使用首帧固定倍数回退。
+	var full_fx := _player._spawn_fullscreen_spine("E54012", "action3")
+	_check(is_instance_valid(full_fx) and str(full_fx.get_meta("fx_role")) == "full_screen" \
+		and bool(full_fx._center) and full_fx._fit_cover.is_equal_approx(get_viewport().get_visible_rect().size * 1.05),
+		"将去未还 P 使用统一全屏覆盖与居中适配")
+	_clear_spine_regression_world()
+
+	# 剑仙 U：同一穿透投射物依次结算 5/2，首击只播 action3，后续只播 action2。
+	_clear_spine_regression_world()
+	_prepare_innate("z000")
+	_player.global_position = Vector2.ZERO
+	_player.facing = 1
+	_player.damage_bonus = 0
+	_player._proj_damage_bonus = 0
+	_player._skill_damage_mod.clear()
+	_player._buff_damage = 0
+	_player._stop_buff_damage = 0
+	_player._room_awaken_damage = 0
+	_player._awaken_stacks = 0
+	var first := Trainer.new()
+	first.add_to_group("enemies")
+	first.position = Vector2(80.0, 0.0)
+	add_child(first)
+	var second := Trainer.new()
+	second.add_to_group("enemies")
+	second.position = Vector2(150.0, 0.0)
+	add_child(second)
+	_player._start_skill("skill04")
+	_player._skill_tick(0.4801)
+	var shots: Array = []
+	for child in get_children():
+		if child.get_script() == ProjectileClass:
+			shots.append(child)
+	_check(shots.size() == 1 and shots[0]._pierce, "剑仙 U 只生成一道向前穿透剑气")
+	if shots.is_empty():
+		first.free()
+		second.free()
+		return
+	var shot = shots[0]
+	_check(is_instance_valid(shot._spine_fx) and str(shot._spine_fx.get_meta("fx_id")) == "E54083" \
+		and str(shot._spine_fx.get_meta("fx_anim")) == "action1", "剑仙 U 飞行使用 E54083 action1")
+	shot._physics_process(0.04)
+	var first_hits := _direct_spine(self, "E54083", "first_hit")
+	var normal_hits := _direct_spine(self, "E54083", "hit")
+	_check(first.damage_taken == 5 and second.damage_taken == 0, "剑仙 U 首目标基础伤害严格为 5")
+	_check(first_hits.size() == 1 and str(first_hits[0].get_meta("fx_anim")) == "action3" and normal_hits.is_empty(),
+		"剑仙 U 首目标只播 action3，不叠加普通命中 action2")
+	shot._physics_process(0.04)
+	first_hits = _direct_spine(self, "E54083", "first_hit")
+	normal_hits = _direct_spine(self, "E54083", "hit")
+	_check(first.damage_taken == 5 and second.damage_taken == 2, "剑仙 U 后续目标基础伤害严格为 2 且不重复首目标")
+	_check(first_hits.size() == 1 and normal_hits.size() == 1 \
+		and str(normal_hits[0].get_meta("fx_anim")) == "action2", "剑仙 U 普通后续目标只播 action2")
+	_check(shot._hit_list.size() == 2 and not shot.is_queued_for_deletion(), "剑仙 U 穿透两个目标后仍可继续飞行")
+	shot.free()
+	first.free()
+	second.free()
+	_clear_spine_regression_world()
 
 
 func _spawn_real_enemy(type_id: String, pos := Vector2(500, 560)):

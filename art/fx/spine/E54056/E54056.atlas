@@ -1,0 +1,111 @@
+E54056.png
+size: 1642, 776
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+atk01/shouji_p01/shouji_p01037
+  rotate: true
+  xy: 1373, 504
+  size: 270, 263
+  orig: 800, 800
+  offset: 266, 269
+  index: -1
+atk01/shouji_p01/shouji_p01038
+  rotate: true
+  xy: 733, 386
+  size: 388, 355
+  orig: 800, 800
+  offset: 205, 225
+  index: -1
+atk01/shouji_p01/shouji_p01039
+  rotate: true
+  xy: 2, 374
+  size: 400, 365
+  orig: 800, 800
+  offset: 201, 218
+  index: -1
+atk01/shouji_p01/shouji_p01040
+  rotate: false
+  xy: 2, 6
+  size: 397, 366
+  orig: 800, 800
+  offset: 203, 217
+  index: -1
+atk01/shouji_p01/shouji_p01041
+  rotate: true
+  xy: 369, 386
+  size: 388, 362
+  orig: 800, 800
+  offset: 209, 220
+  index: -1
+atk01/shouji_p01/shouji_p01042
+  rotate: true
+  xy: 401, 18
+  size: 366, 343
+  orig: 800, 800
+  offset: 215, 229
+  index: -1
+atk01/shouji_p01/shouji_p01043
+  rotate: true
+  xy: 746, 46
+  size: 338, 322
+  orig: 800, 800
+  offset: 225, 240
+  index: -1
+atk01/shouji_p01/shouji_p01044
+  rotate: true
+  xy: 1070, 66
+  size: 318, 306
+  orig: 800, 800
+  offset: 231, 251
+  index: -1
+atk01/shouji_p01/shouji_p01045
+  rotate: true
+  xy: 1090, 472
+  size: 302, 281
+  orig: 800, 800
+  offset: 239, 262
+  index: -1
+atk01/shouji_p01/shouji_p01046
+  rotate: false
+  xy: 1378, 243
+  size: 262, 259
+  orig: 800, 800
+  offset: 266, 277
+  index: -1
+atk01/shouji_p01/shouji_p01047
+  rotate: true
+  xy: 1378, 8
+  size: 233, 216
+  orig: 800, 800
+  offset: 274, 295
+  index: -1
+atk01/shouji_p01/shouji_p01048
+  rotate: true
+  xy: 746, 22
+  size: 22, 16
+  orig: 800, 800
+  offset: 416, 439
+  index: -1
+atk01/shouji_p01/shouji_p01049
+  rotate: false
+  xy: 401, 2
+  size: 20, 14
+  orig: 800, 800
+  offset: 418, 438
+  index: -1
+atk01/shouji_p01/shouji_p01050
+  rotate: false
+  xy: 423, 4
+  size: 18, 12
+  orig: 800, 800
+  offset: 419, 437
+  index: -1
+atk01/shouji_p01/shouji_p01051
+  rotate: false
+  xy: 443, 5
+  size: 16, 11
+  orig: 800, 800
+  offset: 420, 436
+  index: -1
+

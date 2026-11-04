@@ -6,11 +6,12 @@ signal finished
 
 const Skulls := preload("res://scripts/player/skulls.gd")
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
+const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const PAPER := Color(0.949, 0.918, 0.847)
-const DIM := Color(0.42, 0.40, 0.36)
 
 var _player: Node2D
 var _boss: Node2D
+var _duel_fx: Node2D
 var _finished := false
 
 
@@ -44,7 +45,11 @@ func _ready() -> void:
 	var profile: Dictionary = Skulls.get_profile(str(_player.get("skull_id")))
 	_make_label(root, str(profile.get("name", profile.get("label", "无名者"))), Vector2(62, 54), Vector2(440, 72), 42, HORIZONTAL_ALIGNMENT_LEFT)
 	_make_label(root, str(_boss.get("boss_label")), Vector2(818, 54), Vector2(440, 72), 46, HORIZONTAL_ALIGNMENT_RIGHT)
-	_make_label(root, "VS", Vector2(510, 166), Vector2(260, 180), 112, HORIZONTAL_ALIGNMENT_CENTER).add_theme_color_override("font_color", DIM)
+	_duel_fx = SpineFX.spawn(root, "E21022", Vector2(640, 334), {
+		"anim": "action", "width": 470.0, "z": 1, "auto_free": false, "mod": Color(1, 1, 1, 0.88),
+	})
+	if _duel_fx != null:
+		_duel_fx.name = "BossDuelSpineFX"
 
 	_make_preview(root, load(str(profile["data"])), float(profile.get("scale", 0.394)) * 1.35,
 		Vector2(292, 590), str((profile.get("anim", {}) as Dictionary).get("idle", "stand")), true, false)

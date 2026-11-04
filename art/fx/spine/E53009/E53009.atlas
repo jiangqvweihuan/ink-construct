@@ -1,0 +1,76 @@
+E53009.png
+size: 1671, 342
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+xiyihuoqiu_00
+  rotate: false
+  xy: 1341, 175
+  size: 328, 165
+  orig: 421, 241
+  offset: 55, 33
+  index: -1
+xiyihuoqiu_02
+  rotate: false
+  xy: 1341, 8
+  size: 321, 165
+  orig: 421, 241
+  offset: 62, 34
+  index: -1
+xiyihuoqiu_04
+  rotate: true
+  xy: 1009, 10
+  size: 330, 165
+  orig: 421, 241
+  offset: 53, 32
+  index: -1
+xiyihuoqiu_06
+  rotate: true
+  xy: 497, 4
+  size: 336, 175
+  orig: 421, 241
+  offset: 47, 28
+  index: -1
+xiyihuoqiu_08
+  rotate: true
+  xy: 333, 3
+  size: 337, 162
+  orig: 421, 241
+  offset: 46, 38
+  index: -1
+xiyihuoqiu_10
+  rotate: true
+  xy: 2, 2
+  size: 338, 162
+  orig: 421, 241
+  offset: 45, 39
+  index: -1
+xiyihuoqiu_12
+  rotate: true
+  xy: 1176, 10
+  size: 330, 163
+  orig: 421, 241
+  offset: 53, 30
+  index: -1
+xiyihuoqiu_14
+  rotate: true
+  xy: 841, 9
+  size: 331, 166
+  orig: 421, 241
+  offset: 52, 34
+  index: -1
+xiyihuoqiu_16
+  rotate: true
+  xy: 166, 3
+  size: 337, 165
+  orig: 421, 241
+  offset: 46, 33
+  index: -1
+xiyihuoqiu_18
+  rotate: true
+  xy: 674, 8
+  size: 332, 165
+  orig: 421, 241
+  offset: 51, 34
+  index: -1
+

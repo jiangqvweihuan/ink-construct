@@ -6,6 +6,7 @@ const OUT_DIR := "res://tests/out/"
 const PlayerClass := preload("res://scripts/player/player.gd")
 const C016Class := preload("res://scripts/enemies/c016.gd")
 const EnemyTypes := preload("res://scripts/enemies/enemy_types.gd")
+const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 
 class BurnSource extends Node:
 	var hits := 0
@@ -178,6 +179,9 @@ func _ready() -> void:
 
 	# 10. 青笠专项：剑意结算、同步凝华分身、封闪避、普通流血与严格高伤链。
 	await _qingli_probe()
+
+	# 10b. 敌方 Spine 状态持续、时停、死亡与碎岳金钟生命周期。
+	await _spine_status_probe()
 
 	# 11. 全部普通怪与精英：首招普攻、其余独立冷却、技能优先与普攻兜底。
 	await _attack_rule_probe()
@@ -1046,6 +1050,135 @@ func _qingli_probe() -> void:
 	p("青笠高伤倒地链 5伤不触发/6伤穿旋斩霸体/11号起身=%s（期望 true）" % chain_ok)
 	e._release_token()
 	e.queue_free()
+	await get_tree().process_frame
+
+
+## 敌方 Spine：真实节点随状态生灭，重复施加不重建，时停继承冻结，死亡/离场不泄漏。
+func _spine_status_probe() -> void:
+	var e = load("res://scenes/enemies/c016.tscn").instantiate()
+	e.position = Vector2(900, 560)
+	add_child(e)
+	e.set_physics_process(false)
+	e.apply_poison(4.0)
+	e.stun(4.0, true)
+	e.apply_charm(4.0)
+	e.apply_frenzy(4.0)
+	await get_tree().process_frame
+	var ids := {"poison": "E50127", "stun": "E52000", "charm": "E54156", "frenzy": "E52007"}
+	var nodes: Dictionary = {}
+	var nodes_ok := true
+	for key in ids:
+		var fx = e._status_fx.get(key)
+		nodes[key] = fx
+		if not is_instance_valid(fx):
+			nodes_ok = false
+			continue
+		nodes_ok = nodes_ok and fx.get_parent() == e and str(fx.get_meta("fx_id", "")) == ids[key] \
+			and fx.sprite != null and fx.sprite.get("skeleton_data_res") == SpineFX.data(ids[key]) \
+			and fx._lifetime < 0.0 and fx.position.y < 0.0
+	_check(nodes_ok and e._status_fx.size() == 4 and not e._status_fx.has("bell"),
+		"中毒/晕眩/魅惑/癫狂生成对应真实Spine子节点，普通怪无金钟")
+
+	e.apply_poison(5.0)
+	e.stun(5.0, true)
+	e.apply_charm(5.0)
+	e.apply_frenzy(5.0)
+	await get_tree().process_frame
+	var unique_ok := true
+	var attached_count := 0
+	for child in e.get_children():
+		if child.has_meta("status_key"):
+			attached_count += 1
+	for key in nodes:
+		unique_ok = unique_ok and e._status_fx.get(key) == nodes[key]
+	_check(unique_ok and attached_count == 4, "重复刷新四种状态不重复生成或替换持续特效")
+
+	e.time_stop(1.0)
+	var stop_ok := true
+	for fx in nodes.values():
+		stop_ok = stop_ok and fx.process_mode == Node.PROCESS_MODE_DISABLED \
+			and not fx.can_process() and not fx.sprite.can_process()
+	e._end_stop()
+	for fx in nodes.values():
+		stop_ok = stop_ok and fx.process_mode == Node.PROCESS_MODE_INHERIT and fx.can_process() and fx.sprite.can_process()
+	_check(stop_ok, "状态特效随敌人时停冻结并在解冻后恢复，不另跑计时")
+
+	# 走实际 tick 让四种状态自然到期，队列释放后旧引用必须全部失效。
+	e._poison_time = 0.01
+	e._stun_timer = 0.01
+	e._charm_time = 0.01
+	e._frenzy_time = 0.01
+	e._poison_tick(0.02)
+	e._pipa_status_tick(0.02)
+	e._stun_tick(0.02)
+	await get_tree().process_frame
+	var expired_ok: bool = e._status_fx.is_empty()
+	for fx in nodes.values():
+		expired_ok = expired_ok and not is_instance_valid(fx)
+	_check(expired_ok, "四种状态自然结束立即释放各自持续特效")
+
+	e.apply_poison(2.0)
+	await get_tree().process_frame
+	var death_status = e._status_fx.get("poison")
+	e.take_damage(e.hp, _player.global_position.x)
+	await get_tree().process_frame
+	_check(e.state == e.State.DEAD and e._status_fx.is_empty() and not is_instance_valid(death_status) \
+		and not is_instance_valid(e._qingli_death_fx), "普通c016死亡清除状态且不触发青笠亡语视觉")
+	e.queue_free()
+	await get_tree().process_frame
+
+	# 青笠原配置没有死亡伤害段；替换消散视觉后仍不得新增判定或改动既有 hit_at/range。
+	_reset_brute_player(Vector2(500, 560))
+	_player.hp = 50
+	var q = load("res://scenes/enemies/c012_elite.tscn").instantiate()
+	q.position = Vector2(500, 560)
+	add_child(q)
+	q.set_physics_process(false)
+	var witness = load("res://scenes/enemies/c016.tscn").instantiate()
+	witness.position = Vector2(550, 560)
+	add_child(witness)
+	witness.set_physics_process(false)
+	var old_hit_at: Dictionary = q._hit_at_map.duplicate(true)
+	var old_ranges: Dictionary = q._ranges.duplicate(true)
+	var player_hp: int = _player.hp
+	var witness_hp: int = witness.hp
+	q.die()
+	var death_fx = q._qingli_death_fx
+	var death_ok: bool = q._is_qingli_elite() and is_instance_valid(death_fx) \
+		and death_fx.get_parent() == get_tree().current_scene and str(death_fx.get_meta("fx_id", "")) == "E54148" \
+		and death_fx.sprite.get("skeleton_data_res") == SpineFX.data("E54148") and death_fx._lifetime > 0.0
+	death_ok = death_ok and q._attack_hits_left.is_empty() and _player.hp == player_hp and witness.hp == witness_hp \
+		and q._hit_at_map == old_hit_at and q._ranges == old_ranges
+	_check(death_ok, "真正青笠精英仅替换死亡视觉，不新增伤害次数/范围并保留原hit_at/range")
+	if is_instance_valid(death_fx):
+		death_fx._process(death_fx._lifetime + 0.1)
+	await get_tree().process_frame
+	_check(not is_instance_valid(death_fx), "青笠死亡Spine按原动画生命周期自动销毁")
+	q.queue_free()
+	witness.queue_free()
+	await get_tree().process_frame
+
+	# 碎岳确实拥有金钟：一层抵挡两次，视觉保持到第二次抵挡后才消失。
+	var b = load("res://scenes/enemies/bosses/boss.tscn").instantiate()
+	b.set_script(load("res://scripts/enemies/sui_yue.gd"))
+	b.type_id = "c008"
+	add_child(b)
+	b.set_physics_process(false)
+	await get_tree().process_frame
+	var bell_ok: bool = b._status_fx.is_empty() and not b._is_qingli_elite()
+	b._bell_layers.append(2)
+	await get_tree().process_frame
+	var bell = b._status_fx.get("bell")
+	bell_ok = bell_ok and is_instance_valid(bell) and str(bell.get_meta("fx_id", "")) == "E52025" \
+		and bell.sprite.get("skeleton_data_res") == SpineFX.data("E52025")
+	b.take_damage(1, b.global_position.x - 10.0)
+	await get_tree().process_frame
+	bell_ok = bell_ok and b._bell_layers == [1] and b._status_fx.get("bell") == bell and is_instance_valid(bell)
+	b.take_damage(1, b.global_position.x - 10.0)
+	await get_tree().process_frame
+	bell_ok = bell_ok and b._bell_layers.is_empty() and not b._status_fx.has("bell") and not is_instance_valid(bell)
+	_check(bell_ok, "碎岳E52025随金钟生成，两次抵挡期间去重并在耗尽后释放")
+	b.queue_free()
 	await get_tree().process_frame
 
 

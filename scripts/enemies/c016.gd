@@ -7,6 +7,7 @@ extends CharacterBody2D
 const Types := preload("res://scripts/enemies/enemy_types.gd")
 const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")
 const FX := preload("res://scripts/systems/fx.gd")
+const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const SpinePoseMixer := preload("res://scripts/systems/spine_pose_mixer.gd")
 const DMG_COLOR := Color(0.66, 0.2, 0.16) # 朱砂：敌人受伤数字
 const SFX_HIT_QI := preload("res://audio/sfx/hit_qi.wav")
@@ -191,6 +192,8 @@ var _current_anim_speed := 1.0
 var _hp_bar: Node2D
 var _hp_fill: ColorRect
 var _sfx_player: AudioStreamPlayer
+var _status_fx: Dictionary = {} # 状态键 -> 持续 Spine 特效；只随状态存在，不另设计时
+var _qingli_death_fx: Node2D = null
 
 
 func _ready() -> void:
@@ -397,6 +400,7 @@ func _setup_spine() -> void:
 
 
 func _process(delta: float) -> void:
+	_sync_status_effects()
 	if _pose_mixer == null or _anim_state == null:
 		return
 	var step := 0.0 if _stop_timer > 0.0 else delta
@@ -410,6 +414,56 @@ func _process(delta: float) -> void:
 		_pending_queue.clear()
 		step = 0.0 # 新轨道先应用，再恢复旧姿势；不把未补偿的第 0 帧送去渲染
 	_pose_mixer.update(step)
+
+
+## 所有状态特效共用同一生命周期：激活时至多一个，解除/死亡即由所有者释放。
+func _sync_status_effects() -> void:
+	var body_pos := Vector2(0.0, -_scale * 150.0)
+	var head_pos := Vector2(0.0, _number_y)
+	_sync_status_fx("poison", _poison_time > 0.0, "E50127", body_pos, "action", 150.0 * _scale)
+	_sync_status_fx("stun", _stun_timer > 0.0, "E52000", head_pos, "action", 60.0 * _scale)
+	_sync_status_fx("charm", _charm_time > 0.0, "E54156", head_pos + Vector2(0.0, -12.0), "action", 70.0 * _scale)
+	_sync_status_fx("frenzy", _frenzy_time > 0.0, "E52007", head_pos + Vector2(0.0, -12.0), "action", 70.0 * _scale)
+	_sync_status_fx("bell", _golden_bell_active(), "E52025", body_pos, "action1", 190.0 * _scale)
+	_sync_status_fx_processing()
+
+
+func _golden_bell_active() -> bool:
+	return false
+
+
+func _sync_status_fx(key: String, active: bool, fx_id: String, pos: Vector2, anim := "", height := 0.0) -> void:
+	var current: Variant = _status_fx.get(key)
+	if not active or state == State.DEAD:
+		if is_instance_valid(current):
+			current.queue_free()
+		_status_fx.erase(key)
+		return
+	if is_instance_valid(current) and not current.is_queued_for_deletion():
+		return
+	var opts := {"loop": true, "auto_free": false, "height": height, "center": true}
+	if not anim.is_empty():
+		opts["anim"] = anim
+	var fx := SpineFX.attach(self, fx_id, pos, opts)
+	if fx == null:
+		return
+	fx.set_meta("fx_id", fx_id)
+	fx.set_meta("status_key", key)
+	_status_fx[key] = fx
+
+
+func _sync_status_fx_processing() -> void:
+	var mode := Node.PROCESS_MODE_DISABLED if _stop_timer > 0.0 else Node.PROCESS_MODE_INHERIT
+	for fx in _status_fx.values():
+		if is_instance_valid(fx):
+			fx.process_mode = mode
+
+
+func _clear_status_effects() -> void:
+	for fx in _status_fx.values():
+		if is_instance_valid(fx):
+			fx.queue_free()
+	_status_fx.clear()
 
 
 func _physics_process(delta: float) -> void:
@@ -1514,6 +1568,7 @@ func time_stop(dur: float) -> void:
 	_stop_timer = dur
 	if sprite != null:
 		sprite.process_mode = Node.PROCESS_MODE_DISABLED # 冻结动画推进
+	_sync_status_fx_processing()
 	if not _is_sword_clone and is_instance_valid(_sword_clone_node):
 		_sword_clone_node.call("time_stop", dur)
 
@@ -1523,6 +1578,7 @@ func _end_stop(natural := false) -> void:
 	_stop_timer = 0.0
 	if sprite != null and is_instance_valid(sprite):
 		sprite.process_mode = Node.PROCESS_MODE_INHERIT
+	_sync_status_fx_processing()
 	if natural and was_stopped:
 		var pl = get_tree().get_first_node_in_group("player")
 		if pl != null and pl.has_method("on_time_stop_end"):
@@ -1893,6 +1949,7 @@ func die() -> void:
 	_end_stop() # 时停中被打死：先解冻，死亡动画才播得出来
 	_dismiss_sword_clone()
 	state = State.DEAD
+	_clear_status_effects()
 	_limit_pending = false
 	_clear_attack_chain()
 	_attack_hits_left.clear()
@@ -1905,9 +1962,13 @@ func die() -> void:
 	var bursting := not _death_burst.is_empty()
 	if not bursting:
 		_play(str(_anim_map["dead"]), false)
-		# 尸体消散时一团墨散开，盖住淡出
-		FX.spawn(get_tree().current_scene, "vanish", global_position,
-			{"scale": _scale * 1.6, "z": 5})
+		if _is_qingli_elite():
+			# 只替换青笠原来的消散视觉；死亡流程不新增任何伤害或命中段。
+			_qingli_death_fx = _spawn_qingli_death_fx()
+		else:
+			# 尸体消散时一团墨散开，盖住淡出
+			FX.spawn(get_tree().current_scene, "vanish", global_position,
+				{"scale": _scale * 1.6, "z": 5})
 	if not player_ally:
 		Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
 		Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
@@ -1920,6 +1981,21 @@ func die() -> void:
 	else:
 		died.emit()
 		_cleanup()
+
+
+func _is_qingli_elite() -> bool:
+	return type_id == "c012" and _elite and not _is_sword_clone and not _sword_player_clone
+
+
+func _spawn_qingli_death_fx() -> Node2D:
+	var parent: Node = get_tree().current_scene
+	if parent == null:
+		parent = get_parent()
+	var fx := SpineFX.spawn(parent, "E54148", global_position,
+		{"anim": "action", "scale": _scale * 1.6, "flip": facing < 0, "z": 5})
+	if fx != null:
+		fx.set_meta("fx_id", "E54148")
+	return fx
 
 
 ## 魔爆：起身后完成 22 号变身，再以巨兽整体前扑回斩补齐原动画缺少的最后一击。
@@ -1979,6 +2055,7 @@ func _deal_death_burst() -> void:
 
 
 func _exit_tree() -> void:
+	_clear_status_effects()
 	if not _is_sword_clone:
 		_dismiss_sword_clone()
 

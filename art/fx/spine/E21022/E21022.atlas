@@ -1,0 +1,118 @@
+E21022.png
+size: 1098, 318
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+A_heibai_uv_00000
+  rotate: false
+  xy: 357, 3
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00001
+  rotate: false
+  xy: 444, 3
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00002
+  rotate: false
+  xy: 531, 3
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00003
+  rotate: true
+  xy: 615, 90
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00004
+  rotate: false
+  xy: 820, 120
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00005
+  rotate: true
+  xy: 907, 90
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00006
+  rotate: false
+  xy: 820, 63
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00007
+  rotate: true
+  xy: 964, 19
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00008
+  rotate: true
+  xy: 907, 3
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00009
+  rotate: false
+  xy: 820, 6
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_heibai_uv_00010
+  rotate: true
+  xy: 1021, 19
+  size: 85, 55
+  orig: 85, 55
+  offset: 0, 0
+  index: -1
+A_moshui_pen
+  rotate: true
+  xy: 964, 106
+  size: 210, 132
+  orig: 210, 132
+  offset: 0, 0
+  index: -1
+battle_bg_10001
+  rotate: false
+  xy: 615, 177
+  size: 347, 139
+  orig: 347, 139
+  offset: 0, 0
+  index: -1
+battle_bg_10002
+  rotate: true
+  xy: 2, 2
+  size: 314, 353
+  orig: 314, 353
+  offset: 0, 0
+  index: -1
+glow11
+  rotate: false
+  xy: 672, 29
+  size: 146, 146
+  orig: 146, 146
+  offset: 0, 0
+  index: -1
+mo2
+  rotate: false
+  xy: 357, 60
+  size: 256, 256
+  orig: 256, 256
+  offset: 0, 0
+  index: -1
+

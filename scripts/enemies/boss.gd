@@ -478,6 +478,14 @@ func stop_tier() -> String:
 	return "boss"
 
 
+## 只有实际拥有佛曰金钟的 Boss 开放这层状态视觉；其他 Boss 不读取不存在的属性。
+func _golden_bell_active() -> bool:
+	if not has_method("_consume_bell"):
+		return false
+	var layers: Variant = get("_bell_layers")
+	return layers is Array and not layers.is_empty()
+
+
 ## 时间暂停（银夜 U）：无视霸体与变身无敌——冲锋蓄力/冲锋/转身/出手中被定直接打断，
 ## 变身演出不取消但计时冻结（定身结束接着变）
 func time_stop(dur: float) -> void:
@@ -493,6 +501,7 @@ func time_stop(dur: float) -> void:
 	_stop_timer = dur
 	if sprite != null:
 		sprite.process_mode = Node.PROCESS_MODE_DISABLED
+	_sync_status_fx_processing()
 
 
 ## Boss 全程霸体：普通击飞/击退免疫（银夜等）。

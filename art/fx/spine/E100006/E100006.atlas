@@ -1,0 +1,251 @@
+E100006.png
+size: 635, 876
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+A_kuan
+  rotate: false
+  xy: 372, 103
+  size: 126, 126
+  orig: 128, 128
+  offset: 1, 1
+  index: -1
+A_qixuan_00000
+  rotate: true
+  xy: 132, 50
+  size: 117, 102
+  orig: 128, 128
+  offset: 2, 16
+  index: -1
+A_qixuan_00001
+  rotate: false
+  xy: 359, 2
+  size: 106, 99
+  orig: 128, 128
+  offset: 13, 14
+  index: -1
+A_qixuan_00002
+  rotate: false
+  xy: 500, 23
+  size: 106, 101
+  orig: 128, 128
+  offset: 11, 13
+  index: -1
+A_qixuan_00003
+  rotate: false
+  xy: 500, 126
+  size: 108, 103
+  orig: 128, 128
+  offset: 10, 12
+  index: -1
+A_qixuan_00004
+  rotate: false
+  xy: 2, 24
+  size: 110, 105
+  orig: 128, 128
+  offset: 9, 11
+  index: -1
+A_qixuan_00005
+  rotate: true
+  xy: 132, 169
+  size: 112, 108
+  orig: 128, 128
+  offset: 8, 10
+  index: -1
+A_qixuan_00006
+  rotate: false
+  xy: 242, 93
+  size: 115, 109
+  orig: 128, 128
+  offset: 6, 10
+  index: -1
+A_qixuan_00007
+  rotate: true
+  xy: 132, 283
+  size: 118, 108
+  orig: 128, 128
+  offset: 5, 12
+  index: -1
+A_qixuan_00008
+  rotate: true
+  xy: 132, 403
+  size: 119, 110
+  orig: 128, 128
+  offset: 4, 11
+  index: -1
+A_qixuan_00009
+  rotate: true
+  xy: 132, 524
+  size: 121, 110
+  orig: 128, 128
+  offset: 3, 11
+  index: -1
+adian_shuimo
+  rotate: true
+  xy: 2, 647
+  size: 227, 242
+  orig: 256, 256
+  offset: 16, 7
+  index: -1
+bg_gacha_4_12c2
+  rotate: true
+  xy: 374, 397
+  size: 63, 91
+  orig: 63, 91
+  offset: 0, 0
+  index: -1
+bg_gacha_4_21
+  rotate: false
+  xy: 603, 814
+  size: 29, 29
+  orig: 31, 31
+  offset: 1, 1
+  index: -1
+bg_gacha_4_22
+  rotate: true
+  xy: 603, 691
+  size: 28, 30
+  orig: 30, 32
+  offset: 1, 1
+  index: -1
+bg_gacha_4_23
+  rotate: true
+  xy: 603, 662
+  size: 27, 29
+  orig: 29, 31
+  offset: 1, 1
+  index: -1
+bg_gacha_4_24
+  rotate: false
+  xy: 603, 783
+  size: 29, 29
+  orig: 31, 31
+  offset: 1, 1
+  index: -1
+bg_gacha_4_25
+  rotate: false
+  xy: 603, 752
+  size: 29, 29
+  orig: 31, 31
+  offset: 1, 1
+  index: -1
+bg_gacha_4_26
+  rotate: true
+  xy: 603, 633
+  size: 27, 29
+  orig: 29, 31
+  offset: 1, 1
+  index: -1
+bg_gacha_4_27
+  rotate: false
+  xy: 603, 721
+  size: 29, 29
+  orig: 31, 31
+  offset: 1, 1
+  index: -1
+bg_gacha_4_28
+  rotate: true
+  xy: 603, 845
+  size: 29, 30
+  orig: 31, 32
+  offset: 1, 1
+  index: -1
+bg_gacha_4_3
+  rotate: true
+  xy: 246, 462
+  size: 200, 225
+  orig: 200, 225
+  offset: 0, 0
+  index: -1
+bg_gacha_4_4
+  rotate: true
+  xy: 246, 664
+  size: 210, 225
+  orig: 213, 228
+  offset: 0, 2
+  index: -1
+wave2_00000
+  rotate: true
+  xy: 473, 747
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00001
+  rotate: true
+  xy: 473, 618
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00002
+  rotate: true
+  xy: 473, 489
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00003
+  rotate: true
+  xy: 473, 360
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00004
+  rotate: true
+  xy: 2, 518
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00005
+  rotate: true
+  xy: 2, 389
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00006
+  rotate: true
+  xy: 244, 333
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00007
+  rotate: true
+  xy: 2, 260
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00008
+  rotate: true
+  xy: 374, 231
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00009
+  rotate: true
+  xy: 242, 204
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00010
+  rotate: true
+  xy: 2, 131
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+wave2_00011
+  rotate: true
+  xy: 504, 231
+  size: 127, 128
+  orig: 155, 155
+  offset: 14, 13
+  index: -1
+

@@ -1,5 +1,7 @@
 extends "res://scripts/enemies/boss.gd"
 
+const FenSpineFX := preload("res://scripts/systems/spine_fx.gd")
+
 ## 焚鼎独立战斗状态机：四招、炎骨觉醒与炽热之心，不进入旧阶段随机池。
 ## 用户动画编号 -> 资源名：6=skill02，7=skill3，8=skill04，10=skill05，13=stand。
 
@@ -21,6 +23,9 @@ const HOLD_TOLERANCE := 40.0
 const YIELD_DISTANCE := 120.0
 const FAST_DESIRE_SCALE := 2.0
 const RISE_RADIUS := 110.0
+const AWAKEN_FX_ID := "E54110"
+const AWAKEN_FX_ANIM := "action1"
+const RISE_FX_ID := "E53038"
 
 var _move_cds: Dictionary = {}
 var _attack_desire := 0.0
@@ -277,7 +282,7 @@ func _burst_rise() -> void:
 	_clear_rise_warnings()
 	for x in _rise_positions:
 		var pos := Vector2(float(x), global_position.y)
-		FX.spawn(get_tree().current_scene, "fire_pillar", pos, {"scale": 0.6})
+		FenSpineFX.spawn(get_tree().current_scene, RISE_FX_ID, pos, {"scale": 0.6})
 	_sfx_player.stream = SFX_FIRE_BURST
 	_sfx_player.play()
 	Feel.shake(5.0, 0.18)
@@ -337,7 +342,12 @@ func _awaken() -> void:
 	_play(AWAKEN_ANIM, false)
 	_telegraph()
 	Feel.shake(7.0, 0.3)
-	_fx_play(_fx.get("transform", {}))
+	var transform_fx: Dictionary = _fx.get("transform", {})
+	FenSpineFX.attach(self, AWAKEN_FX_ID, Vector2.ZERO, {
+		"anim": AWAKEN_FX_ANIM,
+		"scale": float(transform_fx.get("scale", 0.55)),
+		"flip": facing < 0,
+	})
 
 
 func mind_status_count() -> int:

@@ -1,0 +1,48 @@
+E50041.png
+size: 1886, 72
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+sjsj_16
+  rotate: false
+  xy: 1481, 29
+  size: 303, 41
+  orig: 428, 113
+  offset: 25, 31
+  index: -1
+sjsj_17
+  rotate: false
+  xy: 785, 3
+  size: 384, 67
+  orig: 428, 113
+  offset: 10, 27
+  index: -1
+sjsj_19
+  rotate: false
+  xy: 396, 2
+  size: 387, 68
+  orig: 428, 113
+  offset: 22, 27
+  index: -1
+sjsj_21
+  rotate: false
+  xy: 2, 2
+  size: 392, 68
+  orig: 428, 113
+  offset: 25, 28
+  index: -1
+sjsj_22
+  rotate: false
+  xy: 1171, 2
+  size: 308, 68
+  orig: 428, 113
+  offset: 36, 28
+  index: -1
+sjsj_24
+  rotate: false
+  xy: 1786, 3
+  size: 98, 67
+  orig: 428, 113
+  offset: 195, 29
+  index: -1
+

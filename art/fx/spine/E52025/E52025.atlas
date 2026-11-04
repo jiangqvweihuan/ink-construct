@@ -1,0 +1,146 @@
+E52025.png
+size: 674, 1125
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+tx/hudun_buff_00000
+  rotate: false
+  xy: 2, 898
+  size: 166, 225
+  orig: 256, 256
+  offset: 70, 15
+  index: -1
+tx/hudun_buff_00001
+  rotate: false
+  xy: 2, 446
+  size: 166, 223
+  orig: 256, 256
+  offset: 70, 15
+  index: -1
+tx/hudun_buff_00002
+  rotate: false
+  xy: 2, 222
+  size: 166, 222
+  orig: 256, 256
+  offset: 70, 15
+  index: -1
+tx/hudun_buff_00003
+  rotate: false
+  xy: 2, 2
+  size: 166, 218
+  orig: 256, 256
+  offset: 70, 17
+  index: -1
+tx/hudun_buff_00004
+  rotate: false
+  xy: 170, 12
+  size: 166, 217
+  orig: 256, 256
+  offset: 70, 18
+  index: -1
+tx/hudun_buff_00005
+  rotate: false
+  xy: 506, 248
+  size: 166, 215
+  orig: 256, 256
+  offset: 70, 20
+  index: -1
+tx/hudun_buff_00006
+  rotate: false
+  xy: 338, 239
+  size: 166, 216
+  orig: 256, 256
+  offset: 70, 21
+  index: -1
+tx/hudun_buff_00007
+  rotate: false
+  xy: 170, 231
+  size: 166, 218
+  orig: 256, 256
+  offset: 70, 21
+  index: -1
+tx/hudun_buff_00008
+  rotate: false
+  xy: 170, 451
+  size: 166, 221
+  orig: 256, 256
+  offset: 70, 19
+  index: -1
+tx/hudun_buff_00009
+  rotate: false
+  xy: 170, 674
+  size: 166, 223
+  orig: 256, 256
+  offset: 70, 17
+  index: -1
+tx/hudun_buff_00010
+  rotate: false
+  xy: 2, 671
+  size: 166, 225
+  orig: 256, 256
+  offset: 70, 15
+  index: -1
+tx/hudun_buff_00011
+  rotate: false
+  xy: 338, 900
+  size: 166, 223
+  orig: 256, 256
+  offset: 70, 15
+  index: -1
+tx/hudun_buff_00012
+  rotate: false
+  xy: 506, 903
+  size: 166, 220
+  orig: 256, 256
+  offset: 70, 16
+  index: -1
+tx/hudun_buff_00013
+  rotate: false
+  xy: 338, 457
+  size: 166, 218
+  orig: 256, 256
+  offset: 70, 17
+  index: -1
+tx/hudun_buff_00014
+  rotate: false
+  xy: 506, 465
+  size: 166, 216
+  orig: 256, 256
+  offset: 70, 19
+  index: -1
+tx/hudun_buff_00015
+  rotate: false
+  xy: 506, 32
+  size: 166, 214
+  orig: 256, 256
+  offset: 70, 21
+  index: -1
+tx/hudun_buff_00016
+  rotate: false
+  xy: 338, 21
+  size: 166, 216
+  orig: 256, 256
+  offset: 70, 21
+  index: -1
+tx/hudun_buff_00017
+  rotate: false
+  xy: 506, 683
+  size: 166, 218
+  orig: 256, 256
+  offset: 70, 20
+  index: -1
+tx/hudun_buff_00018
+  rotate: false
+  xy: 338, 677
+  size: 166, 221
+  orig: 256, 256
+  offset: 70, 18
+  index: -1
+tx/hudun_buff_00019
+  rotate: false
+  xy: 170, 899
+  size: 166, 224
+  orig: 256, 256
+  offset: 70, 16
+  index: -1
+

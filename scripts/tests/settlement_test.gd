@@ -33,6 +33,13 @@ func _ready() -> void:
 		Run.start(Run.MODE_ADVENTURE, "c021", 3)
 	add_child(room)
 	await get_tree().create_timer(1.0).timeout
+	if test_clear:
+		room.reparent(get_tree().root)
+		get_tree().current_scene = room
+		await get_tree().process_frame
+		ScreenFX._process(0.0)
+		p("鼠标战斗显隐：scene=%s battle=%s mode=%d" % [get_tree().current_scene.scene_file_path, ScreenFX._in_active_battle(), Input.mouse_mode])
+		_check(Input.mouse_mode == Input.MOUSE_MODE_HIDDEN, "战斗房间内隐藏自定义鼠标")
 	_ink_before = Meta.ink
 
 	if test_clear:
@@ -64,6 +71,8 @@ func _ready() -> void:
 		_check(not first_pressure and second_pressure, "无归连战第二只碎岳启用压场，第一只非碎岳不压场")
 		await get_tree().create_timer(1.0).timeout
 		await _shot("clear")
+		var clear_panel = room.get_node_or_null("Settlement")
+		_check_result_fx(clear_panel, "win")
 		_check_ink(true)
 	else:
 		# 先让敌人触发红蝶留下历史受击，再完全因流失死亡：结算不得重演这名敌人。
@@ -111,6 +120,25 @@ func _ready() -> void:
 		if death_panel != null:
 			_check(death_panel._enemy != null, "真实敌人致死仍创建敌方对演")
 			_check(death_panel._enemy_label() not in ["命火自熄", "无名墨影"], "真实敌人致死显示实际敌人落款")
+			death_panel._finish_duel()
+			_check_result_fx(death_panel, "lose")
+			_check(death_panel._last_hit_fx != null and death_panel._last_hit_fx.sprite != null \
+				and death_panel._last_hit_fx.sprite.get("skeleton_data_res") != null, "最后一击创建真实 E50041 SpineSprite")
+			if death_panel._last_hit_fx != null:
+				var hit_state = death_panel._last_hit_fx.sprite.call("get_animation_state")
+				var hit_track = hit_state.call("get_current", 0)
+				_check(hit_track != null and str(hit_track.call("get_animation").call("get_name")) == "action", "最后一击使用实测 action 动画")
+			var hit_fx_count := 0
+			var damage_count := 0
+			for child in death_panel.get_children():
+				if str(child.name).begins_with("LastHitSpineFX"):
+					hit_fx_count += 1
+				if str(child.name).begins_with("LastHitDamage"):
+					damage_count += 1
+			death_panel._finish_duel()
+			_check(hit_fx_count == 1, "原命中与跳过路径只保留一个最后一击特效")
+			_check(damage_count == (1 if int(Run.last_hit.get("damage", 0)) > 0 else 0), "伤害数字保留且不重复")
+			await get_tree().create_timer(0.2, true).timeout
 		await _shot("dead")
 		_check_ink(false)
 		p("阵亡后 Run.skull_id=%s mode=%s difficulty=%d（期望 z003 / adventure / 3）" % [Run.skull_id, Run.mode, Run.difficulty])
@@ -128,6 +156,25 @@ func _check(ok: bool, label: String) -> void:
 	if not ok:
 		_failed += 1
 	p(("PASS " if ok else "FAIL ") + label)
+
+
+func _check_result_fx(panel: Node, expected: String) -> void:
+	_check(panel != null and panel._result_fx != null and panel._result_fx.sprite != null \
+		and panel._result_fx.sprite.get("skeleton_data_res") != null, "结算创建真实 E21013 SpineSprite")
+	if panel == null or panel._result_fx == null:
+		return
+	_check(panel._result_fx.process_mode == Node.PROCESS_MODE_ALWAYS, "结算特效在暂停中继续播放")
+	_check(panel._result_fx.position == Vector2(640, 92), "胜负结算特效使用避开文字的同一位置")
+	_check(panel._result_anim == expected, "结算使用实测动画 " + expected)
+	_check(Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "结算可点击界面恢复自定义鼠标")
+	var has_duplicate_title := false
+	for label in panel.find_children("*", "Label", true, false):
+		if str(label.text) in ["通  关", "阵  亡"]:
+			has_duplicate_title = true
+	_check(not has_duplicate_title, "胜负特效不再叠加标题文字")
+	var state = panel._result_fx.sprite.call("get_animation_state")
+	var track = state.call("get_current", 0)
+	_check(track != null and str(track.call("get_animation").call("get_name")) == expected, "结算 Spine 当前轨道为 " + expected)
 
 
 func _check_ink(cleared: bool) -> void:

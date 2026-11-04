@@ -38,6 +38,18 @@ func _ready() -> void:
 	await get_tree().create_timer(0.6).timeout
 	_assert_sfx_buses(_menu)
 	await _shot("01_main_menu")
+	await _click(Vector2(1180, 520))
+	var click_root := ScreenFX.get_node_or_null("ClickRoot")
+	assert(click_root != null and click_root.get_child_count() > 0, "菜单真实点击必须创建 E54068")
+	var click_fx = click_root.get_child(click_root.get_child_count() - 1)
+	assert(click_fx.sprite != null, "菜单点击特效必须包含真实 SpineSprite")
+	assert(click_fx.sprite.get("skeleton_data_res") != null, "菜单点击 Spine 骨架必须已挂载")
+	assert(click_fx.sprite.get("skeleton_data_res").call("find_animation", "action1") != null, "菜单点击必须使用 E54068/action1")
+	assert(click_fx.process_mode == Node.PROCESS_MODE_ALWAYS, "暂停 UI 的点击特效必须继续播放")
+	assert(get_tree().root.get_node("ScreenFX") == ScreenFX, "点击特效必须复用唯一 ScreenFX autoload")
+	assert(Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "可点击菜单界面必须显示自定义鼠标")
+	await get_tree().create_timer(0.18).timeout
+	await _shot("01a_menu_click")
 
 	# 致谢：左侧竖排入口 → 滚动名单（打开后必须真的在上移）
 	_menu._open_credits()
@@ -176,6 +188,7 @@ func _ready() -> void:
 
 	if codex != null:
 		_assert_sfx_buses(codex)
+		assert(codex._medal_fx == null, "普通刀客图鉴不得显示特殊勋章")
 		# 敌人页：默认播待机；点击「招式 1」后演示台切到该招式，右侧简介要挂击败次数与词条
 		var before := str(codex._current_anim)
 		codex._pick(0)
@@ -589,6 +602,16 @@ func _ready() -> void:
 		var mz_model_ok: bool = str(mz_model["lore"]).contains("女武神") and not str(mz_model["lore"]).contains("钟馗")
 		var mz_scale_ok: bool = is_equal_approx(float(mz_model["view_scale"]), 0.62) and is_equal_approx(float(codex._preview.scale.x), 0.62)
 		p("鸣钟图鉴 四招=%s 双被动=%s 来历完整=%s 女武神背景=%s 正常大小=%s（期望 坠锋/四响/旋征/神骸鸣钟，其余全 true）" % [str(mz_labels), mz_passives == 2, mz_lore_ok, mz_model_ok, mz_scale_ok])
+		assert(codex._medal_fx != null and codex._medal_fx.sprite != null, "Boss 图鉴必须创建 E21019 真实 SpineSprite")
+		assert(codex._medal_fx.sprite.get("skeleton_data_res") != null, "Boss 勋章骨架必须已挂载")
+		_assert_spine_animation(codex._medal_fx, "boss")
+		codex._select("c037")
+		await get_tree().create_timer(0.3).timeout
+		assert(codex._medal_fx != null and codex._medal_fx.sprite != null, "精英图鉴必须创建 E21019 真实 SpineSprite")
+		_assert_spine_animation(codex._medal_fx, "elite")
+		codex._select("c016")
+		await get_tree().create_timer(0.3).timeout
+		assert(codex._medal_fx == null, "切回普通怪必须移除特殊勋章")
 		# 化身页：切页后默认选中双刺
 		codex._switch_tab(1)
 		await get_tree().create_timer(0.3).timeout
@@ -772,6 +795,13 @@ func _ready() -> void:
 	Settings.reset_binds()
 	p("ALL DONE")
 	get_tree().quit()
+
+
+func _assert_spine_animation(fx: Node2D, expected: String) -> void:
+	var state = fx.sprite.call("get_animation_state")
+	var track = state.call("get_current", 0)
+	assert(track != null, "特效必须存在当前动画轨道")
+	assert(str(track.call("get_animation").call("get_name")) == expected, "特效必须使用实测动画 " + expected)
 
 
 func _find_panel(script_name: String) -> Node:

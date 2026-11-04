@@ -1,0 +1,48 @@
+E53026.png
+size: 419, 561
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+xifu_28
+  rotate: true
+  xy: 2, 2
+  size: 265, 307
+  orig: 726, 548
+  offset: 58, 107
+  index: -1
+xifu_34
+  rotate: true
+  xy: 2, 2
+  size: 265, 307
+  orig: 726, 548
+  offset: 58, 107
+  index: -1
+xifu_30
+  rotate: false
+  xy: 2, 269
+  size: 415, 290
+  orig: 726, 548
+  offset: 39, 107
+  index: -1
+xifu_36
+  rotate: false
+  xy: 2, 269
+  size: 415, 290
+  orig: 726, 548
+  offset: 39, 107
+  index: -1
+xifu_38
+  rotate: true
+  xy: 311, 68
+  size: 199, 99
+  orig: 726, 548
+  offset: 28, 107
+  index: -1
+xifu_32
+  rotate: true
+  xy: 311, 68
+  size: 199, 99
+  orig: 726, 548
+  offset: 28, 107
+  index: -1
+

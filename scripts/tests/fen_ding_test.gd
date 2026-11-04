@@ -4,6 +4,7 @@ extends Node
 
 const OUT_DIR := "res://tests/out/"
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
+const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const CHASE := 2
 const DEAD := 5
 
@@ -257,6 +258,16 @@ func _test_awaken() -> void:
 	_b.take_damage(1, 500.0)
 	_check(_b.hp == 33 and _b._awakened and _b.state == _b.S_AWAKEN, "首次低于 50% 播放动画 8 并永久觉醒")
 	_check(_b._current_anim == _b.AWAKEN_ANIM, "炎骨使用 skill04 觉醒演出")
+	var awaken_nodes := _spine_fx_children(_b, _b.AWAKEN_FX_ID)
+	_check(awaken_nodes.size() == 1, "觉醒在焚鼎节点下生成且只生成一个 E54110 Spine 特效")
+	if awaken_nodes.size() == 1:
+		var awaken_fx = awaken_nodes[0]
+		_check(awaken_fx.position == Vector2.ZERO and awaken_fx.sprite.scale.x < 0.0, "觉醒 Spine 锚点与朝向跟随焚鼎")
+		var expected: String = _b.AWAKEN_FX_ANIM
+		var state = awaken_fx.sprite.call("get_animation_state")
+		var track = state.call("get_current", 0)
+		var actual := str(track.call("get_animation").call("get_name")) if track != null else ""
+		_check(actual == expected and not actual.is_empty(), "觉醒 Spine 使用用户指定的 action1（%s）" % actual)
 	_b.take_damage(1, 500.0)
 	_check(_b.hp == 32, "觉醒后 1 伤向上取整仍为 1")
 	_b.take_damage(3, 500.0)
@@ -284,8 +295,20 @@ func _test_rise() -> void:
 	await _shot("fen_ding_rise_warn")
 	_b._cast_tick(0.35)
 	_check(_p.hp == 99, "跺脚前只有预警不结算伤害")
+	var previous_lava := _spine_fx_children(get_tree().current_scene, _b.RISE_FX_ID)
 	_b._cast_tick(0.01)
 	_check(_p.hp == 96 and _p._fen_ding_burn_stacks == 1, "跺脚与岩浆同帧造成 3 伤并叠加怒焰")
+	var current_lava := _spine_fx_children(get_tree().current_scene, _b.RISE_FX_ID)
+	var new_lava: Array = []
+	for fx in current_lava:
+		if not previous_lava.has(fx):
+			new_lava.append(fx)
+	_check(new_lava.size() == _b._rise_positions.size(), "rise_burst 在每处伤害点生成一个 E53038 岩浆 Spine")
+	var lava_positions_match: bool = new_lava.size() == _b._rise_positions.size()
+	for i in range(mini(new_lava.size(), _b._rise_positions.size())):
+		var expected_pos := Vector2(float(_b._rise_positions[i]), _b.global_position.y)
+		lava_positions_match = lava_positions_match and new_lava[i].global_position.is_equal_approx(expected_pos)
+	_check(lava_positions_match, "E53038 岩浆节点位置与原真实伤害点逐一一致")
 	_check(_b._rise_warnings.is_empty(), "喷发后清理全部预警")
 	await _shot("fen_ding_rise_burst")
 
@@ -342,6 +365,15 @@ func _test_cleanup() -> void:
 	_b.take_damage(999, 500.0)
 	_check(_b.state == DEAD and _p._fen_ding_burn_stacks == 0, "焚鼎死亡立即清除玩家永久怒焰")
 	_check(_b._fz.is_empty(), "旧三阶段自动周期火区已移除")
+
+
+func _spine_fx_children(parent: Node, fx_id: String) -> Array:
+	var out: Array = []
+	var data = SpineFX.data(fx_id)
+	for child in parent.get_children():
+		if child.get_script() == SpineFX and child.sprite != null and child.sprite.get("skeleton_data_res") == data:
+			out.append(child)
+	return out
 
 
 func _shot(tag: String) -> void:

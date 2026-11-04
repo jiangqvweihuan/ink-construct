@@ -1,0 +1,16 @@
+[remap]
+
+importer="spine.atlas"
+type="SpineAtlasResource"
+uid="uid://ccicggyrtupj4"
+path="res://.godot/imported/E100177.atlas-689e95c0677a45154801273132d12899.spatlas"
+
+[deps]
+
+source_file="res://art/fx/spine/E100177/E100177.atlas"
+dest_files=["res://.godot/imported/E100177.atlas-689e95c0677a45154801273132d12899.spatlas"]
+
+[params]
+
+normal_map_prefix="n"
+specular_map_prefix="s"

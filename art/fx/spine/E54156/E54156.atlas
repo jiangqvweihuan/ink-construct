@@ -1,0 +1,41 @@
+E54156.png
+size: 558, 103
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+A_xin
+  rotate: false
+  xy: 117, 4
+  size: 112, 97
+  orig: 128, 128
+  offset: 8, 16
+  index: -1
+A_xinxin
+  rotate: false
+  xy: 231, 4
+  size: 112, 97
+  orig: 128, 128
+  offset: 8, 16
+  index: -1
+A_xinxin2
+  rotate: false
+  xy: 2, 2
+  size: 113, 99
+  orig: 128, 128
+  offset: 8, 15
+  index: -1
+A_xinxin3
+  rotate: false
+  xy: 345, 5
+  size: 107, 96
+  orig: 128, 128
+  offset: 8, 17
+  index: -1
+A_xinxin4
+  rotate: false
+  xy: 454, 5
+  size: 102, 96
+  orig: 128, 128
+  offset: 11, 17
+  index: -1
+

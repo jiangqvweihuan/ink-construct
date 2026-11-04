@@ -1,0 +1,90 @@
+E53201.png
+size: 959, 997
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+caoguojiu_tuci_00
+  rotate: true
+  xy: 887, 732
+  size: 263, 54
+  orig: 599, 336
+  offset: 94, 23
+  index: -1
+caoguojiu_tuci_02
+  rotate: false
+  xy: 2, 730
+  size: 521, 265
+  orig: 599, 336
+  offset: 42, 19
+  index: -1
+caoguojiu_tuci_04
+  rotate: true
+  xy: 698, 13
+  size: 358, 180
+  orig: 599, 336
+  offset: 94, 23
+  index: -1
+caoguojiu_tuci_06
+  rotate: true
+  xy: 254, 368
+  size: 360, 218
+  orig: 599, 336
+  offset: 92, 23
+  index: -1
+caoguojiu_tuci_08
+  rotate: true
+  xy: 2, 362
+  size: 366, 250
+  orig: 599, 336
+  offset: 86, 23
+  index: -1
+caoguojiu_tuci_10
+  rotate: true
+  xy: 251, 2
+  size: 358, 231
+  orig: 599, 336
+  offset: 94, 23
+  index: -1
+caoguojiu_tuci_12
+  rotate: true
+  xy: 2, 6
+  size: 354, 247
+  orig: 599, 336
+  offset: 95, 23
+  index: -1
+caoguojiu_tuci_14
+  rotate: false
+  xy: 525, 730
+  size: 360, 265
+  orig: 599, 336
+  offset: 95, 23
+  index: -1
+caoguojiu_tuci_16
+  rotate: true
+  xy: 474, 373
+  size: 355, 213
+  orig: 599, 336
+  offset: 95, 23
+  index: -1
+caoguojiu_tuci_18
+  rotate: true
+  xy: 484, 16
+  size: 355, 212
+  orig: 599, 336
+  offset: 96, 24
+  index: -1
+caoguojiu_tuci_20
+  rotate: true
+  xy: 689, 373
+  size: 355, 193
+  orig: 599, 336
+  offset: 96, 28
+  index: -1
+caoguojiu_tuci_22
+  rotate: true
+  xy: 880, 153
+  size: 218, 77
+  orig: 599, 336
+  offset: 97, 30
+  index: -1
+

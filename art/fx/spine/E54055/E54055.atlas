@@ -1,0 +1,69 @@
+E54055.png
+size: 1077, 580
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+atk01/dandao_p01/dandao_p0029
+  rotate: false
+  xy: 365, 5
+  size: 338, 186
+  orig: 800, 800
+  offset: 164, 305
+  index: -1
+atk01/dandao_p01/dandao_p0030
+  rotate: false
+  xy: 735, 391
+  size: 340, 187
+  orig: 800, 800
+  offset: 162, 305
+  index: -1
+atk01/dandao_p01/dandao_p0031
+  rotate: false
+  xy: 371, 193
+  size: 356, 190
+  orig: 800, 800
+  offset: 152, 305
+  index: -1
+atk01/dandao_p01/dandao_p0032
+  rotate: false
+  xy: 374, 385
+  size: 359, 193
+  orig: 800, 800
+  offset: 150, 302
+  index: -1
+atk01/dandao_p01/dandao_p0033
+  rotate: false
+  xy: 2, 2
+  size: 361, 193
+  orig: 800, 800
+  offset: 148, 302
+  index: -1
+atk01/dandao_p01/dandao_p0034
+  rotate: false
+  xy: 2, 388
+  size: 370, 190
+  orig: 800, 800
+  offset: 139, 302
+  index: -1
+atk01/dandao_p01/dandao_p0035
+  rotate: false
+  xy: 2, 197
+  size: 367, 189
+  orig: 800, 800
+  offset: 142, 302
+  index: -1
+atk01/dandao_p01/dandao_p0036
+  rotate: false
+  xy: 729, 13
+  size: 326, 187
+  orig: 800, 800
+  offset: 182, 304
+  index: -1
+atk01/dandao_p01/dandao_p0037
+  rotate: false
+  xy: 735, 202
+  size: 335, 187
+  orig: 800, 800
+  offset: 172, 304
+  index: -1
+

@@ -1,0 +1,118 @@
+E54061.png
+size: 427, 1027
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+atk03/shifa_dun_s02/shifa_dun_s02_010
+  rotate: true
+  xy: 255, 451
+  size: 125, 129
+  orig: 800, 800
+  offset: 340, 338
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_011
+  rotate: false
+  xy: 283, 752
+  size: 138, 126
+  orig: 800, 800
+  offset: 332, 345
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_012
+  rotate: true
+  xy: 283, 880
+  size: 145, 142
+  orig: 800, 800
+  offset: 327, 336
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_013
+  rotate: true
+  xy: 268, 578
+  size: 172, 157
+  orig: 800, 800
+  offset: 314, 328
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_014
+  rotate: true
+  xy: 242, 247
+  size: 198, 172
+  orig: 800, 800
+  offset: 302, 321
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_015
+  rotate: false
+  xy: 205, 40
+  size: 212, 187
+  orig: 800, 800
+  offset: 296, 313
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_016
+  rotate: true
+  xy: 2, 2
+  size: 225, 201
+  orig: 800, 800
+  offset: 290, 306
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_017
+  rotate: false
+  xy: 2, 229
+  size: 238, 216
+  orig: 800, 800
+  offset: 283, 299
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_018
+  rotate: false
+  xy: 2, 447
+  size: 251, 181
+  orig: 800, 800
+  offset: 277, 324
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_019
+  rotate: false
+  xy: 2, 630
+  size: 264, 192
+  orig: 800, 800
+  offset: 271, 319
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_020
+  rotate: false
+  xy: 2, 824
+  size: 279, 201
+  orig: 800, 800
+  offset: 263, 315
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_021
+  rotate: true
+  xy: 386, 473
+  size: 103, 35
+  orig: 800, 800
+  offset: 312, 402
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_022
+  rotate: false
+  xy: 268, 814
+  size: 13, 8
+  orig: 800, 800
+  offset: 401, 427
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_023
+  rotate: false
+  xy: 268, 804
+  size: 12, 8
+  orig: 800, 800
+  offset: 402, 426
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_024
+  rotate: false
+  xy: 268, 794
+  size: 11, 8
+  orig: 800, 800
+  offset: 402, 425
+  index: -1
+atk03/shifa_dun_s02/shifa_dun_s02_025
+  rotate: false
+  xy: 268, 785
+  size: 10, 7
+  orig: 800, 800
+  offset: 403, 424
+  index: -1
+

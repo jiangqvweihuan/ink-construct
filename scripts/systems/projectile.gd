@@ -8,6 +8,7 @@ const INK := Color(0.08, 0.07, 0.1)
 const RED := Color(0.66, 0.2, 0.16)
 const QI := Color(0.78, 0.36, 0.42) # 剑气的朱砂偏粉芯
 const QI_GLOW := Color(0.78, 0.36, 0.42, 0.28)
+const SPINE_FX := preload("res://scripts/systems/spine_fx.gd")
 
 var _dir := 1
 var _speed := 520.0
@@ -29,7 +30,10 @@ var _from_split := false # 是否由另一把匕命中后分裂而来
 var _style := "qi" # 视觉：qi=朱砂剑气弧 / dagger=短匕
 var _bleed := 0 # 命中叠流血层数（剑仙月华斩）
 var _size := 1.0 # 剑气视觉与判定尺寸倍率（巨大剑气）
-var _effects: Dictionary = {} # 绛弦魔音：癫狂、癫狂翻倍及最小时长
+var _effects: Dictionary = {} # 状态附加与 Spine 飞行/命中特效配置
+var _spine_fx: Node2D = null
+var _fx_id := ""
+var _hits_done := 0
 
 
 ## dir: 1 朝右 -1 朝左；damage 已含局内强化/契合加成；sfx 命中音效名（空则不播）；pierce 命中不毁；
@@ -58,6 +62,23 @@ func setup(p_dir: int, p_speed: float, p_range: float, p_damage: int, p_sfx := "
 
 func _ready() -> void:
 	scale = Vector2(_dir * _size, _size) # 剑气弧朝飞行方向，尺寸按配置放大
+	_fx_id = str(_effects.get("fx_id", ""))
+	if _fx_id.is_empty() and _style == "fireball":
+		_fx_id = "E100180"
+		_effects["fx_id"] = _fx_id
+	if not _fx_id.is_empty():
+		var anim := _resolve_fx_anim(_fx_id, str(_effects.get("fx_anim", "")))
+		_spine_fx = SPINE_FX.attach(self, _fx_id, Vector2.ZERO, {
+			"anim": anim, "loop": true, "auto_free": false,
+			"speed": float(_effects.get("fx_speed", 1.0)),
+			"scale": float(_effects.get("fx_scale", 1.0)),
+			"height": float(_effects.get("fx_height", 0.0)),
+			"center": true,
+		})
+		if _spine_fx != null:
+			_spine_fx.set_meta("fx_id", _fx_id)
+			_spine_fx.set_meta("fx_anim", anim)
+			_spine_fx.set_meta("fx_role", "flight")
 	if _sfx != "":
 		_sfx_stream = load("res://audio/sfx/" + _sfx + ".wav")
 		_sfx_player = AudioStreamPlayer.new()
@@ -66,7 +87,56 @@ func _ready() -> void:
 	queue_redraw()
 
 
+static func _resolve_fx_anim(fx_id: String, requested: String) -> String:
+	var d = SPINE_FX.data(fx_id)
+	if d == null:
+		return requested
+	for candidate in [requested, "action", "action1"]:
+		var name := str(candidate)
+		if not name.is_empty() and d.call("find_animation", name) != null:
+			return name
+	var animations: Array = d.call("get_animations")
+	return str(animations[0].call("get_name")) if not animations.is_empty() else requested
+
+
+func _spawn_hit_spine(pos: Vector2, first: bool) -> void:
+	var host := get_tree().current_scene
+	if host == null:
+		return
+	if first and not str(_effects.get("first_fx_anim", "")).is_empty() and not _fx_id.is_empty():
+		var first_anim := _resolve_fx_anim(_fx_id, str(_effects["first_fx_anim"]))
+		var first_fx := SPINE_FX.spawn(host, _fx_id, pos, {
+			"anim": first_anim, "loop": false, "auto_free": true,
+			"scale": float(_effects.get("fx_scale", 1.0)) * _size,
+			"height": float(_effects.get("fx_height", 0.0)) * _size,
+			"flip": _dir < 0,
+			"center": true,
+		})
+		if first_fx != null:
+			first_fx.set_meta("fx_id", _fx_id)
+			first_fx.set_meta("fx_anim", first_anim)
+			first_fx.set_meta("fx_role", "first_hit")
+		return
+	var hit_id := str(_effects.get("hit_fx_id", ""))
+	if hit_id.is_empty():
+		return
+	var hit_anim := _resolve_fx_anim(hit_id, str(_effects.get("hit_fx_anim", "")))
+	var hit_fx := SPINE_FX.spawn(host, hit_id, pos, {
+		"anim": hit_anim, "loop": false, "auto_free": true,
+		"scale": float(_effects.get("hit_fx_scale", 1.0)) * _size,
+		"height": float(_effects.get("hit_fx_height", 0.0)) * _size,
+		"flip": _dir < 0,
+		"center": true,
+	})
+	if hit_fx != null:
+		hit_fx.set_meta("fx_id", hit_id)
+		hit_fx.set_meta("fx_anim", hit_anim)
+		hit_fx.set_meta("fx_role", "hit")
+
+
 func _draw() -> void:
+	if is_instance_valid(_spine_fx):
+		return
 	if _style == "dagger":
 		_draw_dagger()
 		return
@@ -118,6 +188,8 @@ func _physics_process(delta: float) -> void:
 	_travel += step
 	# 命中判定：横向贴近剑气、纵向与敌人脚底同一平面（剑气在胸口高度飞）
 	for e in get_tree().get_nodes_in_group("enemies"):
+		if bool(_effects.get("visual_only", false)):
+			break
 		var p := e as Node2D
 		if p == null:
 			continue
@@ -130,6 +202,12 @@ func _physics_process(delta: float) -> void:
 		var br := float(r) if r != null else 30.0
 		if absf(p.global_position.x - global_position.x) <= 30.0 * _size + br and absf(p.global_position.y - global_position.y) <= 80.0:
 			var hit_damage := _damage
+			if _hits_done == 0:
+				hit_damage = int(_effects.get("first_damage", hit_damage))
+			else:
+				hit_damage = int(_effects.get("later_damage", hit_damage))
+			_hits_done += 1
+			_spawn_hit_spine(p.global_position + Vector2(0.0, -60.0), _hits_done == 1)
 			if is_instance_valid(_source) and _source.has_method("_target_damage_bonus"):
 				hit_damage += int(_source.call("_target_damage_bonus", p))
 			if is_instance_valid(_source) and _source.has_method("_damage_enemy"):

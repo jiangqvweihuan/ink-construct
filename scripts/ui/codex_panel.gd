@@ -12,6 +12,7 @@ const Skulls = preload("res://scripts/player/skulls.gd")
 const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
 const SpinePoseMixer = preload("res://scripts/systems/spine_pose_mixer.gd")
 const BossTypes = preload("res://scripts/enemies/boss_types.gd")
+const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
@@ -474,6 +475,7 @@ var _sel := "" # 当前选中的条目 id
 var _sfx: AudioStreamPlayer
 
 var _preview = null # 演示台用的 SpineSprite
+var _medal_fx: Node2D = null # 精英 / Boss 专属勋章演示
 var _portrait: TextureRect = null
 var _show_portrait := true # 有原画的条目默认展示原画；动作页保留完整 Spine 演示
 var _pose_mixer = null
@@ -570,6 +572,7 @@ func _refresh() -> void:
 		remove_child(c)
 		c.queue_free()
 	_preview = null
+	_medal_fx = null
 	_portrait = null
 	_pose_mixer = null
 	_pending_anim = ""
@@ -716,6 +719,18 @@ func _build_detail() -> void:
 				data = null
 			else:
 				_make_preview(data, float(m["view_scale"]), str(m["idle"]))
+
+	if _tab == TAB_ENEMY and not m.is_empty() and not bool(m["locked"]):
+		var enemy_id := str(m["id"])
+		var is_boss := BossTypes.ROSTER.has(enemy_id)
+		var enemy_cfg: Dictionary = BossTypes.get_boss(enemy_id) if is_boss else EnemyTypes.get_type(enemy_id)
+		if is_boss or bool(enemy_cfg.get("elite", false)):
+			_medal_fx = SpineFX.spawn(self, "E21019", Vector2(STAGE_X + STAGE_W - 46, STAGE_Y + 54), {
+				"anim": "boss" if is_boss else "elite", "height": 96.0, "center": true,
+				"loop": true, "auto_free": false, "always": true, "z": 4,
+			})
+			if _medal_fx != null:
+				_medal_fx.name = "CodexSpecialMedal"
 
 	# 技能解析面板（点击动作按钮后填充）
 	_desc_rt = RichTextLabel.new()

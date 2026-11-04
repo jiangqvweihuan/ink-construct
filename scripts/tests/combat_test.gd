@@ -186,11 +186,30 @@ func _test_hud_overhaul() -> void:
 	await get_tree().create_timer(0.25).timeout
 	await _shot("08_hud_status_skills")
 
+	_player.swap_skull("c023")
 	var pm = load("res://scenes/ui/pause_menu.tscn").instantiate()
 	add_child(pm)
 	await get_tree().create_timer(0.2).timeout
 	_check(get_tree().paused, "暂停菜单暂停战斗")
+	var long_desc: Label = null
+	for label in pm.find_children("*", "Label", true, false):
+		if str(label.text).contains("生命上限为 60"):
+			long_desc = label
+	_check(long_desc != null, "暂停页显示霜梅完整被动描述")
+	if long_desc != null:
+		_check(long_desc.autowrap_mode == TextServer.AUTOWRAP_ARBITRARY, "长被动描述启用自动换行")
+		_check(long_desc.get_line_count() > 1, "长被动描述实际换成多行")
+		_check(long_desc.position.y + long_desc.size.y <= long_desc.get_parent().size.y, "描述面板高度容纳全部文字")
+	var scrolls: Array = pm.find_children("*", "ScrollContainer", true, false)
+	_check(scrolls.size() == 1 and scrolls[0].vertical_scroll_mode == ScrollContainer.SCROLL_MODE_AUTO, "状态详情启用自动下滑条")
+	if long_desc != null and not scrolls.is_empty():
+		scrolls[0].ensure_control_visible(long_desc.get_parent())
+		await get_tree().process_frame
 	await _shot("09_pause_details")
+	if not scrolls.is_empty():
+		scrolls[0].scroll_vertical = 100000
+		await get_tree().process_frame
+		_check(scrolls[0].scroll_vertical > 0, "状态详情可实际向下滚动")
 	await _press_escape()
 	await get_tree().create_timer(0.1).timeout
 	_check(not is_instance_valid(pm) and not get_tree().paused, "Esc 再次按下直接继续战斗")

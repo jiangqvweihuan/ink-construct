@@ -35,6 +35,18 @@ func _ready() -> void:
 		if intro == null:
 			get_tree().quit(1)
 			return
+		assert(intro._duel_fx != null, "Boss 对峙必须创建 E21022 节点")
+		assert(intro._duel_fx.sprite != null, "Boss 对峙特效必须包含真实 SpineSprite")
+		assert(intro._duel_fx.sprite.get("skeleton_data_res") != null, "Boss 对峙 Spine 骨架必须已挂载")
+		var duel_state = intro._duel_fx.sprite.call("get_animation_state")
+		var duel_track = duel_state.call("get_current", 0)
+		assert(duel_track != null and str(duel_track.call("get_animation").call("get_name")) == "action", "Boss 对峙必须使用实测 action 动画")
+		var has_vs := false
+		for label in intro.find_children("*", "Label", true, false):
+			if str(label.text) == "VS":
+				has_vs = true
+		assert(not has_vs, "Boss 对峙只显示斗法特效，不再叠加 VS")
+		await get_tree().create_timer(0.85).timeout
 		await _shot("00_duel_intro")
 		if is_instance_valid(intro):
 			await intro.finished

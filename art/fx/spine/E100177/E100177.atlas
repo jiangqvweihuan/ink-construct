@@ -1,0 +1,48 @@
+E100177.png
+size: 512, 256
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+2
+  rotate: false
+  xy: 424, 24
+  size: 13, 29
+  orig: 15, 31
+  offset: 1, 1
+  index: -1
+A_glow
+  rotate: false
+  xy: 341, 2
+  size: 52, 51
+  orig: 64, 64
+  offset: 6, 6
+  index: -1
+A_glow2
+  rotate: true
+  xy: 395, 38
+  size: 15, 27
+  orig: 17, 28
+  offset: 1, 1
+  index: -1
+A_lizi_water_00000
+  rotate: true
+  xy: 2, 44
+  size: 169, 170
+  orig: 256, 256
+  offset: 33, 29
+  index: -1
+A_lizi_water_00001
+  rotate: true
+  xy: 174, 51
+  size: 162, 165
+  orig: 256, 256
+  offset: 39, 33
+  index: -1
+A_lizi_water_00002
+  rotate: false
+  xy: 341, 55
+  size: 155, 158
+  orig: 256, 256
+  offset: 45, 38
+  index: -1
+

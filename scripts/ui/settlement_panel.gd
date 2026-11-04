@@ -7,6 +7,7 @@ const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
 const BossTypes = preload("res://scripts/enemies/boss_types.gd")
+const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const SFX_SETTLE := preload("res://audio/sfx/settle.wav")
 const SFX_WIN := preload("res://audio/sfx/win.wav")
 const SFX_LOSE := preload("res://audio/sfx/lose.wav")
@@ -26,6 +27,10 @@ var _avatar_state
 var _enemy_state
 var _avatar_data
 var _duel_done := false
+var _hit_shown := false
+var _result_fx: Node2D
+var _result_anim := ""
+var _last_hit_fx: Node2D
 
 
 func setup(title_text: String, cleared := false) -> void:
@@ -61,8 +66,10 @@ func _build(diff: Dictionary, ink_gain: int) -> void:
 	win.position = Vector2(60, 60)
 	win.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(win)
+	_make_result_fx()
 
-	_text(_title, Vector2(60, 78), Vector2(1160, 54), 42, PAPER)
+	if _title not in ["通  关", "阵  亡"]:
+		_text(_title, Vector2(60, 78), Vector2(1160, 54), 42, PAPER)
 	_text(_journey_text(), Vector2(60, 138), Vector2(1160, 28), 16, DIM)
 	_rule(Vector2(180, 178), Vector2(920, 1))
 	_rule(Vector2(638, 204), Vector2(1, 408))
@@ -111,6 +118,16 @@ func _build(diff: Dictionary, ink_gain: int) -> void:
 
 	_make_button("再来一局", 508, _restart)
 	_make_button("回主菜单", 574, _to_menu)
+
+
+func _make_result_fx() -> void:
+	_result_anim = "win" if _cleared else "lose"
+	_result_fx = SpineFX.spawn(self, "E21013", Vector2(640, 92), {
+		"anim": _result_anim, "scale": 0.36, "center": true, "loop": false, "auto_free": false,
+		"always": true, "z": 0, "mod": Color(1, 1, 1, 0.62),
+	})
+	if _result_fx != null:
+		_result_fx.name = "SettlementResultSpineFX"
 
 
 func _journey_text() -> String:
@@ -206,7 +223,7 @@ func _play_duel() -> void:
 	await get_tree().create_timer(float(Run.last_hit.get("hit_at", 0.65)), true).timeout
 	if _duel_done or not is_inside_tree():
 		return
-	_ink_strike()
+	_show_last_hit()
 	var profile: Dictionary = Skulls.get_profile(Run.skull_id)
 	var hurt_anim := str(profile["anim"]["hurt"])
 	_avatar_state.call("set_animation", hurt_anim, false, 0)
@@ -235,7 +252,7 @@ func _finish_duel() -> void:
 		if not cfg.is_empty():
 			_enemy_state.call("set_animation", str(cfg["anim"]["idle"]), true, 0)
 	_avatar_dead()
-	_ink_strike()
+	_show_last_hit()
 
 
 func _avatar_dead() -> void:
@@ -258,21 +275,19 @@ func _make_skip_area() -> void:
 	add_child(b)
 
 
-func _ink_strike() -> void:
-	var mark := ColorRect.new()
-	mark.color = Color(0.66, 0.2, 0.16, 0.88)
-	mark.position = Vector2(400, 430)
-	mark.size = Vector2(126, 9)
-	mark.rotation = -0.82
-	mark.scale = Vector2(0.05, 1.0)
-	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(mark)
-	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
-	tw.tween_property(mark, "scale:x", 1.0, 0.1)
-	tw.tween_property(mark, "modulate:a", 0.38, 0.7)
+func _show_last_hit() -> void:
+	if _hit_shown:
+		return
+	_hit_shown = true
+	_last_hit_fx = SpineFX.spawn(self, "E50041", Vector2(458, 424), {
+		"anim": "action", "width": 260.0, "always": true, "auto_free": false, "z": 0,
+	})
+	if _last_hit_fx != null:
+		_last_hit_fx.name = "LastHitSpineFX"
 	var damage := int(Run.last_hit.get("damage", 0))
 	if damage > 0:
 		var l := Label.new()
+		l.name = "LastHitDamage"
 		l.text = "-%d" % damage
 		l.position = Vector2(456, 388)
 		l.size = Vector2(80, 40)

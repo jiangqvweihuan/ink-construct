@@ -1,0 +1,160 @@
+E100186.png
+size: 858, 134
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+A_glow
+  rotate: false
+  xy: 132, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00000
+  rotate: false
+  xy: 198, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00001
+  rotate: false
+  xy: 264, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00002
+  rotate: false
+  xy: 330, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00003
+  rotate: false
+  xy: 396, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00004
+  rotate: false
+  xy: 462, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00005
+  rotate: false
+  xy: 528, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00006
+  rotate: false
+  xy: 594, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00007
+  rotate: false
+  xy: 660, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00008
+  rotate: false
+  xy: 726, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00009
+  rotate: false
+  xy: 792, 68
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00010
+  rotate: false
+  xy: 132, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00011
+  rotate: false
+  xy: 198, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00012
+  rotate: false
+  xy: 264, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00013
+  rotate: false
+  xy: 330, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00014
+  rotate: false
+  xy: 396, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00015
+  rotate: false
+  xy: 462, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00016
+  rotate: false
+  xy: 528, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00017
+  rotate: false
+  xy: 594, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00018
+  rotate: false
+  xy: 660, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+A_wenli_wave_00019
+  rotate: false
+  xy: 726, 2
+  size: 64, 64
+  orig: 64, 64
+  offset: 0, 0
+  index: -1
+Alizi
+  rotate: false
+  xy: 2, 4
+  size: 128, 128
+  orig: 128, 128
+  offset: 0, 0
+  index: -1
+

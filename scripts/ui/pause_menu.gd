@@ -93,6 +93,7 @@ func _build_status_details() -> void:
 	scroll.position = Vector2(500, 208)
 	scroll.size = Vector2(530, 366)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(scroll)
 	var content := Control.new()
@@ -108,11 +109,9 @@ func _build_status_details() -> void:
 		return
 	for entry in list:
 		var desc := str(entry.get("desc", ""))
-		var lines := maxi(1, int(ceil(desc.length() / 30.0)))
-		var h := 56.0 + lines * 21.0
 		var panel := Panel.new()
 		panel.position = Vector2(0, y)
-		panel.size = Vector2(510, h)
+		panel.size = Vector2(510, 0)
 		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var sb := StyleBoxFlat.new()
 		sb.bg_color = Color(0.025, 0.025, 0.025, 0.56)
@@ -129,11 +128,16 @@ func _build_status_details() -> void:
 			heading += "    " + value
 		var heading_color := GOLD if kind == "buff" else (RED if kind == "debuff" or not bool(entry.get("active", true)) else PAPER)
 		_text(heading, Vector2(12, 8), Vector2(486, 26), 17, heading_color, panel).horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var desc_label := _text(desc, Vector2(12, 38), Vector2(486, lines * 21), 15, DIM, panel)
+		var desc_label := _text(desc, Vector2(12, 38), Vector2(486, 21), 15, DIM, panel)
 		desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		desc_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		y += h + 8.0
+		desc_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+		desc_label.get_minimum_size() # 先刷新单行文本留下的最小宽度缓存
+		desc_label.size = Vector2(486, 21)
+		var desc_height := maxf(21.0, desc_label.get_minimum_size().y)
+		desc_label.size.y = desc_height
+		panel.size.y = 56.0 + desc_height
+		y += panel.size.y + 8.0
 	content.custom_minimum_size.y = y
 
 

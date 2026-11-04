@@ -1,0 +1,20 @@
+E52000.png
+size: 93, 76
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+star
+  rotate: false
+  xy: 79, 62
+  size: 12, 12
+  orig: 14, 14
+  offset: 1, 1
+  index: -1
+xuanwo
+  rotate: false
+  xy: 2, 2
+  size: 75, 72
+  orig: 90, 90
+  offset: 7, 8
+  index: -1
+

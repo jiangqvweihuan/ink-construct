@@ -9,6 +9,7 @@ const DAMAGE_NUMBER := preload("res://scripts/ui/damage_number.gd")
 const Skulls := preload("res://scripts/player/skulls.gd")
 const PROJECTILE := preload("res://scripts/systems/projectile.gd") # 远程形态的普攻/技能发投射物
 const FX := preload("res://scripts/systems/fx.gd") # 精灵条特效：斩击/化身光柱/受击墨花
+const SPINE_FX := preload("res://scripts/systems/spine_fx.gd")
 const Settings = preload("res://scripts/ui/settings.gd") # 改键后 HUD 键名要读 InputMap
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
@@ -325,6 +326,11 @@ var _root_bone_base := 0.0 # 根骨出生 x：结算位移后必须把它拨回�
 var _current_anim := "" # 防同名动画重放（floated 在跳跃顶点重放会抽搐）
 var _sfx_player: AudioStreamPlayer
 var _sfx_cache: Dictionary = {}
+var _shield_spine: Node2D = null
+var _skill_spine: Node2D = null
+var _awaken_spine: Node2D = null
+var _world_skill_spine: Node2D = null # 银夜 U：世界坐标驻留，技能收招后仍至少保留 5 秒
+var _world_skill_spine_left := 0.0
 
 
 func _ready() -> void:
@@ -371,6 +377,7 @@ func _register_pipa_passives() -> void:
 
 ## 把形态表里的动画映射 / 普攻段 / 技能表 / HUD 顺序装到实例上
 func _apply_profile(id: String) -> void:
+	_clear_all_spine()
 	var profile: Dictionary = Skulls.get_profile(id)
 	# 局外养成的契合度加成随形态一起装上（Meta 是 autoload，测试场景里也在）
 	skull_id = id if Skulls.SKULLS.has(id) else Skulls.DEFAULT_ID
@@ -835,7 +842,142 @@ func _setup_spine() -> void:
 	_play(anim_map["idle"], true)
 
 
+func _resolve_spine_anim(fx_id: String, requested: String) -> String:
+	var d = SPINE_FX.data(fx_id)
+	if d == null:
+		return requested
+	for candidate in [requested, "action", "action1"]:
+		var anim := str(candidate)
+		if not anim.is_empty() and d.call("find_animation", anim) != null:
+			return anim
+	var animations: Array = d.call("get_animations")
+	return str(animations[0].call("get_name")) if not animations.is_empty() else requested
+
+
+func _make_spine_fx(parent: Node, fx_id: String, pos: Vector2, anim: String, loop: bool, opts: Dictionary = {}) -> Node2D:
+	var actual := opts.duplicate(true)
+	actual["anim"] = _resolve_spine_anim(fx_id, anim)
+	actual["loop"] = loop
+	actual["auto_free"] = not loop
+	var role := str(actual.get("fx_role", ""))
+	actual.erase("fx_role")
+	var fx := SPINE_FX.attach(parent, fx_id, pos, actual)
+	if fx != null:
+		fx.set_meta("fx_id", fx_id)
+		fx.set_meta("fx_anim", actual["anim"])
+		if not role.is_empty():
+			fx.set_meta("fx_role", role)
+	return fx
+
+
+func _attach_spine_fx(fx_id: String, pos: Vector2, anim: String, loop := false, opts: Dictionary = {}) -> Node2D:
+	return _make_spine_fx(self, fx_id, pos, anim, loop, opts)
+
+
+func _world_spine_fx(fx_id: String, pos: Vector2, anim: String, loop := false, opts: Dictionary = {}) -> Node2D:
+	var host := get_tree().current_scene
+	if host == null:
+		return null
+	var local_pos := pos
+	if host is Node2D:
+		local_pos = (host as Node2D).to_local(pos)
+	return _make_spine_fx(host, fx_id, local_pos, anim, loop, opts)
+
+
+func _release_spine(fx: Node2D) -> void:
+	if is_instance_valid(fx) and not fx.is_queued_for_deletion():
+		fx.queue_free()
+
+
+func _clear_skill_spine() -> void:
+	_release_spine(_skill_spine)
+	_skill_spine = null
+
+
+func _clear_all_spine() -> void:
+	_clear_skill_spine()
+	_release_spine(_shield_spine)
+	_release_spine(_awaken_spine)
+	_release_spine(_world_skill_spine)
+	_shield_spine = null
+	_awaken_spine = null
+	_world_skill_spine = null
+	_world_skill_spine_left = 0.0
+
+
+func _sync_persistent_spine() -> void:
+	if _shield_hits > 0 and state != State.DEAD:
+		if not is_instance_valid(_shield_spine) or _shield_spine.is_queued_for_deletion():
+			_shield_spine = _attach_spine_fx("E52025", Vector2(0.0, -64.0), "action1", true,
+				{"scale": 0.5, "fx_role": "shield"})
+	else:
+		_release_spine(_shield_spine)
+		_shield_spine = null
+	var awaken_id: String = {"z000": "E100177", "z002": "E100172", "z003": "E21105"}.get(skull_id, "")
+	if _awaken_time > 0.0 and not awaken_id.is_empty() and state != State.DEAD:
+		if not is_instance_valid(_awaken_spine) or _awaken_spine.is_queued_for_deletion():
+			_awaken_spine = _attach_spine_fx(awaken_id, Vector2(0.0, -64.0), "action", true,
+				{"scale": 0.75 if skull_id == "z000" else (1.0 if skull_id == "z002" else 0.25), "fx_role": "awaken"})
+	else:
+		_release_spine(_awaken_spine)
+		_awaken_spine = null
+
+
+func _spine_fx_tick(delta: float) -> void:
+	if _world_skill_spine_left > 0.0:
+		_world_skill_spine_left = maxf(0.0, _world_skill_spine_left - delta)
+		if _world_skill_spine_left <= 0.0:
+			_release_spine(_world_skill_spine)
+			_world_skill_spine = null
+	_sync_persistent_spine()
+
+
+func _spawn_fullscreen_spine(fx_id: String, anim: String) -> Node2D:
+	var center := global_position
+	var camera := get_viewport().get_camera_2d()
+	if camera != null:
+		center = camera.get_screen_center_position()
+	return _world_spine_fx(fx_id, center, anim, false, {
+		"cover": get_viewport().get_visible_rect().size * 1.05,
+		"center": true, "fx_role": "full_screen",
+	})
+
+
+func _start_skill_spine(n: String) -> void:
+	_clear_skill_spine()
+	if skull_id == "c013":
+		_attach_spine_fx("E100182", Vector2(0.0, -150.0), "action", false,
+			{"fx_role": "skill_start"})
+	elif skull_id == "c021" and n == "skill02-cankao":
+		_skill_spine = _attach_spine_fx("E54151", Vector2(0.0, -64.0), "action1", true,
+			{"scale": 0.35, "fx_role": "skill"})
+	elif skull_id == "z002" and n == "skill07_02":
+		_attach_spine_fx("E53174", Vector2(0.0, -64.0), "action", false,
+			{"scale": 0.5, "fx_role": "awaken_cast"})
+	elif skull_id == "z002" and n == "skill10_03":
+		var fx_id := "E53008" if randi() % 2 == 0 else "E53009"
+		_spawn_projectile({"speed": 650.0, "range": 360.0, "style": "qi", "pierce": true,
+			"visual_only": true, "fx_id": fx_id, "fx_anim": "action", "fx_scale": 0.5}, 0, "")
+	elif skull_id == "z003" and n == "skill06":
+		_release_spine(_world_skill_spine)
+		_world_skill_spine = _world_spine_fx("E100006", global_position + Vector2(-facing * 90.0, -60.0), "action", true,
+			{"scale": 0.35, "fx_role": "world_skill"})
+		_world_skill_spine_left = 5.0
+	elif skull_id == "z003" and n == "skill10":
+		_world_spine_fx("E100186", global_position + Vector2(-facing * 72.0, -72.0), "action", false,
+			{"z": -1, "fx_role": "awaken_cast"})
+	elif skull_id == "z003" and n == "sky_skill18_02":
+		_skill_spine = _attach_spine_fx("E100006", Vector2(0.0, -64.0), "action", true,
+			{"scale": 0.35, "fx_role": "skill"})
+	_sync_persistent_spine()
+
+
+func _exit_tree() -> void:
+	_release_spine(_world_skill_spine)
+
+
 func _physics_process(delta: float) -> void:
+	_spine_fx_tick(delta)
 	if _saint_immune():
 		_clear_saint_debuffs()
 	_mo_ting_burn_tick(delta)
@@ -888,6 +1030,7 @@ func _physics_process(delta: float) -> void:
 	_awaken_time = maxf(0.0, _awaken_time - delta)
 	if _awaken_time <= 0.0:
 		_awaken_stacks = 0
+	_sync_persistent_spine()
 	_stop_buff_timer = maxf(0.0, _stop_buff_timer - delta) # 时停加伤倒计时
 	var cd_recovery := delta
 	if skull_id == "c013" and hp <= 4 and _form_node("c013_meditation_3"):
@@ -953,6 +1096,8 @@ func _pipa_passive_tick(delta: float) -> void:
 		_damage_enemy(p, 5)
 		if int(e.get("hp")) > 0 and p.has_method("amplify_debuffs"):
 			p.call("amplify_debuffs")
+	_world_spine_fx("E54061", global_position + Vector2(0.0, -180.0), "action", false,
+		{"width": get_viewport().get_visible_rect().size.x, "center": true, "fx_role": "sorrow"})
 	FX.spawn(get_tree().current_scene, "telegraph", global_position, {"scale": 2.0, "mod": Color(0.65, 0.38, 0.72, 0.55)})
 	_play_sfx("skill_boom")
 
@@ -1159,7 +1304,6 @@ func _sword_dash_sweep() -> void:
 				p.call("slam")
 			else:
 				p.call("launch", -facing, 120.0, 430.0)
-		FX.spawn(get_tree().current_scene, "slash", p.global_position + Vector2(0, -60), {"scale": 0.5, "flip": facing > 0})
 		did_hit = true
 	if did_hit:
 		_play_sfx("skill_blade")
@@ -1183,7 +1327,6 @@ func _dash_attack() -> bool:
 			continue
 		_damage_enemy(p, _dash_attack_dmg + damage_bonus + _buff_now() + _target_damage_bonus(p))
 		hit_scored()
-		FX.spawn(get_tree().current_scene, "slash", Vector2((global_position.x + p.global_position.x) * 0.5, global_position.y - 70), {"scale": 0.5, "flip": facing < 0})
 		did_hit = true
 	if did_hit:
 		_play_sfx("hit_heavy")
@@ -1273,8 +1416,6 @@ func _deal_hit(h = null) -> void:
 		# 射程 + 目标受击半径：体型大的 Boss 在身体边缘就能被够到，不用贴到原点
 		if not (in_front or side_any) or absf(dx) > reach + _radius_of(p) or dy > 70.0:
 			continue
-		# 朱砂斩击打在攻击者与被击者的中点胸口高度：视觉上像"从玩家挥出"（拉回前先取位置）
-		var mx := (global_position.x + p.global_position.x) * 0.5
 		_damage_enemy(p, dmg + _target_damage_bonus(p))
 		hit_scored() # 命中一只算一次连击
 		_on_build_hit(p, "attack%d" % _attack_idx)
@@ -1309,7 +1450,6 @@ func _deal_hit(h = null) -> void:
 						other.call("root", 1.2)
 						break
 			pulled += 1
-		FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.45, "flip": facing < 0})
 		did_hit = true
 	if did_hit:
 		if final_attack:
@@ -1332,7 +1472,6 @@ func _combo_finish_wave() -> void:
 				and absf(p.global_position.y - global_position.y) <= 120.0:
 			_damage_enemy(p, 1)
 			hit_scored()
-	FX.spawn(get_tree().current_scene, "slash", global_position + Vector2(0, -70), {"scale": 1.1})
 
 
 ## 所有玩家直伤统一携带真实来源；魅惑减伤在受击方结算，投射物也走同一入口。
@@ -1418,9 +1557,6 @@ func _on_innate_damage(target: Node, dealt: int) -> void:
 				target.call("take_damage_from", dealt, self)
 			else:
 				target.call("take_damage", dealt, global_position.x)
-			var p := target as Node2D
-			if p != null:
-				FX.spawn(get_tree().current_scene, "slash", p.global_position + Vector2(-facing * 42.0, -65.0), {"scale": 0.4, "mod": Color(0.55, 0.78, 0.82, 0.7)})
 	if int(target.get("hp")) > 0:
 		if _stolen("c017_brute") and target.has_method("knock_back"):
 			var dir := signf((target as Node2D).global_position.x - global_position.x)
@@ -1512,7 +1648,7 @@ func hit_scored() -> void:
 		_awaken_stacks += 1
 
 
-## 把敌人直接牵到指定横坐标；所有"拉回/牵引"共用同一个视觉与站位规则。
+## 把敌人直接牵到指定横坐标；所有"拉回/牵引"共用同一个站位规则。
 func _pull_enemy(p: Node2D, want_x: float) -> void:
 	if int(p.get("hp")) <= 0:
 		return
@@ -1524,7 +1660,6 @@ func _pull_enemy(p: Node2D, want_x: float) -> void:
 		p.call("stun", 0.6) # Boss 不被强制搬运，牵引转换为短破招
 	else:
 		p.global_position.x = want_x
-	FX.spawn(get_tree().current_scene, "slash", p.global_position + Vector2(0, -60), {"scale": 0.35})
 
 
 ## 击退撞人 / 撞墙后的搬山联动。
@@ -1840,6 +1975,7 @@ func _skill_tick(delta: float) -> void:
 			_awaken_time = _awaken_pending
 			_awaken_pending = 0.0
 			_awaken_stacks = 0
+			_sync_persistent_spine()
 			if skull_id == "z002":
 				_pipa_awaken_count += 1
 				_pipa_o_used = false
@@ -1907,6 +2043,9 @@ func _deal_skill_hit(h: Dictionary) -> void:
 	if h.has("projectile"):
 		var shot_damage := _stolen_skill_damage(int(h["damage"]) + damage_bonus + _proj_damage_bonus + _buff_now() + int(low_hp_skill))
 		var shot_spec: Dictionary = (h["projectile"] as Dictionary).duplicate(true)
+		if skull_id == "z000" and _skill_name == "skill04":
+			shot_spec["first_damage"] = shot_damage
+			shot_spec["later_damage"] = maxi(1, shot_damage - 3)
 		if skull_id == "c021" and _skill_name == "skill02-cankao" and _own("c021_feather_2") and _feathers > 0:
 			shot_spec["split"] = int(shot_spec.get("split", 0)) + _feathers
 			_feathers = 0
@@ -1945,6 +2084,13 @@ func _deal_skill_hit(h: Dictionary) -> void:
 	var skill_range := float(h.get("range", 0.0)) * range_scale
 	if skull_id == "c013" and _skill_name == "skill01":
 		skill_range *= _skill_range_scale # 震岳·初：只放大 K
+		_world_spine_fx("E54063", global_position, "action1", false,
+			{"width": skill_range * 2.0, "center": true, "fx_role": "skill_hit"})
+	elif skull_id == "c013" and _skill_name == "skill03":
+		_world_spine_fx("E53201", global_position + Vector2(facing * skill_range, 0.0), "action", false,
+			{"width": skill_range, "center": true, "flip": facing < 0, "fx_role": "skill_hit"})
+	if full and skull_id == "z003" and _skill_name == "sky_skill18_02":
+		_spawn_fullscreen_spine("E54012", "action3")
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var p := e as Node2D
 		if p == null:
@@ -1968,6 +2114,9 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				# both = 回身横扫（力僧狼牙棒、双刺回身刺）：动画扫到身后也照样判定
 				hit_ok = (in_front or bool(h.get("both", false))) and absf(dx) <= skill_range + _radius_of(p)
 		if hit_ok:
+			if skull_id == "z003" and _skill_name == "skill11":
+				_world_spine_fx("E54012", p.global_position + Vector2(0.0, -60.0), "action1", false,
+					{"scale": 0.35, "flip": facing < 0, "fx_role": "skill_hit"})
 			if skull_id == "z003" and _skill_name == "skill11" and _form_node("z003_return_3") and _buff_timer > 0.0:
 				_o_kill_window = 0.3 # 必须在扣血前开窗口，直接击杀也会归给本次 O
 			var hit_damage := dmg
@@ -1991,8 +2140,6 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			_on_build_hit(p, _skill_name)
 			if skull_id == "c023" and _skill_name == "skill02" and _own("c023_bind_2") and int(e.get("hp")) > 0:
 				_pull_enemy(p, global_position.x + facing * 110.0)
-			var mx := (global_position.x + p.global_position.x) * 0.5
-			FX.spawn(get_tree().current_scene, "slash", Vector2(mx, global_position.y - 70), {"scale": 0.55, "flip": facing < 0})
 			did_hit = true
 	if did_hit:
 		if skull_id == "z000" and _skill_name == "skill02-" and _form_node("z000_volley_1"):
@@ -2449,6 +2596,7 @@ func _apply_self_shield(spec: Dictionary) -> void:
 	if _form_node("c013_guard_2"):
 		duration += 2.0
 	_shield_time = maxf(_shield_time, duration)
+	_sync_persistent_spine()
 	if skull_id == "c013" and _own("c013_bell_1"):
 		var pulled := 0
 		for e in get_tree().get_nodes_in_group("enemies"):
@@ -2470,6 +2618,7 @@ func _shatter_bell() -> void:
 	var dur := clampf(_shield_time * 0.25, 0.6, 2.5)
 	_shield_hits = 0
 	_shield_time = 0.0
+	_sync_persistent_spine()
 	_bell_shell = _own("c013_bell_3")
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var p := e as Node2D
@@ -2609,6 +2758,19 @@ func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0)
 			effects["frenzy"] = float(effects["frenzy"]) + 2.0
 		if bool(effects.get("frenzy_double", false)):
 			effects["frenzy_min"] = float(effects.get("frenzy_min", 12.0)) + 2.0
+	if skull_id == "z002" and str(spec.get("style", "")) == "magic_sound":
+		if from_skill and _skill_name == "skill03":
+			effects["fx_id"] = "E100129"
+			effects["fx_anim"] = "action"
+			effects["fx_height"] = 110.0
+			effects["fx_speed"] = (float(spec.get("speed", 650.0)) * _proj_speed_scale) / 650.0
+		elif not from_skill and _attack_idx == 3:
+			effects["fx_id"] = "E54055"
+			effects["fx_anim"] = "action"
+			effects["fx_scale"] = 0.25
+			effects["hit_fx_id"] = "E54056"
+			effects["hit_fx_anim"] = "action"
+			effects["hit_fx_scale"] = 0.3
 	# root=命中定身秒数；split=命中后分裂数量；source 用于状态加伤与流派命中回报。
 	pr.setup(facing, float(spec.get("speed", 520.0)) * _proj_speed_scale, float(spec.get("range", 420.0)) * _proj_range_scale,
 		damage, sfx, proj_pierce or bool(spec.get("pierce", false)), float(spec.get("root", 0.0)),
@@ -2756,6 +2918,8 @@ func _try_dash() -> void:
 	_dash_speed_now = speed
 	_dash_cd_set = cd
 	_dash_timer = dur * _dash_time_scale # 闪避时长 = 闪避动画长度（整段都是完美闪避）
+	_world_spine_fx("E53026", global_position + Vector2(-facing * 48.0, -58.0), "action", false,
+		{"scale": 0.3, "flip": facing < 0, "fx_role": "dash"})
 	_play(anim, false, _dash_anim_speed)
 	_play_sfx("dash_step") # 冲刺踏地声，补上原本只有画面没有声音的空档
 
@@ -2946,6 +3110,13 @@ func _start_skill(n: String) -> void:
 		_skill_hits = [h]
 	else:
 		_skill_hits = cfg.get("hits", []).duplicate(true)
+	if skull_id == "z000" and n == "skill04":
+		_skill_hits = [{"at": 0.48, "damage": 5, "sfx": "hit_heavy", "projectile": {
+			"speed": 900.0, "range": 620.0, "pierce": true, "style": "qi",
+			"fx_id": "E54083", "fx_anim": "action1", "fx_scale": 0.35,
+			"first_fx_anim": "action3", "first_damage": 5,
+			"hit_fx_id": "E54083", "hit_fx_anim": "action2", "hit_fx_scale": 0.35, "later_damage": 2,
+		}}]
 	_skill_start_x = global_position.x
 	# root_motion：节点跟着动画根骨走（双刺 U：动画自己后跃约 170px，节点必须跟到那儿，收招才不会滑回原点）
 	_skill_root_follow = bool(cfg.get("root_motion", false))
@@ -3007,6 +3178,7 @@ func _start_skill(n: String) -> void:
 		_idle_queued = false
 	if str(cfg.get("action", "")) == "skill_p":
 		_charm_call()
+	_start_skill_spine(n)
 
 
 func _stolen(id: String) -> bool:
@@ -3141,6 +3313,8 @@ func _charm_call() -> void:
 	get_parent().add_child(ally)
 	ally.global_position = global_position + Vector2(-facing * 100.0, 0.0)
 	_charm_summon = ally
+	_world_spine_fx("E54054", ally.global_position + Vector2(0.0, -60.0), "action", false,
+		{"scale": 0.5, "fx_role": "summon"})
 
 
 ## 立刻换成指定形态：拆旧骨架 → 重装形态数据 → 重建骨架
@@ -3148,6 +3322,7 @@ func swap_skull(id: String) -> void:
 	if not Skulls.SKULLS.has(id) or id == skull_id:
 		return
 	_stop_skill_loop()
+	_clear_all_spine()
 	_dismiss_stolen_sword_clone()
 	_set_blink(false) # 换头瞬间收掉闪现的碰撞例外
 	_invincible = false
@@ -3242,7 +3417,6 @@ func _counter_attack(attacker: Node) -> bool:
 		_idle_queued = false
 		_set_state(State.IDLE)
 	_hurt_invincible = maxf(_hurt_invincible, 0.25)
-	FX.spawn(get_tree().current_scene, "slash", (global_position + p.global_position) * 0.5 + Vector2(0, -65), {"scale": 0.55})
 	_play_sfx("voice_fan_hit")
 	Feel.hitstop(0.06)
 	return true
@@ -3333,6 +3507,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		var feedback_anim := str(anim_map["hurt"])
 		_hurt_timer = maxf(hurt_time, float(_anim_durations.get(feedback_anim, hurt_time)))
 		_stop_skill_loop()
+		_clear_skill_spine()
 		velocity = knockback
 		_idle_queued = false
 		_play_sfx("hit_fist")
@@ -3382,6 +3557,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		_shield_hits -= 1 # 苦行可把多枚戒印转成多层护盾，一次攻击只挡一层
 		if _shield_hits <= 0:
 			_shield_time = 0.0
+		_sync_persistent_spine()
 		var shield_dn := DAMAGE_NUMBER.new()
 		shield_dn.setup("金钟罩", Color(0.9, 0.75, 0.3)) # 金：与完美闪避同色系
 		shield_dn.global_position = global_position + Vector2(0, -150)
@@ -3559,6 +3735,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	if (poise or _skill_poise) and state == State.SKILL:
 		return
 	_stop_skill_loop()
+	_clear_skill_spine()
 	# 墨冲明确携带倒地标记；只有当前角色确有倒地链或倒地动画时才强制触发。
 	if not buddha_guard and bool(move.get("force_knockdown", false)):
 		if not _knock_chain.is_empty():
@@ -3977,6 +4154,7 @@ func _try_revive(knockback: Vector2) -> bool:
 		max_hp = Run.max_hp
 	_clear_bleed()
 	_stop_skill_loop()
+	_clear_all_spine()
 	_begin_attack_recovery_if_needed()
 	_set_blink(false)
 	_reset_root_follow()
@@ -4011,6 +4189,9 @@ func _try_revive(knockback: Vector2) -> bool:
 	_play(anim_map["getup"], false)
 	_queue(anim_map["idle"], true)
 	_idle_queued = true
+	if red_butterfly:
+		_attach_spine_fx("E54015", Vector2(0.0, -64.0), "action", false,
+			{"scale": 0.5, "fx_role": "revive"})
 	return true
 
 
@@ -4063,9 +4244,6 @@ func _perfect_dodge(attacker: Node = null, incoming_damage: int = 0) -> void:
 	if skull_id == "c021" and has_battle_passive("c021_flash") and incoming_damage > 0 \
 			and attacker != null and is_instance_valid(attacker) and int(attacker.get("hp")) > 0:
 		_damage_enemy(attacker, incoming_damage) # 闪身只回敬这一段原始伤害，不再叠加玩家加伤
-		var ap := attacker as Node2D
-		if ap != null:
-			FX.spawn(get_tree().current_scene, "slash", ap.global_position + Vector2(0, -60), {"scale": 0.45})
 	_play_sfx("weapon_sword") # 侧身擦过的嗖声当闪避音
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("完美闪避", Color(0.9, 0.75, 0.3)) # 金：奖励时刻
@@ -4077,6 +4255,7 @@ func _perfect_dodge(attacker: Node = null, incoming_damage: int = 0) -> void:
 
 func die() -> void:
 	_stop_skill_loop()
+	_clear_all_spine()
 	_mo_ting_grabbed = false
 	_passive_seal_time = 0.0
 	_stun_time = 0.0
@@ -4151,6 +4330,7 @@ func _set_state(new_state: int) -> void:
 		return
 	if state == State.SKILL:
 		_stop_skill_loop()
+		_clear_skill_spine()
 	_begin_attack_recovery_if_needed()
 	state = new_state
 	match state:
