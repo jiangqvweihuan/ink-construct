@@ -6,6 +6,24 @@ extends Node
 const OUT_DIR := "res://tests/out/"
 
 const Settings = preload("res://scripts/ui/settings.gd") # 改键回归用
+const StatusCodex = preload("res://scripts/ui/status_codex.gd")
+
+## 独立完整性基线：不能用目录自己生成的 ID 集合代替预期。
+const EXPECTED_STATUS_IDS := [
+	"shield", "war_block", "bell", "perfect_dodge", "lifesteal", "start_guard",
+	"parry", "bell_shell", "awaken", "form_buff", "confidence", "stop_buff",
+	"dash_attack", "meditation", "buddha", "blood_dance", "room_awaken_damage",
+	"frost", "feathers", "daggers", "bait", "precepts", "air_follow", "sword_seals",
+	"return_mark", "skill_cancel_ready", "wind_final", "stolen_wall_guard", "stolen_era",
+	"regen", "bloodthirst", "sword_intent", "bloom_cooldown", "limit_cut", "turn_stacks", "red_scapegoat",
+	"ming_heroic", "divine_favor", "fen_awaken", "eye_passive",
+	"bleed", "cut", "jump_seal", "dash_seal", "stun", "root", "slow", "time_stop",
+	"poison", "frenzy", "charm", "grudge", "six_senses", "mind_shock", "transferred_debuffs",
+	"red_butterfly", "branch_zone", "plum_marks", "openings", "k_sealed", "seal_targets", "time_marks",
+	"cripple", "mo_ting_burn", "fen_ding_burn", "vulnerable", "passive_seal", "sui_yue_pressure",
+	"wu_che_wanted", "mo_ting_grab", "ming_zhong_hold", "ming_zhong_holy", "stolen_passives",
+	"room_cd_curse", "sword_sect",
+]
 
 var _log: FileAccess
 var _menu: Node
@@ -48,6 +66,7 @@ func _ready() -> void:
 	assert(click_fx.process_mode == Node.PROCESS_MODE_ALWAYS, "暂停 UI 的点击特效必须继续播放")
 	assert(get_tree().root.get_node("ScreenFX") == ScreenFX, "点击特效必须复用唯一 ScreenFX autoload")
 	assert(Input.mouse_mode == Input.MOUSE_MODE_VISIBLE, "可点击菜单界面必须显示自定义鼠标")
+	_assert_cursor_hotspot()
 	await get_tree().create_timer(0.18).timeout
 	await _shot("01a_menu_click")
 
@@ -612,6 +631,140 @@ func _ready() -> void:
 		codex._select("c016")
 		await get_tree().create_timer(0.3).timeout
 		assert(codex._medal_fx == null, "切回普通怪必须移除特殊勋章")
+
+		# 状态页：主菜单中无 Player / Run 也必须收录并展示全部 75 项。
+		await _click(Vector2(1162, 74))
+		await get_tree().create_timer(0.2).timeout
+		assert(codex._tab == codex.TAB_STATUS and codex._sel == "shield", "状态页真实页签点击必须选中首项")
+		assert(codex._preview == null and codex._medal_fx == null and codex._acts.is_empty(), "状态页不得创建角色 Spine、勋章或动作")
+		assert(is_instance_valid(codex._status_list) and is_instance_valid(codex._status_detail), "状态页必须创建滚动目录与详情")
+		var status_entries: Array = StatusCodex.entries()
+		var status_ids: Array = []
+		var seen_status := {}
+		var expected_status_set := {}
+		var status_shape_ok := true
+		var buff_count := 0
+		var debuff_count := 0
+		for id in EXPECTED_STATUS_IDS:
+			assert(not expected_status_set.has(id), "独立预期状态 ID 不得重复：" + str(id))
+			expected_status_set[id] = true
+		assert(EXPECTED_STATUS_IDS.size() == 75, "独立预期状态数必须固定为 75")
+		for e in status_entries:
+			var id := str(e.get("id", ""))
+			var kind := str(e.get("kind", ""))
+			status_ids.append(id)
+			if id.is_empty() or seen_status.has(id):
+				status_shape_ok = false
+				p("状态 ID 为空或重复：" + id)
+			seen_status[id] = true
+			for key in ["id", "kind", "target", "group", "name", "summary", "rules", "sources", "runtime_ids"]:
+				if not e.has(key):
+					status_shape_ok = false
+					p("状态缺字段 %s / %s" % [id, str(key)])
+			if not ["buff", "debuff"].has(kind) or not ["player", "enemy", "both"].has(str(e.get("target", ""))):
+				status_shape_ok = false
+				p("状态分类非法：" + id)
+			if kind == "buff":
+				buff_count += 1
+			elif kind == "debuff":
+				debuff_count += 1
+			if str(e.get("group", "")).strip_edges().is_empty() or str(e.get("name", "")).strip_edges().is_empty() \
+				or str(e.get("summary", "")).strip_edges().is_empty():
+				status_shape_ok = false
+				p("状态标题、分组或摘要为空：" + id)
+			for key in ["rules", "sources", "runtime_ids"]:
+				if not (e.get(key, []) is Array) or (e.get(key, []) as Array).is_empty():
+					status_shape_ok = false
+					p("状态数组为空或类型错误 %s / %s" % [id, key])
+		for id in EXPECTED_STATUS_IDS:
+			assert(seen_status.has(id), "状态目录缺少预期条目：" + str(id))
+		for id in status_ids:
+			assert(expected_status_set.has(id), "状态目录出现未预期条目：" + str(id))
+		assert(status_ids.size() == EXPECTED_STATUS_IDS.size(), "状态目录总数必须与独立预期双向一致")
+		assert(buff_count == 40 and debuff_count == 35, "状态目录必须为 40 增益 + 35 减益")
+		assert(status_shape_ok, "全部状态的结构、标题、摘要、规则、来源与运行时映射必须完整")
+		var status_unlocked_ok := true
+		for e in codex._entries():
+			status_unlocked_ok = status_unlocked_ok and not bool(e["locked"])
+		assert(status_unlocked_ok, "全部状态必须默认解锁，不读取击杀或化身解锁")
+		assert(codex._status_buttons.size() == status_entries.size(), "状态按钮数必须等于目录总数")
+		assert(codex._status_list.get_v_scroll_bar().max_value > codex._status_list.get_v_scroll_bar().page, "75 项目录必须可纵向滚动")
+		p("状态目录 75 项双向完整=%s 结构=%s 增益/减益=%d/%d 全解锁=%s 按钮=%d（期望全 true / 40/35 / 75）" % [
+			str(status_ids.size() == EXPECTED_STATUS_IDS.size()), status_shape_ok, buff_count, debuff_count,
+			status_unlocked_ok, codex._status_buttons.size()])
+		await _shot("07i_codex_status")
+
+		# 逐项触发真实按钮 pressed 信号；每次重建后核对标题、摘要、每条规则和每个来源。
+		var status_ui_ok := true
+		for i in status_entries.size():
+			var e: Dictionary = status_entries[i]
+			var id := str(e["id"])
+			var button: TextureButton = codex._status_buttons[i]
+			assert(str(button.get_meta("status_id", "")) == id, "状态按钮顺序必须与目录一致：" + id)
+			button.pressed.emit()
+			await get_tree().process_frame
+			await get_tree().process_frame
+			if not is_instance_valid(codex._status_detail):
+				status_ui_ok = false
+				p("状态详情未重建：" + id)
+				continue
+			var detail_text: String = codex._status_detail.get_parsed_text()
+			var item_ok: bool = codex._sel == id and detail_text.contains(str(e["name"])) and detail_text.contains(str(e["summary"]))
+			for rule in e["rules"]:
+				item_ok = item_ok and detail_text.contains(str(rule))
+			for source in e["sources"]:
+				item_ok = item_ok and detail_text.contains(str(source))
+			item_ok = item_ok and codex._preview == null and codex._medal_fx == null and codex._acts.is_empty()
+			if not item_ok:
+				status_ui_ok = false
+				p("状态 UI 条目缺漏：" + id)
+		assert(status_ui_ok, "75 项状态必须逐项可选且完整显示全部规则与来源")
+		p("状态页全条目真实按钮遍历与详情覆盖=%s（期望 true / 75 项）" % status_ui_ok)
+
+		# 选择另一项会重建界面，左侧滚动位置不能跳回顶部。
+		codex._select("shield")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		codex._status_list.scroll_vertical = 900
+		await get_tree().process_frame
+		var status_scroll_before: int = codex._status_list.scroll_vertical
+		assert(status_scroll_before > 0, "状态目录必须能实际滚离顶部")
+		var second_status: TextureButton = codex._status_buttons[1]
+		second_status.pressed.emit()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var status_scroll_after: int = codex._status_list.scroll_vertical
+		assert(status_scroll_after == status_scroll_before, "状态选择重建后必须保持目录滚动位置")
+		p("状态目录滚动保持 %d -> %d（期望相等且 >0）" % [status_scroll_before, status_scroll_after])
+
+		# 自动挑选文字最多的一项，确认详情确实能滚动到底部。
+		var longest_status := ""
+		var longest_length := -1
+		for e in status_entries:
+			var text_length := str(e["summary"]).length()
+			for rule in e["rules"]:
+				text_length += str(rule).length()
+			for source in e["sources"]:
+				text_length += str(source).length()
+			if text_length > longest_length:
+				longest_length = text_length
+				longest_status = str(e["id"])
+		codex._select(longest_status)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var detail_scroll: VScrollBar = codex._status_detail.get_v_scroll_bar()
+		assert(detail_scroll.max_value > detail_scroll.page, "最长状态详情必须提供真实纵向滚动")
+		detail_scroll.value = detail_scroll.max_value
+		await get_tree().process_frame
+		assert(detail_scroll.value > 0, "状态长详情必须能实际滚动")
+		p("状态长详情滚动=%s 内容长度=%d 滚动值=%.1f（期望可滚动且 >0）" % [longest_status, longest_length, detail_scroll.value])
+		await _shot("07j_codex_status_long")
+
+		# 切回敌人页后再进入化身页，原有角色回归继续执行。
+		codex._switch_tab(codex.TAB_ENEMY)
+		await get_tree().create_timer(0.3).timeout
+		assert(codex._sel == "c016" and codex._status_list == null and codex._status_detail == null, "离开状态页必须恢复敌人条目并清理状态控件")
+		assert(not codex._acts.is_empty() and codex._medal_fx == null, "状态页返回后普通敌人的动作与勋章规则必须保留")
 		# 化身页：切页后默认选中双刺
 		codex._switch_tab(1)
 		await get_tree().create_timer(0.3).timeout
@@ -809,6 +962,28 @@ func _find_panel(script_name: String) -> Node:
 		if c.get_script() != null and str(c.get_script().resource_path).ends_with(script_name):
 			return c
 	return null
+
+
+func _assert_cursor_hotspot() -> void:
+	var image: Image = ScreenFX.MOUSE_CURSOR.get_image()
+	assert(image != null and not image.is_empty(), "自定义鼠标源图必须可读取")
+	var tip_y := -1
+	var tip_left := 0
+	var tip_right := -1
+	for y in image.get_height():
+		for x in image.get_width():
+			if image.get_pixel(x, y).a <= 0.01:
+				continue
+			if tip_y < 0:
+				tip_y = y
+				tip_left = x
+			tip_right = x
+		if tip_y >= 0:
+			break
+	assert(tip_y >= 0, "自定义鼠标源图必须包含可见像素")
+	var expected := Vector2(roundi(float(tip_left + tip_right) * 0.5), tip_y)
+	p("自定义鼠标尖端热点：期望=%s 实际=%s（最上方可见行 x=%d～%d, y=%d）" % [str(expected), str(ScreenFX.CURSOR_HOTSPOT), tip_left, tip_right, tip_y])
+	assert(ScreenFX.CURSOR_HOTSPOT == expected, "自定义鼠标点击热点必须位于图标最上方尖端中心")
 
 
 func _assert_sfx_buses(node: Node) -> void:

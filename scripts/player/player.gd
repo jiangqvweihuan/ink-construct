@@ -55,6 +55,7 @@ const SFX_PRECACHE := [
 	"pipa_eight_tones",
 	"pipa_inner_demon",
 	"pipa_basic_wave",
+	"pipa_sorrow",
 	"pipa_mind_snare",
 	"pipa_taiyu",
 	"pipa_mortal_tribulation",
@@ -332,6 +333,7 @@ var _pending_loop := false
 var _pending_speed := 1.0
 var _pending_queue: Array = []
 var _sfx_player: AudioStreamPlayer
+var _wave_sfx_player: AudioStreamPlayer # 第四段声波独立播放，移动和其他音效不会将其截断
 var _sfx_cache: Dictionary = {}
 var _shield_spine: Node2D = null
 var _skill_spine: Node2D = null
@@ -733,6 +735,9 @@ func _setup_sfx() -> void:
 	_sfx_player = AudioStreamPlayer.new()
 	_sfx_player.bus = "SFX"
 	add_child(_sfx_player)
+	_wave_sfx_player = AudioStreamPlayer.new()
+	_wave_sfx_player.bus = "SFX"
+	add_child(_wave_sfx_player)
 	_loop_sfx_player = AudioStreamPlayer.new()
 	_loop_sfx_player.bus = "SFX"
 	add_child(_loop_sfx_player)
@@ -1125,7 +1130,7 @@ func _pipa_passive_tick(delta: float) -> void:
 	_world_spine_fx("E54061", global_position + Vector2(0.0, -180.0), "action", false,
 		{"width": get_viewport().get_visible_rect().size.x, "center": true, "fx_role": "sorrow"})
 	FX.spawn(get_tree().current_scene, "telegraph", global_position, {"scale": 2.0, "mod": Color(0.65, 0.38, 0.72, 0.55)})
-	_play_sfx("skill_boom")
+	_play_sfx("pipa_sorrow")
 
 
 func _innate_passive_tick(delta: float) -> void:
@@ -2815,7 +2820,12 @@ func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0)
 	pr.global_position = global_position + Vector2(facing * 36.0, -52.0 + y_off)
 	get_tree().current_scene.add_child(pr)
 	var flight_sfx := str(_skill_runtime.get("projectile_sfx", "")) if from_skill else str(spec.get("projectile_sfx", ""))
-	if flight_sfx != "":
+	if flight_sfx == "pipa_basic_wave":
+		var source = _sfx_cache.get(flight_sfx)
+		if source != null:
+			_wave_sfx_player.stream = source
+			_wave_sfx_player.play()
+	elif flight_sfx != "":
 		_play_sfx(flight_sfx)
 
 

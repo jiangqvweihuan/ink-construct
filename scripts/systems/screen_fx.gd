@@ -6,7 +6,7 @@ extends CanvasLayer
 
 const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const MOUSE_CURSOR := preload("res://art/ui/icons/mouse_cursor.png")
-const CURSOR_HOTSPOT := Vector2(2, 2)
+const CURSOR_HOTSPOT := Vector2(16, 2) # 箭头顶端尖端中心；UI 回归会从源图像素重新校验
 
 var _mat: ShaderMaterial
 var _rect: ColorRect

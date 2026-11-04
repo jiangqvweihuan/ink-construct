@@ -12,6 +12,7 @@ const Skulls = preload("res://scripts/player/skulls.gd")
 const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
 const SpinePoseMixer = preload("res://scripts/systems/spine_pose_mixer.gd")
 const BossTypes = preload("res://scripts/enemies/boss_types.gd")
+const StatusCodex = preload("res://scripts/ui/status_codex.gd")
 const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
@@ -24,6 +25,7 @@ const GOLD := Color(0.9, 0.75, 0.3) # 英雄级主角的金标
 
 const TAB_ENEMY := 0
 const TAB_FORM := 1
+const TAB_STATUS := 2
 
 ## 敌人收录顺序：杂兵 → 精英 → Boss（Boss 追加在末尾，顺序按 boss_types.ROSTER）
 const ENEMY_ORDER := ["c016", "c017", "c035", "c018", "c012", "c037"]
@@ -483,6 +485,10 @@ var _pending_anim := ""
 var _idle_anim := "" # 待机动画名（默认演示 / 取消选中时回到这里）
 var _current_anim := "" # 测试用：当前正在演的动作名
 var _desc_rt: RichTextLabel # 技能解析面板
+var _status_list: ScrollContainer = null
+var _status_detail: RichTextLabel = null
+var _status_buttons: Array = []
+var _status_scroll := 0
 
 var _acts: Array = [] # 当前角色的动作条目（{label, anims, kind, src}）
 var _act_btns: Array = [] # 动作按钮
@@ -520,8 +526,9 @@ func _build() -> void:
 	add_child(win)
 
 	_make_label("图  鉴", Vector2(70, 44), Vector2(320, 52), 40, PAPER)
-	_make_button("敌 人", Vector2(940, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_ENEMY), _tab == TAB_ENEMY)
-	_make_button("化 身", Vector2(1092, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_FORM), _tab == TAB_FORM)
+	_make_button("敌 人", Vector2(788, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_ENEMY), _tab == TAB_ENEMY)
+	_make_button("化 身", Vector2(940, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_FORM), _tab == TAB_FORM)
+	_make_button("状 态", Vector2(1092, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_STATUS), _tab == TAB_STATUS)
 
 	# 选中项失效（切页 / 刚收录）时退回第一条
 	var entries := _entries()
@@ -531,41 +538,53 @@ func _build() -> void:
 	if not ids.has(_sel):
 		_sel = str(ids[0]) if not ids.is_empty() else ""
 
-	var got := 0
-	for e in entries:
-		if not bool(e["locked"]):
-			got += 1
-	_make_label("%s %d / %d ｜ 点选招式查看解析" % ["已收录" if _tab == TAB_ENEMY else "已解锁", got, entries.size()],
-		Vector2(70, 104), Vector2(470, 26), 13, DIM)
-
-	# 先搭演示与详情，再铺条目卡：招式动画会甩出演示台，卡片后画才能盖住溢出的部分
-	_build_detail()
-
-	if _tab == TAB_ENEMY:
-		# 每个分组独占标题行；卡片只在组内按两列排布，行高不跨组累加。
-		var y := CARD_Y
-		for group in ["杂兵", "精英", "首领"]:
-			var grouped: Array = []
-			for e in entries.slice(0, CARD_MAX):
-				if str(e["group"]) == group:
-					grouped.append(e)
-			if grouped.is_empty():
-				continue
-			_make_label("— %s —" % group, Vector2(CARD_X, y), Vector2(CARD_STEP_X + CARD_W, 20), 14, RED)
-			y += ENEMY_GROUP_H
-			for i in grouped.size():
-				_make_card(grouped[i], i, y, true)
-			var rows := int(ceil(float(grouped.size()) / CARD_COLS))
-			y += rows * ENEMY_CARD_STEP_Y + 8.0
+	if _tab == TAB_STATUS:
+		var buff_count := 0
+		for e in entries:
+			if str(e["kind"]) == "buff":
+				buff_count += 1
+		_make_label("全量收录 %d 项 ｜ 增益 %d ｜ 减益 %d ｜ 无需解锁" % [entries.size(), buff_count, entries.size() - buff_count],
+			Vector2(70, 104), Vector2(650, 26), 13, DIM)
+		_build_status_detail()
+		_build_status_list(entries)
 	else:
-		for i in mini(entries.size(), CARD_MAX):
-			_make_card(entries[i], i)
+		var got := 0
+		for e in entries:
+			if not bool(e["locked"]):
+				got += 1
+		_make_label("%s %d / %d ｜ 点选招式查看解析" % ["已收录" if _tab == TAB_ENEMY else "已解锁", got, entries.size()],
+			Vector2(70, 104), Vector2(470, 26), 13, DIM)
+
+		# 先搭演示与详情，再铺条目卡：招式动画会甩出演示台，卡片后画才能盖住溢出的部分
+		_build_detail()
+
+		if _tab == TAB_ENEMY:
+			# 每个分组独占标题行；卡片只在组内按两列排布，行高不跨组累加。
+			var y := CARD_Y
+			for group in ["杂兵", "精英", "首领"]:
+				var grouped: Array = []
+				for e in entries.slice(0, CARD_MAX):
+					if str(e["group"]) == group:
+						grouped.append(e)
+				if grouped.is_empty():
+					continue
+				_make_label("— %s —" % group, Vector2(CARD_X, y), Vector2(CARD_STEP_X + CARD_W, 20), 14, RED)
+				y += ENEMY_GROUP_H
+				for i in grouped.size():
+					_make_card(grouped[i], i, y, true)
+				var rows := int(ceil(float(grouped.size()) / CARD_COLS))
+				y += rows * ENEMY_CARD_STEP_Y + 8.0
+		else:
+			for i in mini(entries.size(), CARD_MAX):
+				_make_card(entries[i], i)
 
 	_make_button("返  回", Vector2(70, 572), Vector2(130, 44), 20, _close, false, SFX_BACK)
 
 
 ## 重建：只留常驻节点（按钮不能在自身信号里销毁自己，故一律延迟调用）
 func _refresh() -> void:
+	if is_instance_valid(_status_list):
+		_status_scroll = _status_list.scroll_vertical
 	for c in get_children():
 		if c == _sfx:
 			continue
@@ -577,6 +596,9 @@ func _refresh() -> void:
 	_pose_mixer = null
 	_pending_anim = ""
 	_desc_rt = null
+	_status_list = null
+	_status_detail = null
+	_status_buttons = []
 	_current_anim = ""
 	_acts = []
 	_act_btns = []
@@ -608,7 +630,7 @@ func _close() -> void:
 
 # ---------- 收录列表 ----------
 
-## 当前页的条目：{id, locked, label, sub, group(敌人)}
+## 当前页的条目：角色页使用统一卡片结构；状态页额外保留完整静态资料。
 func _entries() -> Array:
 	var out: Array = []
 	if _tab == TAB_ENEMY:
@@ -630,13 +652,20 @@ func _entries() -> Array:
 			var boss_kind := _enemy_kind(b, true)
 			out.append({"id": id, "locked": nb <= 0, "label": str(b["label"]), "group": boss_kind,
 				"sub": boss_kind if nb > 0 else "尚未收录"})
-	else:
+	elif _tab == TAB_FORM:
 		for id in Skulls.ids():
 			var p: Dictionary = Skulls.get_profile(id)
 			var unlocked := Meta.is_unlocked(id)
 			out.append({"id": id, "locked": not unlocked, "label": str(p["label"]),
 				"sub": str(p.get("name", "")) if unlocked else "未解锁",
 				"hero": bool(p.get("hero", false))})
+	else:
+		for e in StatusCodex.entries():
+			var item: Dictionary = e.duplicate()
+			item["locked"] = false
+			item["label"] = str(e["name"])
+			item["sub"] = "%s · %s · %s" % [_status_kind_text(str(e["kind"])), str(e["group"]), _status_target_text(str(e["target"]))]
+			out.append(item)
 	return out
 
 
@@ -689,7 +718,142 @@ func _make_card(e: Dictionary, i: int, origin_y := CARD_Y, compact := false) -> 
 		card.add_child(tag)
 
 
-# ---------- 右侧详情 ----------
+# ---------- 状态资料：全量静态目录，不进入角色模型与动作流程 ----------
+
+func _status_kind_text(kind: String) -> String:
+	return "增益" if kind == "buff" else "减益"
+
+
+func _status_target_text(target: String) -> String:
+	match target:
+		"player":
+			return "玩家"
+		"enemy":
+			return "敌人"
+		"both":
+			return "玩家 / 敌人"
+	return target
+
+
+func _build_status_list(entries: Array) -> void:
+	_status_list = ScrollContainer.new()
+	_status_list.name = "StatusList"
+	_status_list.position = Vector2(60, CARD_Y)
+	_status_list.size = Vector2(390, 426)
+	_status_list.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_status_list.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_status_list.add_theme_stylebox_override("panel", _panel_style())
+	add_child(_status_list)
+
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows.add_theme_constant_override("separation", 5)
+	_status_list.add_child(rows)
+
+	var section := ""
+	for e in entries:
+		var id := str(e["id"])
+		var section_key := "%s/%s" % [str(e["kind"]), str(e["group"])]
+		if section_key != section:
+			section = section_key
+			var heading := Label.new()
+			heading.text = "— %s · %s —" % [_status_kind_text(str(e["kind"])), str(e["group"])]
+			heading.custom_minimum_size = Vector2(0, 27)
+			heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			heading.add_theme_color_override("font_color", RED)
+			heading.add_theme_font_size_override("font_size", 14)
+			heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			rows.add_child(heading)
+
+		var button := TextureButton.new()
+		button.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
+		button.texture_hover = InkTex.load("res://art/ui/menu/btn_clicked.png")
+		button.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
+		button.ignore_texture_size = true
+		button.stretch_mode = TextureButton.STRETCH_SCALE
+		button.custom_minimum_size = Vector2(348, 54)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.set_meta("status_id", id)
+		button.pressed.connect(_select.bind(id))
+		rows.add_child(button)
+		_status_buttons.append(button)
+
+		if id == _sel:
+			var bar := ColorRect.new()
+			bar.color = RED
+			bar.size = Vector2(4, 54)
+			bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			button.add_child(bar)
+
+		var title := Label.new()
+		title.text = str(e["label"])
+		title.position = Vector2(12, 4)
+		title.size = Vector2(324, 25)
+		title.add_theme_color_override("font_color", PAPER)
+		title.add_theme_font_size_override("font_size", 16)
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(title)
+
+		var sub := Label.new()
+		sub.text = str(e["sub"])
+		sub.position = Vector2(12, 30)
+		sub.size = Vector2(324, 19)
+		sub.add_theme_color_override("font_color", DIM)
+		sub.add_theme_font_size_override("font_size", 11)
+		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(sub)
+
+	_status_list.scroll_vertical = _status_scroll
+	call_deferred("_restore_status_scroll")
+
+
+func _restore_status_scroll() -> void:
+	if is_instance_valid(_status_list):
+		_status_list.scroll_vertical = _status_scroll
+
+
+func _build_status_detail() -> void:
+	var entry: Dictionary = {}
+	for e in StatusCodex.entries():
+		if str(e["id"]) == _sel:
+			entry = e
+			break
+
+	_status_detail = RichTextLabel.new()
+	_status_detail.name = "StatusDetail"
+	_status_detail.bbcode_enabled = true
+	_status_detail.position = Vector2(470, 130)
+	_status_detail.size = Vector2(740, 432)
+	_status_detail.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_status_detail.scroll_active = true
+	_status_detail.selection_enabled = true
+	_status_detail.add_theme_stylebox_override("normal", _panel_style())
+	_status_detail.add_theme_color_override("default_color", DIM)
+	_status_detail.add_theme_font_size_override("normal_font_size", 16)
+	_status_detail.add_theme_constant_override("line_separation", 4)
+	_status_detail.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_status_detail)
+	if entry.is_empty():
+		return
+
+	var text := "[font_size=30][color=#f2e9d8]%s[/color][/font_size]\n" % str(entry["name"])
+	text += "[color=#c89440]%s · %s · %s[/color]\n\n" % [
+		_status_kind_text(str(entry["kind"])), str(entry["group"]), _status_target_text(str(entry["target"]))]
+	text += "[font_size=18][color=#e8dfc4]%s[/color][/font_size]\n\n" % str(entry["summary"])
+	text += "[font_size=18][color=#a8332a]详细规则 · 数值 / 叠层 / 刷新 / 清除 / 例外[/color][/font_size]\n"
+	var rules: Array = entry["rules"]
+	for i in rules.size():
+		text += "\n%d. %s" % [i + 1, str(rules[i])]
+	text += "\n\n[font_size=18][color=#a8332a]真实来源[/color][/font_size]\n"
+	for source in entry["sources"]:
+		text += "\n· %s" % str(source)
+	text += "\n\n[color=#8a857a]全部条目无需击败、解锁或进入战斗即可查阅。[/color]"
+	_status_detail.text = text
+
+
+# ---------- 右侧角色详情 ----------
 
 func _build_detail() -> void:
 	var m := _model(_sel)

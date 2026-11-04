@@ -181,7 +181,12 @@ func _test_profile_and_attacks() -> void:
 	var second = _enemy_at(150.0)
 	var shots := _shots()
 	_check(e.hp == before and shots.size() == 1, "普攻末段在 0.82 秒只发一道魔音而不直接近战结算")
-	_check(_p._sfx_player.playing and _p._sfx_player.stream == _p._sfx_cache["pipa_basic_wave"], "普攻末段发射魔音时播放新音波音效")
+	_check(_p._wave_sfx_player.playing and _p._wave_sfx_player.stream == _p._sfx_cache["pipa_basic_wave"] \
+		and not _p._sfx_player.playing, "普攻末段发射魔音时使用独立通道播放新音波音效")
+	_p._set_state(PlayerClass.State.RUN)
+	_p._play_sfx("player_footstep")
+	_check(_p._wave_sfx_player.playing and _p._wave_sfx_player.stream == _p._sfx_cache["pipa_basic_wave"] \
+		and _p._sfx_player.stream == _p._sfx_cache["player_footstep"], "普攻末段音波发射后，移动与其他音效均不截断播放")
 	if shots.is_empty():
 		return
 	var pr = shots[0]
@@ -616,6 +621,7 @@ func _test_sorrow() -> void:
 	e.apply_charm(3.0)
 	_p._pipa_sorrow_timer = 0.01
 	_p._pipa_passive_tick(0.01)
+	_check(_p._sfx_player.playing and _p._sfx_player.stream == _p._sfx_cache["pipa_sorrow"], "神伤全屏波纹触发时播放专属音效")
 	_check(e.hp == 97 and is_equal_approx(_p._pipa_sorrow_timer, 30.0), "神伤 5 伤经魅惑减半为 3，并重置 30 秒计时")
 	_check(e._mind_shock == 1 and e._bleed_stacks == 2 and is_equal_approx(e._bleed_time, 10.0) \
 		and is_equal_approx(e._poison_time, 7.0) and is_equal_approx(e._root_timer, 8.0), "神伤增幅：shock=%d bleed=%d/%.2f poison=%.2f root=%.2f" % [e._mind_shock, e._bleed_stacks, e._bleed_time, e._poison_time, e._root_timer])
