@@ -191,6 +191,11 @@ func _click(pos: Vector2, final := false) -> void:
 	up.button_index = MOUSE_BUTTON_LEFT
 	up.pressed = false
 	up.position = pos
+	var root := get_tree().root
+	var embark_stream: AudioStream = null
+	if final:
+		var current_panel := _panel()
+		embark_stream = current_panel.SFX_RUN_EMBARK if current_panel != null else null
 	get_viewport().push_input(up, true)
 	if final:
 		var panel := _panel()
@@ -205,14 +210,14 @@ func _click(pos: Vector2, final := false) -> void:
 		assert(Meta.supply_count("supply_revive") == 1, "重复启程不得消耗第二件补给")
 		assert(Run.supply_revive, "重复启程不得重置已带入的补给")
 		var embark_sfx: AudioStreamPlayer = null
-		for child in get_tree().root.get_children():
-			if child is AudioStreamPlayer and child.stream == panel.SFX_RUN_EMBARK:
+		for child in root.get_children():
+			if child is AudioStreamPlayer and child.stream == embark_stream:
 				embark_sfx = child
 				break
 		assert(embark_sfx != null, "启程音效应由 root 级播放器播放")
 		if embark_sfx != null:
 			assert(embark_sfx.bus == "SFX", "启程音效必须走 SFX 总线")
-			assert(embark_sfx.get_parent() == get_tree().root, "启程音效不得随开始面板销毁")
+			assert(embark_sfx.get_parent() == root, "启程音效不得随开始面板销毁")
 			assert(embark_sfx.finished.is_connected(embark_sfx.queue_free), "启程音效结束后必须自行释放")
 		p("启程真实输入/直接重复调用、按钮禁用、单件消耗与 SFX 总线断言通过")
 		return

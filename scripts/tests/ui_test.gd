@@ -7,6 +7,28 @@ const OUT_DIR := "res://tests/out/"
 
 const Settings = preload("res://scripts/ui/settings.gd") # 改键回归用
 const StatusCodex = preload("res://scripts/ui/status_codex.gd")
+const StoryCodex = preload("res://scripts/ui/story_codex.gd")
+const Skulls = preload("res://scripts/player/skulls.gd")
+const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
+const BossTypes = preload("res://scripts/enemies/boss_types.gd")
+const Room01 = preload("res://scripts/world/room_01.gd")
+
+const EXPECTED_STORY_IDS := [
+	"world_ink", "world_valley", "world_motang", "world_forms", "world_purpose",
+	"form_c021", "form_c013", "form_c023", "form_z000", "form_z002", "form_z003", "form_covenant",
+	"foes_mobs", "elite_c018", "elite_c012", "elite_c037", "enemy_echelon",
+	"boss_c009", "boss_c015a1", "boss_c001", "boss_c008", "boss_c032",
+	"route_three_gates", "route_repetition", "relation_overview", "timeline",
+]
+const EXPECTED_STORY_ACTORS := [
+	"c021", "c013", "c023", "z000", "z002", "z003",
+	"c016", "c017", "c035", "c018", "c012", "c037",
+	"c009", "c015a1", "c001", "c008", "c032",
+]
+const EXPECTED_FORM_CHAIN := [
+	["c021", "c013", 1], ["c021", "c023", 2], ["c023", "z000", 3],
+	["c013", "z002", 4], ["z002", "z003", 5],
+]
 
 ## 独立完整性基线：不能用目录自己生成的 ID 集合代替预期。
 const EXPECTED_STATUS_IDS := [
@@ -23,6 +45,15 @@ const EXPECTED_STATUS_IDS := [
 	"cripple", "mo_ting_burn", "fen_ding_burn", "vulnerable", "passive_seal", "sui_yue_pressure",
 	"wu_che_wanted", "mo_ting_grab", "ming_zhong_hold", "ming_zhong_holy", "stolen_passives",
 	"room_cd_curse", "sword_sect",
+]
+
+## 人物词条同样使用独立预期，防止目录自身漏项后仍靠自生成数据通过。
+const EXPECTED_TAG_IDS := [
+	"tag_近战", "tag_远程", "tag_机动", "tag_站桩", "tag_控场", "tag_爆发", "tag_冲锋", "tag_耐久",
+	"tag_霸体", "tag_回血", "tag_击飞", "tag_定身", "tag_流血", "tag_中毒", "tag_时停", "tag_召唤",
+	"tag_连段", "tag_减益", "tag_琵琶", "tag_分身", "tag_怒焰", "tag_夺被动", "tag_觉醒",
+	"tag_山野", "tag_戏班", "tag_僧门", "tag_剑门", "tag_宫廷", "tag_墨堂", "tag_妖异", "tag_邪佛",
+	"tag_杂兵", "tag_精英", "tag_首领", "tag_化身",
 ]
 
 var _log: FileAccess
@@ -346,13 +377,15 @@ func _ready() -> void:
 			elif str(action["kind"]) == "passive":
 				assassin_passive = action
 		var assassin_passive_text: String = codex._desc_text(assassin_passive, "") if not assassin_passive.is_empty() else ""
-		var assassin_model_ok: bool = str(assassin_model["lore"]).contains("剃头匠") and (assassin_model["tags"] as Array).has("流血")
+		var assassin_model_tags: Array = assassin_model["tags"]
+		var assassin_model_ok: bool = str(assassin_model["lore"]).contains("剃头匠") \
+			and assassin_model_tags.has("减益") and not assassin_model_tags.has("流血") and not assassin_model_tags.has("妖异")
 		var assassin_data_ok: bool = assassin_labels == ["镖去", "偷袭"] and assassin_keys == ["dart", "sneak"] \
 			and assassin_visuals_ok and assassin_lore_ok and assassin_dart_ok and assassin_sneak_ok
 		var assassin_passive_ok: bool = str(assassin_passive.get("label", "")) == "阴 影" \
 			and assassin_passive_text.contains("双倍暴击") and assassin_passive_text.contains("割伤等持续伤害不触发此效果") \
 			and assassin_passive_text.contains("来历：") and not assassin_passive_text.contains("【待定】")
-		p("刺客图鉴 双招/逻辑键/数值/来历=%s 阴影资料=%s 背景与流血词条=%s（期望全 true）" % [assassin_data_ok, assassin_passive_ok, assassin_model_ok])
+		p("刺客图鉴 双招/逻辑键/数值/来历=%s 阴影资料=%s 背景与减益词条=%s（期望全 true）" % [assassin_data_ok, assassin_passive_ok, assassin_model_ok])
 		var assassin_preview_ok := true
 		var assassin_state = codex._preview.call("get_animation_state")
 		var assassin_track = assassin_state.call("get_current", 0)
@@ -632,12 +665,298 @@ func _ready() -> void:
 		await get_tree().create_timer(0.3).timeout
 		assert(codex._medal_fx == null, "切回普通怪必须移除特殊勋章")
 
-		# 状态页：主菜单中无 Player / Run 也必须收录并展示全部 75 项。
+		# 故事集：独立基线核对四卷二十六章、17 名角色、正史引用与关系链。
+		await _click(Vector2(706, 74))
+		await get_tree().create_timer(0.2).timeout
+		assert(codex._tab == codex.TAB_STORY and codex._sel == "world_ink", "故事集真实页签点击必须选中世界总纲")
+		assert(codex._preview == null and codex._medal_fx == null and codex._portrait == null and codex._acts.is_empty(), "故事页不得创建角色 Spine、原画、勋章或动作")
+		assert(is_instance_valid(codex._story_list) and is_instance_valid(codex._story_detail), "故事页必须创建分卷滚动目录与长文详情")
+		assert(codex._story_detail.selection_enabled, "故事长文必须允许选择文字")
+
+		var story_entries: Array = StoryCodex.entries()
+		var story_relations: Array = StoryCodex.relations()
+		var story_ids: Array = []
+		var story_by_id := {}
+		var story_cast := {}
+		var volume_counts := {
+			"卷一 · 水墨总纲": 0, "卷二 · 化身与相逢": 0,
+			"卷三 · 敌我与关隘": 0, "卷四 · 关系与年表": 0,
+		}
+		var expected_story_set := {}
+		var expected_actor_set := {}
+		for id in EXPECTED_STORY_IDS:
+			assert(not expected_story_set.has(id), "独立预期故事 ID 不得重复：" + id)
+			expected_story_set[id] = true
+		for id in EXPECTED_STORY_ACTORS:
+			assert(not expected_actor_set.has(id), "独立预期故事角色 ID 不得重复：" + id)
+			expected_actor_set[id] = true
+			assert(str(StoryCodex.actor_name(id)) != id, "正式角色必须有公开姓名：" + id)
+		assert(EXPECTED_STORY_IDS.size() == 26 and EXPECTED_STORY_ACTORS.size() == 17, "故事独立基线必须固定为 26 章与 17 名角色")
+
+		for e in story_entries:
+			var id := str(e.get("id", ""))
+			story_ids.append(id)
+			assert(not id.is_empty() and not story_by_id.has(id), "故事 ID 为空或重复：" + id)
+			story_by_id[id] = e
+			for key in ["id", "volume", "title", "subtitle", "summary", "sections", "cast", "relation_ids", "canon_refs"]:
+				assert(e.has(key), "故事缺字段 %s / %s" % [id, key])
+			assert(volume_counts.has(str(e["volume"])), "故事卷名非法：" + id)
+			volume_counts[str(e["volume"])] += 1
+			assert(not str(e["title"]).strip_edges().is_empty() and not str(e["subtitle"]).strip_edges().is_empty() \
+				and not str(e["summary"]).strip_edges().is_empty(), "故事标题、副标或摘要为空：" + id)
+			assert(e["sections"] is Array and (e["sections"] as Array).size() >= 3, "每章至少要有三个正文小节：" + id)
+			assert(e["cast"] is Array and e["relation_ids"] is Array and e["canon_refs"] is Array, "故事角色、关系或引用类型错误：" + id)
+			assert(not (e["canon_refs"] as Array).is_empty(), "每章必须有真实正史引用：" + id)
+			var visible_text := str(e["title"]) + str(e["subtitle"]) + str(e["summary"])
+			for section in e["sections"]:
+				assert(section.has("title") and section.has("paragraphs"), "故事小节结构不完整：" + id)
+				assert(not str(section["title"]).strip_edges().is_empty(), "故事小节标题为空：" + id)
+				assert(section["paragraphs"] is Array and (section["paragraphs"] as Array).size() >= 2, "每节至少要有两个自然段：" + id)
+				visible_text += str(section["title"])
+				for paragraph in section["paragraphs"]:
+					assert(str(paragraph).strip_edges().length() >= 40, "故事自然段过短或为空：" + id)
+					visible_text += str(paragraph)
+			for story_forbidden in ["TODO", "【待定】", "res://", "scripts/", "canon_refs", "relation_ids", "runtime_ids", "_e("]:
+				assert(not visible_text.contains(story_forbidden), "故事正文含占位、资源路径或内部键 %s / %s" % [id, story_forbidden])
+			for actor in e["cast"]:
+				assert(expected_actor_set.has(str(actor)), "故事出场角色非法：%s / %s" % [id, str(actor)])
+				story_cast[str(actor)] = true
+			for ref in e["canon_refs"]:
+				_assert_story_canon_ref(codex, str(ref))
+		assert(story_ids == EXPECTED_STORY_IDS, "故事 26 章必须按独立预期双向一致且顺序稳定")
+		assert(volume_counts["卷一 · 水墨总纲"] == 5 and volume_counts["卷二 · 化身与相逢"] == 7 \
+			and volume_counts["卷三 · 敌我与关隘"] == 12 and volume_counts["卷四 · 关系与年表"] == 2, "四卷章节数必须为 5 / 7 / 12 / 2")
+		for actor in EXPECTED_STORY_ACTORS:
+			assert(story_cast.has(actor), "故事出场角色并集缺少：" + actor)
+		for id in ["c021", "c013", "c023", "z000", "z002", "z003"]:
+			assert(story_by_id.has("form_" + id), "六化身必须各有专章：" + id)
+		for id in ["c009", "c015a1", "c001", "c008", "c032"]:
+			assert(story_by_id.has("boss_" + id), "五名 Boss 必须各有专章：" + id)
+
+		var relation_by_id := {}
+		var relation_by_edge := {}
+		var relation_cast := {}
+		var form_adjacency := {}
+		for id in ["c021", "c013", "c023", "z000", "z002", "z003"]:
+			form_adjacency[id] = []
+		for relation in story_relations:
+			var id := str(relation.get("id", ""))
+			assert(not id.is_empty() and not relation_by_id.has(id), "关系 ID 为空或重复：" + id)
+			for key in ["id", "a", "b", "origin", "label", "order", "text"]:
+				assert(relation.has(key), "关系缺字段 %s / %s" % [id, key])
+			var a := str(relation["a"])
+			var b := str(relation["b"])
+			assert(expected_actor_set.has(a) and expected_actor_set.has(b), "关系端点不是正式角色：" + id)
+			assert(a != b, "关系不得构成自环：" + id)
+			var edge := _story_edge_key(a, b)
+			assert(not relation_by_edge.has(edge), "不得出现重复无向关系：" + edge)
+			relation_by_id[id] = relation
+			relation_by_edge[edge] = relation
+			relation_cast[a] = true
+			relation_cast[b] = true
+			assert(not str(relation["origin"]).strip_edges().is_empty() and not str(relation["label"]).strip_edges().is_empty() \
+				and str(relation["text"]).strip_edges().length() >= 40, "关系分类、标签或正文不完整：" + id)
+			if str(relation["origin"]) == "入卷后相识" and form_adjacency.has(a) and form_adjacency.has(b):
+				form_adjacency[a].append(b)
+				form_adjacency[b].append(a)
+		for actor in EXPECTED_STORY_ACTORS:
+			assert(relation_cast.has(actor), "统一关系表未覆盖正式角色：" + actor)
+		for e in story_entries:
+			for relation_id in e["relation_ids"]:
+				assert(relation_by_id.has(str(relation_id)), "章节引用了不存在的关系：%s / %s" % [str(e["id"]), str(relation_id)])
+
+		# 六化身相识图必须连通，五条关键相识链按 1～5 递增。
+		var reached := {"c021": true}
+		var queue: Array = ["c021"]
+		var queue_index := 0
+		while queue_index < queue.size():
+			var current := str(queue[queue_index])
+			queue_index += 1
+			for next in form_adjacency[current]:
+				if not reached.has(next):
+					reached[next] = true
+					queue.append(next)
+		for id in form_adjacency:
+			assert(reached.has(id), "六化身入卷相识图不连通：" + id)
+		for chain in EXPECTED_FORM_CHAIN:
+			var edge := _story_edge_key(str(chain[0]), str(chain[1]))
+			assert(relation_by_edge.has(edge), "缺少关键入卷相识链：" + edge)
+			var relation: Dictionary = relation_by_edge[edge]
+			assert(str(relation["origin"]) == "入卷后相识" and int(relation["order"]) == int(chain[2]), "关键相识链分类或顺序错误：" + edge)
+		assert(str(relation_by_id["r_c021_c018"]["origin"]) == "旧世确有关系" and int(relation_by_id["r_c021_c018"]["order"]) < 0, "冷红绫与双镰必须锚定为旧世同班")
+		assert(str(relation_by_id["r_z003_c009"]["origin"]) == "旧世确有关系" and int(relation_by_id["r_z003_c009"]["order"]) < 0, "将去未还与墨霆必须锚定为旧世识技")
+		assert((story_by_id["form_c021"]["canon_refs"] as Array).has("lore:c018") and (story_by_id["elite_c018"]["canon_refs"] as Array).has("lore:c021"), "戏班旧缘必须同时锚定双方真实小传")
+		assert((story_by_id["form_z003"]["canon_refs"] as Array).has("lore:c009") and (story_by_id["boss_c009"]["canon_refs"] as Array).has("lore:z003"), "修伞旧缘必须同时锚定双方真实小传")
+		var story_unlocked_ok := true
+		var story_catalog: Array = codex._entries()
+		assert(story_catalog.size() == 27 and codex._story_buttons.size() == 27, "故事目录必须为 26 章正史与 1 项卷外残页")
+		for e in story_catalog:
+			if str(e["id"]) == "developer_afterword":
+				assert(bool(e["locked"]) and str(e["label"]) == "卷外残页", "未集齐时卷外残页必须锁定且不泄露正式标题")
+			else:
+				story_unlocked_ok = story_unlocked_ok and not bool(e["locked"])
+		assert(story_unlocked_ok, "二十六章残卷正史必须全部开放")
+		assert(codex._story_list.get_v_scroll_bar().max_value > codex._story_list.get_v_scroll_bar().page, "26 章正史与卷外残页目录必须可纵向滚动")
+		p("故事集 26 章 / 17 角色 / %d 关系、正史引用与相识连通性校验通过" % story_relations.size())
+		await _shot("07_story_world")
+
+		# 逐项触发真实按钮 pressed；每次重建后核对全部小节、自然段、人物与本章关系。
+		var story_ui_ok := true
+		var longest_story := ""
+		var longest_story_length := -1
+		for i in story_entries.size():
+			var e: Dictionary = story_entries[i]
+			var id := str(e["id"])
+			var button: TextureButton = codex._story_buttons[i]
+			assert(str(button.get_meta("story_id", "")) == id, "故事按钮顺序必须与目录一致：" + id)
+			var full_length: int = codex._story_detail_text(e).length()
+			if full_length > longest_story_length:
+				longest_story_length = full_length
+				longest_story = id
+			button.pressed.emit()
+			await get_tree().process_frame
+			await get_tree().process_frame
+			if not is_instance_valid(codex._story_detail):
+				story_ui_ok = false
+				p("故事详情未重建：" + id)
+				continue
+			var detail_text: String = codex._story_detail.get_parsed_text()
+			var item_ok: bool = codex._sel == id and detail_text.contains(str(e["title"])) and detail_text.contains(str(e["subtitle"])) \
+				and detail_text.contains(str(e["summary"]))
+			for section in e["sections"]:
+				item_ok = item_ok and detail_text.contains(str(section["title"]))
+				for paragraph in section["paragraphs"]:
+					item_ok = item_ok and detail_text.contains(str(paragraph))
+			for actor in e["cast"]:
+				item_ok = item_ok and detail_text.contains(StoryCodex.actor_name(str(actor)))
+			var expected_details: Array = story_relations if id == "relation_overview" else []
+			if id != "relation_overview":
+				for relation_id in e["relation_ids"]:
+					expected_details.append(relation_by_id[str(relation_id)])
+			for relation in expected_details:
+				item_ok = item_ok and detail_text.contains(str(relation["origin"])) and detail_text.contains(str(relation["label"])) \
+					and detail_text.contains(str(relation["text"]))
+			item_ok = item_ok and codex._preview == null and codex._medal_fx == null and codex._portrait == null and codex._acts.is_empty()
+			item_ok = item_ok and not detail_text.contains("canon_refs") and not detail_text.contains("res://")
+			if not item_ok:
+				story_ui_ok = false
+				p("故事 UI 条目缺漏：" + id)
+			if id == "form_covenant":
+				await _shot("07a_story_covenant")
+			elif id == "relation_overview":
+				await _shot("07b_story_relations")
+		assert(story_ui_ok, "26 章故事必须逐项可选且完整显示全部正文与关联记载")
+		p("故事页全章节真实按钮遍历与正文覆盖=%s（期望 true / 26 章）" % story_ui_ok)
+
+		# 目录真实滚离顶部后选择另一章，重建不能跳回顶部。
+		codex._select("world_ink")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		codex._story_list.scroll_vertical = 900
+		await get_tree().process_frame
+		var story_scroll_before: int = codex._story_list.scroll_vertical
+		assert(story_scroll_before > 0, "故事目录必须能实际滚离顶部")
+		var second_story: TextureButton = codex._story_buttons[1]
+		second_story.pressed.emit()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var story_scroll_after: int = codex._story_list.scroll_vertical
+		assert(story_scroll_after == story_scroll_before, "故事选择重建后必须保持目录滚动位置")
+		p("故事目录滚动保持 %d -> %d（期望相等且 >0）" % [story_scroll_before, story_scroll_after])
+
+		codex._select(longest_story)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var story_detail_scroll: VScrollBar = codex._story_detail.get_v_scroll_bar()
+		assert(story_detail_scroll.max_value > story_detail_scroll.page, "最长故事详情必须提供真实纵向滚动")
+		story_detail_scroll.value = story_detail_scroll.max_value
+		await get_tree().process_frame
+		assert(story_detail_scroll.value > 0, "故事长详情必须能实际滚动到底部")
+		p("故事最长详情=%s 内容长度=%d 滚动值=%.1f（期望可滚动且 >0）" % [longest_story, longest_story_length, story_detail_scroll.value])
+		await _shot("07c_story_long_bottom")
+
+		# 卷外彩蛋：分别验证未集齐、只收录敌人、只解锁化身和全部完成，并恢复测试前存档。
+		var dev_seen: Dictionary = Meta.seen.duplicate(true)
+		var dev_purchases: Dictionary = Meta.purchases.duplicate(true)
+		var dev_kills: int = Meta.kills
+		var dev_clears: int = Meta.clears
+		var dev_ink: int = Meta.ink
+		var dev_persist: bool = Meta.persist
+		Meta.persist = false
+		var dev_entry: Dictionary = StoryCodex.developer_entry()
+		assert(str(dev_entry["id"]) == "developer_afterword" and str(dev_entry["volume"]) == "卷外 · 残页之外", "卷外手记必须使用独立彩蛋身份")
+		assert((dev_entry["cast"] as Array).is_empty() and (dev_entry["relation_ids"] as Array).is_empty() and (dev_entry["canon_refs"] as Array).is_empty(), "现实开发者手记不得混入正史人物、关系或引用")
+		var dev_paragraphs: Array = []
+		for dev_section in dev_entry["sections"]:
+			for dev_paragraph in dev_section["paragraphs"]:
+				dev_paragraphs.append(str(dev_paragraph))
+		assert(dev_paragraphs.size() == 7, "开发者原文必须完整保留七个自然段")
+
+		codex._select("developer_afterword")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var dev_locked_text: String = codex._story_detail.get_parsed_text()
+		var dev_progress: Dictionary = codex._collection_progress()
+		assert(not codex._developer_unlocked() and codex._sel == "developer_afterword", "初始缺两名敌人与四名化身时彩蛋必须锁定")
+		assert(dev_locked_text.contains("卷外残页") and dev_locked_text.contains("显影条件"), "锁定残页必须显示显影条件")
+		assert(dev_locked_text.contains("敌人 %d/%d · 化身 %d/%d" % [dev_progress["enemy"], dev_progress["enemy_total"], dev_progress["form"], dev_progress["form_total"]]), "锁定残页必须显示真实双进度")
+		for dev_paragraph in dev_paragraphs:
+			assert(not dev_locked_text.contains(str(dev_paragraph)), "未集齐时不得泄露开发者原文")
+		assert(codex._preview == null and codex._medal_fx == null and codex._portrait == null and codex._acts.is_empty(), "锁定彩蛋不得创建角色演示节点")
+		await _shot("07d_story_developer_locked")
+
+		Meta.kills = 0
+		Meta.clears = 0
+		Meta.purchases = {}
+		for dev_id in codex.ENEMY_ORDER + BossTypes.ROSTER:
+			Meta.add_enemy_kill(str(dev_id))
+		codex._refresh()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		assert(not codex._developer_unlocked() and codex._story_detail.get_parsed_text().contains("敌人 11/11"), "只收录全部敌人不能显影卷外手记")
+
+		Meta.seen = {}
+		Meta.kills = 999
+		Meta.clears = 99
+		codex._refresh()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		assert(not codex._developer_unlocked() and codex._story_detail.get_parsed_text().contains("敌人 0/11 · 化身 6/6"), "只解锁全部化身不能显影卷外手记")
+
+		for dev_id in codex.ENEMY_ORDER + BossTypes.ROSTER:
+			Meta.add_enemy_kill(str(dev_id))
+		codex._refresh()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var dev_unlocked_text: String = codex._story_detail.get_parsed_text()
+		assert(codex._developer_unlocked() and dev_unlocked_text.contains("墨外寄语") and dev_unlocked_text.contains("一封来自现实开发者的手记"), "双进度全部完成后必须显示正式卷外手记")
+		for dev_section in dev_entry["sections"]:
+			assert(dev_unlocked_text.contains(str(dev_section["title"])), "开发者手记缺少小节：" + str(dev_section["title"]))
+			for dev_paragraph in dev_section["paragraphs"]:
+				assert(dev_unlocked_text.contains(str(dev_paragraph)), "开发者手记缺少原文自然段")
+		assert(dev_unlocked_text.contains("我从小就喜欢电子游戏") and dev_unlocked_text.contains("无悔此生"), "开发者手记首尾原文必须真实显示")
+		assert(codex._preview == null and codex._medal_fx == null and codex._portrait == null and codex._acts.is_empty(), "已显影彩蛋仍不得创建角色演示节点")
+		await _shot("07e_story_developer_unlocked")
+		p("卷外残页双条件、七段原文与锁定防泄漏校验通过")
+
+		Meta.seen = dev_seen
+		Meta.purchases = dev_purchases
+		Meta.kills = dev_kills
+		Meta.clears = dev_clears
+		Meta.ink = dev_ink
+		Meta.persist = dev_persist
+		codex._refresh()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		assert(not codex._developer_unlocked(), "彩蛋测试结束后必须恢复原始收录与解锁状态")
+
+		# 状态页：主菜单中无 Player / Run 也必须收录全部战斗状态与人物词条。
 		await _click(Vector2(1162, 74))
 		await get_tree().create_timer(0.2).timeout
 		assert(codex._tab == codex.TAB_STATUS and codex._sel == "shield", "状态页真实页签点击必须选中首项")
 		assert(codex._preview == null and codex._medal_fx == null and codex._acts.is_empty(), "状态页不得创建角色 Spine、勋章或动作")
 		assert(is_instance_valid(codex._status_list) and is_instance_valid(codex._status_detail), "状态页必须创建滚动目录与详情")
+		assert(codex._status_scroll == 0 and codex._status_list.scroll_vertical == 0, "从故事页切入状态页时不得残留旧页滚动位置")
 		var status_entries: Array = StatusCodex.entries()
 		var status_ids: Array = []
 		var seen_status := {}
@@ -683,21 +1002,68 @@ func _ready() -> void:
 		assert(status_ids.size() == EXPECTED_STATUS_IDS.size(), "状态目录总数必须与独立预期双向一致")
 		assert(buff_count == 40 and debuff_count == 35, "状态目录必须为 40 增益 + 35 减益")
 		assert(status_shape_ok, "全部状态的结构、标题、摘要、规则、来源与运行时映射必须完整")
+
+		# 人物词条：独立 35 项基线、17 名角色双向覆盖、四组释义与指定纠错。
+		assert(EXPECTED_TAG_IDS.size() == 35, "人物词条独立预期必须固定为 35 项")
+		assert(StatusCodex.TAG_ACTOR_ORDER == EXPECTED_STORY_ACTORS, "词条角色顺序必须覆盖同一组 17 名正式角色")
+		var tag_entries: Array = StatusCodex.tag_entries()
+		var tag_ids: Array = []
+		var tag_groups := {"战斗定位": 0, "招式机制": 0, "来历与势力": 0, "收录等阶": 0}
+		var used_tags := {}
+		for actor in EXPECTED_STORY_ACTORS:
+			var actor_tags: Array = StatusCodex.tags_for(str(actor))
+			assert(actor_tags.size() >= 2 and actor_tags.size() <= 6, "每个角色必须保留 2～6 条主要特征：" + str(actor))
+			var actor_seen := {}
+			for tag in actor_tags:
+				var tag_name := str(tag)
+				assert(not actor_seen.has(tag_name), "同一角色标签不得重复：%s / %s" % [str(actor), tag_name])
+				assert(StatusCodex.TAG_INFO.has(tag_name), "角色标签缺少释义：%s / %s" % [str(actor), tag_name])
+				actor_seen[tag_name] = true
+				used_tags[tag_name] = true
+		assert(StatusCodex.TAGS.size() == EXPECTED_STORY_ACTORS.size(), "人物标签表不得遗漏或新增非正式角色")
+		for actor in StatusCodex.TAGS:
+			assert(expected_actor_set.has(str(actor)), "人物标签表出现非正式角色：" + str(actor))
+		for e in tag_entries:
+			var id := str(e["id"])
+			var tag_name := str(e["name"])
+			tag_ids.append(id)
+			assert(id == "tag_" + tag_name and str(e["kind"]) == "tag" and str(e["target"]) == "codex", "词条 ID、分类或适用对象不规范：" + id)
+			assert(tag_groups.has(str(e["group"])) and StatusCodex.tag_group(tag_name) == str(e["group"]), "词条分组不一致：" + id)
+			tag_groups[str(e["group"])] += 1
+			assert(not str(e["summary"]).strip_edges().is_empty() and (e["rules"] as Array).size() >= 2, "词条必须具有摘要与至少两条规则或边界：" + id)
+			assert((e["sources"] as Array).is_empty() and e["runtime_ids"] == ["TAGS"], "人物词条不得伪装成战斗状态来源：" + id)
+			var members: Array = e.get("member_ids", [])
+			assert(not members.is_empty(), "词条必须至少挂接一名正式角色：" + id)
+			for member in members:
+				assert(expected_actor_set.has(str(member)), "词条挂接了非正式角色：%s / %s" % [id, str(member)])
+				assert(StatusCodex.tags_for(str(member)).has(tag_name), "词条与角色标签挂载不一致：%s / %s" % [id, str(member)])
+		assert(tag_ids == EXPECTED_TAG_IDS, "35 个词条必须按独立预期双向一致且顺序稳定")
+		assert(tag_groups["战斗定位"] == 8 and tag_groups["招式机制"] == 15 and tag_groups["来历与势力"] == 8 and tag_groups["收录等阶"] == 4, "词条四组数量必须为 8 / 15 / 8 / 4")
+		assert(used_tags.size() == EXPECTED_TAG_IDS.size(), "所有词条释义都必须被正式角色实际使用")
+		for tag_name in StatusCodex.TAG_INFO:
+			assert(used_tags.has(str(tag_name)), "存在未使用的词条释义：" + str(tag_name))
+		var assassin_tags: Array = StatusCodex.tags_for("c035")
+		assert(assassin_tags.has("减益") and not assassin_tags.has("流血") and not assassin_tags.has("妖异"), "刺客必须标为割伤类减益，不得误标流血或妖异")
+		assert(StatusCodex.tags_for("c008").has("控场") and not StatusCodex.tags_for("c008").has("控制"), "碎岳控场标签必须统一术语")
+		for hero_id in ["z000", "z002", "z003"]:
+			assert(StatusCodex.tags_for(str(hero_id)).has("觉醒"), "英雄化身必须标出觉醒：" + str(hero_id))
+		assert(StatusCodex.tags_for("z003").has("夺被动") and not StatusCodex.tags_for("z003").has("机动"), "影殇必须突出夺被动并精简次要机动标签")
+
 		var status_unlocked_ok := true
 		for e in codex._entries():
 			status_unlocked_ok = status_unlocked_ok and not bool(e["locked"])
 		assert(status_unlocked_ok, "全部状态必须默认解锁，不读取击杀或化身解锁")
-		assert(codex._status_buttons.size() == status_entries.size(), "状态按钮数必须等于目录总数")
-		assert(codex._status_list.get_v_scroll_bar().max_value > codex._status_list.get_v_scroll_bar().page, "75 项目录必须可纵向滚动")
-		p("状态目录 75 项双向完整=%s 结构=%s 增益/减益=%d/%d 全解锁=%s 按钮=%d（期望全 true / 40/35 / 75）" % [
-			str(status_ids.size() == EXPECTED_STATUS_IDS.size()), status_shape_ok, buff_count, debuff_count,
-			status_unlocked_ok, codex._status_buttons.size()])
+		assert(codex._status_buttons.size() == status_entries.size() + tag_entries.size(), "状态按钮数必须等于 75 项战斗状态与 35 项人物词条之和")
+		assert(codex._status_list.get_v_scroll_bar().max_value > codex._status_list.get_v_scroll_bar().page, "战斗状态与人物词条目录必须可纵向滚动")
+		p("状态目录 75 项 + 词条 35 项 结构=%s 增益/减益=%d/%d 全解锁=%s 按钮=%d（期望 true / 40/35 / true / 110）" % [
+			status_shape_ok, buff_count, debuff_count, status_unlocked_ok, codex._status_buttons.size()])
 		await _shot("07i_codex_status")
 
-		# 逐项触发真实按钮 pressed 信号；每次重建后核对标题、摘要、每条规则和每个来源。
+		# 逐项触发真实按钮 pressed 信号；每次重建后核对标题、摘要、规则、来源与挂接角色。
+		var status_ui_entries: Array = status_entries + tag_entries
 		var status_ui_ok := true
-		for i in status_entries.size():
-			var e: Dictionary = status_entries[i]
+		for i in status_ui_entries.size():
+			var e: Dictionary = status_ui_entries[i]
 			var id := str(e["id"])
 			var button: TextureButton = codex._status_buttons[i]
 			assert(str(button.get_meta("status_id", "")) == id, "状态按钮顺序必须与目录一致：" + id)
@@ -714,12 +1080,22 @@ func _ready() -> void:
 				item_ok = item_ok and detail_text.contains(str(rule))
 			for source in e["sources"]:
 				item_ok = item_ok and detail_text.contains(str(source))
+			for member_id in e.get("member_ids", []):
+				item_ok = item_ok and detail_text.contains(StoryCodex.actor_name(str(member_id)))
 			item_ok = item_ok and codex._preview == null and codex._medal_fx == null and codex._acts.is_empty()
 			if not item_ok:
 				status_ui_ok = false
 				p("状态 UI 条目缺漏：" + id)
-		assert(status_ui_ok, "75 项状态必须逐项可选且完整显示全部规则与来源")
-		p("状态页全条目真实按钮遍历与详情覆盖=%s（期望 true / 75 项）" % status_ui_ok)
+		assert(status_ui_ok, "75 项战斗状态与 35 项人物词条必须逐项可选且完整显示")
+		p("状态页全条目真实按钮遍历与详情覆盖=%s（期望 true / 110 项）" % status_ui_ok)
+
+		codex._select("tag_化身")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		codex._status_list.scroll_vertical = int(codex._status_list.get_v_scroll_bar().max_value)
+		await get_tree().process_frame
+		assert(codex._story_detail == null and codex._status_detail.get_parsed_text().contains("挂接角色"), "词条详情必须显示挂接角色且不串用故事控件")
+		await _shot("07h_codex_tags")
 
 		# 选择另一项会重建界面，左侧滚动位置不能跳回顶部。
 		codex._select("shield")
@@ -740,7 +1116,7 @@ func _ready() -> void:
 		# 自动挑选文字最多的一项，确认详情确实能滚动到底部。
 		var longest_status := ""
 		var longest_length := -1
-		for e in status_entries:
+		for e in status_ui_entries:
 			var text_length := str(e["summary"]).length()
 			for rule in e["rules"]:
 				text_length += str(rule).length()
@@ -948,6 +1324,70 @@ func _ready() -> void:
 	Settings.reset_binds()
 	p("ALL DONE")
 	get_tree().quit()
+
+
+func _story_edge_key(a: String, b: String) -> String:
+	var ends := [a, b]
+	ends.sort()
+	return "%s/%s" % [str(ends[0]), str(ends[1])]
+
+
+func _assert_story_canon_ref(codex: Node, ref: String) -> void:
+	var parts := ref.split(":")
+	assert(parts.size() >= 2, "正史引用格式错误：" + ref)
+	match parts[0]:
+		"lore":
+			assert(parts.size() == 2 and codex.LORE.has(parts[1]), "正史小传引用无法解析：" + ref)
+			assert(not str(codex.LORE[parts[1]]).strip_edges().is_empty(), "正史小传引用为空：" + ref)
+		"attack", "skill", "passive":
+			assert(parts.size() == 3, "招式 / 被动正史引用格式错误：" + ref)
+			var table: Dictionary = {}
+			match parts[0]:
+				"attack": table = codex.FORM_ATTACK_TEXT
+				"skill": table = codex.FORM_SKILL_TEXT
+				"passive": table = codex.FORM_PASSIVES
+			assert(table.has(parts[1]), "招式 / 被动正史角色不存在：" + ref)
+			var rows: Array = table[parts[1]]
+			var index := parts[2].to_int()
+			assert(index >= 0 and index < rows.size(), "招式 / 被动正史序号越界：" + ref)
+		"boss_scene":
+			assert(parts.size() == 2 and Room01.BOSS_BG.has(parts[1]), "Boss 折景引用无法解析：" + ref)
+			var cfg: Dictionary = Room01.BOSS_BG[parts[1]]
+			assert(ResourceLoader.exists(str(cfg["tex"])), "Boss 折景资源不存在：" + ref)
+		"route":
+			assert(parts.size() == 2, "路线正史引用格式错误：" + ref)
+			match parts[1]:
+				"three_gates":
+					assert(Run.ROOMS.size() == 3, "残卷山谷必须保留三关")
+					var labels := ["外院", "中庭", "墨堂"]
+					for i in labels.size():
+						assert(str(Run.ROOMS[i]["label"]).contains(labels[i]), "三关顺序或名称改变")
+				"boss_room":
+					assert(str(Run.BOSS_ROOM["label"]).contains("墨堂深处"), "三关之后必须进入墨堂深处")
+				"double_boss":
+					assert(str(Run.DIFFICULTIES.back()["label"]) == "无归" and str(Run.DIFFICULTIES.back()["desc"]).contains("双雄"), "无归必须保留双 Boss 连战")
+				"endless":
+					assert(Run.MODE_ENDLESS == "endless" and Run.ROOMS.size() == 3, "无尽必须保留逐层三小关结构")
+				_:
+					assert(false, "未知路线正史引用：" + ref)
+		"roster":
+			assert(parts.size() == 2, "名册正史引用格式错误：" + ref)
+			match parts[1]:
+				"forms":
+					assert(Skulls.ids().size() == 6, "正式化身必须为六名")
+					for id in ["c021", "c013", "c023", "z000", "z002", "z003"]:
+						assert(Skulls.ids().has(id), "化名名册缺少：" + id)
+				"enemies":
+					for id in ["c016", "c017", "c035", "c018", "c012", "c037"]:
+						assert(EnemyTypes.TYPES.has(id), "普通 / 精英名册缺少：" + id)
+				"bosses":
+					assert(BossTypes.ROSTER.size() == 5, "正式 Boss 必须为五名")
+					for id in ["c009", "c015a1", "c001", "c008", "c032"]:
+						assert(BossTypes.BOSSES.has(id), "Boss 名册缺少：" + id)
+				_:
+					assert(false, "未知名册正史引用：" + ref)
+		_:
+			assert(false, "未知正史引用类型：" + ref)
 
 
 func _assert_spine_animation(fx: Node2D, expected: String) -> void:

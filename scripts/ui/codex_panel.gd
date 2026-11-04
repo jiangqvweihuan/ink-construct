@@ -1,7 +1,7 @@
 extends CanvasLayer
 
 ## 图鉴 · 主菜单入口。
-## 左栏收录列表（敌人 / 化身两页），右栏：上面是动画演示台 + 技能解析面板，右下是角色简介（可滚动）。
+## 敌人 / 化身页使用角色卡与演示台；状态 / 故事页使用静态目录与长文详情。
 ## 交互一律点击：默认播待机动画；点下方招式 / 技能 / 动作按钮，演示台播该动作并把
 ## 来历 / 机制 / 数值 / 冷却写进解析面板；一条技能带多个变式（pool）时用 ↑ / ↓ 手动切换。
 ## 每个角色按词条分类；只有具备正式资料的被动才显示入口。
@@ -13,6 +13,7 @@ const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
 const SpinePoseMixer = preload("res://scripts/systems/spine_pose_mixer.gd")
 const BossTypes = preload("res://scripts/enemies/boss_types.gd")
 const StatusCodex = preload("res://scripts/ui/status_codex.gd")
+const StoryCodex = preload("res://scripts/ui/story_codex.gd")
 const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
@@ -26,6 +27,7 @@ const GOLD := Color(0.9, 0.75, 0.3) # 英雄级主角的金标
 const TAB_ENEMY := 0
 const TAB_FORM := 1
 const TAB_STATUS := 2
+const TAB_STORY := 3
 
 ## 敌人收录顺序：杂兵 → 精英 → Boss（Boss 追加在末尾，顺序按 boss_types.ROSTER）
 const ENEMY_ORDER := ["c016", "c017", "c035", "c018", "c012", "c037"]
@@ -142,37 +144,12 @@ const ACT_LABEL := {
 	"dash": "闪避", "air": "滞空", "hurt": "受击", "dead": "倒地",
 }
 
-## 词条体系：四组（战斗定位 / 机制 / 出身 / 稀有度），一个人物可挂多条
-const TAG_COLORS := {
-	"近战": "#e8dfc4", "远程": "#e8dfc4", "机动": "#e8dfc4", "站桩": "#e8dfc4",
-	"控场": "#e8dfc4", "爆发": "#e8dfc4",
-	"霸体": "#c89440", "反击": "#c89440", "回血": "#c89440", "击飞": "#c89440",
-	"定身": "#c89440", "晕眩": "#c89440", "流血": "#c89440", "中毒": "#c89440",
-	"时停": "#c89440", "召唤": "#c89440",
-	"墨堂": "#5d8a93", "山野": "#5d8a93", "戏班": "#5d8a93", "僧门": "#5d8a93",
-	"剑门": "#5d8a93", "妖异": "#5d8a93",
-	"杂兵": "#a8332a", "精英": "#a8332a", "首领": "#a8332a", "化身": "#a8332a",
-}
-
-## 人物词条：键 = 形态 / 敌人 id，值 = 词条数组（2~5 条）
-const TAGS := {
-	"c016": ["近战", "爆发", "回血", "山野", "杂兵"],
-	"z002": ["远程", "琵琶", "减益", "宫廷", "化身"],
-	"c017": ["近战", "霸体", "山野", "杂兵"],
-	"c035": ["近战", "机动", "流血", "妖异", "杂兵"],
-	"c037": ["近战", "连段", "流血", "妖异", "精英"],
-	"c018": ["近战", "机动", "流血", "戏班", "精英"],
-	"c012": ["近战", "机动", "分身", "剑门", "精英"],
-	"c009": ["近战", "远程", "击飞", "墨堂", "首领"],
-	"c015a1": ["近战", "控场", "怒焰", "觉醒", "首领"],
-	"c001": ["冲锋", "召唤", "耐久", "墨堂", "首领"],
-	"c008": ["近战", "控制", "夺被动", "邪佛", "首领"],
-	"c032": ["近战", "机动", "定身", "觉醒", "首领"],
-	"c021": ["近战", "机动", "流血", "戏班", "化身"],
-	"c013": ["近战", "站桩", "霸体", "僧门", "化身"],
-	"c023": ["近战", "控场", "中毒", "剑门", "化身"],
-	"z000": ["近战", "连段", "机动", "剑门", "化身"],
-	"z003": ["近战", "机动", "时停", "剑门", "化身"],
+## 词条颜色只按统一分组决定；人物与释义数据由 StatusCodex 单独维护。
+const TAG_GROUP_COLORS := {
+	"战斗定位": "#e8dfc4",
+	"招式机制": "#c89440",
+	"来历与势力": "#5d8a93",
+	"收录等阶": "#a8332a",
 }
 
 ## 已正式定名的普通敌人招式资料；逻辑招式键与演示动画名可以不同。
@@ -489,6 +466,10 @@ var _status_list: ScrollContainer = null
 var _status_detail: RichTextLabel = null
 var _status_buttons: Array = []
 var _status_scroll := 0
+var _story_list: ScrollContainer = null
+var _story_detail: RichTextLabel = null
+var _story_buttons: Array = []
+var _story_scroll := 0
 
 var _acts: Array = [] # 当前角色的动作条目（{label, anims, kind, src}）
 var _act_btns: Array = [] # 动作按钮
@@ -526,6 +507,7 @@ func _build() -> void:
 	add_child(win)
 
 	_make_label("图  鉴", Vector2(70, 44), Vector2(320, 52), 40, PAPER)
+	_make_button("故 事 集", Vector2(636, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_STORY), _tab == TAB_STORY)
 	_make_button("敌 人", Vector2(788, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_ENEMY), _tab == TAB_ENEMY)
 	_make_button("化 身", Vector2(940, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_FORM), _tab == TAB_FORM)
 	_make_button("状 态", Vector2(1092, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_STATUS), _tab == TAB_STATUS)
@@ -540,13 +522,26 @@ func _build() -> void:
 
 	if _tab == TAB_STATUS:
 		var buff_count := 0
+		var debuff_count := 0
+		var tag_count := 0
 		for e in entries:
-			if str(e["kind"]) == "buff":
-				buff_count += 1
-		_make_label("全量收录 %d 项 ｜ 增益 %d ｜ 减益 %d ｜ 无需解锁" % [entries.size(), buff_count, entries.size() - buff_count],
+			match str(e["kind"]):
+				"buff":
+					buff_count += 1
+				"debuff":
+					debuff_count += 1
+				"tag":
+					tag_count += 1
+		_make_label("战斗状态 %d ｜ 增益 %d ｜ 减益 %d ｜ 人物词条 %d ｜ 全部开放" % [
+			buff_count + debuff_count, buff_count, debuff_count, tag_count],
 			Vector2(70, 104), Vector2(650, 26), 13, DIM)
 		_build_status_detail()
 		_build_status_list(entries)
+	elif _tab == TAB_STORY:
+		_make_label("四卷二十六章 ｜ 正史全部开放 ｜ 卷外手记%s" % ("已显影" if _developer_unlocked() else "未显影"),
+			Vector2(70, 104), Vector2(650, 26), 13, DIM)
+		_build_story_detail()
+		_build_story_list(entries)
 	else:
 		var got := 0
 		for e in entries:
@@ -585,6 +580,8 @@ func _build() -> void:
 func _refresh() -> void:
 	if is_instance_valid(_status_list):
 		_status_scroll = _status_list.scroll_vertical
+	if is_instance_valid(_story_list):
+		_story_scroll = _story_list.scroll_vertical
 	for c in get_children():
 		if c == _sfx:
 			continue
@@ -599,6 +596,9 @@ func _refresh() -> void:
 	_status_list = null
 	_status_detail = null
 	_status_buttons = []
+	_story_list = null
+	_story_detail = null
+	_story_buttons = []
 	_current_anim = ""
 	_acts = []
 	_act_btns = []
@@ -630,8 +630,12 @@ func _close() -> void:
 
 # ---------- 收录列表 ----------
 
-## 当前页的条目：角色页使用统一卡片结构；状态页额外保留完整静态资料。
+## 当前页的条目：角色页使用统一卡片结构；状态与故事页保留完整静态资料。
 func _entries() -> Array:
+	if _tab == TAB_STATUS:
+		return _status_catalog()
+	if _tab == TAB_STORY:
+		return _story_catalog()
 	var out: Array = []
 	if _tab == TAB_ENEMY:
 		for kind in ["杂兵", "精英"]:
@@ -659,13 +663,62 @@ func _entries() -> Array:
 			out.append({"id": id, "locked": not unlocked, "label": str(p["label"]),
 				"sub": str(p.get("name", "")) if unlocked else "未解锁",
 				"hero": bool(p.get("hero", false))})
+	return out
+
+
+func _status_catalog() -> Array:
+	var out: Array = []
+	for e in StatusCodex.entries() + StatusCodex.tag_entries():
+		var item: Dictionary = e.duplicate()
+		item["locked"] = false
+		item["label"] = str(e["name"])
+		item["sub"] = "%s · %s · %s" % [_status_kind_text(str(e["kind"])), str(e["group"]), _status_target_text(str(e["target"]))]
+		out.append(item)
+	return out
+
+
+func _collection_progress() -> Dictionary:
+	var progress := {"enemy": 0, "enemy_total": 0, "form": 0, "form_total": 0}
+	for id in ENEMY_ORDER + BossTypes.ROSTER:
+		progress["enemy_total"] += 1
+		if Meta.enemy_kills(id) > 0:
+			progress["enemy"] += 1
+	for id in Skulls.ids():
+		progress["form_total"] += 1
+		if Meta.is_unlocked(id):
+			progress["form"] += 1
+	return progress
+
+
+func _developer_unlocked() -> bool:
+	var progress := _collection_progress()
+	return progress["enemy"] == progress["enemy_total"] and progress["form"] == progress["form_total"]
+
+
+func _story_catalog() -> Array:
+	var out: Array = []
+	for e in StoryCodex.entries():
+		var item: Dictionary = e.duplicate()
+		item["locked"] = false
+		item["label"] = str(e["title"])
+		item["sub"] = str(e["subtitle"])
+		out.append(item)
+	if _developer_unlocked():
+		var developer: Dictionary = StoryCodex.developer_entry()
+		developer["locked"] = false
+		developer["label"] = str(developer["title"])
+		developer["sub"] = str(developer["subtitle"])
+		out.append(developer)
 	else:
-		for e in StatusCodex.entries():
-			var item: Dictionary = e.duplicate()
-			item["locked"] = false
-			item["label"] = str(e["name"])
-			item["sub"] = "%s · %s · %s" % [_status_kind_text(str(e["kind"])), str(e["group"]), _status_target_text(str(e["target"]))]
-			out.append(item)
+		var progress := _collection_progress()
+		var progress_text := "敌人 %d/%d · 化身 %d/%d" % [
+			progress["enemy"], progress["enemy_total"], progress["form"], progress["form_total"]]
+		out.append({
+			"id": "developer_afterword", "volume": "卷外 · 残页之外",
+			"title": "卷外残页", "subtitle": progress_text, "summary": "",
+			"sections": [], "cast": [], "relation_ids": [], "canon_refs": [],
+			"locked": true, "label": "卷外残页", "sub": progress_text,
+		})
 	return out
 
 
@@ -721,7 +774,14 @@ func _make_card(e: Dictionary, i: int, origin_y := CARD_Y, compact := false) -> 
 # ---------- 状态资料：全量静态目录，不进入角色模型与动作流程 ----------
 
 func _status_kind_text(kind: String) -> String:
-	return "增益" if kind == "buff" else "减益"
+	match kind:
+		"buff":
+			return "增益"
+		"debuff":
+			return "减益"
+		"tag":
+			return "词条"
+	return kind
 
 
 func _status_target_text(target: String) -> String:
@@ -732,6 +792,8 @@ func _status_target_text(target: String) -> String:
 			return "敌人"
 		"both":
 			return "玩家 / 敌人"
+		"codex":
+			return "敌人 / 化身"
 	return target
 
 
@@ -816,7 +878,7 @@ func _restore_status_scroll() -> void:
 
 func _build_status_detail() -> void:
 	var entry: Dictionary = {}
-	for e in StatusCodex.entries():
+	for e in _status_catalog():
 		if str(e["id"]) == _sel:
 			entry = e
 			break
@@ -842,8 +904,20 @@ func _build_status_detail() -> void:
 	text += "[color=#c89440]%s · %s · %s[/color]\n\n" % [
 		_status_kind_text(str(entry["kind"])), str(entry["group"]), _status_target_text(str(entry["target"]))]
 	text += "[font_size=18][color=#e8dfc4]%s[/color][/font_size]\n\n" % str(entry["summary"])
-	text += "[font_size=18][color=#a8332a]详细规则 · 数值 / 叠层 / 刷新 / 清除 / 例外[/color][/font_size]\n"
 	var rules: Array = entry["rules"]
+	if str(entry["kind"]) == "tag":
+		text += "[font_size=18][color=#a8332a]词条释义 · 特征 / 规则 / 边界[/color][/font_size]\n"
+		for i in rules.size():
+			text += "\n%d. %s" % [i + 1, str(rules[i])]
+		text += "\n\n[font_size=18][color=#a8332a]挂接角色[/color][/font_size]\n"
+		var names: Array = []
+		for member_id in entry.get("member_ids", []):
+			names.append(StoryCodex.actor_name(str(member_id)))
+		text += "\n" + "、".join(names)
+		text += "\n\n[color=#8a857a]人物词条是主要特征摘要，不是全部技能效果的穷举；精确规则以招式和战斗状态详情为准。[/color]"
+		_status_detail.text = text
+		return
+	text += "[font_size=18][color=#a8332a]详细规则 · 数值 / 叠层 / 刷新 / 清除 / 例外[/color][/font_size]\n"
 	for i in rules.size():
 		text += "\n%d. %s" % [i + 1, str(rules[i])]
 	text += "\n\n[font_size=18][color=#a8332a]真实来源[/color][/font_size]\n"
@@ -851,6 +925,161 @@ func _build_status_detail() -> void:
 		text += "\n· %s" % str(source)
 	text += "\n\n[color=#8a857a]全部条目无需击败、解锁或进入战斗即可查阅。[/color]"
 	_status_detail.text = text
+
+
+# ---------- 故事集：静态编年目录，不进入角色模型与动作流程 ----------
+
+func _build_story_list(entries: Array) -> void:
+	_story_list = ScrollContainer.new()
+	_story_list.name = "StoryList"
+	_story_list.position = Vector2(60, CARD_Y)
+	_story_list.size = Vector2(390, 426)
+	_story_list.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_story_list.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	_story_list.add_theme_stylebox_override("panel", _panel_style())
+	add_child(_story_list)
+
+	var rows := VBoxContainer.new()
+	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rows.add_theme_constant_override("separation", 5)
+	_story_list.add_child(rows)
+
+	var volume := ""
+	for e in entries:
+		var id := str(e["id"])
+		if str(e["volume"]) != volume:
+			volume = str(e["volume"])
+			var heading := Label.new()
+			heading.text = "— %s —" % volume
+			heading.custom_minimum_size = Vector2(0, 30)
+			heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			heading.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			heading.add_theme_color_override("font_color", RED)
+			heading.add_theme_font_size_override("font_size", 15)
+			heading.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			rows.add_child(heading)
+
+		var button := TextureButton.new()
+		button.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
+		button.texture_hover = InkTex.load("res://art/ui/menu/btn_clicked.png")
+		button.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
+		button.ignore_texture_size = true
+		button.stretch_mode = TextureButton.STRETCH_SCALE
+		button.custom_minimum_size = Vector2(348, 62)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if bool(e["locked"]):
+			button.modulate = Color(1, 1, 1, 0.55)
+		button.set_meta("story_id", id)
+		button.pressed.connect(_select.bind(id))
+		rows.add_child(button)
+		_story_buttons.append(button)
+
+		if id == _sel:
+			var bar := ColorRect.new()
+			bar.color = RED
+			bar.size = Vector2(4, 62)
+			bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			button.add_child(bar)
+
+		var title := Label.new()
+		title.text = str(e["label"])
+		title.position = Vector2(12, 4)
+		title.size = Vector2(324, 25)
+		title.add_theme_color_override("font_color", PAPER)
+		title.add_theme_font_size_override("font_size", 16)
+		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(title)
+
+		var sub := Label.new()
+		sub.text = str(e["sub"])
+		sub.position = Vector2(12, 33)
+		sub.size = Vector2(324, 22)
+		sub.add_theme_color_override("font_color", DIM)
+		sub.add_theme_font_size_override("font_size", 11)
+		sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		button.add_child(sub)
+
+	_story_list.scroll_vertical = _story_scroll
+	call_deferred("_restore_story_scroll")
+
+
+func _restore_story_scroll() -> void:
+	if is_instance_valid(_story_list):
+		_story_list.scroll_vertical = _story_scroll
+
+
+func _build_story_detail() -> void:
+	var entry: Dictionary = {}
+	for e in _story_catalog():
+		if str(e["id"]) == _sel:
+			entry = e
+			break
+
+	_story_detail = RichTextLabel.new()
+	_story_detail.name = "StoryDetail"
+	_story_detail.bbcode_enabled = true
+	_story_detail.position = Vector2(470, 130)
+	_story_detail.size = Vector2(740, 432)
+	_story_detail.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	_story_detail.scroll_active = true
+	_story_detail.selection_enabled = true
+	_story_detail.add_theme_stylebox_override("normal", _panel_style())
+	_story_detail.add_theme_color_override("default_color", DIM)
+	_story_detail.add_theme_font_size_override("normal_font_size", 16)
+	_story_detail.add_theme_constant_override("line_separation", 5)
+	_story_detail.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_story_detail)
+	if not entry.is_empty():
+		_story_detail.text = _story_detail_text(entry)
+
+
+func _story_detail_text(entry: Dictionary) -> String:
+	var text := "[font_size=30][color=#f2e9d8]%s[/color][/font_size]\n" % str(entry["title"])
+	text += "[color=#c89440]%s ｜ %s[/color]\n\n" % [str(entry["volume"]), str(entry["subtitle"])]
+	if bool(entry.get("locked", false)):
+		text += "[font_size=18][color=#e8dfc4]页缘还留着一处空白，要等所有同行者与敌手都在图鉴中显名。[/color][/font_size]\n"
+		text += "\n[font_size=20][color=#a8332a]显影条件[/color][/font_size]\n"
+		text += "\n收录全部普通敌人、精英与 Boss，并解锁全部六名化身。\n"
+		text += "敌人须至少击败一次；化身须满足各自解锁条件或完成买断。两项进度须同时集齐。\n"
+		text += "\n[color=#8a857a]这页卷外手记来自现实开发者，不属于残卷正史；显影不会改变任何战斗或关卡规则。[/color]"
+		return text
+	text += "[font_size=18][color=#e8dfc4]%s[/color][/font_size]\n" % str(entry["summary"])
+	for section in entry["sections"]:
+		text += "\n[font_size=20][color=#a8332a]%s[/color][/font_size]\n" % str(section["title"])
+		for paragraph in section["paragraphs"]:
+			text += "\n%s\n" % str(paragraph)
+
+	var cast: Array = entry["cast"]
+	if not cast.is_empty():
+		text += "\n[font_size=18][color=#a8332a]出场人物[/color][/font_size]\n"
+		var names: Array = []
+		for id in cast:
+			names.append(_story_actor_name(str(id)))
+		text += "、".join(names) + "\n"
+
+	var chapter_relations: Array = []
+	if str(entry["id"]) == "relation_overview":
+		chapter_relations = StoryCodex.relations()
+	else:
+		for relation in StoryCodex.relations():
+			if (entry["relation_ids"] as Array).has(str(relation["id"])):
+				chapter_relations.append(relation)
+	if not chapter_relations.is_empty():
+		text += "\n[font_size=18][color=#a8332a]关联记载[/color][/font_size]\n"
+		for relation in chapter_relations:
+			text += "\n[color=#c89440]%s · %s ｜ %s · %s[/color]\n%s\n" % [
+				_story_actor_name(str(relation["a"])), _story_actor_name(str(relation["b"])),
+				str(relation["origin"]), str(relation["label"]), str(relation["text"])]
+	if str(entry["id"]) == "developer_afterword":
+		text += "\n[color=#8a857a]卷外手记保留现实开发者原文，不属于残卷正史，也不参与人物关系与共同年表。[/color]"
+	else:
+		text += "\n[color=#8a857a]故事集为公开残卷资料，不改变化身解锁与关卡流程。[/color]"
+	return text
+
+
+func _story_actor_name(id: String) -> String:
+	return StoryCodex.actor_name(id)
 
 
 # ---------- 右侧角色详情 ----------
@@ -933,7 +1162,7 @@ func _build_detail() -> void:
 		var parts: Array = []
 		for t in tags:
 			var nm := str(t)
-			parts.append("[color=%s]· %s[/color]" % [str(TAG_COLORS.get(nm, "#e8dfc4")), nm])
+			parts.append("[color=%s]· %s[/color]" % [str(TAG_GROUP_COLORS.get(StatusCodex.tag_group(nm), "#e8dfc4")), nm])
 		tag_rt.text = "  ".join(parts)
 	add_child(tag_rt)
 
@@ -997,7 +1226,7 @@ func _model(id: String) -> Dictionary:
 			"id": id, "locked": false, "title": str(t["label"]),
 			"sub": "%s · 生命 %d" % [_enemy_kind(t, is_boss), int(t.get("hp", 0))],
 			"stat": "已击败 %d 次" % times,
-			"tags": (TAGS.get(id, []) as Array).duplicate(),
+			"tags": StatusCodex.tags_for(id),
 			"lore": str(LORE.get(id, "")),
 			"data": str(t["data"]),
 			"portrait": str(t.get("portrait", "")),
@@ -1016,7 +1245,7 @@ func _model(id: String) -> Dictionary:
 		"id": id, "locked": false, "title": str(p["label"]),
 		"sub": "化身 · %s" % str(p.get("name", "")),
 		"stat": "契合 " + Meta.mastery_text(id),
-		"tags": (TAGS.get(id, []) as Array).duplicate(),
+		"tags": StatusCodex.tags_for(id),
 		"lore": str(LORE.get(id, "")),
 		"data": str(p["data"]),
 		"portrait": str(p.get("portrait", "")),
@@ -1622,6 +1851,13 @@ func _switch_tab(tab: int) -> void:
 		return
 	_tab = tab
 	_sel = ""
+	# 先清空旧控件的真实滚动值，避免 _refresh 又把旧页位置捕获回来。
+	if is_instance_valid(_status_list):
+		_status_list.scroll_vertical = 0
+	if is_instance_valid(_story_list):
+		_story_list.scroll_vertical = 0
+	_status_scroll = 0
+	_story_scroll = 0
 	_show_portrait = true
 	_click_sfx()
 	call_deferred("_refresh")
