@@ -321,11 +321,11 @@ const SKULLS := {
 		"hurt_tiers": {"heavy": 999, "knockdown": 4},
 		"knock_chain": ["atked", "atked_fall_end-", "atked_fall_end", "getup"],
 		"attacks": [
-			{"anim": "atk01", "lock": 0.433, "hits": [{"at": 0.24, "damage": 1, "range": 105.0}], "lunge": 70.0},
-			{"anim": "atk02", "lock": 0.467, "hits": [{"at": 0.25, "damage": 2, "range": 115.0}], "lunge": 75.0},
-			{"anim": "atk03", "lock": 0.300, "hits": [{"at": 0.16, "damage": 2, "range": 120.0}], "lunge": 80.0},
-			{"anim": "atk04", "lock": 1.200, "damage": 3, "lunge": 0.0,
-				"hits": [{"at": 0.82, "damage": 3, "projectile": {"speed": 600.0, "range": 430.0, "style": "magic_sound", "frenzy": 12.0}}]},
+			{"anim": "atk01", "lock": 0.433, "hits": [{"at": 0.24, "damage": 1, "range": 105.0}], "lunge": 70.0, "cast_sfx": ""},
+			{"anim": "atk02", "lock": 0.467, "hits": [{"at": 0.25, "damage": 2, "range": 115.0}], "lunge": 75.0, "cast_sfx": ""},
+			{"anim": "atk03", "lock": 0.300, "hits": [{"at": 0.16, "damage": 2, "range": 120.0}], "lunge": 80.0, "cast_sfx": ""},
+			{"anim": "atk04", "lock": 1.200, "damage": 3, "lunge": 0.0, "cast_sfx": "",
+				"hits": [{"at": 0.82, "damage": 3, "projectile": {"speed": 600.0, "range": 430.0, "style": "magic_sound", "frenzy": 12.0, "projectile_sfx": "pipa_basic_wave"}}]},
 		],
 		"skills": {
 			# K 踏弦：67 / 95 随机。跟随素材根位移，只位移、无伤害，全程无敌并穿身。
@@ -343,20 +343,21 @@ const SKULLS := {
 					"hits": [{"at": 5.35, "damage": 1, "full_screen": true, "height": 9999.0, "frenzy": 12.0, "frenzy_empower": true, "sfx": "skill_boom"}]}},
 			# I 红尘劫：霸体而非无敌；曲终恢复已损生命一半并进入 8 秒觉醒。
 			"skill07_02": {"action": "skill_i", "cooldown": 24.0, "poise": true, "awaken_time": 8.0, "hits": [], "cast_sfx": "pipa_mortal_tribulation"},
-			# O 八音断识：八段独立递减，每觉醒仅一次；六感尽失在命中时逐段结算。
-			"skill10_03": {"action": "skill_o", "cooldown": 1.0, "poise": true, "require_buff": true, "once_per_awaken": true, "loop_sfx": "pipa_eight_tones",
+			# O 八音断识：八个演奏节点各发一颗火弹；伤害递减与六感只在真实碰撞后结算。
+			"skill10_03": {"action": "skill_o", "cooldown": 1.0, "poise": true, "require_buff": true, "once_per_awaken": true,
+				"cast_sfx": "", "projectile_sfx": "pipa_eight_tones",
 				"hits": [
-					{"at": 0.55, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
-					{"at": 0.95, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
-					{"at": 1.35, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
-					{"at": 1.75, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
-					{"at": 2.15, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
-					{"at": 2.55, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
-					{"at": 2.95, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true},
-					{"at": 3.65, "damage": 4, "range": 360.0, "height": 140.0, "pipa_wave": true, "sfx": "skill_boom"}]},
-			# P 心魔引：引爆全房状态，再把自身减益分赠所有存活目标。
+					{"at": 0.55, "damage": 4, "projectile": {"speed": 650.0, "range": 2000.0, "pierce": false, "scale": 0.75, "fx_scale": 0.35, "pipa_wave": true}},
+					{"at": 0.95, "damage": 4, "projectile": {"speed": 650.0, "range": 2000.0, "pierce": false, "scale": 0.75, "fx_scale": 0.35, "pipa_wave": true}},
+					{"at": 1.35, "damage": 4, "projectile": {"speed": 650.0, "range": 2000.0, "pierce": false, "scale": 0.75, "fx_scale": 0.35, "pipa_wave": true}},
+					{"at": 1.75, "damage": 4, "projectile": {"speed": 650.0, "range": 2000.0, "pierce": false, "scale": 0.75, "fx_scale": 0.35, "pipa_wave": true}},
+					{"at": 2.15, "damage": 4, "projectile": {"speed": 650.0, "range": 2000.0, "pierce": false, "scale": 0.75, "fx_scale": 0.35, "pipa_wave": true}},
+					{"at": 2.55, "damage": 4, "projectile": {"speed": 650.0, "range": 2000.0, "pierce": false, "scale": 0.75, "fx_scale": 0.35, "pipa_wave": true}},
+					{"at": 2.95, "damage": 4, "projectile": {"speed": 650.0, "range": 2000.0, "pierce": false, "scale": 0.75, "fx_scale": 0.35, "pipa_wave": true}},
+					{"at": 3.65, "damage": 4, "sfx": "skill_boom", "projectile": {"speed": 650.0, "range": 2000.0, "pierce": false, "scale": 0.75, "fx_scale": 0.35, "pipa_wave": true}}]},
+			# P 心魔引：第 100 号动画完整播放 5.333 秒；4.60 秒音效结束后再引爆全房状态。
 			"skill09": {"action": "skill_p", "cooldown": 22.0, "poise": true, "require_buff": true, "cast_sfx": "pipa_inner_demon",
-				"hits": [{"at": 0.92, "mind_detonate": true, "sfx": "skill_boom"}]},
+				"pool": ["skill16_02-"], "hits": [{"at": 4.60, "mind_detonate": true, "sfx": "skill_boom"}]},
 		},
 		"hud_skills": ["run-", "skill03", "skill13-", "skill07_02", "skill10_03", "skill09"],
 	},

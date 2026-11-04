@@ -161,6 +161,10 @@ func _test_profile_and_attacks() -> void:
 	_reset_world()
 	_check(_p.skull_id == "z002" and _p.attacks.size() == 4 \
 		and _p.hud_skills == ["run-", "skill03", "skill13-", "skill07_02", "skill10_03", "skill09"], "绛弦四段普攻与六技能栏配置完整")
+	var silent_attacks := true
+	for atk in _p.attacks:
+		silent_attacks = silent_attacks and str(atk.get("cast_sfx", "")).is_empty()
+	_check(silent_attacks, "苏挽音四段普攻均不再播放残留挥剑起手音")
 	var e = _enemy_at(100.0)
 	var expected := [1, 2, 2]
 	var before: int = e.hp
@@ -170,10 +174,14 @@ func _test_profile_and_attacks() -> void:
 		before -= int(expected[i])
 		_check(e.hp == before, "普攻第 %d 段造成 %d 伤" % [i + 1, int(expected[i])])
 	_p._start_attack(3)
-	_p._attack_tick(0.82)
+	_p._sfx_player.stop()
+	_p._attack_tick(0.81)
+	_check(_shots().is_empty() and not _p._sfx_player.playing, "普攻末段发射前不提前生成魔音或播放发射音")
+	_p._attack_tick(0.02)
 	var second = _enemy_at(150.0)
 	var shots := _shots()
 	_check(e.hp == before and shots.size() == 1, "普攻末段在 0.82 秒只发一道魔音而不直接近战结算")
+	_check(_p._sfx_player.playing and _p._sfx_player.stream == _p._sfx_cache["pipa_basic_wave"], "普攻末段发射魔音时播放新音波音效")
 	if shots.is_empty():
 		return
 	var pr = shots[0]
@@ -224,6 +232,7 @@ func _test_k() -> void:
 	var e = _enemy_at(160.0)
 	var cfg: Dictionary = _p.skill_config["run-"]
 	_check(cfg.get("pool", []) == ["run-", "skill13_02-cankao"] and cfg.get("hits", []).is_empty(), "K 在两段位移动画中随机且不配置伤害段")
+	_check(_p._pose_mixer != null, "K 位移复用山民同款完整姿势混合，避免缺 key 骨骼抽动")
 	for anim in ["run-", "skill13_02-cankao"]:
 		_p.skill_config["run-"]["pool"] = [anim]
 		_p.state = PlayerClass.State.IDLE
@@ -340,6 +349,7 @@ func _test_i() -> void:
 func _test_o() -> void:
 	_run_o_case(1, 8, "首次觉醒")
 	_run_o_case(2, 4, "第二次觉醒")
+	_test_o_collision_boundaries()
 
 
 func _run_o_case(awaken_count: int, expected_senses: int, label: String) -> void:
@@ -348,7 +358,7 @@ func _run_o_case(awaken_count: int, expected_senses: int, label: String) -> void
 	_p._awaken_time = 8.0
 	_p._pipa_awaken_count = awaken_count
 	_p._start_skill("skill10_03")
-	_check(_p._pipa_o_used and _p._skill_hits.size() == 8, "%s O 起手即占用名额并准备八段判定" % label)
+	_check(_p._pipa_o_used and _p._skill_hits.size() == 8 and _shots().is_empty(), "%s O 起手占用名额、准备八段且不提前发弹" % label)
 	var expected := [4, 3, 2, 1, 1, 1, 1, 1]
 	var elapsed := 0.0
 	for i in range(expected.size()):
@@ -356,10 +366,21 @@ func _run_o_case(awaken_count: int, expected_senses: int, label: String) -> void
 		var at := float(h["at"])
 		var delta := at - elapsed + 0.0001
 		var before: int = e.hp
+		_p._sfx_player.stop()
 		_p._skill_tick(delta)
 		elapsed += delta
+		var shots := _shots()
+		_check(shots.size() == 1 and int(e.hp) == before, "%s O 第 %d 段只发一颗弹，发射本身不扣血" % [label, i + 1])
+		_check(_p._sfx_player.playing and _p._sfx_player.stream == _p._sfx_cache["pipa_eight_tones"], "%s O 第 %d 段发射时播放一次八音" % [label, i + 1])
+		var shot = shots[0] if shots.size() == 1 else null
+		_check(shot != null and ["E53008", "E53009"].has(str(shot._effects.get("fx_id", ""))) \
+			and str(shot._effects.get("fx_anim", "")) == "action" and is_instance_valid(shot._spine_fx) \
+			and is_equal_approx(float(shot._effects.get("fx_scale", 0.0)), 0.35) and is_equal_approx(shot._size, 0.75) \
+			and not shot._pierce and is_equal_approx(shot._range, 2000.0), "%s O 第 %d 段使用随机双色小火弹、非穿透且射程覆盖房间" % [label, i + 1])
+		if shot != null:
+			shot._physics_process(0.02)
 		var actual: int = before - int(e.hp)
-		_check(actual == int(expected[i]), "%s O 第 %d 段伤害：期望 %d，实际 %d" % [label, i + 1, int(expected[i]), actual])
+		_check(actual == int(expected[i]), "%s O 第 %d 段碰撞伤害：期望 %d，实际 %d" % [label, i + 1, int(expected[i]), actual])
 	_check(e._six_senses == expected_senses, "%s O 六感层数为 %d" % [label, expected_senses])
 	_p.state = PlayerClass.State.IDLE
 	_p._skill_cds["skill10_03"] = 0.0
@@ -375,6 +396,37 @@ func _run_o_case(awaken_count: int, expected_senses: int, label: String) -> void
 	_check(_p._skill_cast_id == cast_id + 1, "新觉醒名额恢复后可再次释放 O")
 
 
+func _test_o_collision_boundaries() -> void:
+	_reset_world()
+	var first = _enemy_at(60.0, 200)
+	var second = _enemy_at(80.0, 200)
+	_p._awaken_time = 8.0
+	_p._pipa_awaken_count = 1
+	_p._start_skill("skill10_03")
+	_p._skill_tick(0.5501)
+	var shots := _shots()
+	if not shots.is_empty():
+		shots[0]._physics_process(0.02)
+		_check(first.hp == 196 and second.hp == 200 and first._six_senses == 1 and second._six_senses == 0 \
+			and shots[0].is_queued_for_deletion(), "O 火弹只伤害并减益首个碰撞目标，随后销毁")
+	else:
+		_check(false, "O 非穿透测试需要首段火弹")
+
+	_reset_world()
+	var missed = _enemy_at(-100.0, 100)
+	_p._awaken_time = 8.0
+	_p._pipa_awaken_count = 1
+	_p._start_skill("skill10_03")
+	_p._skill_tick(0.5501)
+	shots = _shots()
+	if not shots.is_empty():
+		shots[0]._physics_process(3.2)
+		_check(missed.hp == 100 and missed._six_senses == 0 and _p._pipa_wave_hits.is_empty() \
+			and shots[0].is_queued_for_deletion(), "O 火弹未命中则耗程自毁，不造成伤害或六感")
+	else:
+		_check(false, "O 未命中测试需要首段火弹")
+
+
 func _test_p() -> void:
 	_reset_world()
 	var e = _enemy_at(400.0, 100)
@@ -388,12 +440,23 @@ func _test_p() -> void:
 	_p._awaken_time = 8.0
 	_check(e.mind_status_count() == 9, "心魔引按层数与每 2 秒一层统计全部状态")
 	_p._start_skill("skill09")
+	var hit_at := float(_p.skill_config["skill09"]["hits"][0]["at"])
+	var voice = _p._sfx_cache["pipa_inner_demon"] as AudioStream
+	_check(_p._skill_anim == "skill16_02-" and is_equal_approx(_p._skill_dur, 5.333333) \
+		and voice != null and hit_at > voice.get_length(), "P 使用第 100 号完整动画，伤害帧晚于心魔引音效")
 	_check(_p._skill_poise and is_equal_approx(float(_p._skill_cds["skill09"]), 22.0), "P 具有霸体且冷却 22 秒")
 	_p._skill_tick(0.9201)
-	_check(e.hp == 83, "P 以基础 8 伤加 9 层状态造成 17 伤")
+	_check(e.hp == 100 and e.mind_status_count() == 9, "P 不再于旧伤害帧提前引爆")
+	_p._skill_tick(4.55 - 0.9201)
+	_check(e.hp == 100 and e.mind_status_count() == 9, "P 音效结束前不造成伤害或清空状态")
+	_p._skill_tick(4.61 - 4.55)
+	_check(e.hp == 83, "P 音效结束后以基础 8 伤加 9 层状态造成 17 伤")
 	_check(e._grudge == 0 and e._six_senses == 0 and e._frenzy_time <= 0.0 and e._charm_time <= 0.0, "P 引爆后清空被计入的敌人状态")
 	_check(e._bleed_stacks == 2 and is_equal_approx(e._root_timer, 4.0), "P 将自身流血与致残分赠给引爆后存活目标")
 	_check(_p._bleed_stacks == 0 and _p._cripple_time <= 0.0, "P 转移后净化自身对应减益")
+	_check(_p.state == PlayerClass.State.SKILL and _p._skill_timer > 0.0, "P 伤害后继续播放第 100 号动画而不截断")
+	_p._skill_tick(_p._skill_timer + 0.001)
+	_check(_p.state != PlayerClass.State.SKILL, "P 完整动画结束后才收招")
 
 
 func _test_form_upgrades() -> void:
@@ -767,23 +830,24 @@ func _test_spine_fx() -> void:
 	_p._start_skill("skill07_02")
 	var cast_nodes := _direct_spine(_p, "E53174", "awaken_cast")
 	_check(cast_nodes.size() == 1 and str(cast_nodes[0].get_meta("fx_anim")) == "action" \
-		and not is_instance_valid(_p._awaken_spine), "苏挽音 I 起手仅生成 E53174，不提前生成觉醒环绕")
+		and cast_nodes[0].position.is_equal_approx(Vector2.ZERO) and not is_instance_valid(_p._awaken_spine),
+		"苏挽音 I 起手荷花在脚下地面生成，不提前生成觉醒环绕")
 	_p._skill_tick(_p._skill_timer + 0.001)
 	var awaken = _p._awaken_spine
 	_check(is_instance_valid(awaken) and str(awaken.get_meta("fx_id")) == "E100172" \
-		and str(awaken.get_meta("fx_anim")) == "action", "苏挽音 I 收招后生成 E100172 持续环绕")
+		and str(awaken.get_meta("fx_anim")) == "action" and awaken.position.is_equal_approx(Vector2(0.0, -64.0)) \
+		and bool(awaken._center), "苏挽音 I 收招后以胸口为中心生成 E100172 持续环绕")
 	_p._awaken_time = 0.0
 	_p._sync_persistent_spine()
 	_check(_p._awaken_spine == null and awaken.is_queued_for_deletion(), "苏挽音觉醒结束释放 E100172")
 
-	# O 只补视觉剑气，原八段战斗判定保持原样。
+	# O 不再于起手额外生成视觉弹，八颗真实弹及逐次发音由 _test_o 完整检查。
 	_reset_world()
 	_p._awaken_time = 8.0
 	_p._start_skill("skill10_03")
 	shots = _shots()
-	_check(shots.size() == 1 and ["E53008", "E53009"].has(str(shots[0]._effects.get("fx_id", ""))) \
-		and bool(shots[0]._effects.get("visual_only", false)) and shots[0]._damage == 0 \
-		and _p._skill_hits.size() == 8, "苏挽音 O 随机二选一生成视觉剑气且保留八段判定")
+	_check(shots.is_empty() and _p._skill_hits.size() == 8 and not _p._skill_loop_active,
+		"苏挽音 O 起手无视觉弹且不循环播放八音")
 
 	# 神伤以视口宽度拟合 6400 原始素材，视觉中心仍位于玩家上方。
 	_reset_world()

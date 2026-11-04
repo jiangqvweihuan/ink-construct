@@ -208,12 +208,15 @@ func _physics_process(delta: float) -> void:
 				hit_damage = int(_effects.get("later_damage", hit_damage))
 			_hits_done += 1
 			_spawn_hit_spine(p.global_position + Vector2(0.0, -60.0), _hits_done == 1)
-			if is_instance_valid(_source) and _source.has_method("_target_damage_bonus"):
-				hit_damage += int(_source.call("_target_damage_bonus", p))
-			if is_instance_valid(_source) and _source.has_method("_damage_enemy"):
-				_source.call("_damage_enemy", p, hit_damage)
+			if bool(_effects.get("pipa_wave", false)) and is_instance_valid(_source) and _source.has_method("on_pipa_wave_hit"):
+				_source.call("on_pipa_wave_hit", p, hit_damage)
 			else:
-				p.call("take_damage", hit_damage, global_position.x)
+				if is_instance_valid(_source) and _source.has_method("_target_damage_bonus"):
+					hit_damage += int(_source.call("_target_damage_bonus", p))
+				if is_instance_valid(_source) and _source.has_method("_damage_enemy"):
+					_source.call("_damage_enemy", p, hit_damage)
+				else:
+					p.call("take_damage", hit_damage, global_position.x)
 			# 命中计数与永久效果优先回报给实际来源；旧测试场景没有来源时保留原入口。
 			if is_instance_valid(_source) and _source.has_method("on_projectile_hit"):
 				_source.call("on_projectile_hit", p, _from_skill, _cast_id)

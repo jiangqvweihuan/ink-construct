@@ -10,6 +10,7 @@ const Skulls := preload("res://scripts/player/skulls.gd")
 const PROJECTILE := preload("res://scripts/systems/projectile.gd") # 远程形态的普攻/技能发投射物
 const FX := preload("res://scripts/systems/fx.gd") # 精灵条特效：斩击/化身光柱/受击墨花
 const SPINE_FX := preload("res://scripts/systems/spine_fx.gd")
+const SpinePoseMixer := preload("res://scripts/systems/spine_pose_mixer.gd")
 const Settings = preload("res://scripts/ui/settings.gd") # 改键后 HUD 键名要读 InputMap
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
@@ -53,6 +54,7 @@ const SFX_PRECACHE := [
 	"jiangqu_hibiscus_slash",
 	"pipa_eight_tones",
 	"pipa_inner_demon",
+	"pipa_basic_wave",
 	"pipa_mind_snare",
 	"pipa_taiyu",
 	"pipa_mortal_tribulation",
@@ -324,6 +326,11 @@ var _anim_state # SpineAnimationState
 var _root_bone # SpineBone：骨架根骨，root_motion 技能按它的位移驱动节点位移
 var _root_bone_base := 0.0 # 根骨出生 x：结算位移后必须把它拨回这里，否则后续动画会一直带着上一招的位移
 var _current_anim := "" # 防同名动画重放（floated 在跳跃顶点重放会抽搐）
+var _pose_mixer = null # 绛弦：沿用山民最终方案，同帧补齐缺 key 骨骼的视觉混合
+var _pending_anim := ""
+var _pending_loop := false
+var _pending_speed := 1.0
+var _pending_queue: Array = []
 var _sfx_player: AudioStreamPlayer
 var _sfx_cache: Dictionary = {}
 var _shield_spine: Node2D = null
@@ -774,7 +781,10 @@ func _setup_spine() -> void:
 	if data == null or not data.call("is_skeleton_data_loaded"):
 		push_error("Player: 骨架数据加载失败 " + data_path)
 		return
-	# 换头时先把旧骨架拆掉，避免两套骨架同时在场
+	# 换头时先把旧骨架与待切换轨道拆掉，避免两套骨架或旧动画同时在场
+	_pose_mixer = null
+	_pending_anim = ""
+	_pending_queue.clear()
 	if sprite != null and is_instance_valid(sprite):
 		sprite.queue_free()
 		sprite = null
@@ -782,9 +792,12 @@ func _setup_spine() -> void:
 	sprite = ClassDB.instantiate("SpineSprite")
 	add_child(sprite)
 	sprite.set("skeleton_data_res", data)
-	data.call("set_default_mix", 0.2) # 切换混合 0.1->0.2，收招/起步过渡更柔
+	# 绛弦沿用山民方案关闭原生混合，避免旧轨道销毁时把缺 key 骨骼瞬写回 setup pose。
+	data.call("set_default_mix", 0.0 if skull_id == "z002" else 0.2)
 	sprite.scale = Vector2(base_scale * facing, base_scale)
 	_anim_state = sprite.call("get_animation_state")
+	if skull_id == "z002":
+		_pose_mixer = SpinePoseMixer.new(sprite)
 	_root_bone = sprite.call("get_skeleton").call("get_root_bone") # root_motion 技能靠它读动画的位移量
 	_root_bone_base = float(_root_bone.call("get_x")) if _root_bone != null else 0.0
 	# 缓存技能动画真实时长，技能锁定必须按实际时长走（C016 的教训：手填时长收招会抽搐）
@@ -917,7 +930,8 @@ func _sync_persistent_spine() -> void:
 	if _awaken_time > 0.0 and not awaken_id.is_empty() and state != State.DEAD:
 		if not is_instance_valid(_awaken_spine) or _awaken_spine.is_queued_for_deletion():
 			_awaken_spine = _attach_spine_fx(awaken_id, Vector2(0.0, -64.0), "action", true,
-				{"scale": 0.75 if skull_id == "z000" else (1.0 if skull_id == "z002" else 0.25), "fx_role": "awaken"})
+				{"scale": 0.75 if skull_id == "z000" else (1.0 if skull_id == "z002" else 0.25),
+				"center": skull_id == "z002", "fx_role": "awaken"})
 	else:
 		_release_spine(_awaken_spine)
 		_awaken_spine = null
@@ -952,12 +966,8 @@ func _start_skill_spine(n: String) -> void:
 		_skill_spine = _attach_spine_fx("E54151", Vector2(0.0, -64.0), "action1", true,
 			{"scale": 0.35, "fx_role": "skill"})
 	elif skull_id == "z002" and n == "skill07_02":
-		_attach_spine_fx("E53174", Vector2(0.0, -64.0), "action", false,
+		_attach_spine_fx("E53174", Vector2.ZERO, "action", false,
 			{"scale": 0.5, "fx_role": "awaken_cast"})
-	elif skull_id == "z002" and n == "skill10_03":
-		var fx_id := "E53008" if randi() % 2 == 0 else "E53009"
-		_spawn_projectile({"speed": 650.0, "range": 360.0, "style": "qi", "pierce": true,
-			"visual_only": true, "fx_id": fx_id, "fx_anim": "action", "fx_scale": 0.5}, 0, "")
 	elif skull_id == "z003" and n == "skill06":
 		_release_spine(_world_skill_spine)
 		_world_skill_spine = _world_spine_fx("E100006", global_position + Vector2(-facing * 90.0, -60.0), "action", true,
@@ -974,6 +984,22 @@ func _start_skill_spine(n: String) -> void:
 
 func _exit_tree() -> void:
 	_release_spine(_world_skill_spine)
+
+
+func _process(delta: float) -> void:
+	if _pose_mixer == null or _anim_state == null:
+		return
+	var step := delta
+	if not _pending_anim.is_empty():
+		var entry = _anim_state.call("set_animation", _pending_anim, _pending_loop, 0)
+		if _pending_speed != 1.0 and entry != null and entry.has_method("set_time_scale"):
+			entry.call("set_time_scale", _pending_speed)
+		for queued in _pending_queue:
+			_anim_state.call("add_animation", queued["anim"], 0.0, queued["loop"], 0)
+		_pending_anim = ""
+		_pending_queue.clear()
+		step = 0.0 # 新轨道先应用，再恢复旧姿势；不把未补偿的第 0 帧送去渲染
+	_pose_mixer.update(step)
 
 
 func _physics_process(delta: float) -> void:
@@ -1852,7 +1878,7 @@ func _skill_tick(delta: float) -> void:
 	if _mix_restore:
 		# 上一帧的瞬移切换已经随渲染应用完毕，恢复默认混合（下一帧物理 tick 时渲染侧必然已跑过）
 		_mix_restore = false
-		sprite.get("skeleton_data_res").call("set_default_mix", 0.2)
+		sprite.get("skeleton_data_res").call("set_default_mix", 0.0 if _pose_mixer != null else 0.2)
 	var cfg: Dictionary = _skill_runtime if not _skill_runtime.is_empty() else skill_config[_skill_name]
 	if _skill_cancel_ready and _dash_cd <= 0.0 and _dash_gap <= 0.0 and Input.is_action_just_pressed("dash"):
 		_skill_cancel_ready = false
@@ -2120,11 +2146,6 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			if skull_id == "z003" and _skill_name == "skill11" and _form_node("z003_return_3") and _buff_timer > 0.0:
 				_o_kill_window = 0.3 # 必须在扣血前开窗口，直接击杀也会归给本次 O
 			var hit_damage := dmg
-			var wave_hits := 0
-			if bool(h.get("pipa_wave", false)):
-				wave_hits = int(_pipa_wave_hits.get(p.get_instance_id(), 0))
-				hit_damage = maxi(1, hit_damage - mini(wave_hits, 3)) # 本次 O 单目标 4/3/2/1，之后保底 1
-				_pipa_wave_hits[p.get_instance_id()] = wave_hits + 1
 			hit_damage += _target_damage_bonus(p)
 			_skill_damage_total += _damage_enemy(p, hit_damage)
 			hit_scored()
@@ -2134,9 +2155,6 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			_apply_hit_control(p, h)
 			if int(e.get("hp")) > 0 and h.has("frenzy") and p.has_method("apply_frenzy"):
 				p.call("apply_frenzy", float(h["frenzy"]) + (2.0 if _form_node("z002_echo_1") else 0.0), bool(h.get("frenzy_empower", false)))
-			if int(e.get("hp")) > 0 and bool(h.get("pipa_wave", false)) and p.has_method("apply_six_senses"):
-				var senses := int(_pipa_awaken_count <= 1 or (wave_hits + 1) % 2 == 0)
-				p.call("apply_six_senses", senses)
 			_on_build_hit(p, _skill_name)
 			if skull_id == "c023" and _skill_name == "skill02" and _own("c023_bind_2") and int(e.get("hp")) > 0:
 				_pull_enemy(p, global_position.x + facing * 110.0)
@@ -2401,6 +2419,20 @@ func on_projectile_hit(_p: Node2D, from_skill: bool, _cast_id: int) -> void:
 	hit_scored()
 	if from_skill:
 		_skill_hit_sustain()
+
+
+## 八音断识：每颗火弹只在真实碰撞时结算一次； miss 的弹不触碰此回调。
+func on_pipa_wave_hit(target: Node2D, base_damage: int) -> void:
+	var id := target.get_instance_id()
+	var hit_count := int(_pipa_wave_hits.get(id, 0)) + 1
+	_pipa_wave_hits[id] = hit_count
+	var hit_damage := maxi(1, base_damage - mini(hit_count - 1, 3)) # 单目标 4/3/2/1，之后保底 1
+	hit_damage += _target_damage_bonus(target)
+	_skill_damage_total += _damage_enemy(target, hit_damage)
+	if int(target.get("hp")) > 0 and target.has_method("apply_six_senses"):
+		var senses := int(_pipa_awaken_count <= 1 or hit_count % 2 == 0)
+		target.call("apply_six_senses", senses)
+	_on_build_hit(target, "skill10_03")
 
 
 ## 乱弦：魔音先完成自身癫狂结算，再向最近的两名周围敌人传染。
@@ -2758,6 +2790,9 @@ func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0)
 			effects["frenzy"] = float(effects["frenzy"]) + 2.0
 		if bool(effects.get("frenzy_double", false)):
 			effects["frenzy_min"] = float(effects.get("frenzy_min", 12.0)) + 2.0
+	if skull_id == "z002" and from_skill and _skill_name == "skill10_03":
+		effects["fx_id"] = "E53008" if randi() % 2 == 0 else "E53009"
+		effects["fx_anim"] = "action"
 	if skull_id == "z002" and str(spec.get("style", "")) == "magic_sound":
 		if from_skill and _skill_name == "skill03":
 			effects["fx_id"] = "E100129"
@@ -2779,7 +2814,7 @@ func _spawn_projectile(spec: Dictionary, damage: int, sfx: String, y_off := 0.0)
 		self, from_skill, _skill_cast_id, effects)
 	pr.global_position = global_position + Vector2(facing * 36.0, -52.0 + y_off)
 	get_tree().current_scene.add_child(pr)
-	var flight_sfx := str(_skill_runtime.get("projectile_sfx", "")) if from_skill else ""
+	var flight_sfx := str(_skill_runtime.get("projectile_sfx", "")) if from_skill else str(spec.get("projectile_sfx", ""))
 	if flight_sfx != "":
 		_play_sfx(flight_sfx)
 
@@ -4336,7 +4371,9 @@ func _set_state(new_state: int) -> void:
 	match state:
 		State.IDLE:
 			if _idle_queued:
-				# stand 已被 Spine 自动接续播放，只同步记录，不重复 set（重开会重开淡化）
+				# 自动接续不会经过 _play，也要在轨道换代前保存完整旧姿势。
+				if _pose_mixer != null:
+					_pose_mixer.capture()
 				_current_anim = anim_map["idle"]
 			else:
 				_play(anim_map["idle"], true)
@@ -4368,6 +4405,15 @@ func _play(anim: String, loop: bool, spd := 1.0) -> void:
 		return
 	if loop and anim == _current_anim:
 		return # 循环动画同名重放 = 从头再来一遍，跳跃顶点会抽搐
+	if _pose_mixer != null:
+		if _pending_anim.is_empty():
+			_pose_mixer.capture()
+		_current_anim = anim
+		_pending_anim = anim
+		_pending_loop = loop
+		_pending_speed = spd
+		_pending_queue.clear()
+		return
 	_current_anim = anim
 	var entry = _anim_state.call("set_animation", anim, loop, 0)
 	if spd != 1.0 and entry != null and entry.has_method("set_time_scale"):
@@ -4375,8 +4421,12 @@ func _play(anim: String, loop: bool, spd := 1.0) -> void:
 
 
 func _queue(anim: String, loop: bool) -> void:
-	if _anim_state:
-		_anim_state.call("add_animation", anim, 0.0, loop, 0)
+	if _anim_state == null:
+		return
+	if _pose_mixer != null and not _pending_anim.is_empty():
+		_pending_queue.append({"anim": anim, "loop": loop})
+		return
+	_anim_state.call("add_animation", anim, 0.0, loop, 0)
 
 
 ## 轻功悬停（银夜）：把当前轨道冻成"漂浮静止"姿态（time_scale=0），悬停结束恢复播放。
