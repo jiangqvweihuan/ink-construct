@@ -1317,6 +1317,11 @@ func take_damage_from(amount: int, source: Node) -> void:
 		source.set("_charm_time", minf(20.0, float(source.get("_charm_time")) + 1.0))
 
 
+## 子类可覆写：结算前修正最终伤害（机关造物等被动的挂点）。
+func _modify_outgoing_damage(dmg: int, _target: Node, _move: Dictionary) -> int:
+	return dmg
+
+
 ## 特殊 Boss 自定义招式共用：怨降低每段伤害，强化癫狂翻倍；魅惑时绝不攻击玩家。
 func _hit_status_target(target: Node, damage: int, knockback: Vector2, move: Dictionary) -> bool:
 	if target == null or not is_instance_valid(target) or target == self:
@@ -1328,6 +1333,7 @@ func _hit_status_target(target: Node, damage: int, knockback: Vector2, move: Dic
 		dmg = maxi(1, dmg - int(_grudge / 3.0))
 		if _frenzy_time > 0.0 and _frenzy_empowered and not _evil_buddha_pressure:
 			dmg *= 2
+		dmg = _modify_outgoing_damage(dmg, target, move)
 	if target.is_in_group("enemies"):
 		if int(target.get("hp")) <= 0:
 			return false
@@ -1529,6 +1535,12 @@ func amplify_debuffs() -> void:
 
 # ---------- 银夜机制接口：击飞 / 击退 / 时间暂停 ----------
 
+## Boss 词条默认规则：非普攻招式出手期间不可被任何控制打断。
+## 由 boss.gd 与各独立状态机 Boss 覆写；时停是规则级接口，不受这里保护。
+func _is_uninterruptible() -> bool:
+	return false
+
+
 ## 时间暂停分档：杂兵 mob / 精英 elite；Boss 在 boss.gd 覆盖为 boss
 func stop_tier() -> String:
 	return "elite" if _elite else "mob"
@@ -1598,7 +1610,7 @@ func _end_stop(natural := false) -> void:
 ## 定身（双刺 U 掷匕）：dur 秒内不能移动，但可以照常出手攻击。
 ## 打断巡逻/追击移动，已在挥的招照打完（不可以攻击的控制要另开接口，别混用）
 func root(dur: float, _ignore_armor := false) -> void:
-	if state == State.DEAD or dur <= 0.0 or (_super_armor and not _ignore_armor):
+	if state == State.DEAD or dur <= 0.0 or _is_uninterruptible() or (_super_armor and not _ignore_armor):
 		return
 	_root_timer = maxf(_root_timer, dur)
 	_flash()
@@ -1610,7 +1622,7 @@ func root(dur: float, _ignore_armor := false) -> void:
 
 ## 枝界持续约束：每帧只延续定身计时，不重复控制反馈。
 func contain(dur: float, _ignore_armor := false) -> void:
-	if state == State.DEAD or dur <= 0.0 or (_super_armor and not _ignore_armor):
+	if state == State.DEAD or dur <= 0.0 or _is_uninterruptible() or (_super_armor and not _ignore_armor):
 		return
 	_root_timer = maxf(_root_timer, dur)
 
@@ -1627,7 +1639,7 @@ func slow(dur: float, scale: float, _ignore_armor := false) -> void:
 ## 立即打断正在起的招（前摇直接掐掉，交还出手令牌），站桩发愣到时间结束；
 ## 被打飞/受击照样推进各自状态，落地后仍保持晕眩。
 func stun(dur: float, _ignore_armor := false) -> void:
-	if state == State.DEAD or dur <= 0.0 or (_super_armor and not _ignore_armor):
+	if state == State.DEAD or dur <= 0.0 or _is_uninterruptible() or (_super_armor and not _ignore_armor):
 		return
 	_clear_attack_chain()
 	_stun_timer = maxf(_stun_timer, dur)
@@ -1820,7 +1832,7 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 
 ## 砸落（银夜空中派生）：直线下坠，落地只向玩家回报一次，再接原有落地硬直。
 func slam(_ignore_armor := false) -> void:
-	if state == State.DEAD or _stop_timer > 0.0 or (not _ignore_armor and (_super_armor \
+	if state == State.DEAD or _stop_timer > 0.0 or _is_uninterruptible() or (not _ignore_armor and (_super_armor \
 			or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false))))):
 		return
 	_enter_fly(Vector2(0.0, 900.0), 0)
@@ -1841,7 +1853,7 @@ func _report_slam_landing() -> void:
 ## 击飞（银夜普攻二段 / 剑仙 U 飞脚）：向上挑起，落地短暂硬直。
 ## 普通击飞尊重全程霸体与当前招式的出手霸体；ignore_armor 可穿透两者，但不能穿透时停。
 func launch(dir: int, vx: float, vy: float, _ignore_armor := false) -> void:
-	if state == State.DEAD or (not _ignore_armor and (_super_armor \
+	if state == State.DEAD or _is_uninterruptible() or (not _ignore_armor and (_super_armor \
 			or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false))))):
 		return
 	_enter_fly(Vector2(dir * vx, -vy), 0)
@@ -1850,7 +1862,7 @@ func launch(dir: int, vx: float, vy: float, _ignore_armor := false) -> void:
 ## 击退（银夜 L / 剑仙 O）：横向轰飞，途中撞到同伴双方各吃 impact 组合伤害，撞墙自己再吃一下。
 ## 普通击退与击飞共用霸体规则；时停期间任何击退都不能改写冻结状态。
 func knock_back(dir: int, force: float, impact: int, _ignore_armor := false) -> void:
-	if state == State.DEAD or (not _ignore_armor and (_super_armor \
+	if state == State.DEAD or _is_uninterruptible() or (not _ignore_armor and (_super_armor \
 			or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false))))):
 		return
 	_enter_fly(Vector2(dir * force, -120.0), impact)
@@ -2008,9 +2020,6 @@ func die() -> void:
 	var bursting := not _death_burst.is_empty()
 	if not bursting:
 		_play(str(_anim_map["dead"]), false)
-		# 尸体消散时一团墨散开，盖住淡出（青笠没有亡语，不再生成额外死亡特效）
-		FX.spawn(get_tree().current_scene, "vanish", global_position,
-			{"scale": _scale * 1.6, "z": 5})
 	if not player_ally:
 		Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
 		Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
@@ -2047,7 +2056,6 @@ func _magic_explosion() -> void:
 	recover.tween_property(sprite, "rotation", 0.0, 0.26)
 	recover.tween_property(self, "global_position:x", start_x, 0.26)
 	await get_tree().create_timer(0.30).timeout
-	FX.spawn(get_tree().current_scene, "vanish", global_position, {"scale": _scale * 2.4, "z": 5})
 	died.emit()
 	_cleanup()
 

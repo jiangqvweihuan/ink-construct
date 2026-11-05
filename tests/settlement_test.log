@@ -1,6 +1,24 @@
-[S] 第二只 Boss 已登场：phase=1，强化面板=false（期望 1 / false）
-[S] cleared, waited=12.0 second=true defeated=["_debug", "c001"]（期望双 Boss）
+[S] 鼠标战斗显隐：scene=res://scenes/world/room_01.tscn battle=true mode=1
+[S] PASS 战斗房间内隐藏自定义鼠标
+[S] 第二只 Boss 已登场：phase=1，强化面板=false，碎岳压场=true（期望 1 / false / true）
+[S] cleared, waited=14.8 second=true defeated=["_debug", "c008"] 首战压场=false 二战压场=true（期望首战无压场/二战压场）
+[S] PASS 无归连战第二只碎岳启用压场，第一只非碎岳不压场
 [S] saved clear err=0
+[S] PASS 结算创建真实 E21013 SpineSprite
+[S] PASS 结算特效在暂停中继续播放
+[S] PASS 胜负结算特效使用避开文字的同一位置
+[S] PASS 结算使用实测动画 win
+[S] PASS 结算可点击界面恢复自定义鼠标
+[S] PASS 胜负特效不再叠加标题文字
+[S] PASS 结算 Spine 当前轨道为 win
 [S] 墨锭结算：击杀=2 已清房间=3 通关=true 聚墨=3 实际=49 预期=49（期望一致）
 [S] settlement visible=true
-[S] ALL DONE
+[S] DONE checks=9 failed=0
+只保留一个最后一击特效
+[S] PASS 伤害数字保留且不重复
+[S] saved dead err=0
+[S] 墨锭结算：击杀=0 已清房间=0 通关=false 聚墨=3 实际=8 预期=8（期望一致）
+[S] 阵亡后 Run.skull_id=z003 mode=adventure difficulty=3（期望 z003 / adventure / 3）
+[S] 再来一局 -> skull=z003 mode=adventure difficulty=3 depth=1 active=true（期望 z003 / adventure / 3 / 1 / true）
+[S] settlement visible=true
+[S] DONE checks=18 failed=0

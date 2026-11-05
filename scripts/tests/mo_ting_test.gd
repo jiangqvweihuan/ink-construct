@@ -57,18 +57,19 @@ func _ready() -> void:
 	_b.set_physics_process(false)
 	_p.set_physics_process(false)
 	_test_break_and_passives()
+	_test_artifice_passive()
 	_test_basic()
 	_test_tremor()
 	_test_rush()
-	_test_slam_and_leap()
-	_test_laser()
+	await _test_slam_and_leap()
+	await _test_laser()
 	_test_move_selection()
 	_test_death_cleanup()
 	p("DONE checks=%d failed=%d" % [_checks, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
 
-func _reset_all(player_hp := 99, player_max := 99) -> void:
+func _reset_all(player_hp := 99, player_max := 100) -> void:
 	_b._cleanup_cast()
 	_b._end_stop()
 	_b.state = CHASE
@@ -163,6 +164,17 @@ func _test_break_and_passives() -> void:
 	_check(_b.max_hp == 121, "无直伤特殊命中不增加上限")
 	_b._direct_damage(7)
 	_check(_b.max_hp == 114 and _b.hp == 114, "持续直扣也同样失去等量上限")
+
+
+func _test_artifice_passive() -> void:
+	_reset_all(100, 100) # 满血：机关造物被动应当翻倍
+	_b.global_position.x = 500.0
+	_b.facing = 1
+	_p.global_position.x = 700.0
+	_b._hit_front(1, 400.0, 190.0)
+	_check(_p.hp == 98, "机关造物：对满血角色造成双倍伤害")
+	_b._hit_front(1, 400.0, 190.0)
+	_check(_p.hp == 97, "机关造物：角色已受伤后恢复常规伤害")
 
 
 func _test_basic() -> void:
@@ -269,7 +281,8 @@ func _test_slam_and_leap() -> void:
 	_b._cast_tick(0.02)
 	_check(_p.hp == 94 and is_equal_approx(_p._cripple_time, 5.0), "断岳砸地造成 5 伤并附加 5 秒致残")
 	var slam_crack := get_tree().current_scene.get_child(get_tree().current_scene.get_child_count() - 1)
-	_check(slam_crack.get_script() == load("res://scripts/systems/fx.gd") and slam_crack.global_position.is_equal_approx(Vector2(560, 560)), "断岳地裂生成在身前拍地点而非 Boss 脚底")
+	_check(slam_crack.get_script() == load("res://scripts/systems/fx.gd") and slam_crack.global_position.is_equal_approx(Vector2(560, 627.5)), "断岳地裂压在拍地点地面上、从地面向上生成")
+	await _snap("mo_ting_slam", 0.22)
 	_p._jump_buf = 0.1
 	_p._coyote = 0.1
 	_p._try_jump()
@@ -289,7 +302,7 @@ func _test_slam_and_leap() -> void:
 	_b._cast_tick(1.09)
 	_check(_p.hp == 95 and is_equal_approx(_p._cripple_time, 5.0), "陨构落地造成 4 伤并致残")
 	var leap_crack := get_tree().current_scene.get_child(get_tree().current_scene.get_child_count() - 1)
-	_check(leap_crack.get_script() == load("res://scripts/systems/fx.gd") and leap_crack.global_position.is_equal_approx(Vector2(740, 560)), "陨构地裂生成在身前落地点而非 Boss 脚底")
+	_check(leap_crack.get_script() == load("res://scripts/systems/fx.gd") and leap_crack.global_position.is_equal_approx(Vector2(740, 641.0)), "陨构地裂压在落地点地面上、从地面向上生成")
 
 	_reset_all()
 	_b.global_position.x = 500.0
@@ -311,14 +324,17 @@ func _test_laser() -> void:
 	_b._cast_tick(0.84)
 	_check(_p.hp == 99 and _b._laser == null, "贯昼短蓄力期间不提前发射")
 	_b._cast_tick(0.02)
-	_check(_p.hp == 98 and is_instance_valid(_b._laser), "贯昼正前方延伸至地图远端并立即造成 1 伤")
+	_check(_p.hp == 97 and is_instance_valid(_b._laser), "贯昼第一段造成 2 伤并亮起红色炮口光束")
 	_check(_b._laser.global_position.is_equal_approx(Vector2(620, 445)), "贯昼可见光束从身前 120px 的发射点起始")
-	_b._cast_tick(0.5)
-	_b._cast_tick(0.5)
-	_check(_p.hp == 96 and _p._mo_ting_burn_stacks == 3, "贯昼每 0.5 秒续伤并累积灼烧")
-	_check(_p.mo_ting_laser_damage() == 2, "三层灼烧使后续激光基础伤害增至 2")
-	_b._cast_tick(0.5)
-	_check(_p.hp == 94 and _p._mo_ting_burn_stacks == 4, "第四次激光按递增后的 2 伤结算")
+	_b._cast_tick(0.71)
+	_check(_p.hp == 95 and _p._mo_ting_burn_stacks == 2 and is_instance_valid(_b._laser), "贯昼第二段再造成 2 伤并累积两层灼烧")
+	_b._cast_tick(0.09)
+	_check(_b._laser == null, "贯昼光束只持续 0.8 秒，到点立即收束")
+	_p._mo_ting_burn_stacks = 3
+	_p._mo_ting_burn_time = 6.0
+	_check(_p.mo_ting_laser_damage() == 2, "三层灼烧使后续激光额外 +1 伤")
+	_b._laser_hit()
+	_check(_p.hp == 92, "贯昼每段按 2 + 灼烧加成结算")
 	_p._mo_ting_burn_tick(6.1)
 	_check(_p._mo_ting_burn_stacks == 0 and _p.mo_ting_laser_damage() == 1, "六秒未再命中后灼烧清零")
 	_b.time_stop(1.0)
@@ -333,7 +349,15 @@ func _test_laser() -> void:
 	_check(_p.hp == 99 and is_instance_valid(_b._laser), "贯昼身前 80～120px 不再被不可见光束命中")
 	_p.global_position.x = 620.0
 	_b._continuous_hit()
-	_check(_p.hp == 98, "贯昼从可见光束起点 120px 开始结算伤害")
+	_check(_p.hp == 97, "贯昼从可见光束起点 120px 开始结算伤害")
+
+	_reset_all()
+	_b.global_position.x = 500.0
+	_b.facing = 1
+	_p.global_position.x = 900.0
+	_b._start_mo_move(_b.LASER)
+	_b._cast_tick(0.86)
+	await _snap("mo_ting_laser")
 
 
 func _test_move_selection() -> void:
@@ -413,7 +437,7 @@ func _test_move_selection() -> void:
 	_b._chase_tick(0.016)
 	_check(_b._cast_move == _b.LASER, "贯昼进入可见光束有效区域后释放")
 	_b._cast_tick(0.86)
-	_check(_p.hp == 98, "贯昼贴近后能命中保持不动的玩家")
+	_check(_p.hp == 97, "贯昼贴近后能命中保持不动的玩家")
 
 	_reset_all()
 	_p.global_position.x = 100.0
@@ -436,6 +460,17 @@ func _test_death_cleanup() -> void:
 	_b.take_damage(999, 460.0)
 	_check(_b.state == DEAD and _b.hp == 0, "墨霆失去全部上限后死亡")
 	_check(not _p._mo_ting_grabbed and _b._marker == null and _b._laser == null, "死亡释放抓取并清理所有招式残留")
+
+
+func _snap(tag: String, delay := 0.0) -> void:
+	if delay > 0.0:
+		await get_tree().create_timer(delay).timeout
+	else:
+		await get_tree().process_frame
+	RenderingServer.force_draw()
+	var img = get_viewport().get_texture().get_image()
+	if img != null:
+		img.save_png(OUT_DIR + tag + ".png")
 
 
 func _shot(tag: String) -> void:

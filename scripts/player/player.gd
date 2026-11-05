@@ -134,6 +134,7 @@ var _bleed_acc := 0.0
 var _bleed_source: Dictionary = {}
 const BLEED_MAX := 5
 const BLEED_DUR := 3.0
+const C013_BUDDHA_MAX := 3 # 力僧佛陀层数上限；满层后再获得层数改为恢复 1 点生命
 var _jump_seal := 0.0 # 辟地实伤附加：封跳剩余秒数，不影响闪避与其他动作
 var _dash_seal := 0.0 # 旋斩实伤附加：只封 Shift 闪避，不影响移动、跳跃与攻击
 var _cripple_time := 0.0 # 墨霆致残：封跳跃、Shift 闪避与所有带位移的技能
@@ -367,7 +368,7 @@ func _register_pipa_passives() -> void:
 	Meta.register_battle_passive("c013_saint", {"form": "c013", "owned": true, "name": "圣僧",
 		"desc": "免疫全部负面效果，单次受到的伤害最多为 3。", "boss_effect": {}})
 	Meta.register_battle_passive("c013_demon", {"form": "c013", "owned": true, "name": "降魔",
-		"desc": "每造成 4 次实际伤害获得一层可跨房保留的佛陀；每层全伤 +1。当结算后的实际伤害恰好为 3 且此次攻击会倒地时，消耗一层只免除倒地。", "boss_effect": {}})
+		"desc": "每造成 4 次实际伤害获得一层可跨房保留的佛陀（最多 3 层，每层全伤 +1）；已满 3 层时改为恢复 1 点生命。当结算后的实际伤害恰好为 3 且此次攻击会倒地时，消耗一层只免除倒地。", "boss_effect": {}})
 	Meta.register_battle_passive("c023_ink_plum", {"form": "c023", "owned": true, "name": "墨梅",
 		"desc": "每次造成实际伤害额外积累 1 墨锭，终局一并结算。", "boss_effect": {}})
 	Meta.register_battle_passive("c023_frost_plum", {"form": "c023", "owned": true, "name": "霜梅",
@@ -720,9 +721,34 @@ func _spawn_bait() -> void:
 	_bait.add_to_group("player_decoy")
 	_bait.global_position = global_position
 	get_tree().current_scene.add_child(_bait)
-	FX.spawn(_bait, "vanish", Vector2.ZERO, {"loop": true, "scale": 0.8, "mod": Color(0.45, 0.65, 0.7, 0.55)})
+	_spawn_bait_ghost(_bait)
 	_bait_time = 1.5
 	_bait_root = _own("c021_bait_2")
+
+
+## 影饵的视觉是本体骨架的淡化复制：定格在闪避当下的姿势，而不是一团墨雾。
+func _spawn_bait_ghost(host: Node2D) -> void:
+	var profile: Dictionary = Skulls.get_profile(skull_id)
+	var data = load(str(profile.get("data", "")))
+	if data == null or not data.call("is_skeleton_data_loaded"):
+		return
+	var ghost = ClassDB.instantiate("SpineSprite")
+	host.add_child(ghost)
+	ghost.set("skeleton_data_res", data)
+	ghost.scale = Vector2(base_scale * facing, base_scale)
+	ghost.modulate = Color(0.74, 0.90, 1.0, 0.55)
+	var state = ghost.call("get_animation_state")
+	if _current_anim.is_empty():
+		return
+	var entry = state.call("set_animation", _current_anim, false, 0)
+	var src = _anim_state.call("get_current", 0) if _anim_state != null else null
+	if entry == null or src == null:
+		return
+	# 与本体的当前轨道时间对齐后冻帧，残影就是闪避那一刻的姿势
+	if entry.has_method("set_track_time") and src.has_method("get_track_time"):
+		entry.call("set_track_time", float(src.call("get_track_time")))
+	if entry.has_method("set_time_scale"):
+		entry.call("set_time_scale", 0.0)
 
 
 func _expire_bait() -> void:
@@ -1648,11 +1674,15 @@ func _on_innate_damage(target: Node, dealt: int) -> void:
 	if skull_id == "c013" and has_battle_passive("c013_demon"):
 		Run.c013_damage_hits += 1
 		if Run.c013_damage_hits % 4 == 0:
-			Run.c013_buddha += 1
-			var dn := DAMAGE_NUMBER.new()
-			dn.setup("佛陀 %d" % Run.c013_buddha, Color(0.9, 0.75, 0.3))
-			dn.global_position = global_position + Vector2(0, -165)
-			get_tree().current_scene.add_child(dn)
+			if Run.c013_buddha >= C013_BUDDHA_MAX:
+				# 佛陀已满 3 层：不再叠全伤，改为恢复 1 点生命。
+				_restore_hp(1)
+			else:
+				Run.c013_buddha += 1
+				var dn := DAMAGE_NUMBER.new()
+				dn.setup("佛陀 %d" % Run.c013_buddha, Color(0.9, 0.75, 0.3))
+				dn.global_position = global_position + Vector2(0, -165)
+				get_tree().current_scene.add_child(dn)
 	if skull_id == "c023" and Run.active and has_battle_passive("c023_ink_plum"):
 		Run.c023_ink_bonus += 1
 	if skull_id == "z000" and has_battle_passive("z000_sword_sect") and target.has_method("apply_sword_sect"):
@@ -3844,7 +3874,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		if attacker_id == null:
 			attacker_id = attacker.get("skull_id")
 		if attacker_id != null:
-			hurt_sfx = "player_hurt_blunt" if str(attacker_id) in ["c013", "z002", "c001", "c032", "c015a1"] else "player_hurt_sharp"
+			hurt_sfx = "player_hurt_blunt" if str(attacker_id) in ["c013", "z002", "c001", "c015a1"] else "player_hurt_sharp"
 	_play_sfx(hurt_sfx)
 	# 水墨受击花在胸口炸开，flip 跟击退方向（击退朝右 = 攻击来自左侧）
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45, "flip": knockback.x > 0.0})
@@ -4315,21 +4345,24 @@ func _cut_damage(cut: Dictionary) -> void:
 	die()
 
 
-## 赐福与复活墨符相互独立；优先消耗赐福，两者齐备时一局可以起身两次。
+## 复活优先级：续命赐福 → 复活墨符（4 血起身）→ 红蝶。
+## 红蝶是双刺固有被动、每局一次，优先级最低，留到没有其他复活资源时再消耗。
+## 赐福与复活墨符相互独立，两者齐备时一局可以起身两次。
 func _try_revive(knockback: Vector2) -> bool:
 	var can_revive := false
-	var red_butterfly := skull_id == "c021" and not Run.c021_red_butterfly_used and has_battle_passive("c021_red_butterfly")
-	if red_butterfly:
-		Run.c021_red_butterfly_used = true
-		Run.max_hp = Run.calculated_max_hp()
-		max_hp = Run.max_hp
-		_red_butterfly_left = 1.0
-		can_revive = true
-	elif Run.blessing == "revive" and not Run.blessing_used:
+	var red_butterfly := false
+	if Run.blessing == "revive" and not Run.blessing_used:
 		Run.blessing_used = true
 		can_revive = true
 	elif Run.supply_revive and not Run.supply_revive_used:
 		Run.supply_revive_used = true
+		can_revive = true
+	elif skull_id == "c021" and not Run.c021_red_butterfly_used and has_battle_passive("c021_red_butterfly"):
+		red_butterfly = true
+		Run.c021_red_butterfly_used = true
+		Run.max_hp = Run.calculated_max_hp()
+		max_hp = Run.max_hp
+		_red_butterfly_left = 1.0
 		can_revive = true
 	if not can_revive:
 		return false

@@ -1,4 +1,4 @@
-[PT] player created, sprite=@SpineSprite@9:<SpineSprite#59659781678>
+[PT] player created, sprite=@SpineSprite@9:<SpineSprite#60095989294>
 [PT] state -> 0 pos=(300.0, 560.0)
 [PT] state -> 3 pos=(300.0, 560.5555)
 [PT] state -> 0 pos=(300.0, 599.9999)
@@ -88,12 +88,12 @@
 [PT] ult_after skull=z003 hp=7/8
 [PT] saved 14_ult_after_z003 err=0 state=0 pos=(965.6467, 599.9337)
 [PT] SWAP DONE skull=z003
-[PT] roll0 银夜三选一：["z003_sky_1[流派1]", "z003_clock_1[流派1]", "hp[通用]"]
+[PT] roll0 银夜三选一：["dodge[通用]", "damage[通用]", "z003_clock_1[流派1]"]
 [PT] claim z003_clock_1 ok=true level=1
-[PT] roll1（已拿漏刻·初）含漏刻·续=true → ["hp", "z003_returning_1", "z003_clock_2"]
+[PT] roll1（已拿漏刻·初）含漏刻·续=true → ["dash", "z003_returning_1", "z003_clock_2"]
 [PT] claim z003_clock_2 ok=true level=1
 [PT] claim z003_clock_3 ok=true level=1
-[PT] roll2 跨形态泄漏=[]（期望 []） → ["hp", "damage", "z003_returning_1"]
+[PT] roll2 跨形态泄漏=[]（期望 []） → ["z003_sky_1", "dodge", "cooldown"]
 [PT] build 生效：漏刻=true/true/true dash_time=1.20 dash_cd=0.90（期望 true/true/true / 1.20 / 0.90）
 [PT] 换到 c021：当前形态=c021 银夜卡保留=true（机制按形态分支休眠）
 [PT] 切回 z003：漏刻可用=true（期望 true）
@@ -126,7 +126,7 @@
 [PT] 血舞半血技能伤害=3 命中后 hp=5（期望 3/5）
 [PT] 重随券开局次数=2 实际=true/true/false 库存=0（期望 true/true/false/0）
 [PT] 护砚后 hp=7 剩余护砚=false（期望 7/false）
-[PT] 红蝶首死=true 墨符第二次复活 hp=4 已消耗=true 库存=0（期望 true/4/true/0）
+[PT] 墨符首死=true 红蝶第二次复活 hp=100 上限=100 已消耗=true 库存=0（期望 true/100/100/true/0）
 [PT] Meta 原子存档: 存在=true 读取kills=4242.0 tmp残留=false
 [PT] PASS Meta 临时文件替换正式存档且不留 .tmp 残留
 [PT] 局内流派节点=54 各角色={ "z002": 9, "c021": 9, "c023": 9, "c013": 9, "z000": 9, "z003": 9 }（期望 45，五人各 9）
@@ -140,6 +140,7 @@
 [PT] 游身回身横扫 身后命中=true 挑飞=1 身前误伤=0（期望 true/1/0）
 [PT] 剑仙换头清理 段数=0 封脉=0 取消=false 四段起手=false（期望 0/0/false/false）
 [PT] 归刃/绯羽回调 落匕=2 分裂定身=1.2（期望 2/1.2）
+[PT] saved 12_bait_ghost err=0 state=3 pos=(650.0, 566.0133)
 [PT] 影饵到期 残影清理=true 追饵定身=1.5（期望 true/1.5）
 [PT] 漏刻不同招式计数=3（期望 3，重复普攻不叠）
 [PT] 漏刻自然结束 定身=1.8 余滞=4.0/0.45（期望 1.8 / 4.0/0.45）
@@ -172,6 +173,8 @@
 [PT] PASS 圣僧单次最多受 3 伤且免疫负面效果
 [PT] PASS 圣僧把高伤压到实际 3 伤后，降魔仍消耗佛陀并免除自然倒地
 [PT] PASS 恰好实际 3 伤的自然倒地攻击消耗一层佛陀，只免倒地而不减伤
+[PT] PASS 佛陀满 3 层后再获得层数改为恢复 1 点生命
+[PT] PASS 满血时佛陀已满层不再回血
 [PT] PASS 霜梅基础生命上限为 60
 [PT] PASS 墨梅按实际伤害次数积累额外结算墨锭
 [PT] PASS 霜梅进房恢复 21 点并为 K 尾鞭增加 3 点攻击
@@ -206,14 +209,20 @@
 [PT] PASS 金钟罩生成 E52025 action1 持续特效
 [PT] PASS 金钟罩刷新不重复生成节点
 [PT] PASS 金钟罩归零立即释放持续特效
-[PT] PASS 双刺 U 从起手生成 E54151 持续特效
-[PT] PASS 双刺 U 自然收招释放持续特效
-[PT] PASS 双刺 U 受击打断同样释放持续特效
+[PT] PASS 金钟罩按角色体型缩放（半径 45 → 0.75）
+[PT] PASS 双刺 U 不生成 E54151（该特效只属于 L）
+[PT] PASS 双刺 L 在起手位置生成落在地面的 E54151 持续特效
+[PT] PASS 双刺 L 闪电固定在世界坐标，不跟随角色移动
+[PT] PASS 双刺 L 自然收招释放持续特效
+[PT] PASS 双刺 L 受击打断同样释放持续特效
 [PT] PASS 定山 K 以自身为中心且视觉宽度匹配双向 198 范围
-[PT] PASS 定山 L 居中于实际最远落点并匹配技能范围
-[PT] PASS 剑仙 L 末端在挥剑落点贴地喷出 E54145，固定缩放保证整段完整
+[PT] PASS 定山 K 起手不显示头顶佛像（U 专属）
+[PT] PASS 定山 L 落点石柱按伤害范围适配且底部贴地不陷入地面
+[PT] PASS 定山 L 起手不显示头顶佛像（U 专属）
+[PT] PASS 定山 U 起手显示头顶佛像
+[PT] PASS 剑仙 L 末端在挥剑落点贴地喷出 E54145，固定缩放 + 下压 22px 保证火头不悬空
 [PT] PASS 剑仙 P 基础伤害 5 且命中后追加 3 秒眩晕
-[PT] PASS 剑仙 P 命中目标后在其脚底生成完整 E54181
+[PT] PASS 剑仙 P 命中目标后最低端落在其脚中心生成完整 E54181
 [PT] PASS 剑仙 I 起手在脚底中心浮现 E54057 法阵
 [PT] PASS 剑仙 I 曲终前不提前生成觉醒环绕
 [PT] PASS 剑仙觉醒真实时点生成 E100177
@@ -256,4 +265,4 @@
 [PT] PASS 剑仙 U 普通后续目标只播 action2
 [PT] PASS 剑仙 U 命中第二个目标不再重复播放专属音效
 [PT] PASS 剑仙 U 穿透两个目标后仍可继续飞行
-[PT] PASSIVE DONE checks=97 failed=0
+[PT] PASSIVE DONE checks=105 failed=0

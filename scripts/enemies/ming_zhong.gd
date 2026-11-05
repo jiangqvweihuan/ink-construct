@@ -157,6 +157,11 @@ func _chase_tick(delta: float) -> void:
 	var dy := absf(_target.global_position.y - global_position.y)
 	facing = 1 if dx >= 0.0 else -1
 	_apply_facing()
+	# 生命低于 50%：不等攻击欲望蓄满，立刻起手觉醒演出（先更新朝向，避免背对玩家开招）。
+	if not _awakened and hp * 2 < max_hp and float(_move_cds[AWAKEN]) <= 0.0:
+		_attack_desire = ATTACK_DESIRE_TIME
+		_start_ming_move(AWAKEN)
+		return
 	var dist := absf(dx)
 	if _planned_move.is_empty() and _attack_desire >= ATTACK_DESIRE_TIME:
 		_planned_move = _choose_move(dist)
@@ -555,6 +560,11 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 	hp_changed.emit(hp, max_hp)
 	if hp <= 0:
 		die()
+
+
+## 连击之外的招式（追击、觉醒）出手期间不可打断；收招后撤属于移动，仍可被控制。时停仍按规则级处理。
+func _is_uninterruptible() -> bool:
+	return state == S_CAST and _cast_move != "" and _cast_move != COMBO
 
 
 func time_stop(dur: float) -> void:

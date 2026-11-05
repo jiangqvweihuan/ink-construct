@@ -1,4 +1,4 @@
-[ET] created player=@SpineSprite@9:<SpineSprite#53284439602> enemy=@SpineSprite@78:<SpineSprite#63099111087>
+[ET] created player=@SpineSprite@9:<SpineSprite#53351548466> enemy=@SpineSprite@78:<SpineSprite#63166219951>
 [ET] player state -> 0
 [ET] enemy state -> 0 x=980.0
 [ET] enemy hp -> 6
@@ -66,6 +66,8 @@
 [ET] PASS 时停中普通/规则级击飞击退砸落均不打断，伤害仍结算
 [ET] PASS 时停计时未被后续控制重置，并能自然到期恢复
 [ET] PASS 时停计时到期前易伤不随时间流失
+[ET] PASS 时停期间流血/中毒/易伤/狂乱/魅惑/定身/晕眩/余滞全部不流逝
+[ET] PASS 解冻后流血/中毒/易伤/狂乱/魅惑/余滞与拥有者一同恢复计时
 [ET] PASS 斩焰易伤 25%：4 点直接伤害实际结算 5 点，且敌人侧不重复放大
 [ET] PASS 易伤比例取最高、时长刷新，到期后承伤恢复原值
 [ET] player state -> 0
@@ -94,10 +96,9 @@
 [ET] PASS 重复刷新四种状态不重复生成或替换持续特效
 [ET] PASS 状态特效随敌人时停冻结并在解冻后恢复，不另跑计时
 [ET] PASS 四种状态自然结束立即释放各自持续特效
-[ET] PASS 普通c016死亡清除状态且不触发青笠亡语视觉
-[ET] PASS 真正青笠精英仅替换死亡视觉，不新增伤害次数/范围并保留原hit_at/range
+[ET] PASS 普通c016死亡清除状态且不生成魔爆特效
+[ET] PASS 青笠死亡不生成 E54148 亡语视觉，也不新增伤害次数/范围并保留原hit_at/range
 [ET] player state -> 0
-[ET] PASS 青笠死亡Spine按原动画生命周期自动销毁
 [ET] PASS 碎岳E52025随金钟生成，两次抵挡期间去重并在耗尽后释放
 [ET] 统一出手规则 c016 冷却配置=true 技能优先=true 普攻兜底=true 恢复优先=true（期望全 true）
 [ET] 统一出手规则 c017 冷却配置=true 技能优先=true 普攻兜底=true 恢复优先=true（期望全 true）
@@ -116,6 +117,9 @@
 [ET] 青魇高伤链 5伤不倒/6伤倒地/9号起身=true（期望 true）
 [ET] player state -> 0
 [ET] player state -> 7
+[ET] PASS 魔爆与实伤同帧生成 E54148，并落在前扑判定区中心
+[ET] saved 09_c037_burst err=0
+[ET] saved 10_c037_burst_pillar err=0
 [ET] PASS 魔爆hp归零与演出期间不清波，真实died后才结算波次
 [ET] 魔爆 起身/22号变身/延迟死亡信号=true 前方敌我3伤与魔诅/后方无伤=true（期望全 true）
 [ET] 魔诅 敌人逐用+1且普攻不受罚=true 玩家逐用+1=true 新房间实例清除=true（期望全 true）
@@ -124,4 +128,4 @@
 [ET] PASS 剑宗固定减半且累计小数治疗，重复命中不继续叠乘
 [ET] PASS 魅唤只从敌人组选择攻击目标
 [ET] PASS 魅唤死亡不计局外击杀、图鉴或本局战绩
-[ET] ALL DONE, enemy state=freed hp=- player state=6 checks=25 failed=0
+[ET] ALL DONE, enemy state=freed hp=- player state=6 checks=27 failed=0

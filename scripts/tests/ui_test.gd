@@ -314,6 +314,17 @@ func _ready() -> void:
 	p("图鉴默认页=故事集 %s（期望 true）" % (codex != null and int(codex._tab) == 3))
 	await _shot("05_codex_story")
 
+	# 图鉴音乐：进入即独占循环《百相入卷》，开关关闭时停掉并恢复主菜单 BGM，再开重新起播。
+	var codex_stream: AudioStreamMP3 = null
+	if BGM._solo != null:
+		codex_stream = BGM._solo.stream as AudioStreamMP3
+	p("图鉴音乐独占循环=%s（期望 true）" % (codex_stream != null and BGM._solo.playing and codex_stream.loop))
+	if codex != null:
+		codex._toggle_music()
+		p("图鉴音乐关闭=%s（期望 true）" % (not BGM._solo.playing))
+		codex._toggle_music()
+		p("图鉴音乐重新开启=%s（期望 true）" % BGM._solo.playing)
+
 	if codex != null:
 		# 默认落在故事集；后面的敌人资料断言需先切回敌人页。
 		codex._switch_tab(0)

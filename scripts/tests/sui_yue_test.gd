@@ -89,6 +89,7 @@ func _ready() -> void:
 	_test_bell()
 	_test_pressure_and_seal()
 	_test_status_effects()
+	_test_uninterruptible()
 	_test_cleanup()
 	Meta.battle_passives.erase("test_sui_future")
 	Meta.battle_passives.erase("test_sui_future_two")
@@ -486,6 +487,30 @@ func _test_status_effects() -> void:
 	_b._retreat_tick(0.016)
 	expected = move_toward(0.0, _b.chase_speed * _b.RETREAT_SPEED_SCALE * 0.5, _b.accel * 0.016)
 	_check(is_equal_approx(_b.velocity.x, expected), "收招后撤速度应用余滞倍率")
+
+
+func _test_uninterruptible() -> void:
+	# Boss 词条默认规则：掷臂之外的招式出手期间免疫全部控制，时停仍可打断（清理由清理测试覆盖）。
+	_reset_all()
+	_b._start_sui_move(_b.EYE)
+	var root_before: float = _b._root_timer
+	var stun_before: float = _b._stun_timer
+	var velocity_before: Vector2 = _b.velocity
+	_b.root(2.0, true)
+	_b.contain(2.0, true)
+	_b.stun(2.0, true)
+	_b.slam(true)
+	_b.launch(1, 900.0, 400.0, true)
+	_b.knock_back(1, 900.0, 4, true)
+	_check(_b.state == _b.S_CAST and _b._cast_move == _b.EYE, "佛眼出手期间免疫定身/晕眩/砸落/击飞/击退")
+	_check(_b._root_timer == root_before and _b._stun_timer == stun_before and _b.velocity == velocity_before,
+		"非普攻招式期间控制不写入移动状态")
+
+	_reset_all()
+	_b._start_sui_move(_b.ARMS)
+	_b.launch(1, 900.0, 400.0, true)
+	_check(_b.velocity.y == -200.0, "普攻掷臂仍可被规则级击飞挑起")
+	_reset_all()
 
 
 func _test_cleanup() -> void:

@@ -63,6 +63,7 @@ func _ready() -> void:
 	_test_awaken()
 	_test_block_and_hurt()
 	_test_interruptions()
+	_test_uninterruptible()
 	_test_status_effects()
 	_test_root_motion()
 	await _test_pursuit_root_motion()
@@ -230,6 +231,11 @@ func _test_awaken() -> void:
 	_check(_b._choose_move(500.0) != _b.AWAKEN, "生命恰为 50%时尚未解锁觉醒")
 	_b.hp = 33
 	_check(_b._choose_move(500.0) == _b.AWAKEN, "生命低于 50%后解锁觉醒")
+	_b._attack_desire = 0.0
+	_b._chase_tick(0.016)
+	_check(_b.state == _b.S_CAST and _b._cast_move == _b.AWAKEN and _b._current_anim == "transform1",
+		"生命低于 50% 时无视攻击欲望立即起手觉醒动画")
+	_reset_all()
 	_b.hp = 30
 	_b._start_ming_move(_b.AWAKEN)
 	_check(_b._current_anim == "transform1" and is_equal_approx(float(_b._move_cds[_b.AWAKEN]), 40.0), "觉醒使用动画 26且冷却 40 秒")
@@ -294,6 +300,30 @@ func _test_interruptions() -> void:
 	_check(_p._ming_zhong_holder == _b, "时停测试前四连击首段已固定玩家")
 	_b.time_stop(1.0)
 	_check(_p._ming_zhong_holder == null and _b._cast_events.is_empty() and _b.state == CHASE, "时停打断四连击并解除定点与待结算伤害")
+
+
+func _test_uninterruptible() -> void:
+	# Boss 词条默认规则：连击之外的招式出手期间免疫全部控制，时停仍可打断（由打断测试覆盖）。
+	_reset_all()
+	_b._start_ming_move(_b.PURSUIT)
+	var root_before: float = _b._root_timer
+	var stun_before: float = _b._stun_timer
+	var velocity_before: Vector2 = _b.velocity
+	_b.root(2.0, true)
+	_b.contain(2.0, true)
+	_b.stun(2.0, true)
+	_b.slam(true)
+	_b.launch(1, 900.0, 400.0, true)
+	_b.knock_back(1, 900.0, 4, true)
+	_check(_b.state == _b.S_CAST and _b._cast_move == _b.PURSUIT, "追击出手期间免疫定身/晕眩/砸落/击飞/击退")
+	_check(_b._root_timer == root_before and _b._stun_timer == stun_before and _b.velocity == velocity_before,
+		"非普攻招式期间控制不写入移动状态")
+
+	_reset_all()
+	_b._start_ming_move(_b.COMBO)
+	_b.launch(1, 900.0, 400.0, true)
+	_check(_b.velocity.y == -200.0, "普攻连击仍可被规则级击飞挑起")
+	_reset_all()
 
 
 func _test_status_effects() -> void:

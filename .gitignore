@@ -5,5 +5,15 @@
 
 # 测试、调试与导出产物
 tests/out/
+tests/*.log
+tests/*_stdout.txt
+tests/*_stderr.txt
+tests/*.stdout.txt
+tests/*.stderr.txt
 .screenshots/
 /build/
+
+# 编辑器临时文件与本地工具配置
+bin/windows/*.TMP
+bin/windows/~*.dll
+.trae/

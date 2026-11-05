@@ -63,7 +63,7 @@ static func _add_timed(player, out: Array) -> void:
 		_entry(out, "start_guard", "buff", "护砚", "本局第一次实际受伤时自动减免。", "待触发")
 	var buddha := int(Run.c013_buddha)
 	if str(player.get("skull_id")) == "c013" and buddha > 0:
-		_entry(out, "buddha", "buff", "佛陀", "每层使全部伤害 +1，跨房间保留。", "%d 层" % buddha)
+		_entry(out, "buddha", "buff", "佛陀", "每层使全部伤害 +1，最多 3 层；已满层时改为恢复 1 点生命。", "%d／3 层" % buddha)
 
 	var bleed := int(player.get("_bleed_stacks"))
 	if bleed > 0:

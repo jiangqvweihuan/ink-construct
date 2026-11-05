@@ -1,125 +1,1997 @@
 Godot Engine v4.6.2.stable.mono.official.71f334935 - https://godotengine.org
 OpenGL API 3.3.0 NVIDIA 595.97 - Compatibility - Using Device: NVIDIA - NVIDIA GeForce RTX 4070 Laptop GPU
 
-[R] loaded res://art/environment/background/bg_main.png (1920.0, 720.0)
-[R] loaded res://art/environment/foreground/fg_tree_l.png (460.0, 660.0)
-[R] loaded res://art/environment/foreground/fg_tree_r.png (431.0, 660.0)
-[R] loaded res://art/environment/tilesets/ground_ink.png (1920.0, 110.0)
-ERROR: Resource file not found: res://art/characters/player (expected type: unknown)
-   at: _load (core/io/resource_loader.cpp:351)
-   GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/player/player.gd:150)
-       [1] _ready (res://scripts/player/player.gd:102)
-       [2] _build_actors (res://scripts/world/room_01.gd:118)
-       [3] _ready (res://scripts/world/room_01.gd:35)
-ERROR: Error loading resource: 'res:///art/characters/player/'.
-   at: load (core/core_bind.cpp:78)
-   GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/player/player.gd:150)
-       [1] _ready (res://scripts/player/player.gd:102)
-       [2] _build_actors (res://scripts/world/room_01.gd:118)
-       [3] _ready (res://scripts/world/room_01.gd:35)
-ERROR: Can't load texture: "res:///art/characters/player/"
-   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
-   GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/player/player.gd:150)
-       [1] _ready (res://scripts/player/player.gd:102)
-       [2] _build_actors (res://scripts/world/room_01.gd:118)
-       [3] _ready (res://scripts/world/room_01.gd:35)
-WARNING: Camera2D overridden to physics process mode due to use of physics interpolation.
-   at: _update_process_callback (scene/2d/camera_2d.cpp:85)
-   GDScript backtrace (most recent call first):
-       [0] _build_actors (res://scripts/world/room_01.gd:128)
-       [1] _ready (res://scripts/world/room_01.gd:35)
-ERROR: Resource file not found: res://art/characters/enemies/c035 (expected type: unknown)
-   at: _load (core/io/resource_loader.cpp:351)
-   GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
-ERROR: Error loading resource: 'res:///art/characters/enemies/c035/'.
-   at: load (core/core_bind.cpp:78)
-   GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
-ERROR: Can't load texture: "res:///art/characters/enemies/c035/"
-   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
-   GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
-[R] saved 01_view err=0
 ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
    at: _load (core/io/resource_loader.cpp:351)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_profile_and_attacks (res://scripts/tests/pipa_test.gd:161)
+       [4] _ready (res://scripts/tests/pipa_test.gd:64)
 ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
    at: load (core/core_bind.cpp:78)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_profile_and_attacks (res://scripts/tests/pipa_test.gd:161)
+       [4] _ready (res://scripts/tests/pipa_test.gd:64)
 ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
    at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
-[R] saved 02_walk err=0
-ERROR: Resource file not found: res://art/characters/enemies/c017 (expected type: unknown)
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_profile_and_attacks (res://scripts/tests/pipa_test.gd:161)
+       [4] _ready (res://scripts/tests/pipa_test.gd:64)
+[PIPA] PASS 绛弦四段普攻与六技能栏配置完整
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
    at: _load (core/io/resource_loader.cpp:351)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
-ERROR: Error loading resource: 'res:///art/characters/enemies/c017/'.
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_profile_and_attacks (res://scripts/tests/pipa_test.gd:164)
+       [4] _ready (res://scripts/tests/pipa_test.gd:64)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
    at: load (core/core_bind.cpp:78)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
-ERROR: Can't load texture: "res:///art/characters/enemies/c017/"
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_profile_and_attacks (res://scripts/tests/pipa_test.gd:164)
+       [4] _ready (res://scripts/tests/pipa_test.gd:64)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
    at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/enemies/c016.gd:167)
-       [1] _ready (res://scripts/enemies/c016.gd:86)
-       [2] _spawn_one (res://scripts/systems/wave_spawner.gd:93)
-       [3] _process (res://scripts/systems/wave_spawner.gd:61)
-[R] saved 03_fight err=0
-[R] saved 04_after err=0
-[R] saved 05_before_swap err=0
-ERROR: Resource file not found: res://art/characters/player/skulls/c023 (expected type: unknown)
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_profile_and_attacks (res://scripts/tests/pipa_test.gd:164)
+       [4] _ready (res://scripts/tests/pipa_test.gd:64)
+[PIPA] PASS 普攻第 1 段造成 1 伤
+[PIPA] PASS 普攻第 2 段造成 2 伤
+[PIPA] PASS 普攻第 3 段造成 2 伤
+[PIPA] PASS 普攻末段在 0.82 秒只发一道魔音而不直接近战结算
+[PIPA] PASS 末段魔音为 3 伤、600 速、430 射程并附 12 秒癫狂
+[PIPA] PASS 魔音真实命中扣 3 血并施加癫狂
+[PIPA] PASS 普攻魔音不穿透，首个目标后方敌人不受影响
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
    at: _load (core/io/resource_loader.cpp:351)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/player/player.gd:150)
-       [1] swap_skull (res://scripts/player/player.gd:466)
-       [2] _try_swap_skull (res://scripts/player/player.gd:452)
-       [3] _physics_process (res://scripts/player/player.gd:190)
-ERROR: Error loading resource: 'res:///art/characters/player/skulls/c023/'.
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_attack_recovery (res://scripts/tests/pipa_test.gd:188)
+       [4] _ready (res://scripts/tests/pipa_test.gd:65)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
    at: load (core/core_bind.cpp:78)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/player/player.gd:150)
-       [1] swap_skull (res://scripts/player/player.gd:466)
-       [2] _try_swap_skull (res://scripts/player/player.gd:452)
-       [3] _physics_process (res://scripts/player/player.gd:190)
-ERROR: Can't load texture: "res:///art/characters/player/skulls/c023/"
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_attack_recovery (res://scripts/tests/pipa_test.gd:188)
+       [4] _ready (res://scripts/tests/pipa_test.gd:65)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
    at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
    GDScript backtrace (most recent call first):
-       [0] _setup_spine (res://scripts/player/player.gd:150)
-       [1] swap_skull (res://scripts/player/player.gd:466)
-       [2] _try_swap_skull (res://scripts/player/player.gd:452)
-       [3] _physics_process (res://scripts/player/player.gd:190)
-[R] saved 06_swap err=0
-[R] saved 07_swap_skill err=0
-[R] ALL DONE player=(845.7286, 639.934)
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_attack_recovery (res://scripts/tests/pipa_test.gd:188)
+       [4] _ready (res://scripts/tests/pipa_test.gd:65)
+[PIPA] PASS 普攻自然收招进入 1 秒恢复
+[PIPA] PASS 恢复期内不能重新起手普攻
+[PIPA] PASS 普攻被移动等状态中断同样进入恢复并清空未结算段
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_attack_recovery (res://scripts/tests/pipa_test.gd:201)
+       [4] _ready (res://scripts/tests/pipa_test.gd:65)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_attack_recovery (res://scripts/tests/pipa_test.gd:201)
+       [4] _ready (res://scripts/tests/pipa_test.gd:65)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_attack_recovery (res://scripts/tests/pipa_test.gd:201)
+       [4] _ready (res://scripts/tests/pipa_test.gd:65)
+[PIPA] PASS 闪避结束后即使冷却返还也须等待 0.5 秒
+[PIPA] PASS 闪避最小间隔结束后可以再次闪避
+[PIPA] PASS 银夜返程闪避同样进入 0.5 秒最小间隔
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_k (res://scripts/tests/pipa_test.gd:223)
+       [4] _ready (res://scripts/tests/pipa_test.gd:66)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_k (res://scripts/tests/pipa_test.gd:223)
+       [4] _ready (res://scripts/tests/pipa_test.gd:66)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_k (res://scripts/tests/pipa_test.gd:223)
+       [4] _ready (res://scripts/tests/pipa_test.gd:66)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_k (res://scripts/tests/pipa_test.gd:224)
+       [4] _ready (res://scripts/tests/pipa_test.gd:66)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_k (res://scripts/tests/pipa_test.gd:224)
+       [4] _ready (res://scripts/tests/pipa_test.gd:66)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_k (res://scripts/tests/pipa_test.gd:224)
+       [4] _ready (res://scripts/tests/pipa_test.gd:66)
+[PIPA] PASS K 在两段位移动画中随机且不配置伤害段
+[PIPA] PASS K run- 跟随根位移、无敌穿身且冷却 2.5 秒
+[PIPA] PASS K run- 不对路径敌人造成伤害
+[PIPA] PASS K skill13_02-cankao 跟随根位移、无敌穿身且冷却 2.5 秒
+[PIPA] PASS K skill13_02-cankao 不对路径敌人造成伤害
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:240)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:240)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:240)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:241)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:241)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:241)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+[PIPA] PASS L skill03 使用独立伤害帧且冷却 8 秒
+[PIPA] PASS L skill03 曲终前不发音也不回血
+[PIPA] PASS L skill03 曲终无需命中即回 2 血并发一道魔音
+[PIPA] PASS L skill03 魔音为 3 伤穿透并翻倍癫狂
+[PIPA] PASS L skill03 同一道穿透魔音可命中两个目标
+[PIPA] PASS L 癫狂翻倍且不足时至少保留 12 秒
+[PIPA] PASS 穿透魔音借命中名单防止重复伤害
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:240)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:240)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:240)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:241)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:241)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_l (res://scripts/tests/pipa_test.gd:241)
+       [4] _ready (res://scripts/tests/pipa_test.gd:67)
+[PIPA] PASS L skill04 使用独立伤害帧且冷却 8 秒
+[PIPA] PASS L skill04 曲终前不发音也不回血
+[PIPA] PASS L skill04 曲终无需命中即回 2 血并发一道魔音
+[PIPA] PASS L skill04 魔音为 3 伤穿透并翻倍癫狂
+[PIPA] PASS L skill04 同一道穿透魔音可命中两个目标
+[PIPA] PASS L 癫狂翻倍且不足时至少保留 12 秒
+[PIPA] PASS 穿透魔音借命中名单防止重复伤害
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:266)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:266)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:266)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:267)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:267)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:267)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+[PIPA] PASS 普通 U 在 0.72 秒前不提前摄心
+[PIPA] PASS 普通 U 摄心最近前方杂兵，回满并魅惑 15 秒
+[PIPA] PASS 普通 U 只选单个前方目标，不波及其他敌人
+[PIPA] PASS 玩家对魅惑目标伤害减半向上取整且至少 1 伤
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:281)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:281)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:281)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:282)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:282)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:282)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+[PIPA] PASS 精英被回满并魅惑 10 秒
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:287)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:287)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:287)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:288)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:288)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:288)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+[PIPA] PASS Boss 只魅惑 5 秒且不回血
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:293)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:293)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:293)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:294)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:294)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_charm_and_frenzy (res://scripts/tests/pipa_test.gd:294)
+       [4] _ready (res://scripts/tests/pipa_test.gd:68)
+[PIPA] PASS 魅惑索敌排除玩家并选择敌方同伴
+[PIPA] PASS 魅惑目标真实攻击敌方同伴
+[PIPA] PASS 魅惑目标即使旧招已起手也不会攻击玩家
+[PIPA] PASS 无魅惑时癫狂从敌我双方中选择最近目标
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_awaken_u (res://scripts/tests/pipa_test.gd:314)
+       [4] _ready (res://scripts/tests/pipa_test.gd:69)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_awaken_u (res://scripts/tests/pipa_test.gd:314)
+       [4] _ready (res://scripts/tests/pipa_test.gd:69)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_awaken_u (res://scripts/tests/pipa_test.gd:314)
+       [4] _ready (res://scripts/tests/pipa_test.gd:69)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_awaken_u (res://scripts/tests/pipa_test.gd:315)
+       [4] _ready (res://scripts/tests/pipa_test.gd:69)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_awaken_u (res://scripts/tests/pipa_test.gd:315)
+       [4] _ready (res://scripts/tests/pipa_test.gd:69)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_awaken_u (res://scripts/tests/pipa_test.gd:315)
+       [4] _ready (res://scripts/tests/pipa_test.gd:69)
+[PIPA] PASS 觉醒 U 切换 skill10 演出、全程无敌并继承普通 U 起手音
+[PIPA] PASS 觉醒 U 全屏无视距离、朝向与高度造成 1 伤
+[PIPA] PASS 觉醒 U 给全房存活目标 12 秒强化癫狂
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_i (res://scripts/tests/pipa_test.gd:329)
+       [4] _ready (res://scripts/tests/pipa_test.gd:70)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_i (res://scripts/tests/pipa_test.gd:329)
+       [4] _ready (res://scripts/tests/pipa_test.gd:70)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_i (res://scripts/tests/pipa_test.gd:329)
+       [4] _ready (res://scripts/tests/pipa_test.gd:70)
+[PIPA] PASS I 是霸体而非无敌，觉醒在曲终后才开始
+[PIPA] PASS I 未收招时不提前回血或觉醒
+[PIPA] PASS I 曲终恢复已损生命一半并向上取整
+[PIPA] PASS I 开启 8 秒觉醒、累计次数并重置每觉醒 O 名额
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:346)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:341)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:346)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:341)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:346)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:341)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:347)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:341)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:347)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:341)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:347)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:341)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+[PIPA] PASS 首次觉醒 O 起手即占用名额并准备八段判定
+[PIPA] PASS 首次觉醒 O 第 1 段伤害：期望 4，实际 4
+[PIPA] PASS 首次觉醒 O 第 2 段伤害：期望 3，实际 3
+[PIPA] PASS 首次觉醒 O 第 3 段伤害：期望 2，实际 2
+[PIPA] PASS 首次觉醒 O 第 4 段伤害：期望 1，实际 1
+[PIPA] PASS 首次觉醒 O 第 5 段伤害：期望 1，实际 1
+[PIPA] PASS 首次觉醒 O 第 6 段伤害：期望 1，实际 1
+[PIPA] PASS 首次觉醒 O 第 7 段伤害：期望 1，实际 1
+[PIPA] PASS 首次觉醒 O 第 8 段伤害：期望 1，实际 1
+[PIPA] PASS 首次觉醒 O 六感层数为 8
+[PIPA] PASS 首次觉醒 内不能再次释放 O
+[PIPA] PASS 新觉醒名额恢复后可再次释放 O
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:346)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:342)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:346)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:342)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:346)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:342)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:347)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:342)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:347)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:342)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _run_o_case (res://scripts/tests/pipa_test.gd:347)
+       [4] _test_o (res://scripts/tests/pipa_test.gd:342)
+       [5] _ready (res://scripts/tests/pipa_test.gd:71)
+[PIPA] PASS 第二次觉醒 O 起手即占用名额并准备八段判定
+[PIPA] PASS 第二次觉醒 O 第 1 段伤害：期望 4，实际 4
+[PIPA] PASS 第二次觉醒 O 第 2 段伤害：期望 3，实际 3
+[PIPA] PASS 第二次觉醒 O 第 3 段伤害：期望 2，实际 2
+[PIPA] PASS 第二次觉醒 O 第 4 段伤害：期望 1，实际 1
+[PIPA] PASS 第二次觉醒 O 第 5 段伤害：期望 1，实际 1
+[PIPA] PASS 第二次觉醒 O 第 6 段伤害：期望 1，实际 1
+[PIPA] PASS 第二次觉醒 O 第 7 段伤害：期望 1，实际 1
+[PIPA] PASS 第二次觉醒 O 第 8 段伤害：期望 1，实际 1
+[PIPA] PASS 第二次觉醒 O 六感层数为 4
+[PIPA] PASS 第二次觉醒 内不能再次释放 O
+[PIPA] PASS 新觉醒名额恢复后可再次释放 O
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_p (res://scripts/tests/pipa_test.gd:379)
+       [4] _ready (res://scripts/tests/pipa_test.gd:72)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_p (res://scripts/tests/pipa_test.gd:379)
+       [4] _ready (res://scripts/tests/pipa_test.gd:72)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_p (res://scripts/tests/pipa_test.gd:379)
+       [4] _ready (res://scripts/tests/pipa_test.gd:72)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_p (res://scripts/tests/pipa_test.gd:380)
+       [4] _ready (res://scripts/tests/pipa_test.gd:72)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_p (res://scripts/tests/pipa_test.gd:380)
+       [4] _ready (res://scripts/tests/pipa_test.gd:72)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_p (res://scripts/tests/pipa_test.gd:380)
+       [4] _ready (res://scripts/tests/pipa_test.gd:72)
+[PIPA] PASS 心魔引按层数与每 2 秒一层统计全部状态
+[PIPA] PASS P 具有霸体且冷却 22 秒
+[PIPA] PASS P 以基础 8 伤加 9 层状态造成 17 伤
+[PIPA] PASS P 引爆后清空被计入的敌人状态
+[PIPA] PASS P 将自身流血与致残分赠给引爆后存活目标
+[PIPA] PASS P 转移后净化自身对应减益
+[PIPA] PASS 万狂同奏包含三条完整且前置正确的三阶流派
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:413)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:413)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:413)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:416)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:416)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:416)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+[PIPA] PASS 乱弦初阶向最近两名周围敌人传染 6 秒癫狂
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:427)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:427)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:427)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:430)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:430)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:430)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+[PIPA] PASS 乱弦续极在癫狂敌人互伤后传染并附加怨与六感尽失
+[PIPA] PASS 被动封印期间万狂同奏不会生效
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:440)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:440)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:440)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:443)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:443)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:443)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+[PIPA] PASS 同梦初阶额外魅惑一名附近非首领且不回血
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:453)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:453)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:453)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:456)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:456)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:456)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+[PIPA] PASS 同梦续极使魅惑互伤翻倍并延长且封顶 20 秒
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:462)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:462)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:462)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:465)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:465)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:465)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+[PIPA] PASS 心魔初阶只保留存活目标的六感尽失
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:474)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:474)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:474)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:477)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:477)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:477)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+[PIPA] PASS 心魔续阶按直接引爆击杀数返还冷却
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:484)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:484)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:484)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:487)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:487)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_form_upgrades (res://scripts/tests/pipa_test.gd:487)
+       [4] _ready (res://scripts/tests/pipa_test.gd:73)
+[PIPA] PASS 心魔极阶在引爆后溅射近敌并附加癫狂且不波及远处
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_six_senses (res://scripts/tests/pipa_test.gd:498)
+       [4] _ready (res://scripts/tests/pipa_test.gd:74)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_six_senses (res://scripts/tests/pipa_test.gd:498)
+       [4] _ready (res://scripts/tests/pipa_test.gd:74)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_six_senses (res://scripts/tests/pipa_test.gd:498)
+       [4] _ready (res://scripts/tests/pipa_test.gd:74)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_six_senses (res://scripts/tests/pipa_test.gd:499)
+       [4] _ready (res://scripts/tests/pipa_test.gd:74)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_six_senses (res://scripts/tests/pipa_test.gd:499)
+       [4] _ready (res://scripts/tests/pipa_test.gd:74)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_six_senses (res://scripts/tests/pipa_test.gd:499)
+       [4] _ready (res://scripts/tests/pipa_test.gd:74)
+[PIPA] PASS 六感尽失不被独立普攻触发
+[PIPA] PASS 六感尽失不被连段接续重复触发
+[PIPA] PASS 六感尽失在非普攻独立起手时结算对应层数伤害
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:510)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:510)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:510)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:511)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:511)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:511)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+[PIPA] PASS 红尘在每个实伤段给攻击者叠 1 层怨
+[PIPA] PASS 3 层怨使敌人每段 2 伤降为 1 伤
+[PIPA] PASS 6 层怨继续减伤但每段最低仍为 1
+[PIPA] PASS 强化癫狂在怨减伤后将每段最终伤害翻倍
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:533)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:533)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:533)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:534)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:534)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_red_dust_and_scapegoat (res://scripts/tests/pipa_test.gd:534)
+       [4] _ready (res://scripts/tests/pipa_test.gd:75)
+[PIPA] PASS 须臾把致命伤改为保留 1 生命
+[PIPA] PASS 须臾只选择癫狂目标，转承双倍溢出 8 伤并标记已用
+[PIPA] PASS 同一目标不能再次替死，无候选时保留原伤害
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_sorrow (res://scripts/tests/pipa_test.gd:545)
+       [4] _ready (res://scripts/tests/pipa_test.gd:76)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_sorrow (res://scripts/tests/pipa_test.gd:545)
+       [4] _ready (res://scripts/tests/pipa_test.gd:76)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_sorrow (res://scripts/tests/pipa_test.gd:545)
+       [4] _ready (res://scripts/tests/pipa_test.gd:76)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_sorrow (res://scripts/tests/pipa_test.gd:546)
+       [4] _ready (res://scripts/tests/pipa_test.gd:76)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_sorrow (res://scripts/tests/pipa_test.gd:546)
+       [4] _ready (res://scripts/tests/pipa_test.gd:76)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_sorrow (res://scripts/tests/pipa_test.gd:546)
+       [4] _ready (res://scripts/tests/pipa_test.gd:76)
+[PIPA] PASS 神伤 5 伤经魅惑减半为 3，并重置 30 秒计时
+[PIPA] PASS 神伤增幅：shock=1 bleed=2/10.00 poison=7.00 root=8.00
+[PIPA] PASS 神伤同步强化怨、六感、癫狂与魅惑
+[PIPA] PASS 神伤未到下一间隔不会重复结算
+[PIPA] PASS 神伤下一周期再次经魅惑结算 3 伤
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:568)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:568)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:568)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:572)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:572)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:572)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+[PIPA] PASS 余音续极分别使 L 冷却 -1 秒并额外回 1 血
+[PIPA] PASS 余音初阶使魔音癫狂基础与最小时长 +2 秒
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:583)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:583)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:583)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:586)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:586)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:586)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+[PIPA] PASS 缚心初阶延长非 Boss 魅惑，极阶在结束时附 3 层怨
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:591)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:591)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:591)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:593)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:593)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:593)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+[PIPA] PASS 缚心初阶不延长 Boss 魅惑
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:597)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:597)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:597)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:599)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:599)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:599)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+[PIPA] PASS 缚心续阶使觉醒 U 全房伤害 +1
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:605)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:605)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:605)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+[PIPA] PASS 红尘初阶把神伤间隔缩至 27 秒
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:611)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:611)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:611)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:613)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:613)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:613)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+[PIPA] PASS 红尘续阶把心魔引基础伤害提高到 10
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:617)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:617)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:617)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:619)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:619)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_permanent_nodes (res://scripts/tests/pipa_test.gd:619)
+       [4] _ready (res://scripts/tests/pipa_test.gd:77)
+[PIPA] PASS 红尘极阶使六感尽失触发额外造成 1 点固定伤害
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:626)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:626)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:626)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:627)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:627)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:627)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Resource file not found: res://art/characters/player/skulls/z000 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] swap_skull (res://scripts/player/player.gd:3400)
+       [2] _test_state_boundaries (res://scripts/tests/pipa_test.gd:631)
+       [3] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Error loading resource: 'res:///art/characters/player/skulls/z000/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] swap_skull (res://scripts/player/player.gd:3400)
+       [2] _test_state_boundaries (res://scripts/tests/pipa_test.gd:631)
+       [3] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Can't load texture: "res:///art/characters/player/skulls/z000/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] swap_skull (res://scripts/player/player.gd:3400)
+       [2] _test_state_boundaries (res://scripts/tests/pipa_test.gd:631)
+       [3] _ready (res://scripts/tests/pipa_test.gd:78)
+[PIPA] PASS K 位移中换头会清理穿身、根骨跟随、无敌与待结算段
+[PIPA] PASS 换回绛弦后技能运行配置使用独立副本，可再次起手
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:640)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:640)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:640)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+[PIPA] PASS L 被受击中断后不会曲终补发魔音
+[PIPA] PASS 完美闪避只保留普通加伤，不会误解锁 O 与 P
+[PIPA] PASS 新房重装形态时重置神伤计时与每房觉醒运行状态
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:664)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:664)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:664)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:665)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:665)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:665)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+[PIPA] PASS 技能中复活会停止循环音并收掉穿身、根骨跟随与技能无敌
+[PIPA] PASS 复活清空技能待结算事件、运行配置与防御取消窗口
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:699)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:699)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_state_boundaries (res://scripts/tests/pipa_test.gd:699)
+       [4] _ready (res://scripts/tests/pipa_test.gd:78)
+[PIPA] PASS 玩家普通与循环音效均走 SFX 总线
+[PIPA] PASS 后续技能不会覆盖前一技能本次实际总冷却与比例
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_projectile_audio (res://scripts/tests/pipa_test.gd:804)
+       [4] _ready (res://scripts/tests/pipa_test.gd:79)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_projectile_audio (res://scripts/tests/pipa_test.gd:804)
+       [4] _ready (res://scripts/tests/pipa_test.gd:79)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_projectile_audio (res://scripts/tests/pipa_test.gd:804)
+       [4] _ready (res://scripts/tests/pipa_test.gd:79)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_projectile_audio (res://scripts/tests/pipa_test.gd:805)
+       [4] _ready (res://scripts/tests/pipa_test.gd:79)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_projectile_audio (res://scripts/tests/pipa_test.gd:805)
+       [4] _ready (res://scripts/tests/pipa_test.gd:79)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_projectile_audio (res://scripts/tests/pipa_test.gd:805)
+       [4] _ready (res://scripts/tests/pipa_test.gd:79)
+[PIPA] PASS 分裂首次命中保留分裂行为并走统一命中音与 SFX 总线
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:727)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:727)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:727)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Resource file not found: res://art/characters/enemies/c016 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:728)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Error loading resource: 'res:///art/characters/enemies/c016/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:728)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Can't load texture: "res:///art/characters/enemies/c016/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/enemies/c016.gd:356)
+       [1] _ready (res://scripts/enemies/c016.gd:206)
+       [2] _enemy_at (res://scripts/tests/pipa_test.gd:137)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:728)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+[PIPA] PASS 第四段远程剑气飞行使用 E54055 action
+[PIPA] PASS 第四段剑气真实命中生成 E54056 action
+[PIPA] PASS 癫狂由目标持有点头顶 E52007 持续特效
+[PIPA] PASS 癫狂结束由目标释放 E52007
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:749)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:749)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:749)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+[PIPA] PASS 黍离 E100129 高度保持 110、父节点负责尺寸倍率且弹速比例为 1.2
+[PIPA] PASS 黍离运行时按 bounds 拟合高度并居中对齐
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:766)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:766)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:766)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+[PIPA] PASS 苏挽音 I 起手仅生成 E53174，不提前生成觉醒环绕
+[PIPA] PASS 苏挽音 I 收招后生成 E100172 持续环绕
+[PIPA] PASS 苏挽音觉醒结束释放 E100172
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:780)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:780)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:780)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+[PIPA] PASS 苏挽音 O 随机二选一生成视觉剑气且保留八段判定
+ERROR: Resource file not found: res://art/characters/enemies/z002 (expected type: unknown)
+   at: _load (core/io/resource_loader.cpp:351)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:789)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Error loading resource: 'res:///art/characters/enemies/z002/'.
+   at: load (core/core_bind.cpp:78)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:789)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+ERROR: Can't load texture: "res:///art/characters/enemies/z002/"
+   at: GodotSpineTextureLoader::load (spine_godot\SpineAtlasResource.cpp:165)
+   GDScript backtrace (most recent call first):
+       [0] _setup_spine (res://scripts/player/player.gd:773)
+       [1] _ready (res://scripts/player/player.gd:341)
+       [2] _reset_world (res://scripts/tests/pipa_test.gd:120)
+       [3] _test_spine_fx (res://scripts/tests/pipa_test.gd:789)
+       [4] _ready (res://scripts/tests/pipa_test.gd:80)
+[PIPA] PASS 神伤 E54061 按视口宽度拟合并居中于玩家上方
+[PIPA] PASS 神伤一次性特效按 action 真实时长销毁
+[PIPA] PASS SUMMARY checks=134 failed=0
+WARNING: ObjectDB instances leaked at exit (run with --verbose for details).
+   at: cleanup (core/object/object.cpp:2641)

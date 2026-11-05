@@ -170,50 +170,50 @@
 [SFX] PASS E54057 has animations
 [SFX] E54057 anims=["action"] durations=[2.40000009536743] bounds=(-342.436889648438,-253.637222290039,640.000061035156,640.0)
 [SFX] PASS E54057 spawns
-[SFX] E54156 runtime_bounds=[P: (-56.05772, 6.087097), S: (104.1295, 81.61731)] type=7
+[SFX] E54156 runtime_bounds=[P: (-55.89192, 6.101471), S: (104.0137, 81.58032)] type=7
 [SFX] E54151 runtime_bounds=[P: (-120.6683, -1074.642), S: (227.9282, 1103.158)] type=7
-[SFX] E54148 runtime_bounds=[P: (-1256.037, -1604.465), S: (1758.086, 2301.908)] type=7
+[SFX] E54148 runtime_bounds=[P: (-1254.49, -1606.742), S: (1750.712, 2291.098)] type=7
 [SFX] E54110 runtime_bounds=[P: (-101.2491, -118.8166), S: (194.3478, 257.4028)] type=7
 [SFX] E54083 runtime_bounds=[P: (-268.4196, -105.658), S: (449.3073, 207.617)] type=7
 [SFX] E54063 runtime_bounds=[P: (-227.0, -58.0), S: (457.0, 124.0)] type=7
 [SFX] E54061 runtime_bounds=[P: (-123.0, -105.0), S: (251.0, 181.0)] type=7
 [SFX] E54056 runtime_bounds=[P: (-161.0, -143.0), S: (302.0, 281.0)] type=7
 [SFX] E54055 runtime_bounds=[P: (-227.8505, -90.98203), S: (335.0, 187.0)] type=7
-[SFX] E54054 runtime_bounds=[P: (-272.377, -441.7317), S: (492.1855, 516.3709)] type=7
+[SFX] E54054 runtime_bounds=[P: (-265.1696, -441.1284), S: (484.9781, 515.7676)] type=7
 [SFX] E54015 runtime_bounds=[P: (-111.6, -145.8), S: (291.6, 315.0)] type=7
-[SFX] E54012 runtime_bounds=[P: (-347.225, -719.9103), S: (717.367, 951.7281)] type=7
+[SFX] E54012 runtime_bounds=[P: (-346.4968, -719.3338), S: (716.4066, 950.426)] type=7
 [SFX] E53201 runtime_bounds=[P: (-253.9599, -197.1599), S: (443.8982, 241.25)] type=7
-[SFX] E53174 runtime_bounds=[P: (-518.019, -224.1428), S: (1036.038, 457.2513)] type=7
+[SFX] E53174 runtime_bounds=[P: (-518.0598, -224.1604), S: (1036.12, 457.2873)] type=7
 [SFX] E53038 runtime_bounds=[P: (340282346638528860000000000000000000000.0, 340282346638528860000000000000000000000.0), S: (-inf, -inf)] type=7
 [SFX] E53026 runtime_bounds=[P: (-335.0, 68.0), S: (199.0, 99.0)] type=7
 [SFX] E53009 runtime_bounds=[P: (-164.0, -78.0), S: (337.0, 165.0)] type=7
 [SFX] E53008 runtime_bounds=[P: (-182.0, -72.0), S: (375.0, 149.0)] type=7
 [SFX] E52025 runtime_bounds=[P: (-66.6872, -111.6217), S: (190.8633, 254.1012)] type=7
-[SFX] E52007 runtime_bounds=[P: (-107.8031, -162.1834), S: (224.9322, 84.52321)] type=7
-[SFX] E52000 runtime_bounds=[P: (-50.0447, -24.5842), S: (101.7816, 46.90539)] type=7
-[SFX] E50127 runtime_bounds=[P: (-103.9067, -131.2897), S: (204.099, 159.7745)] type=7
+[SFX] E52007 runtime_bounds=[P: (-108.0415, -162.2708), S: (225.4063, 84.7189)] type=7
+[SFX] E52000 runtime_bounds=[P: (-49.5625, -24.59852), S: (100.783, 46.92093)] type=7
+[SFX] E50127 runtime_bounds=[P: (-103.9067, -131.0876), S: (203.9445, 159.5724)] type=7
 [SFX] E50041 runtime_bounds=[P: (-79.22331, -159.0551), S: (169.2413, 312.6827)] type=7
-[SFX] E100186 runtime_bounds=[P: (-100.6466, -121.7665), S: (163.2771, 201.296)] type=7
+[SFX] E100186 runtime_bounds=[P: (-100.5733, -121.6932), S: (163.1304, 201.2227)] type=7
 [SFX] E100182 runtime_bounds=[P: (-53.8461, -91.0), S: (109.1441, 182.0)] type=7
-[SFX] E100180 runtime_bounds=[P: (-66.49477, -23.80292), S: (80.68723, 44.10003)] type=7
+[SFX] E100180 runtime_bounds=[P: (-66.43243, -23.78278), S: (80.55645, 44.06154)] type=7
 [SFX] E100177 runtime_bounds=[P: (-124.3949, -71.67614), S: (218.6684, 175.5305)] type=7
-[SFX] E100172 runtime_bounds=[P: (-77.24575, -156.7459), S: (159.9795, 147.8916)] type=7
-[SFX] E100129 runtime_bounds=[P: (-1369.962, -368.9615), S: (1812.179, 730.2413)] type=7
+[SFX] E100172 runtime_bounds=[P: (-77.20666, -156.7083), S: (159.9404, 147.815)] type=7
+[SFX] E100129 runtime_bounds=[P: (-1364.021, -369.3036), S: (1806.558, 730.868)] type=7
 [SFX] E54068 runtime_bounds=[P: (-140.5013, -175.3209), S: (315.2, 331.2)] type=7
-[SFX] E100006 runtime_bounds=[P: (-301.4717, -311.4974), S: (598.0182, 621.3059)] type=7
+[SFX] E100006 runtime_bounds=[P: (-301.5368, -311.43), S: (598.0838, 621.2439)] type=7
 [SFX] E21105 runtime_bounds=[P: (-385.9846, -767.3229), S: (796.6639, 822.592)] type=7
-[SFX] E21022 runtime_bounds=[P: (-529.095, -290.446), S: (1068.754, 604.2454)] type=7
-[SFX] E21019 runtime_bounds=[P: (11.89001, -45.42733), S: (34.18182, 91.10713)] type=7
-[SFX] E21013 runtime_bounds=[P: (-21.25799, -72.43138), S: (71.99409, 83.86795)] type=7
+[SFX] E21022 runtime_bounds=[P: (-529.1221, -286.2048), S: (1068.799, 595.4146)] type=7
+[SFX] E21019 runtime_bounds=[P: (11.89001, -45.42733), S: (34.18182, 91.10953)] type=7
+[SFX] E21013 runtime_bounds=[P: (-21.26532, -72.40785), S: (71.98122, 83.85294)] type=7
 [SFX] E54169 runtime_bounds=[P: (-92.99443, -82.29722), S: (185.476, 167.6237)] type=7
 [SFX] E100105 runtime_bounds=[P: (-303.3171, -278.2561), S: (325.2001, 333.6)] type=7
-[SFX] E54145 runtime_bounds=[P: (-116.4317, -1422.356), S: (1263.022, 1635.872)] type=7
-[SFX] E54181 runtime_bounds=[P: (-803.1591, -2090.375), S: (1605.63, 2474.736)] type=7
+[SFX] E54145 runtime_bounds=[P: (-116.4265, -1420.862), S: (1262.38, 1634.322)] type=7
+[SFX] E54181 runtime_bounds=[P: (-795.7194, -2090.813), S: (1590.757, 2471.613)] type=7
 [SFX] E54057 runtime_bounds=[P: (-47.93399, -59.81606), S: (166.0, 85.0)] type=7
-[SFX] fit_height settled bounds=[P: (-30.25704, -29.53159), S: (38.39685, 59.76756)] scale=(3.346297, 3.346297) offset=(0.0, 0.0)
+[SFX] fit_height settled bounds=[P: (-29.45586, -28.29952), S: (36.83708, 57.33966)] scale=(3.487987, 3.487987) offset=(0.0, 0.0)
 [SFX] PASS runtime height fitting works when static bounds are zero
 [SFX] PASS runtime height fitting refreshes after animation changes
-[SFX] fit_width settled bounds=[P: (-749.8763, -255.1577), S: (1486.113, 508.7338)] scale=(0.316261, 0.316261) offset=(2.156905, 0.250115)
+[SFX] fit_width settled bounds=[P: (-750.2059, -255.1577), S: (1486.763, 508.7338)] scale=(0.316123, 0.316123) offset=(2.157331, 0.250005)
 [SFX] PASS runtime width fitting uses the active animation bounds
 [SFX] PASS center option aligns the runtime visual bounds to the requested position
 [SFX] PASS runtime cover fitting fills the target without distorting the animation

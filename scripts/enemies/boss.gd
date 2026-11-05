@@ -480,6 +480,17 @@ func stop_tier() -> String:
 	return "boss"
 
 
+## Boss 词条默认规则：非普通攻击（阶段招式池首项即普攻）出手期间不可被任何控制打断。
+## 冲锋蓄力/冲锋同样受保护；时停是规则级能力，仍由 time_stop 直接打断。
+func _is_uninterruptible() -> bool:
+	if state == S_CHARGE_TELE or state == S_CHARGING:
+		return true
+	if state != State.ATTACK:
+		return false
+	var basic: String = str(_attack_anims[0]) if not _attack_anims.is_empty() else ""
+	return _attack_move != basic
+
+
 ## 只有实际拥有佛曰金钟的 Boss 开放这层状态视觉；其他 Boss 不读取不存在的属性。
 func _golden_bell_active() -> bool:
 	if not has_method("_consume_bell"):
@@ -510,14 +521,14 @@ func time_stop(dur: float) -> void:
 ## ignore_armor（剑仙 U 飞脚 / O 横斩）：规则级位移照样生效——挑起约 0.4 秒后自然落地，
 ## 或直接被推开一段；但绝不打断阶段/变身/冲锋计时，AI 节奏原样继续
 func launch(_dir: int, _vx: float, vy: float, ignore_armor := false) -> void:
-	if not ignore_armor or state == State.DEAD or _invincible or _stop_timer > 0.0:
+	if not ignore_armor or state == State.DEAD or _invincible or _stop_timer > 0.0 or _is_uninterruptible():
 		return
 	velocity.y = -vy * 0.5 # 半速上抛 ≈ 0.4 秒滞空，落地由重力自然结算
 	Feel.shake(5.0, 0.15)
 
 
 func knock_back(dir: int, force: float, _impact: int, ignore_armor := false) -> void:
-	if not ignore_armor or state == State.DEAD or _invincible or _stop_timer > 0.0:
+	if not ignore_armor or state == State.DEAD or _invincible or _stop_timer > 0.0 or _is_uninterruptible():
 		return
 	# 规则级推开：直接挪一段身位（0.12 系数把 900 力度换算成约 108px），不做抛物线
 	var push := clampf(force * 0.12, 0.0, 140.0)

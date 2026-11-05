@@ -25,7 +25,11 @@ const FAST_DESIRE_SCALE := 2.0
 const RISE_RADIUS := 110.0
 const AWAKEN_FX_ID := "E54110"
 const AWAKEN_FX_ANIM := "action1"
+const AWAKEN_FX_CENTER := Vector2(0, -90) # 角色身体中心：碰撞胶囊从脚下 0 到 -150
+const AWAKEN_FX_HEIGHT := 380.0 # 原 0.55 倍只有约 315px 且一半埋在地面下，觉醒演出整体放大
 const RISE_FX_ID := "E53038"
+const RISE_FX_ANIM := "action4"
+const RISE_FX_WIDTH := 360.0 # 略大于 110 半径的火区（直径 220），地面岩浆池完整覆盖伤害范围
 
 var _move_cds: Dictionary = {}
 var _attack_desire := 0.0
@@ -232,12 +236,12 @@ func _cast_tick(delta: float) -> void:
 func _run_cast_event(event: Dictionary) -> void:
 	match str(event["kind"]):
 		"palm":
-			_hit_front(2, 300.0, 190.0, {"fen_ding_burn": true})
+			_hit_front(2, 300.0, 190.0)
 		"crush":
 			_hit_front(int(event["damage"]), 340.0, 190.0, {"cripple": 5.0})
 			Feel.shake(5.0, 0.16)
 		"fists":
-			_hit_front(3, 466.0, 190.0, {"fen_ding_burn": true}, Vector2(facing * 1100.0, -260.0))
+			_hit_front(3, 466.0, 190.0, {}, Vector2(facing * 1100.0, -260.0))
 			Feel.shake(8.0, 0.22)
 		"rise_warn":
 			_warn_rise()
@@ -254,13 +258,15 @@ func _hit_front(damage: int, reach: float, height: float, extra: Dictionary = {}
 		_hit_status_target(_target, damage, knockback, _move_data(extra))
 
 
-func _move_data(extra: Dictionary) -> Dictionary:
+func _move_data(extra: Dictionary = {}) -> Dictionary:
 	var move := extra.duplicate(true)
 	move["anim"] = _cast_move
 	move["hit_at"] = _cast_elapsed
 	move["cast_id"] = _cast_id
 	move["cast_owner_id"] = get_instance_id()
 	move["pierce_hurt_invincible"] = true
+	# 炽热之心：焚鼎造成的任何伤害都附加 1 层怒焰，不再由单招各自声明。
+	move["fen_ding_burn"] = true
 	return move
 
 
@@ -282,7 +288,12 @@ func _burst_rise() -> void:
 	_clear_rise_warnings()
 	for x in _rise_positions:
 		var pos := Vector2(float(x), global_position.y)
-		FenSpineFX.spawn(get_tree().current_scene, RISE_FX_ID, pos, {"scale": 0.6})
+		# action4 的岩浆池以骨架原点为地面线：不要用 bottom 追包围盒，
+		# 素材下方大片透明留白会把整团岩浆顶到半空。
+		FenSpineFX.spawn(get_tree().current_scene, RISE_FX_ID, pos, {
+			"anim": RISE_FX_ANIM,
+			"width": RISE_FX_WIDTH,
+		})
 	_sfx_player.stream = SFX_FIRE_BURST
 	_sfx_player.play()
 	Feel.shake(5.0, 0.18)
@@ -291,7 +302,7 @@ func _burst_rise() -> void:
 	for x in _rise_positions:
 		var dx: float = _target.global_position.x - float(x)
 		if absf(dx) <= RISE_RADIUS and absf(_target.global_position.y - global_position.y) <= 160.0:
-			_hit_status_target(_target, 3, Vector2(signf(dx) * 220.0, -100.0), _move_data({"fen_ding_burn": true}))
+			_hit_status_target(_target, 3, Vector2(signf(dx) * 220.0, -100.0), _move_data())
 			FX.spawn(get_tree().current_scene, "fire_hit", _target.global_position + Vector2(0, -70), {"scale": 0.5})
 			break
 
@@ -342,10 +353,11 @@ func _awaken() -> void:
 	_play(AWAKEN_ANIM, false)
 	_telegraph()
 	Feel.shake(7.0, 0.3)
-	var transform_fx: Dictionary = _fx.get("transform", {})
-	FenSpineFX.attach(self, AWAKEN_FX_ID, Vector2.ZERO, {
+	# 觉醒演出以身体中心为锚点并整体放大：旧版贴着脚下，半个特效埋进地面，显得又小又低又淡。
+	FenSpineFX.attach(self, AWAKEN_FX_ID, AWAKEN_FX_CENTER, {
 		"anim": AWAKEN_FX_ANIM,
-		"scale": float(transform_fx.get("scale", 0.55)),
+		"height": AWAKEN_FX_HEIGHT,
+		"center": true,
 		"flip": facing < 0,
 	})
 
@@ -388,6 +400,11 @@ func on_fen_ding_burn_hit(amount: int, _player: Node) -> void:
 	_heal(10)
 	for move in _move_cds:
 		_move_cds[move] = 0.0
+
+
+## 炎掌之外的招式（含炎骨觉醒演出）出手期间不可打断；时停仍按规则级处理。
+func _is_uninterruptible() -> bool:
+	return state == S_AWAKEN or (state == S_CAST and _cast_move != "" and _cast_move != PALM)
 
 
 func time_stop(dur: float) -> void:

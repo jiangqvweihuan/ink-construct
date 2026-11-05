@@ -482,7 +482,7 @@ func _permanent_progression_check() -> void:
 	_player.hurt(2)
 	p("护砚后 hp=%d 剩余护砚=%s（期望 7/false）" % [_player.hp, Run.guard_available])
 
-	# 双刺首次死亡先触发红蝶；第二次死亡才消耗复活墨符并以 4 血起身。
+	# 复活优先级：复活墨符（4 血）先于红蝶；红蝶留到下一次死亡，满血起身。
 	Meta.purchases = {}
 	Meta.inventory = {"supply_revive": 1}
 	Meta.selected_supply = "supply_revive"
@@ -491,13 +491,13 @@ func _permanent_progression_check() -> void:
 	_player.state = 0
 	_player._hurt_invincible = 0.0
 	_player.hurt(3)
-	var red_first: bool = _player.hp == 100 and Run.c021_red_butterfly_used and not Run.supply_revive_used
+	var supply_first: bool = _player.hp == 4 and Run.supply_revive_used and not Run.c021_red_butterfly_used
 	_player.hp = 1
 	_player.state = 0
 	_player._hurt_invincible = 0.0
 	_player.hurt(3)
-	p("红蝶首死=%s 墨符第二次复活 hp=%d 已消耗=%s 库存=%d（期望 true/4/true/0）" % [
-		red_first, _player.hp, Run.supply_revive_used, Meta.supply_count("supply_revive")])
+	p("墨符首死=%s 红蝶第二次复活 hp=%d 上限=%d 已消耗=%s 库存=%d（期望 true/100/100/true/0）" % [
+		supply_first, _player.hp, _player.max_hp, Run.c021_red_butterfly_used, Meta.supply_count("supply_revive")])
 
 
 ## 原子存档回归：完整写入 .tmp 后替换正式存档；覆盖既有 meta.json 的 rename 行为。
@@ -619,6 +619,11 @@ func _new_build_regression() -> void:
 	_player.on_dagger_hit(dagger_target, dagger_target.global_position, true)
 	p("归刃/绯羽回调 落匕=%d 分裂定身=%.1f（期望 2/1.2）" % [_player._daggers.size(), dagger_target.rooted])
 	_player._spawn_bait()
+	# 把本体临时挪开 150px，截图才能看清留在原地的淡化模型虚影（之后还原位置）。
+	var bait_shot_pos := _player.global_position
+	_player.global_position.x += 150.0
+	await _shot("12_bait_ghost")
+	_player.global_position = bait_shot_pos
 	dagger_target._target = _player._bait
 	_player._expire_bait()
 	p("影饵到期 残影清理=%s 追饵定身=%.1f（期望 true/1.5）" % [not is_instance_valid(_player._bait), dagger_target.rooted])
@@ -1024,6 +1029,21 @@ func _innate_passive_regression() -> void:
 	_player.hurt(3, Vector2.ZERO, null, {})
 	_check(_player.hp == 17 and Run.c013_buddha == 0 and _player._hurt_phase != "fall" and _player._hurt_chain.is_empty(),
 		"恰好实际 3 伤的自然倒地攻击消耗一层佛陀，只免倒地而不减伤")
+	# 佛陀最多 3 层：满层后再获得层数改为恢复 1 点生命。
+	var buddha_cap: int = 20 + _player.extra_hp_cap()
+	Run.c013_buddha = 3
+	Run.c013_damage_hits = 11
+	_player.max_hp = 20
+	_player.hp = 18
+	for i in 4:
+		_player._damage_enemy(demon_target, 1)
+	_check(Run.c013_buddha == 3 and _player._buff_now() == 3 and _player.hp == 19,
+		"佛陀满 3 层后再获得层数改为恢复 1 点生命")
+	_player.hp = buddha_cap
+	Run.c013_damage_hits = 15
+	for i in 4:
+		_player._damage_enemy(demon_target, 1)
+	_check(Run.c013_buddha == 3 and _player.hp == buddha_cap, "满血时佛陀已满层不再回血")
 	demon_target.queue_free()
 
 	# 墨梅与霜梅：终局墨锭、60 血、进房复原向上取整和普攻恢复豁免。

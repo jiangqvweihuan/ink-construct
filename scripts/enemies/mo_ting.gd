@@ -26,8 +26,11 @@ const FAST_DESIRE_SCALE := 2.0
 const RUSH_START := 1.62 # 动画蓄力结束、机体开始前倾后才起步。
 const RUSH_END := 3.60
 const GROUND_IMPACT_X := 240.0 # 断岳 / 陨构的拍地点在骨架原点身前，不在 Boss 脚底。
+const GROUND_CRACK_SINK := 90.0 # crack 贴图主体离帧底约 90px，整体下压让爆裂真正从地面向上长
 const LASER_OFFSET := Vector2(120.0, -115.0)
-const UNBREAKABLE: Array = [] # 当前六招均可被阈值受击打断；时停始终是更高优先级。
+const LASER_START := 0.85 # 贯昼发射帧
+const LASER_END := 1.65 # 光束持续 0.8 秒（原 1.6 秒的一半）
+const LASER_SEGMENT_DAMAGE := 2 # 贯昼只有两段，每段固定 2 伤
 
 var _move_cds: Dictionary = {}
 var _battle_time := 0.0
@@ -63,21 +66,47 @@ class RedMark extends Node2D:
 
 
 class InkLaser extends Node2D:
+	## 激光视觉 = 用户提供的红色炮口贴图负责起段 + 程序化光束补足到射程末端。
+	## 贴图只有 245px 宽，覆盖不到整条光束；后半段用同色系的脉冲光束自然接上。
+	const ART := "res://art/fx/mo_ting_laser.png"
+	const ART_SCALE := 1.8
+	const ART_MUZZLE_X := 110.0 # 贴图内炮口中心
+	const ART_CENTER_X := 122.5 # 245 宽贴图的中心
+	const ART_END_X := 245.0 # 贴图光束在右边缘被截断，从这里开始程序化延伸
+	const ART_END := (ART_END_X - ART_MUZZLE_X) * ART_SCALE
+
 	var length := 1000.0
 	var direction := 1.0
 	var pulse := 0.0
+	var _art: Sprite2D
+
+	func _ready() -> void:
+		var tex: Texture2D = load(ART)
+		if tex == null:
+			return
+		_art = Sprite2D.new()
+		_art.texture = tex
+		# 让贴图里的炮口中心落在节点原点，光束才能从发射点自然向右延伸
+		_art.offset = Vector2(ART_CENTER_X - ART_MUZZLE_X, 0.0)
+		_art.scale = Vector2(direction * ART_SCALE, ART_SCALE)
+		add_child(_art)
 
 	func _process(delta: float) -> void:
 		pulse += delta * 18.0
+		if _art != null:
+			_art.scale.x = direction * ART_SCALE
 		queue_redraw()
 
 	func _draw() -> void:
-		var end := Vector2(length * direction, 0)
-		var width := 30.0 + sin(pulse) * 4.0
-		draw_line(Vector2.ZERO, end, Color(0.20, 0.58, 0.72, 0.20), width + 24.0, true)
-		draw_line(Vector2.ZERO, end, Color(0.32, 0.78, 0.92, 0.56), width, true)
-		draw_line(Vector2.ZERO, end, Color(0.88, 0.98, 1.0, 0.96), 9.0, true)
-		draw_circle(Vector2.ZERO, 28.0, Color(0.65, 0.92, 1.0, 0.72))
+		var start := Vector2(direction * ART_END, 0.0)
+		var end := Vector2(direction * length, 0.0)
+		if absf(end.x) <= absf(start.x):
+			return
+		var width := 76.0 + sin(pulse) * 5.0
+		draw_line(start, end, Color(0.52, 0.34, 0.95, 0.22), width + 46.0, true)
+		draw_line(start, end, Color(0.95, 0.38, 0.82, 0.62), width, true)
+		draw_line(start, end, Color(1.0, 0.72, 0.95, 0.92), 26.0, true)
+		draw_line(start, end, Color(1.0, 0.97, 1.0, 0.98), 10.0, true)
 
 
 func _ready() -> void:
@@ -288,6 +317,12 @@ func _events_for(move: String) -> Array:
 				{"at": 0.18, "kind": "leap_lift"},
 				{"at": 1.28, "kind": "leap_land"},
 			]
+		LASER:
+			# 只结算两段，每段 2 伤；两段都在 0.8 秒的光束窗口内落下。
+			return [
+				{"at": LASER_START, "kind": "laser_segment"},
+				{"at": LASER_START + 0.72, "kind": "laser_segment"},
+			]
 	return []
 
 
@@ -342,7 +377,7 @@ func _run_cast_event(event: Dictionary) -> void:
 			_sfx_player.play()
 			_hit_front(5, 370.0, 190.0, {"cripple": 5.0}, Vector2(facing * 420.0, -180.0))
 			Feel.shake(10.0, 0.3)
-			_fx_play({"name": "crack", "scale": 0.75}, Vector2(facing * GROUND_IMPACT_X, 0.0))
+			_fx_play({"name": "crack", "scale": 0.75, "off_y": GROUND_CRACK_SINK * 0.75}, Vector2(facing * GROUND_IMPACT_X, 0.0))
 		"leap_lift":
 			velocity.y = -600.0
 		"leap_land":
@@ -352,20 +387,24 @@ func _run_cast_event(event: Dictionary) -> void:
 			velocity.y = 0.0
 			_hit_front(4, 350.0, 200.0, {"cripple": 5.0}, Vector2(facing * 980.0, -340.0))
 			Feel.shake(12.0, 0.34)
-			_fx_play({"name": "crack", "scale": 0.9}, Vector2(facing * GROUND_IMPACT_X, 0.0))
+			_fx_play({"name": "crack", "scale": 0.9, "off_y": GROUND_CRACK_SINK * 0.9}, Vector2(facing * GROUND_IMPACT_X, 0.0))
+		"laser_segment":
+			_laser_hit()
 
 
 func _continuous_tick(delta: float) -> void:
-	var active := false
-	if _cast_move == RUSH:
-		active = _cast_elapsed >= RUSH_START and _cast_elapsed <= RUSH_END
-	elif _cast_move == LASER:
-		active = _cast_elapsed >= 0.85 and _cast_elapsed <= 2.45
-		if active:
+	# 贯昼的伤害由两条 laser_segment 事件结算，这里只负责维持 0.8 秒的光束视觉。
+	if _cast_move == LASER:
+		var beam_active := _cast_elapsed >= LASER_START and _cast_elapsed <= LASER_END
+		if beam_active:
 			_update_laser()
 		elif is_instance_valid(_laser):
 			_laser.queue_free()
 			_laser = null
+		return
+	var active := false
+	if _cast_move == RUSH:
+		active = _cast_elapsed >= RUSH_START and _cast_elapsed <= RUSH_END
 	if not active:
 		return
 	if not _tick_started:
@@ -387,15 +426,24 @@ func _continuous_hit() -> void:
 		var dy := absf(_target.global_position.y - global_position.y)
 		if (dx == 0.0 or (dx > 0.0) == (facing > 0)) and absf(dx) <= 210.0 + _radius_of(_target) and dy <= 190.0:
 			_hit_target(2, {"force_knockdown": true}, Vector2(facing * 360.0, -180.0))
+	# 贯昼实战伤害走 laser_segment 事件；这一支供测试直接调用 _continuous_hit 校验光束起点。
 	elif _cast_move == LASER:
-		var forward: float = (_target.global_position.x - global_position.x) * facing
-		var beam_y := global_position.y + LASER_OFFSET.y
-		var target_y: float = _target.global_position.y - 70.0
-		if forward >= LASER_OFFSET.x and absf(target_y - beam_y) <= 90.0:
-			var base := 1
-			if _target.has_method("mo_ting_laser_damage"):
-				base = int(_target.call("mo_ting_laser_damage"))
-			_hit_target(base, {"mo_ting_burn": true}, Vector2.ZERO)
+		_laser_hit()
+
+
+## 贯昼结算：正前方整条射程都算命中；灼烧层数仍会抬高每段激光的基础伤害。
+func _laser_hit() -> void:
+	if _target == null or not is_instance_valid(_target):
+		return
+	var forward: float = (_target.global_position.x - global_position.x) * facing
+	var beam_y := global_position.y + LASER_OFFSET.y
+	var target_y: float = _target.global_position.y - 70.0
+	if forward < LASER_OFFSET.x or absf(target_y - beam_y) > 90.0:
+		return
+	var damage := LASER_SEGMENT_DAMAGE
+	if _target.has_method("mo_ting_laser_damage"):
+		damage += maxi(0, int(_target.call("mo_ting_laser_damage")) - 1)
+	_hit_target(damage, {"mo_ting_burn": true}, Vector2.ZERO)
 
 
 func _hit_front(damage: int, reach: float, height: float, extra: Dictionary = {}, knockback := Vector2.ZERO) -> void:
@@ -546,7 +594,7 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 
 
 func _trigger_break() -> void:
-	if state == S_ENTER or (_cast_move != "" and UNBREAKABLE.has(_cast_move)):
+	if state == S_ENTER or _is_uninterruptible():
 		return
 	_recent_hits.clear()
 	_cleanup_cast()
@@ -563,6 +611,17 @@ func on_player_hit(amount: int, _move: Dictionary, _player: Node) -> void:
 	max_hp += 1
 	hp = max_hp
 	hp_changed.emit(hp, max_hp)
+
+
+## 机关造物：对满血目标追加 100% 伤害（受击结算前目标仍是满血才翻倍）。
+func _modify_outgoing_damage(dmg: int, target: Node, _move: Dictionary) -> int:
+	if dmg <= 0 or target == null or not is_instance_valid(target) or target != _target:
+		return dmg
+	var target_max := int(target.get("max_hp"))
+	var target_hp := int(target.get("hp"))
+	if target_max > 0 and target_hp >= target_max:
+		return dmg * 2
+	return dmg
 
 
 ## 机关造物：持续减益与普通控制完全无效；time_stop 单独走规则级接口。
@@ -600,6 +659,11 @@ func launch(_dir: int, _vx: float, _vy: float, _ignore_armor := false) -> void:
 
 func knock_back(_dir: int, _force: float, _impact: int, _ignore_armor := false) -> void:
 	pass
+
+
+## 除普攻奋挥外，五招出手期间全部不可打断（阈值破招只对普攻生效）；时停仍按规则级处理。
+func _is_uninterruptible() -> bool:
+	return state == S_CAST and _cast_move != "" and _cast_move != BASIC
 
 
 func time_stop(dur: float) -> void:

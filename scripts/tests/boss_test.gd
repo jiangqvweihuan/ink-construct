@@ -59,6 +59,39 @@ func _ready() -> void:
 	await get_tree().create_timer(1.5).timeout # 登场演出
 	await _shot("00_entrance")
 
+	# Boss 词条默认规则：非普攻出手期间免疫规则级击飞/击退/晕眩（时停仍可打断，由各 Boss 专项测试覆盖）。
+	if b._attack_anims.size() >= 2:
+		var saved_state: int = b.state
+		var saved_move: String = b._attack_move
+		var saved_velocity: Vector2 = b.velocity
+		var saved_invincible: bool = b._invincible
+		b._invincible = false
+		b.state = b.State.ATTACK
+		b._attack_move = str(b._attack_anims[1])
+		b.launch(1, 900.0, 400.0, true)
+		b.knock_back(1, 900.0, 2, true)
+		b.stun(2.0, true)
+		var protected: bool = b.state == b.State.ATTACK and b.velocity == saved_velocity and is_zero_approx(b._stun_timer)
+		p("non-basic move protected=" + str(protected))
+		if not protected:
+			p("FAIL 非普攻出手仍被规则级控制打断")
+			get_tree().quit(1)
+			return
+		b._attack_move = str(b._attack_anims[0])
+		b.launch(1, 900.0, 400.0, true)
+		var basic_lifted: bool = b.state == b.State.ATTACK and b.velocity.y == -200.0
+		p("basic move liftable=" + str(basic_lifted))
+		if not basic_lifted:
+			p("FAIL 普攻出手应仍可被规则级击飞挑起")
+			get_tree().quit(1)
+			return
+		b.state = saved_state
+		b._attack_move = saved_move
+		b.velocity = saved_velocity
+		b._invincible = saved_invincible
+		b._stun_timer = 0.0
+		b._root_timer = 0.0
+
 	# 漏刻·极：Boss 余滞时长减半，自定义冲锋状态也能读取同一倍率。
 	b.slow(4.0, 0.45)
 	p("boss slow timer=%.1f scale=%.2f（期望 2.0/0.45）" % [b._slow_timer, b._slow_scale])

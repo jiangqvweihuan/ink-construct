@@ -1,4 +1,8 @@
-theme font = (res://art/ui/fonts/pangmen.ttf):<FontFile#-9223372012846578766>
 setting = res://art/ui/fonts/main_theme.tres
-theme loaded = (res://art/ui/fonts/main_theme.tres):<Theme#-9223372012796247323>
-default_font = (res://art/ui/fonts/pangmen.ttf):<FontFile#-9223372012846578766>
+default_font = (res://art/ui/fonts/pangmen.ttf):<FontFile#-9223372012964019280>
+庞门正文 source_msdf=false comparison_msdf=false source_size=128 source_range=16 comparison_size=128 comparison_range=16
+saved font_compare_body err=0
+庞门正文 source_msdf=false comparison_msdf=true source_size=128 source_range=16 comparison_size=48 comparison_range=8
+saved font_compare_body_48 err=0
+佛系标题 source_msdf=true comparison_msdf=false source_size=128 source_range=16 comparison_size=128 comparison_range=16
+saved font_compare_title err=0

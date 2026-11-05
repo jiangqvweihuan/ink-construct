@@ -63,7 +63,8 @@ func _ready() -> void:
 	_test_crush()
 	_test_fists()
 	_test_burn()
-	_test_awaken()
+	_test_uninterruptible()
+	await _test_awaken()
 	await _test_rise()
 	_test_status_effects()
 	_test_cleanup()
@@ -196,7 +197,7 @@ func _test_crush() -> void:
 	_check(_p.hp == 97 and is_equal_approx(_p._cripple_time, 5.0), "第二次捶地造成 1 伤并刷新致残")
 	_b._cast_tick(0.72)
 	_check(_p.hp == 95 and is_equal_approx(_p._cripple_time, 5.0), "第三次捶地造成 2 伤并再次刷新致残")
-	_check(_p._fen_ding_burn_stacks == 0, "愤炎碎不额外附加怒焰")
+	_check(_p._fen_ding_burn_stacks == 3, "炽热之心让愤炎碎三段各附加 1 层怒焰")
 	_reset_all()
 	_b.cd_scale = 0.5
 	_b._start_fen_move(_b.CRUSH)
@@ -250,6 +251,42 @@ func _test_burn() -> void:
 	_check(_p.hp == 28 and _b.hp == 60, "下一次共享扣血仍只各结算一次")
 
 
+func _test_uninterruptible() -> void:
+	# Boss 词条默认规则：非普攻招式出手期间免疫全部控制，连规则级 ignore_armor 也打不断。
+	_reset_all()
+	_b._start_fen_move(_b.CRUSH)
+	var root_before: float = _b._root_timer
+	var stun_before: float = _b._stun_timer
+	var velocity_before: Vector2 = _b.velocity
+	_b.root(2.0, true)
+	_b.contain(2.0, true)
+	_b.stun(2.0, true)
+	_b.slam(true)
+	_b.launch(1, 900.0, 400.0, true)
+	_b.knock_back(1, 900.0, 4, true)
+	_check(_b.state == _b.S_CAST and _b._cast_move == _b.CRUSH, "愤炎碎出手期间免疫定身/晕眩/砸落/击飞/击退")
+	_check(_b._root_timer == root_before and _b._stun_timer == stun_before and _b.velocity == velocity_before,
+		"非普攻招式期间控制不写入移动状态")
+
+	_reset_all()
+	_b._start_fen_move(_b.FISTS)
+	_b.launch(1, 900.0, 400.0, true)
+	_check(_b.state == _b.S_CAST and _b._cast_move == _b.FISTS and _b.velocity.y == 0.0, "双拳出手期间同样不可打断")
+
+	# 炎骨觉醒演出（S_AWAKEN）也在不可打断之列。
+	_reset_all()
+	_b.state = _b.S_AWAKEN
+	_b.stun(2.0, true)
+	_check(_b.state == _b.S_AWAKEN and _b._stun_timer == 0.0, "炎骨觉醒演出期间不可打断")
+
+	# 普攻炎掌不受保护：规则级击飞仍能把它挑起来（Boss 版只改纵向速度，不重置招式）。
+	_reset_all()
+	_b._start_fen_move(_b.PALM)
+	_b.launch(1, 900.0, 400.0, true)
+	_check(_b.velocity.y == -200.0, "普攻炎掌仍可被规则级击飞挑起")
+	_reset_all()
+
+
 func _test_awaken() -> void:
 	_reset_all()
 	_b.hp = 35
@@ -262,12 +299,18 @@ func _test_awaken() -> void:
 	_check(awaken_nodes.size() == 1, "觉醒在焚鼎节点下生成且只生成一个 E54110 Spine 特效")
 	if awaken_nodes.size() == 1:
 		var awaken_fx = awaken_nodes[0]
-		_check(awaken_fx.position == Vector2.ZERO and awaken_fx.sprite.scale.x < 0.0, "觉醒 Spine 锚点与朝向跟随焚鼎")
+		_check(awaken_fx.sprite.scale.x < 0.0, "觉醒 Spine 朝向跟随焚鼎")
 		var expected: String = _b.AWAKEN_FX_ANIM
 		var state = awaken_fx.sprite.call("get_animation_state")
 		var track = state.call("get_current", 0)
 		var actual := str(track.call("get_animation").call("get_name")) if track != null else ""
 		_check(actual == expected and not actual.is_empty(), "觉醒 Spine 使用用户指定的 action1（%s）" % actual)
+		_check(awaken_fx.position == _b.AWAKEN_FX_CENTER, "觉醒 Spine 锚定在身体中心而不是脚下")
+		var visual: Rect2 = awaken_fx.sprite.call("get_skeleton").call("get_bounds")
+		_check(absf(visual.size.y * absf(awaken_fx.sprite.scale.y) - _b.AWAKEN_FX_HEIGHT) < 2.0,
+			"觉醒 Spine 放大到 %.0f 像素高（实际 %.0f）" % [_b.AWAKEN_FX_HEIGHT, visual.size.y * absf(awaken_fx.sprite.scale.y)])
+	await get_tree().create_timer(0.9).timeout
+	await _shot("fen_ding_awaken")
 	_b.take_damage(1, 500.0)
 	_check(_b.hp == 32, "觉醒后 1 伤向上取整仍为 1")
 	_b.take_damage(3, 500.0)
@@ -311,6 +354,17 @@ func _test_rise() -> void:
 	_check(lava_positions_match, "E53038 岩浆节点位置与原真实伤害点逐一一致")
 	_check(_b._rise_warnings.is_empty(), "喷发后清理全部预警")
 	await _shot("fen_ding_rise_burst")
+	await get_tree().create_timer(0.55).timeout
+	await _shot("fen_ding_rise_hold")
+	if not new_lava.is_empty() and is_instance_valid(new_lava[0]):
+		var lava_state = new_lava[0].sprite.call("get_animation_state")
+		var lava_track = lava_state.call("get_current", 0)
+		var lava_anim := str(lava_track.call("get_animation").call("get_name")) if lava_track != null else ""
+		_check(lava_anim == _b.RISE_FX_ANIM, "炎起岩浆播放 action4（实际 %s）" % lava_anim)
+		var lava_bounds: Rect2 = new_lava[0].sprite.call("get_skeleton").call("get_bounds")
+		var fitted: float = lava_bounds.size.x * absf(new_lava[0].sprite.scale.x)
+		_check(absf(fitted - _b.RISE_FX_WIDTH) < 2.0,
+			"岩浆宽度贴合 %.0f 像素火区（实际 %.0f）" % [_b.RISE_FX_WIDTH, fitted])
 
 	_reset_all()
 	_b._awakened = true

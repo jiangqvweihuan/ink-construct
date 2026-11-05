@@ -17,6 +17,7 @@ const StoryCodex = preload("res://scripts/ui/story_codex.gd")
 const SpineFX := preload("res://scripts/systems/spine_fx.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
+const CODEX_MUSIC := "res://audio/music/codex_theme.mp3" # 图鉴曲《百相入卷》，进入图鉴时独占播放
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -113,7 +114,7 @@ const FORM_PASSIVES := {
 	],
 	"c013": [
 		{"name": "圣僧", "desc": "免疫所有负面效果；单次受到的伤害最多为 3 点", "lore": "钟楼下听惯了求愿的话，他扫完地便去面壁，不让那些声音在心里过夜。所谓圣僧，不是没了凡心，只是不再让外物替自己起心动念。"},
-		{"name": "降魔", "desc": "每实际造成 4 次伤害获得 1 层佛陀，跨房间保留且无上限；每层使全部伤害 +1，受到恰好 3 点伤害且会倒地的攻击时消耗 1 层，只免除倒地，不减免伤害", "lore": "钟楼下，他每敲满四记便停一息，听余音散尽再继续。面壁三年后，他把这份耐性带进了棒下：魔要一层层降，人也得一次次站稳。"},
+		{"name": "降魔", "desc": "每实际造成 4 次伤害获得 1 层佛陀，跨房间保留，最多 3 层；每层使全部伤害 +1，已满 3 层时改为恢复 1 点生命。受到恰好 3 点伤害且会倒地的攻击时消耗 1 层，只免除倒地，不减免伤害", "lore": "钟楼下，他每敲满四记便停一息，听余音散尽再继续。面壁三年后，他把这份耐性带进了棒下：魔要一层层降，人也得一次次站稳。"},
 	],
 	"c023": [
 		{"name": "墨梅", "desc": "每次实际造成伤害的攻击额外积累 1 墨锭，终局统一结算", "lore": "她在西岭用梅枝蘸墨，记下每年回雪压花的日子。后来枝成了软剑，账本却没丢：真正落在人身上的每一笔，留到终局再算。"},
@@ -171,7 +172,7 @@ const ENEMY_ATTACK_MECH := {
 		"skill05-cankao": "普攻，无独立冷却；跃起以双斧劈落，造成 2 点伤害。实际造成伤害后获得「英勇」，下一招起手即消耗，整招每段伤害翻倍，落空也会消耗",
 		"skill01-cankao": "冷却 24 秒；近身连续四击，分别造成 1／1／2／2 点伤害。首段实伤将目标固定在正前方并随鸣钟移动，直至收招；末段实伤附加 12 秒易伤，此后受到任意实伤固定 +1并刷新持续时间，易伤最多一层。无论是否命中，都会沿斧势位移并停在收招落点",
 		"skill03-cankao": "冷却 36 秒；拉开距离后随机施展两种追击斧势。前劈造成 1 伤，旋转突进造成 2 伤，末尾下劈造成 3 伤并附加同一套易伤。旋转期间无敌、无实体且可穿过目标，整段只结算一次，按实际伤害恢复生命；被完美闪避则不伤害、不回血",
-		"transform1": "生命低于 50%后解锁，冷却 40 秒；蓄力期间无敌霸体，双斧完全展开时发动全场攻击，可被完美闪避。首次爆发造成 4 伤，同时恢复自身 25%生命并获得 10 点格挡；觉醒后仍可重复施展，继续恢复生命与格挡，攻击则按「神眷」结算",
+		"transform1": "生命低于 50%后立即优先觉醒（不再等攻击欲望），冷却 40 秒；蓄力期间无敌霸体，双斧完全展开时发动全场攻击，可被完美闪避。首次爆发造成 4 伤，同时恢复自身 25%生命并获得 10 点格挡；觉醒后仍可重复施展，继续恢复生命与格挡，攻击则按「神眷」结算",
 	},
 	"c008": {
 		"skill04": "普攻，无独立冷却，由公共攻击欲望驱动；造成 3 点伤害，实伤附加 15 秒「剥离」，禁止目标全部被动",
@@ -185,13 +186,13 @@ const ENEMY_ATTACK_MECH := {
 		"skill05": "冷却 35 秒，仅在拉开距离后释放；高速冲追，进入攻击范围立即造成 2 点伤害，此后每 0.5 秒再造成 2 点伤害直至冲刺结束，并触发拥有倒地动作的角色的倒地效果",
 		"skill06": "冷却 25 秒；机关蓄力后向下砸地方才结算，造成 5 点伤害并附加 5 秒致残：封锁跳跃、Shift 闪避及所有带位移的技能",
 		"skill08": "冷却 40 秒，远距离时按间距施展小跳或大跳；落地仍在范围内才造成 4 点伤害、远距击退与 5 秒致残",
-		"skill02-01": "冷却 16 秒；短蓄力后向正前方发射贯穿整幅地图的激光，进入光束立即造成 1 点基础伤害，此后每 0.5 秒结算一次。灼烧每累计 3 层使后续激光基础伤害 +1，最多 +3，6 秒未再命中则清零",
+		"skill02-01": "冷却 16 秒；短蓄力后向正前方发射贯穿整幅地图的激光，光束持续 0.8 秒、共结算两段，每段 2 点基础伤害。灼烧每累计 3 层使每段伤害 +1，最多 +3，6 秒未再命中则清零",
 	},
 	"c015a1": {
-		"skill01": "无独立冷却；向身前劈掌，造成 2 点伤害并叠加 1 层怒焰。怒焰在焚鼎死亡前永久存在、层数无上限，共享计时每次固定造成 1 点真实伤害且不给予受伤无敌；1～8 层的间隔依次为 60／58／54／48／40／30／18／10 秒，8 层后固定 10 秒",
+		"skill01": "无独立冷却；向身前劈掌，造成 2 点伤害",
 		"skill02": "冷却 20 秒；连续捶地三次，分别造成 1／1／2 点伤害。每次实际命中附加并刷新 5 秒致残，封锁跳跃、Shift 闪避及所有带位移的技能",
-		"skill3": "冷却 25 秒；向前锤出双拳，造成 3 点伤害、高额击退并叠加 1 层怒焰",
-		"skill05": "炎骨觉醒后解锁，冷却 30 秒；抬腿时在玩家脚下与两个随机位置显示预警，跺下时三处岩浆同时喷发。仍在岩浆区域内者受到 3 点伤害并叠加 1 层怒焰",
+		"skill3": "冷却 25 秒；向前锤出双拳，造成 3 点伤害与高额击退",
+		"skill05": "炎骨觉醒后解锁，冷却 30 秒；抬腿时在玩家脚下与两个随机位置显示预警，跺下时三处岩浆同时喷发。仍在岩浆区域内者受到 3 点伤害",
 	},
 	"c001": {
 		"skill01": "场上没有其他敌人时向当前朝向冲锋，首次撞墙不损耐久，此后每次撞墙损失 1 点；接触玩家便将其传送至武车 2 秒前的位置，无论是否受伤都会触发。实伤造成 2 点基础伤害并施加一层通缉，使召唤物实伤 +1，闪避武撞可解除通缉但不会阻止传送。掉头后逐个召唤敌人，每 4 个至少包含 1 个精英；耐久归零即战败",
@@ -325,7 +326,7 @@ const ENEMY_PASSIVES := {
 	"c009": [
 		{
 			"name": "机关造物",
-			"desc": "免疫流血、中毒等持续减益与普通控制；时间暂停是规则级能力，仍然生效",
+			"desc": "免疫流血、中毒等持续减益与普通控制；对满血角色造成的伤害翻倍；时间暂停是规则级能力，仍然生效",
 			"lore": "巨兽没有血肉，操控者也早把自己的痛觉接进了机簧。针扎不进齿轮，喝令也叫不停发条；唯有让整段时光停下，这尊造物才会跟着歇一口气。",
 		},
 		{
@@ -342,7 +343,7 @@ const ENEMY_PASSIVES := {
 		},
 		{
 			"name": "炽热之心",
-			"desc": "每当怒焰实际造成一次伤害，恢复 10 点生命并刷新全部技能冷却；共享怒焰计时器每次触发只结算一次",
+			"desc": "焚鼎造成的任何伤害都会附加 1 层怒焰。怒焰在焚鼎死亡前永久存在、层数无上限，共享计时每次固定造成 1 点真实伤害且不给予受伤无敌；1～8 层的间隔依次为 60／58／54／48／40／30／18／10 秒，8 层后固定 10 秒。每当怒焰实际造成一次伤害，恢复 10 点生命并刷新全部技能冷却，每次触发只结算一次",
 			"lore": "他的心早已和残鼎同温。旁人的伤处每被旧火灼痛一次，那颗心便像重新添了炭，连疲惫的招式也跟着再度烧开。",
 		},
 	],
@@ -479,6 +480,8 @@ var _hover_idx := -1 # 鼠标悬停的按钮下标（亮底 + 墨字）
 var _pick_idx := -1 # 当前选中动作下标
 var _pool: Array = [] # 当前动作的动画池
 var _pool_i := 0 # 池内当前变式下标
+var _music_on := true # 图鉴音乐开关：每次打开图鉴默认开启
+var _music_btn: TextureButton = null # 音乐开关按钮：切开关只重绘它，不重建整个面板
 
 
 func _ready() -> void:
@@ -489,6 +492,14 @@ func _ready() -> void:
 	add_child(_sfx)
 	_sfx.stream = SFX_CLICK
 	_build()
+	# 进入图鉴只留这一首：普通 BGM 由 play_solo 暂停并保留进度
+	if _music_on:
+		BGM.play_solo(CODEX_MUSIC)
+
+
+func _exit_tree() -> void:
+	# 离开图鉴恢复主菜单背景音乐（关闭音乐时这里是空操作）
+	BGM.stop_solo()
 
 
 func _build() -> void:
@@ -507,6 +518,7 @@ func _build() -> void:
 	add_child(win)
 
 	_make_label("图  鉴", Vector2(70, 44), Vector2(320, 52), 40, PAPER)
+	_music_btn = _make_button("音 乐 · " + ("开" if _music_on else "关"), Vector2(408, 52), Vector2(150, 44), 18, _toggle_music, _music_on)
 	_make_button("故 事 集", Vector2(636, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_STORY), _tab == TAB_STORY)
 	_make_button("敌 人", Vector2(788, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_ENEMY), _tab == TAB_ENEMY)
 	_make_button("化 身", Vector2(940, 52), Vector2(140, 44), 18, _switch_tab.bind(TAB_FORM), _tab == TAB_FORM)
@@ -1863,6 +1875,23 @@ func _switch_tab(tab: int) -> void:
 	call_deferred("_refresh")
 
 
+## 图鉴音乐开关：开 → 独占播放图鉴曲（压掉主菜单 BGM）；关 → 停掉图鉴曲，恢复主菜单 BGM。
+func _toggle_music() -> void:
+	_music_on = not _music_on
+	if _music_on:
+		BGM.play_solo(CODEX_MUSIC)
+	else:
+		BGM.stop_solo()
+	if not is_instance_valid(_music_btn):
+		return
+	# 只重绘这一个按钮：全量 _refresh 会重置当前招式演示与滚动位置
+	_music_btn.texture_normal = InkTex.load("res://art/ui/menu/btn_clicked.png" if _music_on else "res://art/ui/menu/btn_normal.png")
+	var label := _music_btn.get_child(0) as Label
+	if label != null:
+		label.text = "音 乐 · " + ("开" if _music_on else "关")
+		label.add_theme_color_override("font_color", RED if _music_on else PAPER)
+
+
 # ---------- 控件 ----------
 
 func _panel_style() -> StyleBoxFlat:
@@ -1901,7 +1930,7 @@ func _entry_label(parent: Control, text: String, y: float, font_size: int, color
 	parent.add_child(l)
 
 
-func _make_button(text: String, pos: Vector2, size: Vector2, font_size: int, cb: Callable, active := false, sfx: AudioStream = SFX_CLICK) -> void:
+func _make_button(text: String, pos: Vector2, size: Vector2, font_size: int, cb: Callable, active := false, sfx: AudioStream = SFX_CLICK) -> TextureButton:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_clicked.png" if active else "res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_normal.png")
@@ -1922,6 +1951,7 @@ func _make_button(text: String, pos: Vector2, size: Vector2, font_size: int, cb:
 		_play_sfx(sfx)
 		cb.call())
 	add_child(b)
+	return b
 
 
 func _play_sfx(stream: AudioStream) -> void:

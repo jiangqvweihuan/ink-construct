@@ -1,21 +1,38 @@
 [UI] saved 01_main_menu err=0
+[UI] 自定义鼠标左上角热点：期望=(0.0, 0.0) 实际=(0.0, 0.0)（源图=16x16）
+[UI] saved 01a_menu_click err=0
 [UI] 致谢打开=true（期望 true）
+[UI] 致谢模板占位已清空=true（期望 true）
 [UI] 致谢滚动 offset=28.0（期望 > 0）
 [UI] saved 01b_credits err=0
+[UI] 致谢独占曲目播放=true 普通 BGM/音效已让位=true（期望 true/true）
+[UI] 致谢歌词时间轴正常：歌名 → 首句 → 1:41 → 间奏墨圈 → 2:17 → 末句 → 循环
+[UI] 致谢结尾停住且不关闭=true（期望 true）
+[UI] 致谢结尾保持显示=true（期望 true）
+[UI] 致谢结尾偏移=2439.5 / 2439.5（期望相等）
+[UI] saved 01c_credits_bottom err=0
+[UI] 致谢滚轮上翻=true（期望 true）
+[UI] 致谢复查保持静止=true（期望 true）
+[UI] 致谢滚轮下翻回底部=true（期望 true）
 [UI] 致谢中点击菜单区 -> 开始面板=false（期望 false）
+[UI] 致谢退出恢复普通 BGM 与音效=true（期望 true）
 [UI] 设置打开=true（期望 true）
 [UI] saved 02_settings_audio err=0
 [UI] saved 02b_settings_video err=0
 [UI] saved 02c_settings_keys err=0
-[UI] 改键 jump -> G 按钮=G（期望 G / G）
-[UI] 冲突绑定被拒 dash 仍=Sh hint=「G」已被 跳跃 占用，换一个键（期望 Sh / 非空）
-[UI] Esc 取消录入 dash 仍=Sh（期望 Sh）
+[UI] 改键草稿 jump 按钮=G 草稿=G 实键=空（期望 G / G / 空）
+[UI] 冲突绑定被拒 dash 草稿=Sh hint=「G」已被 跳跃 占用，换一个键（期望 Sh / 非空）
+[UI] Esc 取消录入 dash 草稿=Sh 面板存在=true（期望 Sh / true）
+[UI] Esc 关闭设置并应用 jump=G 面板=false（期望 G / false）
+[UI] 叉号关闭设置 面板=false（期望 false）
 [UI] 化身谱打开=true（期望 true）
 [UI] saved 03_codex err=0
 [UI] saved 04_form_detail_locked err=0
 [UI] 力僧买断=true（期望 true）
 [UI] saved 04b_form_detail_nodes err=0
 [UI] 修炼节点已购=true 可退=true（期望 true / true）
+[UI] 化身谱已返回总览
+[UI] 化身谱总览已重建
 [UI] saved 04c_codex_refresh err=0
 [UI] 重建后点返回 -> 面板=false（期望 false）
 [UI] 墨锭商栈打开=true（期望 true）
@@ -25,28 +42,85 @@
 [UI] saved 04f_shop_reroll err=0
 [UI] saved 04g_shop_appearance err=0
 [UI] 图鉴打开=true（期望 true）
-[UI] saved 05_codex_enemy err=0
+[UI] 图鉴默认页=故事集 true（期望 true）
+[UI] saved 05_codex_story err=0
+[UI] 图鉴音乐独占循环=true（期望 true）
+[UI] 图鉴音乐关闭=true（期望 true）
+[UI] 图鉴音乐重新开启=true（期望 true）
+[UI] saved 05b_codex_enemy err=0
 [UI] 点击招式 1 -> 演示动画 skill01（点击前 stand，期望不同）
 [UI] 简介含击败次数=true 词条数=5（期望 true / >0）
 [UI] saved 06_codex_pick err=0
-[UI] 刀客四招=["亡命三刀", "螺旋鞭", "升龙刀", "双镰"] 来历完整=true 升龙刀短击飞文案=true（期望 亡命三刀/螺旋鞭/升龙刀/双镰，全 true）
+[UI] 刀客四招=["亡命三刀", "螺旋鞭", "升龙刀", "双镰"] 来历完整=true 特殊招9.6/14.4/7.2秒冷却=true 升龙刀短击飞文案=true（期望 亡命三刀/螺旋鞭/升龙刀/双镰，全 true）
 [UI] 刀客被动=山 民 山民资料完整=true（期望 山 民 / true）
-[UI] 图鉴同动作重播保护 0.109 -> 0.109（期望不倒退）
+[UI] 图鉴同动作重播保护 0.125 -> 0.125（期望不倒退）
 [UI] 蛮兵三招=["开天", "辟地", "赶山三斧"] 数量正确=true 来历完整=true 独立冷却=true 开天新判定=true 连段数值=true（期望 开天/辟地/赶山三斧，全 true）
 [UI] 蛮兵背景词条=true 蛮力资料=true（期望 true / true）
 [UI] saved 06b_codex_brute_chain err=0
 [UI] 蛮兵连段顺序预览=true/true/true（期望 true/true/true：前两劈 -> 大劈 -> 待机）
-[UI] 刺客图鉴 双招/逻辑键/数值/来历=true 阴影资料=true 背景与流血词条=true（期望全 true）
+[UI] 刺客图鉴 双招/逻辑键/数值/来历=true 阴影资料=true 背景与减益词条=true（期望全 true）
 [UI] 刺客双招skill02/skill01预览=true（期望 true）
 [UI] saved 06c_codex_assassin err=0
+[UI] 双镰图鉴 三招/动画/数值/来历=true 嗜血资料=true 戏班背景与流血词条=true（期望全 true）
+[UI] 双镰三招skill01/skill02/skill03预览=true（期望 true）
+[UI] saved 06d_codex_dualsickle err=0
+[UI] 青笠图鉴 两招/动画/数值/来历=true 剑意凝华资料=true 剑仆背景与分身词条=true（期望全 true）
+[UI] 青笠双招skill01/skill02预览=true（期望 true）
+[UI] saved 06e_codex_qingli err=0
+[UI] 青魇图鉴 新名/背景/四招/数值与来历=true 魔爆资料与收尾=true（期望全 true）
+[UI] 青魇藏剑三变式与祭剑双动画切换=true（期望 true）
+[UI] saved 06f_codex_qingyan_burst err=0
+[UI] 青魇魔爆 停末帧并前扑回斩=true 演完回待机=true（期望全 true）
+[UI] 全部敌人与Boss图鉴无开发术语/资源键/占位文案=true（期望 true）
+[UI] 墨霆图鉴默认原画=true 完整容纳=true 动作未提前加载=true（期望全 true）
+[UI] saved 06g_codex_mo_ting_portrait err=0
+[UI] 墨霆切到动作=true 招式数=12（期望 true / >0）
+[UI] 墨霆切回原画=true 动作已卸载=true（期望 true / true）
+[UI] 碎岳图鉴默认原画=true（期望 true）
+[UI] saved 06h_codex_sui_yue_portrait err=0
+[UI] 碎岳切到动作=true 招式数=10（期望 true / >0）
 [UI] saved 07_codex_boss err=0
+[UI] 鸣钟图鉴 四招=["坠锋", "四响", "旋征", "神骸鸣钟"] 双被动=true 来历完整=true 女武神背景=true 正常大小=true（期望 坠锋/四响/旋征/神骸鸣钟，其余全 true）
+[UI] 故事集 26 章 / 17 角色 / 27 关系、正史引用与相识连通性校验通过
+[UI] saved 07_story_world err=0
+[UI] saved 07a_story_covenant err=0
+[UI] saved 07b_story_relations err=0
+[UI] 故事页全章节真实按钮遍历与正文覆盖=true（期望 true / 26 章）
+[UI] 故事目录滚动保持 900 -> 900（期望相等且 >0）
+[UI] 故事最长详情=relation_overview 内容长度=5385 滚动值=4306.0（期望可滚动且 >0）
+[UI] saved 07c_story_long_bottom err=0
+[UI] saved 07d_story_developer_locked err=0
+[UI] saved 07e_story_developer_unlocked err=0
+[UI] 卷外残页双条件、七段原文与锁定防泄漏校验通过
+[UI] 状态目录 75 项 + 词条 35 项 结构=true 增益/减益=40/36 全解锁=true 按钮=111（期望 true / 40/35 / true / 110）
+[UI] saved 07i_codex_status err=0
+[UI] 状态页全条目真实按钮遍历与详情覆盖=true（期望 true / 110 项）
+[UI] saved 07h_codex_tags err=0
+[UI] 状态目录滚动保持 900 -> 900（期望相等且 >0）
+[UI] 状态长详情滚动=fen_ding_burn 内容长度=266 滚动值=176.0（期望可滚动且 >0）
+[UI] saved 07j_codex_status_long err=0
 [UI] 切到化身页 -> 选中=c021（期望 c021）
 [UI] saved 08_codex_form err=0
-[UI] 银夜变式数：普攻2=2 K=2 I=1 被动末位=true（期望 2 / 2 / 1 / true）
+[UI] 力僧缺原画回退：原画为空=true 动作可用=true（期望 true / true）
+[UI] saved 08a_codex_form_fallback err=0
+[UI] 剑仙图鉴默认原画=true 动作未提前加载=true（期望 true / true）
+[UI] saved 08a_codex_sword_portrait err=0
+[UI] 绛弦图鉴默认原画=true 动作未提前加载=true（期望 true / true）
+[UI] saved 08b_codex_pipa_portrait err=0
+[UI] saved 08b_codex_pipa err=0
+[UI] 绛弦图鉴三被动=["红 尘", "红粉骷髅", "神 伤"]（期望 红尘/红粉骷髅/神伤）
+[UI] 六化身全部现有普攻/技能正式名=true 数值/机制/来历完整=true（期望全 true）
+[UI] 全部化身图鉴无旧标签/开发术语/资源键/占位文案=true（期望 true）
+[UI] 影殇图鉴默认原画=true 动作未提前加载=true（期望 true / true）
+[UI] saved 09_codex_z003_portrait err=0
+[UI] 影殇变式数：揽月上霄=2 崩云=2 长夜明火=1 固有被动=["暗夜", "血色切割", "魅唤"]（期望 2 / 2 / 1 / 暗夜、血色切割、魅唤）
 [UI] 下键切换 atk03_03 -> atk04_02（期望变化）
 [UI] 变式不自动跳转=true（期望 true）
 [UI] 上键切回 -> atk03_03（期望 atk03_03）
 [UI] 解析面板含切换提示=true（期望 true）
 [UI] saved 09_codex_pool err=0
+[UI] saved 09b_codex_pool_1920 err=0
 [UI] 图鉴点返回 -> 面板=false（期望 false）
+[UI] 强化前进真实输入/直接重复调用与转场音效断言通过
+[UI] 换形抽签跨面板销毁与 SFX 总线断言通过
 [UI] ALL DONE

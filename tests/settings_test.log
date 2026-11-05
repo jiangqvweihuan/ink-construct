@@ -4,5 +4,6 @@
 [S] cfg 写盘: PASS music=0.3 res=(1600, 900)
 [S] 重载读取: music=0.30 -> PASS
 [S] 延迟后窗口保持: (1600, 900) -> PASS
+[S] BGM 快速 A→B→A 后新曲仍在播: PASS
 [S] 已还原默认设置
 [S] ALL DONE

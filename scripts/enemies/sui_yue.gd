@@ -416,6 +416,11 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 		die()
 
 
+## 掷臂之外的招式出手期间不可打断；时停仍按规则级处理。
+func _is_uninterruptible() -> bool:
+	return state == S_CAST and _cast_move != "" and _cast_move != ARMS
+
+
 func time_stop(dur: float) -> void:
 	if state == State.DEAD:
 		return
