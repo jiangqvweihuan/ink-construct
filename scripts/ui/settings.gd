@@ -36,6 +36,7 @@ static var fps_limit := 0 # 0 = 不限制
 static var vsync := true
 static var brightness := 1.0 # 0.5 ~ 1.5
 static var screen_shake := true
+static var damage_numbers := 1 # 伤害飘字：0 关闭 / 1 仅重击（≥3）/ 2 全部显示
 static var binds := {} # action -> 物理键码（只记用户改过的键）
 static var persist := true # 测试置 false：不写玩家配置
 static var _loaded := false
@@ -61,6 +62,7 @@ static func _ensure_loaded() -> void:
 	vsync = cfg.get_value("video", "vsync", true)
 	brightness = cfg.get_value("video", "brightness", 1.0)
 	screen_shake = cfg.get_value("video", "screen_shake", true)
+	damage_numbers = clampi(int(cfg.get_value("video", "damage_numbers", 1)), 0, 2)
 	var saved: Dictionary = cfg.get_value("input", "binds", {})
 	for action in saved:
 		if DEFAULT_BINDS.has(action):
@@ -80,6 +82,7 @@ static func _save() -> void:
 	cfg.set_value("video", "vsync", vsync)
 	cfg.set_value("video", "brightness", brightness)
 	cfg.set_value("video", "screen_shake", screen_shake)
+	cfg.set_value("video", "damage_numbers", damage_numbers)
 	cfg.set_value("input", "binds", binds)
 	cfg.save(PATH)
 
@@ -125,6 +128,7 @@ static func snapshot() -> Dictionary:
 		"master": master_volume, "music": music_volume, "sfx": sfx_volume,
 		"display_mode": display_mode, "resolution": resolution, "fps_limit": fps_limit,
 		"vsync": vsync, "brightness": brightness, "screen_shake": screen_shake,
+		"damage_numbers": damage_numbers,
 		"binds": binds.duplicate(true),
 	}
 
@@ -133,7 +137,7 @@ static func default_snapshot() -> Dictionary:
 	return {
 		"master": 1.0, "music": 1.0, "sfx": 1.0,
 		"display_mode": 0, "resolution": RESOLUTIONS[0], "fps_limit": 0,
-		"vsync": true, "brightness": 1.0, "screen_shake": true, "binds": {},
+		"vsync": true, "brightness": 1.0, "screen_shake": true, "damage_numbers": 1, "binds": {},
 	}
 
 
@@ -147,6 +151,7 @@ static func apply_snapshot(data: Dictionary) -> void:
 	vsync = bool(data.get("vsync", true))
 	brightness = clampf(float(data.get("brightness", 1.0)), 0.5, 1.5)
 	screen_shake = bool(data.get("screen_shake", true))
+	damage_numbers = clampi(int(data.get("damage_numbers", 1)), 0, 2)
 	binds = (data.get("binds", {}) as Dictionary).duplicate(true)
 	for action in DEFAULT_BINDS:
 		_apply_bind(action, DEFAULT_BINDS[action])
@@ -304,5 +309,6 @@ static func reset_all() -> void:
 	vsync = true
 	brightness = 1.0
 	screen_shake = true
+	damage_numbers = 1
 	reset_binds()
 	apply_all()

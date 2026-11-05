@@ -2574,7 +2574,7 @@ func _restore_hp(amount: int) -> void:
 	var heal := mini(received, cap - hp)
 	hp += heal
 	hp_changed.emit(hp, max_hp)
-	_spawn_number(heal, Color(0.45, 0.75, 0.5), 130.0)
+	_spawn_number(heal, Color(0.45, 0.75, 0.5), 130.0, false)
 	_play_sfx("heal")
 
 
@@ -3748,7 +3748,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		if ap != null:
 			FX.spawn(get_tree().current_scene, "ink_hit", ap.global_position + Vector2(0, -60), {"scale": 0.4})
 			var dn := DAMAGE_NUMBER.new()
-			dn.setup(str(reflected), Color(0.72, 0.45, 0.3)) # 赭石：反伤数字挂在攻击者头上
+			dn.setup(str(reflected), Color(0.72, 0.45, 0.3), reflected) # 赭石：反伤数字挂在攻击者头上
 			dn.global_position = ap.global_position + Vector2(0, -140)
 			get_tree().current_scene.add_child(dn)
 		_play_sfx("voice_fan_hit")
@@ -4429,9 +4429,9 @@ func _start_knockdown(knockback: Vector2) -> void:
 	_idle_queued = true # 起身后 stand 已在队列里，_set_state 只同步不重开
 
 
-func _spawn_number(amount: int, color: Color, height: float) -> void:
+func _spawn_number(amount: int, color: Color, height: float, gated := true) -> void:
 	var dn := DAMAGE_NUMBER.new()
-	dn.setup(str(amount), color)
+	dn.setup(str(amount), color, amount if gated else -1)
 	dn.global_position = global_position + Vector2(randf_range(-12.0, 12.0), -height)
 	get_tree().current_scene.add_child(dn)
 

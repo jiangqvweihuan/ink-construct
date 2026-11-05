@@ -5,7 +5,7 @@ const Settings = preload("res://scripts/ui/settings.gd")
 const VitalBar = preload("res://scripts/ui/vital_bar.gd")
 const BattleStatus = preload("res://scripts/ui/battle_status.gd")
 
-## 水墨 HUD：多层生命条、右上战斗状态、底部带招式名与数值冷却的技能栏。
+## 水墨 HUD：多层生命条、生命条下方的状态印记、底部带招式名与数值冷却的技能栏。
 
 const BAR_W := 380.0
 const BAR_H := 30.0
@@ -17,6 +17,9 @@ const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.76, 0.73, 0.66)
 const GOLD := Color(0.91, 0.75, 0.34)
 const BOSS_FONT = preload("res://art/ui/fonts/slidefu_regular.ttf")
+const STATUS_ICON := 30.0
+const STATUS_GAP := 6.0
+const STATUS_PER_ROW := 9
 
 var _root: Control
 var _action_root: Control
@@ -34,7 +37,8 @@ var _boss_bar: Control
 var _boss_vital: Control
 var _boss_name: Label
 var _boss_extra := 0
-var _status_panel: Panel
+var _status_strip: Control
+var _status_icons: Dictionary = {}
 var _status_signature := ""
 var _status_clock := 0.0
 
@@ -183,79 +187,151 @@ func _update_action_bar() -> void:
 		lock_label.text = lock_text
 
 
-# ---------- 右上状态区 ----------
+# ---------- 生命条下方状态印记 ----------
 
+## 战斗内的增益/减益只以「印章」形式显示在生命条下方：
+## 单字圆印 + 种类描边，详情悬停查看，暂停菜单可读全文。
+## 计时类在最后 3 秒轻微呼吸，堆叠类右下角显示层数。
 func _build_status(root: Control) -> void:
-	_status_panel = Panel.new()
-	_status_panel.position = Vector2(948, 12)
-	_status_panel.size = Vector2(320, 70)
-	_status_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.035, 0.035, 0.035, 0.76)
-	sb.set_border_width_all(1)
-	sb.border_color = Color(PAPER, 0.24)
-	sb.set_corner_radius_all(7)
-	_status_panel.add_theme_stylebox_override("panel", sb)
-	root.add_child(_status_panel)
+	_status_strip = Control.new()
+	_status_strip.position = Vector2(20, 50)
+	_status_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status_strip.visible = false
+	root.add_child(_status_strip)
 
 
 func _sync_status(force := false) -> void:
-	if _status_panel == null or _player == null or not is_instance_valid(_player):
+	if _status_strip == null or _player == null or not is_instance_valid(_player):
 		return
-	var list: Array = BattleStatus.entries(_player)
-	var signature := JSON.stringify(list)
-	if not force and signature == _status_signature:
-		return
-	_status_signature = signature
-	for c in _status_panel.get_children():
-		_status_panel.remove_child(c)
-		c.queue_free()
-	_label("战斗状态", Vector2(12, 5), Vector2(130, 24), 16, PAPER, _status_panel).horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	_label("Esc 详览", Vector2(205, 7), Vector2(102, 20), 12, DIM, _status_panel).horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	var shown := mini(10, list.size())
-	for i in shown:
-		var entry: Dictionary = list[i]
-		var col := i % 2
-		var row := floori(i / 2.0)
-		_status_chip(entry, Vector2(10 + col * 152, 34 + row * 31), Vector2(148, 27))
-	var rows := int(ceil(shown / 2.0))
-	var more := list.size() - shown
-	if more > 0:
-		_label("另有 %d 项 · 暂停查看全部" % more, Vector2(12, 38 + rows * 31), Vector2(296, 20), 12, DIM, _status_panel)
-		rows += 1
-	_status_panel.size.y = maxf(66, 40 + rows * 31)
+	var shown: Array = []
+	for entry in BattleStatus.entries(_player):
+		var kind := str(entry.get("kind", ""))
+		if kind == "buff" or kind == "debuff":
+			shown.append(entry)
+	var ids: Array = []
+	for entry in shown:
+		ids.append("%s:%s:%s" % [
+			str(entry.get("id", entry.get("name", ""))),
+			str(entry.get("kind", "")),
+			str(entry.get("name", "")),
+		])
+	var signature := "|".join(ids)
+	if force or signature != _status_signature:
+		_status_signature = signature
+		_rebuild_status_icons(shown)
+	_update_status_icons(shown)
+	_status_strip.visible = not shown.is_empty()
 
 
-func _status_chip(entry: Dictionary, pos: Vector2, dimensions: Vector2) -> void:
-	var chip := Panel.new()
-	chip.position = pos
-	chip.size = dimensions
-	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var kind := str(entry.get("kind", "passive"))
-	var tint := Color(PAPER, 0.10)
-	if kind == "buff":
-		tint = Color(GOLD, 0.18)
-	elif kind == "debuff":
-		tint = Color(VERMILION, 0.30)
-	elif kind == "stolen":
-		tint = Color(0.56, 0.42, 0.72, 0.25)
-	elif kind == "upgrade":
-		tint = Color(0.40, 0.62, 0.65, 0.18)
+func _rebuild_status_icons(shown: Array) -> void:
+	for child in _status_strip.get_children():
+		_status_strip.remove_child(child)
+		child.queue_free()
+	_status_icons.clear()
+	for i in mini(shown.size(), STATUS_PER_ROW * 2):
+		var entry: Dictionary = shown[i]
+		var col := i % STATUS_PER_ROW
+		var row := floori(i / float(STATUS_PER_ROW))
+		var pos := Vector2(col * (STATUS_ICON + STATUS_GAP), row * (STATUS_ICON + STATUS_GAP))
+		var icon := _make_status_icon(entry, pos)
+		_status_icons[str(entry.get("id", entry.get("name", i)))] = icon
+
+
+func _make_status_icon(entry: Dictionary, pos: Vector2) -> Dictionary:
+	var kind := str(entry.get("kind", "buff"))
+	var is_debuff := kind == "debuff"
+	var accent := Color(1.0, 0.60, 0.52) if is_debuff else GOLD
+	var root := Control.new()
+	root.position = pos
+	root.size = Vector2(STATUS_ICON, STATUS_ICON)
+	root.mouse_filter = Control.MOUSE_FILTER_STOP
+	root.tooltip_text = _status_tooltip(entry)
+	_status_strip.add_child(root)
+
+	var seal := Panel.new()
+	seal.position = Vector2.ZERO
+	seal.size = Vector2(STATUS_ICON, STATUS_ICON)
+	seal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = tint
-	sb.set_corner_radius_all(4)
-	chip.add_theme_stylebox_override("panel", sb)
-	_status_panel.add_child(chip)
-	var color := PAPER if bool(entry.get("active", true)) else Color(0.72, 0.56, 0.52)
-	var name_label := _label(str(entry.get("name", "")), Vector2(6, 1), Vector2(91, 25), 12, color, chip)
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-	var value := str(entry.get("value", ""))
+	sb.bg_color = Color(0.035, 0.032, 0.028, 0.78)
+	sb.set_corner_radius_all(int(STATUS_ICON * 0.5))
+	sb.set_border_width_all(1)
+	sb.border_color = Color(accent, 0.86)
+	sb.shadow_color = Color(accent, 0.20)
+	sb.shadow_size = 4
+	seal.add_theme_stylebox_override("panel", sb)
+	root.add_child(seal)
+
+	var raw_name := str(entry.get("name", "")).strip_edges()
+	var glyph := raw_name.substr(0, 1) if raw_name != "" else "·"
+	var glyph_label := _label(glyph, Vector2.ZERO, Vector2(STATUS_ICON, STATUS_ICON), 16, accent, root)
+	glyph_label.add_theme_color_override("font_outline_color", INK)
+	glyph_label.add_theme_constant_override("outline_size", 3)
+
+	var badge := _label("", Vector2(0, STATUS_ICON - 14), Vector2(STATUS_ICON - 3, 12), 9, accent, root)
+	badge.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	badge.add_theme_color_override("font_outline_color", INK)
+	badge.add_theme_constant_override("outline_size", 3)
+	return {"root": root, "badge": badge}
+
+
+func _update_status_icons(shown: Array) -> void:
+	for entry in shown:
+		var key := str(entry.get("id", entry.get("name", "")))
+		if not _status_icons.has(key):
+			continue
+		var icon: Dictionary = _status_icons[key]
+		var root: Control = icon["root"]
+		var badge: Label = icon["badge"]
+		if not is_instance_valid(root):
+			continue
+		root.tooltip_text = _status_tooltip(entry)
+		var value := str(entry.get("value", ""))
+		var stacks := _entry_stacks(value)
+		badge.text = ("×%d" % stacks) if stacks > 1 else ""
+		var secs := _entry_seconds(value)
+		# 最后 3 秒逐渐变淡；比闪烁更克制，也不会和画面里的高光抢注意力。
+		root.modulate.a = 1.0
+		if secs >= 0.0 and secs <= 3.0:
+			root.modulate.a = 0.55 + 0.45 * clampf(secs / 3.0, 0.0, 1.0)
+
+
+func _status_tooltip(entry: Dictionary) -> String:
+	var name := str(entry.get("name", "")).strip_edges()
+	var value := str(entry.get("value", "")).strip_edges()
+	var desc := str(entry.get("desc", "")).strip_edges()
 	if value != "":
-		var short_value := value.split(" · ")[0]
-		var value_label := _label(short_value, Vector2(91, 2), Vector2(51, 23), 10, GOLD if kind == "buff" else color, chip)
-		value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		value_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		name += "  " + value
+	if desc != "":
+		name += "\n" + desc
+	return name
+
+
+func _entry_seconds(value: String) -> float:
+	var idx := value.find("秒")
+	if idx <= 0:
+		return -1.0
+	var tokens := value.substr(0, idx).strip_edges().split(" ", false)
+	if tokens.is_empty():
+		return -1.0
+	var last := str(tokens[tokens.size() - 1]).strip_edges()
+	return float(last) if last.is_valid_float() else -1.0
+
+
+func _entry_stacks(value: String) -> int:
+	var idx := value.find("层")
+	if idx <= 0:
+		return 0
+	var tokens := value.substr(0, idx).strip_edges().split(" ", false)
+	if tokens.is_empty():
+		return 0
+	var last := str(tokens[tokens.size() - 1])
+	if last.is_valid_int():
+		return int(last)
+	for part in last.split("／"):
+		if str(part).is_valid_int():
+			return int(part)
+	return 0
 
 
 # ---------- 房间与连击 ----------

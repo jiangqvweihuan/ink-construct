@@ -14,6 +14,7 @@ const SFX_HIT_QI := preload("res://audio/sfx/hit_qi.wav")
 const SFX_HIT_FAN := preload("res://audio/sfx/hit_fan.wav")
 const SFX_HEAL := preload("res://audio/sfx/heal.wav")
 const SFX_TELEGRAPH := preload("res://audio/sfx/telegraph.wav")
+const SFX_POISON := preload("res://audio/sfx/skill_poison.wav")
 const PLAYER_BURN_INTERVALS := [60.0, 58.0, 54.0, 48.0, 40.0, 30.0, 18.0, 10.0]
 
 @export var type_id := "c016"
@@ -23,7 +24,9 @@ enum State { IDLE, PATROL, CHASE, ATTACK, HURT, DEAD, FLY } # FLY=被击飞/击�
 signal died
 
 ## 全局出手令牌：同一时刻只允许一只小怪起手，其余在原地等（否则一排同时挥刀像广播体操）
+## 交棒后留出短暂空档，让围攻节奏变成「轮流出招」而不是无缝接力。
 static var _attacker: Node2D = null
+static var _token_free_at := 0 # 毫秒时间戳：上一只交棒后，下一只最早何时能接手
 
 var state: int = State.IDLE
 var wu_che_summon := false # 武车召唤物：玩家带通缉时，其实伤由统一入口额外 +1
@@ -65,6 +68,8 @@ var _move_anims: Dictionary = {}
 var _move_pool: Dictionary = {} # 同一逻辑招式的随机演出池；判定按抽中的动画分别标定
 var _attack_move := "" # 本次出手的逻辑键，判定/伤害/冷却均按它查询
 var _attack_visual := "" # 本次实际播放的 Spine 动画
+var _last_attack_move := "" # 上一次独立起手的招式；连续重复时降低权重，避免一招复读
+var _attack_hit_landed := false # 本次出手是否至少碰到过一次目标；空刀会留下更长的收招破绽
 var _attack_cast_id := 0 # 每次起手递增，同招多段凭它识别，不靠动画名猜测
 var _opening_slow: Dictionary = {} # 只放慢首段前摇，后续动画与判定恢复正常速度
 var _opening_restore_at := 0.0
@@ -194,6 +199,7 @@ var _current_anim_speed := 1.0
 var _hp_bar: Node2D
 var _hp_fill: ColorRect
 var _sfx_player: AudioStreamPlayer
+var _cue_player: AudioStreamPlayer # 普通怪的轻量起手提示，独立音量，不干扰命中音
 var _status_fx: Dictionary = {} # 状态键 -> 持续 Spine 特效；只随状态存在，不另设计时
 var _death_burst_fx: Node2D = null # 魔爆火焰爆裂特效：与实伤同帧生成，按前扑范围定位
 
@@ -210,6 +216,10 @@ func _ready() -> void:
 	_sfx_player = AudioStreamPlayer.new()
 	_sfx_player.bus = "SFX"
 	add_child(_sfx_player)
+	_cue_player = AudioStreamPlayer.new()
+	_cue_player.bus = "SFX"
+	_cue_player.volume_db = -9.0
+	add_child(_cue_player)
 	if _is_sword_clone:
 		# 凝华分身不可选中、不占敌人组与出手令牌；无敌且不会触发击杀/结算逻辑。
 		remove_from_group("enemies")
@@ -611,8 +621,9 @@ func _chase_tick(delta: float) -> void:
 	if absf(dx) <= attack_range and dy <= 60.0 and _attack_cd <= 0.0 and _can_attack():
 		_start_attack()
 		return
-	# 贴太近但还在冷却：先退开一点保持站位，别和同伴挤在同一格
-	if absf(dx) < keep_dist and _attack_cd > 0.0:
+	# 贴太近但还在冷却 / 令牌被同伴占着：先退开保持站位，别和同伴挤在同一格。
+	# 这是围攻读招的关键：等待出手的怪会主动让出挥砍空间，而不是贴脸叠成一坨。
+	if absf(dx) < keep_dist and (_attack_cd > 0.0 or not _can_attack()):
 		var retreat_speed := _chase_speed_now() if _bloodthirst_weak() else 80.0
 		velocity.x = move_toward(velocity.x, -facing * retreat_speed * _slow_scale, accel * delta)
 		return
@@ -644,7 +655,13 @@ func _attack_tick(delta: float) -> void:
 			_start_attack(next_anim, true)
 			return
 		_attack_cd = attack_cooldown * _skill_cooldown_scale
+		if not _telegraph_on:
+			_attack_cd *= randf_range(0.88, 1.12) # 杂兵错开节拍，避免整排同帧进入下一轮
 		_chase_block = 0.35
+		if not _attack_hit_landed:
+			# 空刀：收招多留一拍破绽，鼓励玩家读招后撤再反打
+			_chase_block = 0.55
+			_recovery_after_attack = maxf(_recovery_after_attack, 0.14)
 		_release_token()
 		if _recovery_after_attack > 0.0:
 			_recovery_timer = _recovery_after_attack
@@ -704,6 +721,7 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		_chain_next = ""
 		_recovery_after_attack = 0.0
 		_recovery_timer = 0.0
+		_attack_hit_landed = false
 	# 就绪且距离合规的技能优先；全部不可用才回首招普攻。
 	var dist := 0.0
 	if _target != null:
@@ -719,6 +737,8 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 			continue
 		if _max_range_of(n) >= dist - 10.0:
 			var weight := float(rule.get("weight", 1.0))
+			if str(n) == _last_attack_move:
+				weight *= 0.3 # 同一招连着起手时降权，避免机械复读
 			if str(n) == basic_anim:
 				basic_pool.append(n)
 				basic_weights.append(weight)
@@ -759,10 +779,10 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		if anim == "":
 			anim = str(pool.back())
 	state = State.ATTACK
-	if not _is_sword_clone:
-		_attacker = self # 本体占住出手令牌；凝华分身只同步，不阻断其他敌人
 	_sword_hit_damage.clear()
 	_attack_move = anim
+	if not continue_chain and anim != basic_anim:
+		_last_attack_move = anim
 	# 六感尽失只惩罚非普攻的独立起手；连段接续不重复触发。
 	if not continue_chain and anim != basic_anim:
 		var limit_was_used := _limit_used
@@ -770,6 +790,8 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 		# 神伤可能跨祭剑阈值并嵌套起手；外层旧招必须到此为止，不能覆盖祭剑状态。
 		if state == State.DEAD or _limit_used != limit_was_used:
 			return
+	if not _is_sword_clone:
+		_attacker = self # 本体占住出手令牌；凝华分身只同步，不阻断其他敌人
 	_attack_visual = str(_move_anims.get(anim, anim))
 	if _move_pool.has(anim):
 		var visuals: Array = _move_pool[anim]
@@ -837,6 +859,10 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 	_idle_queued = true
 	if _telegraph_on:
 		_telegraph()
+	elif not continue_chain and anim != basic_anim:
+		# 普通怪没有泛红预警，但危险招式给一记轻量起手音，保证读招公平
+		_cue_player.stream = SFX_TELEGRAPH
+		_cue_player.play()
 	if not _is_sword_clone and is_instance_valid(_sword_clone_node):
 		_sword_clone_node.call("_sword_sync_attack", anim)
 
@@ -893,6 +919,7 @@ func _deal_hit(seg := 0) -> void:
 	var side_ok: bool = in_front or bool(_both_anims.get(_attack_move, false))
 	var rng := _range_of(_attack_move, seg) if in_front else _back_range_of(_attack_move, seg)
 	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height:
+		_attack_hit_landed = true
 		if not _is_sword_clone:
 			_sword_hit_damage[seg] = dmg
 		var kb := Vector2(facing * _hit_knockback.x, _hit_knockback.y)
@@ -1744,6 +1771,9 @@ func apply_poison(dur: float) -> void:
 	if state == State.DEAD or dur <= 0.0:
 		return
 	_poison_time = maxf(_poison_time, dur)
+	if _sfx_player != null:
+		_sfx_player.stream = SFX_POISON
+		_sfx_player.play()
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("中毒", POISON_LABEL_COLOR)
 	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
@@ -1998,7 +2028,7 @@ func _flash() -> void:
 
 func _spawn_number(amount: int, color: Color = DMG_COLOR) -> void:
 	var dn := DAMAGE_NUMBER.new()
-	dn.setup(str(amount), color)
+	dn.setup(str(amount), color, amount)
 	dn.global_position = global_position + Vector2(randf_range(-12.0, 12.0), _number_y)
 	get_tree().current_scene.add_child(dn)
 
@@ -2181,16 +2211,20 @@ func _find_target() -> void:
 	_target = get_tree().get_first_node_in_group("player") as Node2D
 
 
-## 出手令牌：同一时刻只放一只小怪出手；持有者被受击打断/死亡也要释放
+## 出手令牌：同一时刻只放一只小怪出手；持有者被受击打断/死亡也要释放。
+## 交棒后 0.26 秒内无人可接手，形成「一只打完、另一只再上」的围攻节奏。
 func _can_attack() -> bool:
-	if _attacker == null or not is_instance_valid(_attacker):
+	if _attacker == self:
 		return true
-	return _attacker == self
+	if _attacker != null and is_instance_valid(_attacker):
+		return false
+	return Time.get_ticks_msec() >= _token_free_at
 
 
 func _release_token() -> void:
 	if _attacker == self:
 		_attacker = null
+		_token_free_at = Time.get_ticks_msec() + 260
 
 
 ## 规则级打断不能留下半段连招或招式自身的力竭计时。

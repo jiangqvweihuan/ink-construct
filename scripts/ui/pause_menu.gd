@@ -114,14 +114,21 @@ func _build_status_details() -> void:
 		panel.size = Vector2(510, 0)
 		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.025, 0.025, 0.025, 0.56)
+		sb.bg_color = Color(0.055, 0.05, 0.044, 0.52)
 		sb.set_border_width_all(1)
-		sb.border_color = Color(PAPER, 0.14)
+		sb.border_color = Color(PAPER, 0.12)
 		sb.set_corner_radius_all(5)
 		panel.add_theme_stylebox_override("panel", sb)
 		content.add_child(panel)
 		var kind_names := {"buff": "增益", "debuff": "减益", "passive": "被动", "stolen": "夺取", "upgrade": "强化"}
 		var kind := str(entry.get("kind", "passive"))
+		var accent := GOLD if kind == "buff" else (RED if kind == "debuff" or not bool(entry.get("active", true)) else Color(0.46, 0.62, 0.66))
+		var accent_bar := ColorRect.new()
+		accent_bar.color = Color(accent, 0.85)
+		accent_bar.position = Vector2(0, 10)
+		accent_bar.size = Vector2(3, 16)
+		accent_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		panel.add_child(accent_bar)
 		var heading := "%s  ·  %s" % [kind_names.get(kind, "状态"), str(entry.get("name", ""))]
 		var value := str(entry.get("value", ""))
 		if value != "":

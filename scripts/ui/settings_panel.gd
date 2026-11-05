@@ -297,6 +297,17 @@ func _build_video() -> void:
 		pct.text = "%d%%" % int(round(b * 100.0)))
 	_content.add_child(s)
 
+	y = 445.0
+	_row_label("伤害数字", 330, y)
+	var dmg := OptionButton.new()
+	for t in ["关闭", "仅重击（3 点以上）", "全部显示"]:
+		dmg.add_item(str(t))
+	dmg.selected = clampi(int(_draft["damage_numbers"]), 0, 2)
+	dmg.item_selected.connect(func(i):
+		_draft["damage_numbers"] = i
+		_sfx.play())
+	_place(dmg, Vector2(480, y - 4))
+
 
 # ---------- 操作页 ----------
 
