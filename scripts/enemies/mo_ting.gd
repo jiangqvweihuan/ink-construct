@@ -443,9 +443,12 @@ func _try_tremor_grab() -> void:
 	if _target != null and is_instance_valid(_target) and is_instance_valid(_marker):
 		var offset: Vector2 = _target.global_position - _marker.global_position
 		if offset.length() <= 66.0:
-			_grabbed_player = _target
+			# 无敌 / 完美闪避 / 受击无敌 / 金钟罩时玩家会拒绝锁头，不能当成已抓获
+			var held := false
 			if _target.has_method("mo_ting_hold"):
-				_target.call("mo_ting_hold", global_position + Vector2(facing * 190.0, -180.0))
+				held = bool(_target.call("mo_ting_hold", global_position + Vector2(facing * 190.0, -180.0)))
+			if held:
+				_grabbed_player = _target
 	if is_instance_valid(_marker):
 		_marker.queue_free()
 		_marker = null

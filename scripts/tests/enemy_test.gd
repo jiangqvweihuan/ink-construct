@@ -634,6 +634,41 @@ func _brute_probe() -> void:
 		and e.sprite.process_mode == Node.PROCESS_MODE_INHERIT and is_equal_approx(e._vuln_timer, frozen_vuln)
 	_check(vuln_frozen, "时停计时到期前易伤不随时间流失")
 
+	# 时停期间所有按秒 buff 都必须与拥有者一同冻结，解冻后从原值继续计时。
+	e.apply_bleed(1)
+	e.apply_poison(5.0)
+	e.apply_charm(5.0)
+	e.apply_frenzy(5.0)
+	e.root(5.0, true)
+	e.stun(5.0, true)
+	e.slow(5.0, 0.4, true)
+	var frozen_buffs := {
+		"_bleed_time": e._bleed_time, "_poison_time": e._poison_time, "_vuln_timer": e._vuln_timer,
+		"_frenzy_time": e._frenzy_time, "_charm_time": e._charm_time, "_stun_timer": e._stun_timer,
+		"_root_timer": e._root_timer, "_slow_timer": e._slow_timer,
+	}
+	e.time_stop(5.0)
+	e._physics_process(1.0)
+	var buffs_frozen := e._stop_timer > 0.0
+	for prop in frozen_buffs:
+		buffs_frozen = buffs_frozen and is_equal_approx(float(e.get(prop)), float(frozen_buffs[prop]))
+	_check(buffs_frozen, "时停期间流血/中毒/易伤/狂乱/魅惑/定身/晕眩/余滞全部不流逝")
+	e._end_stop()
+	e._stun_timer = 0.0
+	e._root_timer = 0.0
+	var resumed_from := {
+		"_bleed_time": e._bleed_time, "_poison_time": e._poison_time, "_vuln_timer": e._vuln_timer,
+		"_frenzy_time": e._frenzy_time, "_charm_time": e._charm_time, "_slow_timer": e._slow_timer,
+	}
+	e._physics_process(0.1)
+	var buffs_resumed := true
+	for prop in resumed_from:
+		var now := float(e.get(prop))
+		if not (now < float(resumed_from[prop])):
+			buffs_resumed = false
+			p("resume stuck: %s %s -> %s" % [prop, str(resumed_from[prop]), str(now)])
+	_check(buffs_resumed, "解冻后流血/中毒/易伤/狂乱/魅惑/余滞与拥有者一同恢复计时")
+
 	var vuln_enemy = load("res://scenes/enemies/c016.tscn").instantiate()
 	vuln_enemy.position = Vector2(900, 560)
 	add_child(vuln_enemy)
@@ -1191,11 +1226,11 @@ func _spine_status_probe() -> void:
 	e.take_damage(e.hp, _player.global_position.x)
 	await get_tree().process_frame
 	_check(e.state == e.State.DEAD and e._status_fx.is_empty() and not is_instance_valid(death_status) \
-		and not is_instance_valid(e._qingli_death_fx), "普通c016死亡清除状态且不触发青笠亡语视觉")
+		and not is_instance_valid(e._death_burst_fx), "普通c016死亡清除状态且不生成魔爆特效")
 	e.queue_free()
 	await get_tree().process_frame
 
-	# 青笠原配置没有死亡伤害段；替换消散视觉后仍不得新增判定或改动既有 hit_at/range。
+	# 青笠没有亡语：死亡不得生成 E54148，也不新增任何伤害/命中段。
 	_reset_brute_player(Vector2(500, 560))
 	_player.hp = 50
 	var q = load("res://scenes/enemies/c012_elite.tscn").instantiate()
@@ -1211,17 +1246,13 @@ func _spine_status_probe() -> void:
 	var player_hp: int = _player.hp
 	var witness_hp: int = witness.hp
 	q.die()
-	var death_fx = q._qingli_death_fx
-	var death_ok: bool = q._is_qingli_elite() and is_instance_valid(death_fx) \
-		and death_fx.get_parent() == get_tree().current_scene and str(death_fx.get_meta("fx_id", "")) == "E54148" \
-		and death_fx.sprite.get("skeleton_data_res") == SpineFX.data("E54148") and death_fx._lifetime > 0.0
-	death_ok = death_ok and q._attack_hits_left.is_empty() and _player.hp == player_hp and witness.hp == witness_hp \
+	var no_burst_fx := true
+	for child in get_tree().current_scene.get_children():
+		no_burst_fx = no_burst_fx and str(child.get_meta("fx_id", "")) != "E54148"
+	var death_ok: bool = no_burst_fx and not is_instance_valid(q._death_burst_fx) \
+		and q._attack_hits_left.is_empty() and _player.hp == player_hp and witness.hp == witness_hp \
 		and q._hit_at_map == old_hit_at and q._ranges == old_ranges
-	_check(death_ok, "真正青笠精英仅替换死亡视觉，不新增伤害次数/范围并保留原hit_at/range")
-	if is_instance_valid(death_fx):
-		death_fx._process(death_fx._lifetime + 0.1)
-	await get_tree().process_frame
-	_check(not is_instance_valid(death_fx), "青笠死亡Spine按原动画生命周期自动销毁")
+	_check(death_ok, "青笠死亡不生成 E54148 亡语视觉，也不新增伤害次数/范围并保留原hit_at/range")
 	q.queue_free()
 	witness.queue_free()
 	await get_tree().process_frame
@@ -1233,7 +1264,7 @@ func _spine_status_probe() -> void:
 	add_child(b)
 	b.set_physics_process(false)
 	await get_tree().process_frame
-	var bell_ok: bool = b._status_fx.is_empty() and not b._is_qingli_elite()
+	var bell_ok: bool = b._status_fx.is_empty() and b._death_burst_fx == null
 	b._bell_layers.append(2)
 	await get_tree().process_frame
 	var bell = b._status_fx.get("bell")
@@ -1469,6 +1500,7 @@ func _qingyan_probe() -> void:
 	await get_tree().create_timer(0.9).timeout
 	spawner._process(0.0)
 	delayed_ok = delayed_ok and caster._current_anim == "transform" and not burst_done["value"] \
+		and not is_instance_valid(caster._death_burst_fx) \
 		and _player.hp == hp_before and front.hp == front_hp and not front._room_cd_cursed \
 		and spawner._alive.has(caster) and not wave_done["cleared"]
 	await get_tree().create_timer(3.7).timeout
@@ -1476,7 +1508,20 @@ func _qingyan_probe() -> void:
 	var burst_hit_ok: bool = _player.hp == hp_before - 3 and front.hp == front_hp - 3 and back.hp == back_hp \
 		and _player._room_cd_cursed and front._room_cd_cursed and not back._room_cd_cursed and not burst_done["value"] \
 		and spawner._alive.has(caster) and not wave_done["cleared"]
-	await get_tree().create_timer(0.3).timeout
+	# 魔爆特效：与实伤同帧生成，贴地，落点在前扑判定区中心（起手 x + 前扑位移 + 半程范围）。
+	var burst_fx = caster._death_burst_fx
+	var burst_range := float(caster._death_burst.get("range", 480.0))
+	var burst_lunge := float(caster._death_burst.get("lunge", 96.0))
+	var burst_fx_ok: bool = is_instance_valid(burst_fx) and str(burst_fx.get_meta("fx_id", "")) == "E54148" \
+		and absf(burst_fx._base_scale.x - caster._scale * 0.85) <= 0.001 \
+		and absf(burst_fx._offset.y + 100.0 * caster._scale * 0.85) <= 1.0 and burst_fx._lifetime > 0.0 \
+		and absf(burst_fx.global_position.x - (500.0 + burst_lunge + burst_range * 0.5)) <= 2.0
+	_check(burst_fx_ok, "魔爆与实伤同帧生成 E54148，并落在前扑判定区中心")
+	await get_tree().create_timer(0.5).timeout
+	await _shot("09_c037_burst")
+	# 火焰柱阶段：确认爆裂后特效仍贴地立起，不会飘在空中。
+	await get_tree().create_timer(0.85).timeout
+	await _shot("10_c037_burst_pillar")
 	spawner._process(0.0)
 	delayed_ok = delayed_ok and burst_done["value"]
 	_check(delayed_ok and wave_done["cleared"] and wave_done["all"] and spawner._wave == -1,

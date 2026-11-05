@@ -221,6 +221,27 @@ func _test_tremor() -> void:
 	_b._cast_tick(0.36)
 	_check(not _p._mo_ting_grabbed, "落手时已离开红点的玩家不会被抓取")
 
+	# 无敌（冲刺无敌/完美闪避）与受击无敌期间，锁头落手必须落空，不能把人带走。
+	for flag in ["_invincible", "_hurt_invincible"]:
+		_reset_all(12, 20)
+		_b._start_mo_move(_b.TREMOR)
+		_p.global_position.x = 520.0
+		_b._cast_tick(0.5)
+		_b._cast_tick(0.75)
+		_b._cast_tick(0.02) # 红点锁定在 520
+		if flag == "_invincible":
+			_p._invincible = true
+		else:
+			_p._hurt_invincible = 5.0
+		var before_grab: Vector2 = _p.global_position
+		_b._cast_tick(0.34)
+		_b._cast_tick(0.02)
+		_check(not _p._mo_ting_grabbed and not _b._grabbed_player \
+			and _p.global_position.distance_to(before_grab) < 0.01,
+			"无敌状态（%s）下墨颤锁头不把玩家带走" % flag)
+		_p._invincible = false
+		_p._hurt_invincible = 0.0
+
 
 func _test_rush() -> void:
 	_reset_all()

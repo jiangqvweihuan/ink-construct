@@ -193,6 +193,7 @@ var _shield_time := 0.0 # 金钟罩剩余秒数（到点自动消失）
 var _mastery_cd := 1.0 # 契合 Lv1：该形态技能冷却倍率
 var _mastery_dmg := 0 # 契合 Lv2：该形态普攻加伤
 var body_radius := 30.0 # 受击半径：挨打按"攻击方射程 + 本半径"判定（与小怪/Boss 同一规则）
+var _fx_scale := 0.0 # 通用身体特效的体型倍率覆盖（形态显式配置；0 = 按 body_radius 自动换算）
 # ---------- 形态专属强化（Run.upgrades 的卡键注入，换房间随 set_upgrades 重算） ----------
 var range_scale := 1.0 # 攻击范围倍率（锋扫/鞭术/震地）
 var proj_extra := 0 # 投射物额外齐发数（双发）
@@ -404,6 +405,7 @@ func _apply_profile(id: String) -> void:
 	hud_skills = profile["hud_skills"]
 	base_scale = float(profile["scale"])
 	body_radius = float(profile.get("body_radius", 30.0)) # 形态表可按体型覆盖（未来大型化身）
+	_fx_scale = float(profile.get("fx_scale", 0.0)) # 通用身体特效的体型倍率：不配 = 按受击半径自动换算
 	# 轻功（银夜）：没有该配置的形态倍率 1.0、不悬停，手感不受影响
 	var qg: Dictionary = profile.get("qinggong", {})
 	_qg_jump_mul_base = float(qg.get("jump_mul", 1.0))
@@ -1001,7 +1003,7 @@ func _sync_persistent_spine() -> void:
 	if _shield_hits > 0 and state != State.DEAD:
 		if not is_instance_valid(_shield_spine) or _shield_spine.is_queued_for_deletion():
 			_shield_spine = _attach_spine_fx("E52025", Vector2(0.0, -64.0), "action1", true,
-				{"scale": 0.5, "fx_role": "shield"})
+				{"scale": 0.5 * _body_fx_scale(), "fx_role": "shield"})
 	else:
 		_release_spine(_shield_spine)
 		_shield_spine = null
@@ -1010,7 +1012,7 @@ func _sync_persistent_spine() -> void:
 	if _awaken_time > 0.0 and awaken_visual_ready and not awaken_id.is_empty() and state != State.DEAD:
 		if not is_instance_valid(_awaken_spine) or _awaken_spine.is_queued_for_deletion():
 			_awaken_spine = _attach_spine_fx(awaken_id, Vector2.ZERO if skull_id == "z003" else Vector2(0.0, -64.0), "action", true,
-				{"scale": 0.75 if skull_id == "z000" else (1.0 if skull_id == "z002" else 0.25),
+				{"scale": (0.75 if skull_id == "z000" else (1.0 if skull_id == "z002" else 0.25)) * _body_fx_scale(),
 				"center": skull_id == "z002", "fx_role": "awaken"})
 	else:
 		_release_spine(_awaken_spine)
@@ -1050,11 +1052,14 @@ func _start_skill_spine(n: String) -> void:
 		# I 觉醒：脚底水平线、身体垂直中心浮现的地面法阵
 		_skill_spine = _attach_spine_fx("E54057", Vector2.ZERO, "action", false,
 			{"scale": 0.6, "center": true, "fx_role": "skill"})
-	elif skull_id == "c013":
+	elif skull_id == "c013" and n == "skill02":
+		# 头顶佛像只属于 U 立地听禅；K 钟荡群山、L 金刚怒目起手不显示
 		_attach_spine_fx("E100182", Vector2(0.0, -150.0), "action", false,
 			{"fx_role": "skill_start"})
-	elif skull_id == "c021" and n == "skill02-cankao":
-		_skill_spine = _attach_spine_fx("E54151", Vector2(0.0, -64.0), "action1", true,
+	elif skull_id == "c021" and n == "skill5-":
+		# L 罗刹旋舞：闪电劈在起手位置的地面上，世界坐标固定、不随角色移动；
+		# 不再用 bottom 逐帧贴地——骨架包围盒随动画变化会让闪电一直上下跳。
+		_skill_spine = _world_spine_fx("E54151", global_position, "action1", true,
 			{"scale": 0.35, "fx_role": "skill"})
 	elif skull_id == "z002" and n == "skill07_02":
 		_attach_spine_fx("E53174", Vector2.ZERO, "action", false,
@@ -1724,6 +1729,14 @@ func _radius_of(e) -> float:
 	return float(r) if r != null else 30.0
 
 
+## 通用身体锚定特效的体型倍率：以常规体型（受击半径 30）为 1.0，不按具体特效写死尺寸。
+## 形态表可用 fx_scale 显式覆盖；与受击半径同源的"体积"决定金钟罩/觉醒/复活特效大小。
+func _body_fx_scale() -> float:
+	if _fx_scale > 0.0:
+		return _fx_scale
+	return maxf(0.25, body_radius / 30.0)
+
+
 ## 目标状态加伤：毒梅看中毒，逐影看击飞；投射物命中时也会查询同一入口。
 func _target_damage_bonus(p: Node2D) -> int:
 	var bonus := 0
@@ -2216,8 +2229,9 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		_world_spine_fx("E54063", global_position, "action1", false,
 			{"width": skill_range * 2.0, "center": true, "fx_role": "skill_hit"})
 	elif skull_id == "c013" and _skill_name == "skill03":
+		# L 金刚怒目：落点石柱按伤害范围横向适配，底部贴地不陷进地面
 		_world_spine_fx("E53201", global_position + Vector2(facing * skill_range, 0.0), "action", false,
-			{"width": skill_range, "center": true, "flip": facing < 0, "fx_role": "skill_hit"})
+			{"width": skill_range, "bottom": true, "flip": facing < 0, "fx_role": "skill_hit"})
 	elif skull_id == "z000" and _skill_name == "skill02-":
 		# L 月华斩末端：在挥剑落点从地面喷出火焰。固定缩放保证整段动画都能完整显示，
 		# 底部对齐让火头始终贴住脚底水平线，不随 bounds 变化上下漂移。
@@ -3963,9 +3977,14 @@ func _apply_bloom(attacker: Node, move: Dictionary) -> void:
 
 
 ## 墨颤命中后把玩家定点在操控者正前方；主动释放前不吃重力、不接受移动输入。
-func mo_ting_hold(pos: Vector2) -> void:
+## 返回 false 表示这次锁头没有抓住（防守状态），操控者不应把玩家当成已抓获。
+func mo_ting_hold(pos: Vector2) -> bool:
 	if state == State.DEAD or _saint_immune():
-		return
+		return false
+	# 无敌 / 完美闪避 / 受击无敌 / 金钟罩期间，锁头不把人带走：
+	# 抓取是位置判定、不经过 hurt，必须在这里单独挡。
+	if _invincible or state == State.DASH or _hurt_invincible > 0.0 or _shield_hits > 0:
+		return false
 	_begin_attack_recovery_if_needed()
 	_set_blink(false)
 	_reset_root_follow()
@@ -3983,6 +4002,7 @@ func mo_ting_hold(pos: Vector2) -> void:
 	_hurt_timer = 0.0
 	_idle_queued = false
 	_play(anim_map["idle"], true)
+	return true
 
 
 func mo_ting_release() -> void:
@@ -4355,7 +4375,7 @@ func _try_revive(knockback: Vector2) -> bool:
 	_idle_queued = true
 	if red_butterfly:
 		_attach_spine_fx("E54015", Vector2(0.0, -64.0), "action", false,
-			{"scale": 0.5, "fx_role": "revive"})
+			{"scale": 0.5 * _body_fx_scale(), "fx_role": "revive"})
 	return true
 
 

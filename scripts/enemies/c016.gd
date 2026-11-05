@@ -195,7 +195,7 @@ var _hp_bar: Node2D
 var _hp_fill: ColorRect
 var _sfx_player: AudioStreamPlayer
 var _status_fx: Dictionary = {} # 状态键 -> 持续 Spine 特效；只随状态存在，不另设计时
-var _qingli_death_fx: Node2D = null
+var _death_burst_fx: Node2D = null # 魔爆火焰爆裂特效：与实伤同帧生成，按前扑范围定位
 
 
 func _ready() -> void:
@@ -1365,6 +1365,8 @@ func apply_transferred_debuff(info: Dictionary) -> void:
 
 
 func _pipa_status_tick(delta: float) -> void:
+	if _stop_timer > 0.0:
+		return # 时停冻结：狂乱/魅惑/心魔转移减益与拥有者一同暂停，解冻后从原值继续
 	if _frenzy_time > 0.0:
 		_frenzy_time = maxf(0.0, _frenzy_time - delta)
 		if _frenzy_time <= 0.0:
@@ -1710,6 +1712,8 @@ func consume_bleed() -> int:
 
 
 func _bleed_tick(delta: float) -> void:
+	if _stop_timer > 0.0:
+		return # 时停冻结：流血时长不流逝，解冻后继续
 	if _bleed_stacks <= 0 or state == State.DEAD:
 		return
 	_bleed_time -= delta
@@ -1735,6 +1739,8 @@ func apply_poison(dur: float) -> void:
 
 
 func _poison_tick(delta: float) -> void:
+	if _stop_timer > 0.0:
+		return # 时停冻结：中毒时长与跳毒累计都不推进，解冻后继续
 	if _poison_time <= 0.0 or state == State.DEAD:
 		return
 	_poison_time = maxf(0.0, _poison_time - delta)
@@ -1767,6 +1773,8 @@ func apply_vulnerable(dur: float, ratio: float) -> void:
 
 
 func _vuln_tick(delta: float) -> void:
+	if _stop_timer > 0.0:
+		return # 时停冻结：易伤时长不流逝，解冻后继续
 	if _vuln_timer <= 0.0 or state == State.DEAD:
 		return
 	_vuln_timer = maxf(0.0, _vuln_timer - delta)
@@ -1781,6 +1789,8 @@ func damage_taken_scale() -> float:
 
 ## 山民：计时始终推进，到点有伤才回血；满血不会越界，也不会囤出额外治疗次数。
 func _regen_tick(delta: float) -> void:
+	if _stop_timer > 0.0:
+		return # 时停冻结：回血节奏与拥有者一同暂停，解冻后继续
 	if _regen_interval <= 0.0 or _regen_amount <= 0 or state == State.DEAD:
 		return
 	_regen_timer -= delta
@@ -1998,13 +2008,9 @@ func die() -> void:
 	var bursting := not _death_burst.is_empty()
 	if not bursting:
 		_play(str(_anim_map["dead"]), false)
-		if _is_qingli_elite():
-			# 只替换青笠原来的消散视觉；死亡流程不新增任何伤害或命中段。
-			_qingli_death_fx = _spawn_qingli_death_fx()
-		else:
-			# 尸体消散时一团墨散开，盖住淡出
-			FX.spawn(get_tree().current_scene, "vanish", global_position,
-				{"scale": _scale * 1.6, "z": 5})
+		# 尸体消散时一团墨散开，盖住淡出（青笠没有亡语，不再生成额外死亡特效）
+		FX.spawn(get_tree().current_scene, "vanish", global_position,
+			{"scale": _scale * 1.6, "z": 5})
 	if not player_ally:
 		Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
 		Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
@@ -2017,21 +2023,6 @@ func die() -> void:
 	else:
 		died.emit()
 		_cleanup()
-
-
-func _is_qingli_elite() -> bool:
-	return type_id == "c012" and _elite and not _is_sword_clone and not _sword_player_clone
-
-
-func _spawn_qingli_death_fx() -> Node2D:
-	var parent: Node = get_tree().current_scene
-	if parent == null:
-		parent = get_parent()
-	var fx := SpineFX.spawn(parent, "E54148", global_position,
-		{"anim": "action", "scale": _scale * 1.6, "flip": facing < 0, "z": 5})
-	if fx != null:
-		fx.set_meta("fx_id", "E54148")
-	return fx
 
 
 ## 魔爆：起身后完成 22 号变身，再以巨兽整体前扑回斩补齐原动画缺少的最后一击。
@@ -2085,8 +2076,18 @@ func _deal_death_burst() -> void:
 		e.call("take_damage", damage, global_position.x)
 		if int(e.get("hp")) < before and int(e.get("hp")) > 0 and e.has_method("apply_room_cd_curse"):
 			e.call("apply_room_cd_curse")
-	FX.spawn(get_tree().current_scene, "ink_claw", global_position + Vector2(facing * 210.0, -100.0),
-		{"scale": 2.2, "flip": facing < 0, "z": 6})
+	# 魔爆：火焰爆裂与实伤同帧生成，落点取前扑判定区中心。
+	# 尺寸按可见爆裂整体约等于前扑判定宽度（480）来定，而不是放大到整块骨架；
+	# E54148 的可见爆裂主体比骨架原点低约 100 骨架单位（素材固有），固定补偿这段高度：
+	# 不用包围盒逐帧贴地，否则火焰柱阶段包围盒变化会把整团特效上下拽动。
+	var burst_range := float(_death_burst.get("range", 480.0))
+	var burst_fx_scale := _scale * 0.85
+	_death_burst_fx = SpineFX.spawn(get_tree().current_scene, "E54148",
+		global_position + Vector2(facing * burst_range * 0.5, 0.0),
+		{"anim": "action", "scale": burst_fx_scale,
+		"offset": Vector2(0.0, -100.0 * burst_fx_scale), "flip": facing < 0, "z": 6})
+	if _death_burst_fx != null:
+		_death_burst_fx.set_meta("fx_id", "E54148")
 	Feel.shake(12.0, 0.35)
 
 

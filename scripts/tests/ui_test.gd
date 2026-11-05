@@ -311,9 +311,14 @@ func _ready() -> void:
 	await get_tree().create_timer(0.5).timeout
 	var codex = _find_panel("codex_panel.gd")
 	p("图鉴打开=%s（期望 true）" % (codex != null))
-	await _shot("05_codex_enemy")
+	p("图鉴默认页=故事集 %s（期望 true）" % (codex != null and int(codex._tab) == 3))
+	await _shot("05_codex_story")
 
 	if codex != null:
+		# 默认落在故事集；后面的敌人资料断言需先切回敌人页。
+		codex._switch_tab(0)
+		await get_tree().create_timer(0.3).timeout
+		await _shot("05b_codex_enemy")
 		_assert_sfx_buses(codex)
 		assert(codex._medal_fx == null, "普通刀客图鉴不得显示特殊勋章")
 		# 敌人页：默认播待机；点击「招式 1」后演示台切到该招式，右侧简介要挂击败次数与词条

@@ -1263,20 +1263,44 @@ func _player_spine_regression() -> void:
 	_player._sync_persistent_spine()
 	_check(_player._shield_spine == null and shield.is_queued_for_deletion(), "金钟罩归零立即释放持续特效")
 
-	# 双刺 U 的持续节点无论自然收招还是受击打断都不能残留。
+	# 通用身体特效按体积缩放，不写死：受击半径 45 的形态按 1.5 倍放大金钟罩。
+	_player.body_radius = 45.0
+	_player._apply_self_shield({"hits": 1, "time": 8.0})
+	var big_shield = _player._shield_spine
+	_check(is_instance_valid(big_shield) and is_equal_approx(big_shield._base_scale.x, 0.75),
+		"金钟罩按角色体型缩放（半径 45 → 0.75）")
+	_player._shield_hits = 0
+	_player._shield_time = 0.0
+	_player._sync_persistent_spine()
+	_player.body_radius = 30.0
+
+	# 双刺 L 罗刹旋舞的持续节点无论自然收招还是受击打断都不能残留；U 不再挂该特效。
 	_prepare_innate("c021")
 	_player._start_skill("skill02-cankao")
-	var skill_fx = _player._skill_spine
-	_check(is_instance_valid(skill_fx) and str(skill_fx.get_meta("fx_id")) == "E54151" \
-		and str(skill_fx.get_meta("fx_anim")) == "action1", "双刺 U 从起手生成 E54151 持续特效")
+	_check(_player._skill_spine == null and _direct_spine(_player, "E54151", "skill").is_empty(),
+		"双刺 U 不生成 E54151（该特效只属于 L）")
 	_player._skill_tick(_player._skill_timer + 0.001)
-	_check(_player._skill_spine == null and skill_fx.is_queued_for_deletion(), "双刺 U 自然收招释放持续特效")
 	_clear_spine_regression_world()
 	_prepare_innate("c021")
-	_player._start_skill("skill02-cankao")
+	var cast_pos := _player.global_position
+	_player._start_skill("skill5-")
+	var skill_fx = _player._skill_spine
+	_check(is_instance_valid(skill_fx) and str(skill_fx.get_meta("fx_id")) == "E54151" \
+		and str(skill_fx.get_meta("fx_anim")) == "action1" and not bool(skill_fx._bottom) \
+		and skill_fx.get_parent() == get_tree().current_scene \
+		and skill_fx.global_position.distance_to(cast_pos) <= 1.0,
+		"双刺 L 在起手位置生成落在地面的 E54151 持续特效")
+	_player.global_position += Vector2(160.0, 0.0)
+	_check(skill_fx.global_position.distance_to(cast_pos) <= 1.0, "双刺 L 闪电固定在世界坐标，不跟随角色移动")
+	_player.global_position = cast_pos
+	_player._skill_tick(_player._skill_timer + 0.001)
+	_check(_player._skill_spine == null and skill_fx.is_queued_for_deletion(), "双刺 L 自然收招释放持续特效")
+	_clear_spine_regression_world()
+	_prepare_innate("c021")
+	_player._start_skill("skill5-")
 	skill_fx = _player._skill_spine
 	_player.hurt(1)
-	_check(_player._skill_spine == null and skill_fx.is_queued_for_deletion(), "双刺 U 受击打断同样释放持续特效")
+	_check(_player._skill_spine == null and skill_fx.is_queued_for_deletion(), "双刺 L 受击打断同样释放持续特效")
 
 	# 定山 K/L 以运行时 bounds 匹配实际范围，不再直接放大原始巨型骨架。
 	_clear_spine_regression_world()
@@ -1289,6 +1313,7 @@ func _player_spine_regression() -> void:
 	_check(k_nodes.size() == 1 and is_equal_approx(float(k_nodes[0]._fit_width), 396.0) \
 		and bool(k_nodes[0]._center) and k_nodes[0].global_position.is_equal_approx(_player.global_position),
 		"定山 K 以自身为中心且视觉宽度匹配双向 198 范围")
+	_check(_direct_spine(_player, "E100182", "skill_start").is_empty(), "定山 K 起手不显示头顶佛像（U 专属）")
 	_clear_spine_regression_world()
 	_prepare_innate("c013")
 	_player.global_position = Vector2.ZERO
@@ -1297,8 +1322,13 @@ func _player_spine_regression() -> void:
 	_player._skill_tick(0.8701)
 	var l_nodes := _direct_spine(self, "E53201", "skill_hit")
 	_check(l_nodes.size() == 1 and is_equal_approx(float(l_nodes[0]._fit_width), 191.0) \
-		and bool(l_nodes[0]._center) and l_nodes[0].global_position.is_equal_approx(Vector2(191.0, 0.0)),
-		"定山 L 居中于实际最远落点并匹配技能范围")
+		and bool(l_nodes[0]._bottom) and l_nodes[0].global_position.is_equal_approx(Vector2(191.0, 0.0)),
+		"定山 L 落点石柱按伤害范围适配且底部贴地不陷入地面")
+	_check(_direct_spine(_player, "E100182", "skill_start").is_empty(), "定山 L 起手不显示头顶佛像（U 专属）")
+	_clear_spine_regression_world()
+	_prepare_innate("c013")
+	_player._start_skill("skill02")
+	_check(_direct_spine(_player, "E100182", "skill_start").size() == 1, "定山 U 起手显示头顶佛像")
 
 	# 剑仙 L 月华斩末端：挥剑落点喷出 E54145 火焰，宽度跟随本次判定距离。
 	_clear_spine_regression_world()
