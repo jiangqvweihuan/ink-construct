@@ -2269,9 +2269,10 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			if skull_id == "z000" and _skill_name == "skill20_03" and dealt_now > 0 and int(e.get("hp")) > 0 \
 					and p.has_method("stun"):
 				p.call("stun", 3.0)
-				# 地裂爆炸烟尘：脚底对齐、固定缩放，完整呈现整段特效（原来按体型算太小）
+				# 地裂爆炸烟尘：脚底对齐、固定缩放，完整呈现整段特效（原来按体型算太小）。
+				# 骨骼包围盒底部比实际墨迹低，再往下压 22px 让最低端真正落在目标脚中心。
 				_world_spine_fx("E54181", p.global_position, "action", false,
-					{"scale": 0.12, "bottom": true, "z": -1, "fx_role": "skill_hit"})
+					{"scale": 0.12, "bottom": true, "offset": Vector2(0.0, 22.0), "z": -1, "fx_role": "skill_hit"})
 			if int(e.get("hp")) > 0 and h.has("frenzy") and p.has_method("apply_frenzy"):
 				p.call("apply_frenzy", float(h["frenzy"]) + (2.0 if _form_node("z002_echo_1") else 0.0), bool(h.get("frenzy_empower", false)))
 			_on_build_hit(p, _skill_name)

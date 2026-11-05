@@ -1327,13 +1327,14 @@ func _player_spine_regression() -> void:
 	var kick_anchor_ok := false
 	for n in kick_fx:
 		if n.global_position.is_equal_approx(kick_target.global_position) \
-				and is_equal_approx(n._base_scale.x, 0.12) and bool(n._bottom):
+				and is_equal_approx(n._base_scale.x, 0.12) and bool(n._bottom) \
+				and is_equal_approx(n._offset.y, 22.0):
 			kick_anchor_ok = true
 	_check(int(_player.skill_config["skill20_03"]["hits"][0]["damage"]) == 5 \
 		and kick_target.damage_taken >= 5 and is_equal_approx(kick_target.stunned, 3.0),
 		"剑仙 P 基础伤害 5 且命中后追加 3 秒眩晕")
 	_check(kick_fx.size() >= 1 and kick_anchor_ok,
-		"剑仙 P 命中目标后在其脚底生成完整 E54181")
+		"剑仙 P 命中目标后最低端落在其脚中心生成完整 E54181")
 	kick_target.queue_free()
 
 	# 剑仙 I 只有收招进入真实觉醒窗口后才出现持续环绕，归零即释放。
