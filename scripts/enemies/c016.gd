@@ -127,7 +127,7 @@ var _sword_clone_node: Node2D = null
 var _is_sword_clone := false
 var _sword_player_clone := false # 影殇夺取剑意：复用青笠虚影，但由玩家同段伤害驱动
 var _sword_owner: Node2D = null
-var _elite := false # 精英标记（时停分档用：杂兵 3s / 精英 2s / Boss 1s）
+var _elite := false # 精英标记（时停分档用：杂兵 10s / 精英 8s / Boss 5s）
 var _stop_timer := 0.0 # 时间暂停（银夜 U）剩余
 var _slow_timer := 0.0 # 余滞剩余：时停期间冻结，其余状态照常计时
 var _slow_scale := 1.0 # 余滞横向速度倍率：只缩放移动目标，不改形态参数
@@ -1777,7 +1777,8 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 
 ## 砸落（银夜空中派生）：直线下坠，落地只向玩家回报一次，再接原有落地硬直。
 func slam(_ignore_armor := false) -> void:
-	if state == State.DEAD or (_super_armor and not _ignore_armor):
+	if state == State.DEAD or _stop_timer > 0.0 or (not _ignore_armor and (_super_armor \
+			or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false))))):
 		return
 	_enter_fly(Vector2(0.0, 900.0), 0)
 	_slam_pending = true
@@ -1794,30 +1795,32 @@ func _report_slam_landing() -> void:
 		pl.call("on_enemy_slammed", self, global_position)
 
 
-## 击飞（银夜普攻二段 / 剑仙 U 飞脚）：向上挑起，落地短暂硬直。无视出手霸体（跳劈也照挑）
-## ignore_armor：剑仙 U 的规则级击飞标记——小怪/精英本来就吃击飞，这里无需额外分支
+## 击飞（银夜普攻二段 / 剑仙 U 飞脚）：向上挑起，落地短暂硬直。
+## 普通击飞尊重全程霸体与当前招式的出手霸体；ignore_armor 可穿透两者，但不能穿透时停。
 func launch(dir: int, vx: float, vy: float, _ignore_armor := false) -> void:
-	if state == State.DEAD or (_super_armor and not _ignore_armor):
+	if state == State.DEAD or (not _ignore_armor and (_super_armor \
+			or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false))))):
 		return
 	_enter_fly(Vector2(dir * vx, -vy), 0)
 
 
-## 击退（银夜 L / 剑仙 O）：横向轰飞，途中撞到同伴双方各吃 impact 组合伤害，撞墙自己再吃一下
-## ignore_armor：同上，小怪/精英的击退本就不看霸体
+## 击退（银夜 L / 剑仙 O）：横向轰飞，途中撞到同伴双方各吃 impact 组合伤害，撞墙自己再吃一下。
+## 普通击退与击飞共用霸体规则；时停期间任何击退都不能改写冻结状态。
 func knock_back(dir: int, force: float, impact: int, _ignore_armor := false) -> void:
-	if state == State.DEAD or (_super_armor and not _ignore_armor):
+	if state == State.DEAD or (not _ignore_armor and (_super_armor \
+			or (state == State.ATTACK and bool(_poise_anims.get(_attack_move, false))))):
 		return
 	_enter_fly(Vector2(dir * force, -120.0), impact)
 
 
 func _enter_fly(v: Vector2, impact: int) -> void:
+	if _stop_timer > 0.0:
+		return # 时停优先于所有后续物理控制：不解除冻结、不播受击动画、不改速度
 	_clear_attack_chain()
 	_attack_hits_left.clear()
 	_release_token()
 	_slam_pending = false # 普通 launch / knock_back 不继承上一次砸落回报
-	_root_timer = 0.0 # 被轰飞时解除定身：物理级控制在定身之上（同一套规则，和时停一致）
-	if _stop_timer > 0.0:
-		_end_stop() # 定身中被打飞：解除定身让抛物线成立（时停不挡位移类控制）
+	_root_timer = 0.0 # 被轰飞时解除普通定身，但不能解除时停
 	state = State.FLY
 	_hurt_chain_active = false # 击飞/击退是独立物理控制，落地后不能续播旧倒地链
 	_hurt_chain.clear()

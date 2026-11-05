@@ -473,7 +473,7 @@ func take_damage(amount: int, source_x: float) -> void:
 
 # ---------- 银夜机制接口 ----------
 
-## 时停分档：Boss 最短（银夜 U：杂兵 3s / 精英 2s / Boss 1s）
+## 时停分档：Boss 最短（银夜 U：杂兵 10s / 精英 8s / Boss 5s）
 func stop_tier() -> String:
 	return "boss"
 
@@ -508,14 +508,14 @@ func time_stop(dur: float) -> void:
 ## ignore_armor（剑仙 U 飞脚 / O 横斩）：规则级位移照样生效——挑起约 0.4 秒后自然落地，
 ## 或直接被推开一段；但绝不打断阶段/变身/冲锋计时，AI 节奏原样继续
 func launch(_dir: int, _vx: float, vy: float, ignore_armor := false) -> void:
-	if not ignore_armor or state == State.DEAD or _invincible:
+	if not ignore_armor or state == State.DEAD or _invincible or _stop_timer > 0.0:
 		return
 	velocity.y = -vy * 0.5 # 半速上抛 ≈ 0.4 秒滞空，落地由重力自然结算
 	Feel.shake(5.0, 0.15)
 
 
 func knock_back(dir: int, force: float, _impact: int, ignore_armor := false) -> void:
-	if not ignore_armor or state == State.DEAD or _invincible:
+	if not ignore_armor or state == State.DEAD or _invincible or _stop_timer > 0.0:
 		return
 	# 规则级推开：直接挪一段身位（0.12 系数把 900 力度换算成约 108px），不做抛物线
 	var push := clampf(force * 0.12, 0.0, 140.0)

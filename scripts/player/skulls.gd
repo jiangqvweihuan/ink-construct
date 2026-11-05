@@ -424,26 +424,26 @@ const SKULLS := {
 				"sword_qi": null, # 接口预留：剑气配置（未实装）
 				"hit_at": {"atk03_03": 0.34, "atk04_02": 0.53},
 				"range": {"atk03_03": 165.0, "atk04_02": 165.0},
-				"height": 100.0, "damage": 3, "both": true, "sfx": "skill_blade",
+				"height": 100.0, "damage": 3, "both": true, "sfx": "z003_k_thrust", "sfx_on_release": true,
 			},
 			# L 冲拳（skill02 0.883s）：不动剑的武德拳，伤害低冷却短；
 			# 击退机制：命中把敌人往攻击方向轰飞，撞到同伴双方吃组合伤害、撞墙自己再吃一下
 			"skill02": {
 				"action": "skill_sweep", "cooldown": 3.0, "poise": true,
-				"hits": [{"at": 0.71, "range": 95.0, "height": 90.0, "damage": 1, "sfx": "voice_fan_hit",
+				"hits": [{"at": 0.71, "range": 95.0, "height": 90.0, "damage": 1, "sfx": "z003_l_hit",
 					"knockback": {"force": 620.0, "impact": 1}}],
 			},
 			# U 拍地时停（skill06 1.567s）：0.5s 掌落大地，定住当前场景所有敌人——
-			# 杂兵 3s / 精英 2s / Boss 1s；无视霸体，连 Boss 技能前摇都打断（规则级控制）
+			# 杂兵 10s / 精英 8s / Boss 5s；无视霸体，连 Boss 技能前摇都打断（规则级控制）
 			"skill06": {
-				"action": "skill_ult", "cooldown": 14.0, "poise": true, "cast_sfx": "jiangqu_silence",
-				"stop": {"at": 0.5, "mob": 3.0, "elite": 2.0, "boss": 1.0},
+				"action": "skill_ult", "cooldown": 14.0, "poise": true, "full_cast_sfx": "jiangqu_silence",
+				"stop": {"at": 0.5, "mob": 10.0, "elite": 8.0, "boss": 5.0},
 				"hits": [],
 			},
 			# I 觉醒（skill10）：爆气强化——立刻回血 + 限时全伤害提升；0.25 倍慢放，约 0.5 秒原动画完整展示 2 秒。
 			"skill10": {
 				"action": "skill_i", "cooldown": 20.0, "poise": true, "align_max": true, "speed": 0.25,
-				"pool": ["skill10"],
+				"pool": ["skill10"], "cast_sfx": "z003_awaken",
 				"heal": 2, "buff_damage": 2, "buff_time": 8.0,
 				"hits": [],
 			},
@@ -466,7 +466,7 @@ const SKULLS := {
 			# 都是漂浮姿态）：全屏无差别 8 伤（无视距离/朝向/高度）；每房间首次释放额外加持
 			# 本房全伤 +3——玩家实例随房间重建，_room_buff_used 天然一房一次，再放只剩伤害
 			"sky_skill18_02": {
-				"action": "skill_p", "cooldown": 25.0, "poise": true, "require_buff": true,
+				"action": "skill_p", "cooldown": 25.0, "poise": true, "require_buff": true, "full_cast_sfx": "z003_p_cast",
 				"pool": ["sky_skill18_02", "sky_skill24_03"],
 				"hit_at": {"sky_skill18_02": 1.20, "sky_skill24_03": 1.00},
 				"range": {"sky_skill18_02": 0.0, "sky_skill24_03": 0.0},

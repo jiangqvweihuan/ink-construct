@@ -52,6 +52,11 @@ const SFX_PRECACHE := [
 	"swordsman_swift_slash",
 	"jiangqu_silence",
 	"jiangqu_hibiscus_slash",
+	"z003_k_thrust",
+	"z003_l_hit",
+	"z003_awaken",
+	"z003_p_cast",
+	"z003_night",
 	"pipa_eight_tones",
 	"pipa_inner_demon",
 	"pipa_basic_wave",
@@ -338,8 +343,10 @@ var _sfx_cache: Dictionary = {}
 var _shield_spine: Node2D = null
 var _skill_spine: Node2D = null
 var _awaken_spine: Node2D = null
+var _silver_awaken_visual_ready := false # 银夜 I：动画完成后才出现觉醒完成与持续特效
 var _world_skill_spine: Node2D = null # 银夜 U：世界坐标驻留，技能收招后仍至少保留 5 秒
 var _world_skill_spine_left := 0.0
+var _stop_target_spines: Dictionary = {} # 目标实例 ID -> 时停特效实例 ID，双方都可能先于对方释放
 
 
 func _ready() -> void:
@@ -743,11 +750,16 @@ func _setup_sfx() -> void:
 	add_child(_loop_sfx_player)
 	_loop_sfx_player.finished.connect(_on_skill_loop_finished)
 	for n in SFX_PRECACHE:
-		var r := load(SFX_BASE + n + ".wav")
+		var r: Resource = null
+		for ext in ["wav", "mp3"]:
+			var path: String = SFX_BASE + n + "." + ext
+			if ResourceLoader.exists(path):
+				r = load(path)
+				break
 		if r != null:
 			_sfx_cache[n] = r
 		else:
-			push_error("Player SFX not found: " + SFX_BASE + n + ".wav")
+			push_error("Player SFX not found: " + SFX_BASE + n + ".[wav|mp3]")
 
 
 func _play_sfx(sfx_name: String) -> void:
@@ -755,6 +767,20 @@ func _play_sfx(sfx_name: String) -> void:
 	if s != null:
 		_sfx_player.stream = s
 		_sfx_player.play()
+
+
+## 完整施法音独占临时通道，收招和其他短音都不会把它截断。
+func _play_full_sfx(sfx_name: String) -> AudioStreamPlayer:
+	var source = _sfx_cache.get(sfx_name)
+	if source == null:
+		return null
+	var player := AudioStreamPlayer.new()
+	player.bus = "SFX"
+	add_child(player)
+	player.stream = source
+	player.finished.connect(player.queue_free)
+	player.play()
+	return player
 
 
 func _start_skill_loop(sfx_name: String) -> void:
@@ -912,13 +938,59 @@ func _clear_skill_spine() -> void:
 	_skill_spine = null
 
 
+func _clear_stop_target_spines() -> void:
+	for fx_id in _stop_target_spines.values():
+		var fx := instance_from_id(int(fx_id))
+		if fx is Node2D and not fx.is_queued_for_deletion():
+			_release_spine(fx)
+	_stop_target_spines.clear()
+
+
+func _tick_stop_target_spines() -> void:
+	for target_id in _stop_target_spines.keys():
+		var target := instance_from_id(int(target_id))
+		var fx := instance_from_id(int(_stop_target_spines[target_id]))
+		var target_stopped := is_instance_valid(target) and not target.is_queued_for_deletion() \
+			and int(target.get("hp")) > 0 and float(target.get("_stop_timer")) > 0.0
+		var fx_alive := is_instance_valid(fx) and not fx.is_queued_for_deletion()
+		if target_stopped and fx_alive:
+			continue
+		_stop_target_spines.erase(target_id)
+		if fx_alive:
+			fx.queue_free()
+
+
+func _attach_stop_target_spine(target: Node2D) -> void:
+	var target_id := target.get_instance_id()
+	if _stop_target_spines.has(target_id):
+		var old_fx := instance_from_id(int(_stop_target_spines[target_id]))
+		if is_instance_valid(old_fx) and not old_fx.is_queued_for_deletion():
+			return
+		_stop_target_spines.erase(target_id)
+	var radius := maxf(1.0, _radius_of(target))
+	var fx := _make_spine_fx(target, "E54169", Vector2(0.0, -radius * 2.0), "action", true, {
+		"height": radius * 4.0, "center": true, "fx_role": "time_stop_target",
+	})
+	if fx != null:
+		_stop_target_spines[target_id] = fx.get_instance_id()
+
+
+func _has_stopped_target() -> bool:
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if int(e.get("hp")) > 0 and float(e.get("_stop_timer")) > 0.0:
+			return true
+	return false
+
+
 func _clear_all_spine() -> void:
 	_clear_skill_spine()
+	_clear_stop_target_spines()
 	_release_spine(_shield_spine)
 	_release_spine(_awaken_spine)
 	_release_spine(_world_skill_spine)
 	_shield_spine = null
 	_awaken_spine = null
+	_silver_awaken_visual_ready = false
 	_world_skill_spine = null
 	_world_skill_spine_left = 0.0
 
@@ -932,22 +1004,30 @@ func _sync_persistent_spine() -> void:
 		_release_spine(_shield_spine)
 		_shield_spine = null
 	var awaken_id: String = {"z000": "E100177", "z002": "E100172", "z003": "E21105"}.get(skull_id, "")
-	if _awaken_time > 0.0 and not awaken_id.is_empty() and state != State.DEAD:
+	var awaken_visual_ready := skull_id != "z003" or _silver_awaken_visual_ready
+	if _awaken_time > 0.0 and awaken_visual_ready and not awaken_id.is_empty() and state != State.DEAD:
 		if not is_instance_valid(_awaken_spine) or _awaken_spine.is_queued_for_deletion():
-			_awaken_spine = _attach_spine_fx(awaken_id, Vector2(0.0, -64.0), "action", true,
+			_awaken_spine = _attach_spine_fx(awaken_id, Vector2.ZERO if skull_id == "z003" else Vector2(0.0, -64.0), "action", true,
 				{"scale": 0.75 if skull_id == "z000" else (1.0 if skull_id == "z002" else 0.25),
 				"center": skull_id == "z002", "fx_role": "awaken"})
 	else:
 		_release_spine(_awaken_spine)
 		_awaken_spine = null
+		if skull_id == "z003" and (_awaken_time <= 0.0 or state == State.DEAD):
+			_silver_awaken_visual_ready = false
 
 
 func _spine_fx_tick(delta: float) -> void:
+	_tick_stop_target_spines()
 	if _world_skill_spine_left > 0.0:
 		_world_skill_spine_left = maxf(0.0, _world_skill_spine_left - delta)
-		if _world_skill_spine_left <= 0.0:
+	if is_instance_valid(_world_skill_spine) and not _world_skill_spine.is_queued_for_deletion():
+		if _world_skill_spine_left <= 0.0 and not _has_stopped_target():
 			_release_spine(_world_skill_spine)
 			_world_skill_spine = null
+	else:
+		_world_skill_spine = null
+		_world_skill_spine_left = 0.0
 	_sync_persistent_spine()
 
 
@@ -975,19 +1055,20 @@ func _start_skill_spine(n: String) -> void:
 			{"scale": 0.5, "fx_role": "awaken_cast"})
 	elif skull_id == "z003" and n == "skill06":
 		_release_spine(_world_skill_spine)
-		_world_skill_spine = _world_spine_fx("E100006", global_position + Vector2(-facing * 90.0, -60.0), "action", true,
-			{"scale": 0.35, "fx_role": "world_skill"})
+		_world_skill_spine = _world_spine_fx("E100006", global_position + Vector2(0.0, -64.0), "action", true,
+			{"scale": 0.35, "center": true, "fx_role": "world_skill"})
 		_world_skill_spine_left = 5.0
 	elif skull_id == "z003" and n == "skill10":
-		_world_spine_fx("E100186", global_position + Vector2(-facing * 72.0, -72.0), "action", false,
-			{"z": -1, "fx_role": "awaken_cast"})
+		_silver_awaken_visual_ready = false
 	elif skull_id == "z003" and n == "sky_skill18_02":
-		_skill_spine = _attach_spine_fx("E100006", Vector2(0.0, -64.0), "action", true,
-			{"scale": 0.35, "fx_role": "skill"})
+		# 人物标准高 128，太极居中后半高约 167；-310 可让其下沿留在头顶上方。
+		_skill_spine = _attach_spine_fx("E100105", Vector2(0.0, -310.0), "action", true,
+			{"center": true, "fx_role": "skill"})
 	_sync_persistent_spine()
 
 
 func _exit_tree() -> void:
+	_clear_stop_target_spines()
 	_release_spine(_world_skill_spine)
 
 
@@ -1969,12 +2050,14 @@ func _skill_tick(delta: float) -> void:
 	var stop: Dictionary = cfg.get("stop", {})
 	if not stop.is_empty() and not _stop_done and t >= float(stop.get("at", 0.5)):
 		_stop_done = true
-		var stop_dur := float(stop.get("mob", 2.0)) + _stop_bonus # 时停·初：全档位 +1 秒
+		var stop_dur := float(stop.get("mob", 10.0)) + _stop_bonus # 时停·初：全档位 +0.25 秒
 		for e in get_tree().get_nodes_in_group("enemies"):
 			if int(e.get("hp")) <= 0:
 				continue
 			var tier := str(e.call("stop_tier")) if e.has_method("stop_tier") else "mob"
-			e.call("time_stop", float(stop.get(tier, 2.0)) + _stop_bonus)
+			e.call("time_stop", float(stop.get(tier, 10.0)) + _stop_bonus)
+			if e is Node2D:
+				_attach_stop_target_spine(e)
 		# 时停·续：定住的这段时间里全伤害 +2（独立槽，_buff_now 取最高）
 		if _stop_buff_damage > 0:
 			_stop_buff_timer = maxf(_stop_buff_timer, stop_dur)
@@ -1987,6 +2070,11 @@ func _skill_tick(delta: float) -> void:
 			silver_awaken_done = animation != null and str(animation.call("get_name")) == _skill_anim and bool(entry.call("is_complete"))
 	# 其他技能按真实时长退出（它们预排了 stand，current 会被循环待机污染）；银夜 I 额外接受轨道完成信号。
 	if _skill_timer <= 0.0 or silver_awaken_done:
+		if skull_id == "z003" and _skill_name == "skill10" and not _silver_awaken_visual_ready:
+			_silver_awaken_visual_ready = true
+			_world_spine_fx("E100186", global_position + Vector2(0.0, -150.0), "action", false,
+				{"z": -1, "center": true, "fx_role": "awaken_cast"})
+			_sync_persistent_spine()
 		# 自带位移动画兜底：正常尾声已提前 0.12s 瞬移+切 stand（见上），这里只兜底位置
 		if _skill_teleport > 0.0:
 			global_position.x += facing * _skill_teleport
@@ -2178,8 +2266,6 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				if p != null and int(e.get("hp")) > 0 and p.global_position.x >= left and p.global_position.x <= right \
 						and absf(p.global_position.y - global_position.y) <= 120.0:
 					p.call("apply_bleed", 1)
-		if h.has("sfx"):
-			_play_sfx(h["sfx"])
 		_skill_hit_sustain()
 		# 杀阵·极：O 命中返还冷却秒数
 		if _skill_hit_refund > 0.0 and _skill_cds.has(_skill_name):
@@ -2190,6 +2276,8 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			_skill_cds[_skill_name] = maxf(0.0, float(_skill_cds[_skill_name]) - _skill_cd_set * refund_ratio)
 		Feel.hitstop(0.06) # 技能命中：比普攻更重的顿帧与震屏
 		Feel.shake(7.0, 0.2)
+	if h.has("sfx") and (did_hit or bool(h.get("sfx_on_release", false))):
+		_play_sfx(str(h["sfx"]))
 	_apply_skill_heal(h)
 
 
@@ -3149,7 +3237,7 @@ func _start_skill(n: String) -> void:
 			"sfx": str(cfg.get("sfx", "")),
 		}
 		for extra in ["projectile", "bleed", "poison", "stun", "root", "knockback", "launch",
-				"heal", "heal_ratio", "self_buff", "self_shield", "full_screen", "room_buff"]:
+				"heal", "heal_ratio", "self_buff", "self_shield", "full_screen", "room_buff", "sfx_on_release"]:
 			if cfg.has(extra):
 				h[extra] = cfg[extra]
 		_skill_hits = [h]
@@ -3214,7 +3302,11 @@ func _start_skill(n: String) -> void:
 		_start_skill_loop(loop_sfx)
 	else:
 		_stop_skill_loop()
-		_play_sfx(str(cfg.get("cast_sfx", "voice_skill_cast"))) # 技能起手嗡一声
+		var full_cast_sfx := str(cfg.get("full_cast_sfx", ""))
+		if not full_cast_sfx.is_empty():
+			_play_full_sfx(full_cast_sfx)
+		else:
+			_play_sfx(str(cfg.get("cast_sfx", "voice_skill_cast"))) # 技能起手嗡一声
 	# 其他技能排队 stand 防止收招空窗；银夜 I 必须保留原轨道供 _skill_tick 监听完成，收招时再切 stand。
 	if skull_id != "z003" or _skill_name != "skill10":
 		_queue(anim_map["idle"], true)
@@ -3515,7 +3607,7 @@ func _invincible_hit_feedback(attacker: Node, move: Dictionary) -> void:
 	Feel.hitstop(0.025)
 
 
-func _passive_block_feedback(attacker: Node, move: Dictionary, label: String) -> void:
+func _passive_block_feedback(attacker: Node, move: Dictionary, label: String, sfx_name := "gold") -> void:
 	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
 		attacker.call("on_player_hit", 0, move, self)
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.35})
@@ -3523,7 +3615,7 @@ func _passive_block_feedback(attacker: Node, move: Dictionary, label: String) ->
 	dn.setup(label, Color(0.9, 0.75, 0.3))
 	dn.global_position = global_position + Vector2(0, -150)
 	get_tree().current_scene.add_child(dn)
-	_play_sfx("gold")
+	_play_sfx(sfx_name)
 
 
 func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = null, move: Dictionary = {}) -> void:
@@ -3635,7 +3727,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		_passive_block_feedback(attacker, move, "墨徒信仰")
 		return
 	if skull_id == "z003" and amount > 0 and has_battle_passive("z003_night") and randf() < 0.2:
-		_passive_block_feedback(attacker, move, "暗夜")
+		_passive_block_feedback(attacker, move, "暗夜", "z003_night")
 		return
 	if amount > 0 and _stolen_bell > 0 and _stolen("c008_bell"):
 		_stolen_bell -= 1

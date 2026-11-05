@@ -607,6 +607,25 @@ func _brute_probe() -> void:
 	e._start_attack("skill03_2")
 	e.time_stop(1.0)
 	var stop_through: bool = e.state == e.State.IDLE and e._stop_timer > 0.0 and e._chain_next.is_empty()
+	var stopped_pos: Vector2 = e.global_position
+	var stopped_hp: int = e.hp
+	e.launch(1, 150.0, 500.0)
+	e.launch(1, 150.0, 500.0, true)
+	e.knock_back(1, 400.0, 0)
+	e.knock_back(1, 400.0, 0, true)
+	e.slam()
+	e.slam(true)
+	e.take_damage(1, _player.global_position.x)
+	var stop_holds: bool = e.state == e.State.IDLE and e._stop_timer > 0.0 \
+		and e.global_position.is_equal_approx(stopped_pos) and e.velocity.is_equal_approx(Vector2.ZERO) \
+		and e.hp == stopped_hp - 1 and e._current_anim == str(e._anim_map["idle"]) \
+		and e.sprite.process_mode == Node.PROCESS_MODE_DISABLED and not e._slam_pending
+	_check(stop_holds, "时停中普通/规则级击飞击退砸落均不打断，伤害仍结算")
+	e._physics_process(0.4)
+	stop_holds = stop_holds and e._stop_timer > 0.0 and e.sprite.process_mode == Node.PROCESS_MODE_DISABLED
+	e._physics_process(0.7)
+	stop_holds = stop_holds and e._stop_timer <= 0.0 and e.sprite.process_mode == Node.PROCESS_MODE_INHERIT
+	_check(stop_holds, "时停计时未被后续控制重置，并能自然到期恢复")
 	e._end_stop()
 	e._start_attack("skill03_2")
 	e.knock_back(1, 400.0, 0, true)
@@ -1048,6 +1067,23 @@ func _qingli_probe() -> void:
 	e._hurt_tick(e._hurt_timer + 0.001)
 	chain_ok = chain_ok and not e._hurt_chain_active and e.state == e.State.IDLE
 	p("青笠高伤倒地链 5伤不触发/6伤穿旋斩霸体/11号起身=%s（期望 true）" % chain_ok)
+
+	# 旋斩出手霸体同样阻挡普通物理位移；规则级攻击仍可穿透，但不能穿透时停。
+	e._start_attack("skill02")
+	var poise_anim: String = e._current_anim
+	var poise_hits: int = e._attack_hits_left.size()
+	e.launch(1, 150.0, 500.0)
+	e.knock_back(1, 400.0, 0)
+	e.slam()
+	var attack_poise_ok: bool = e.state == e.State.ATTACK and e._current_anim == poise_anim \
+		and e._attack_hits_left.size() == poise_hits and not e._slam_pending
+	e.launch(1, 150.0, 500.0, true)
+	var poise_launch_through: bool = e.state == e.State.FLY and e._attack_hits_left.is_empty()
+	e._start_attack("skill02")
+	e.knock_back(1, 400.0, 0, true)
+	var poise_knock_through: bool = e.state == e.State.FLY and e._attack_hits_left.is_empty()
+	_check(attack_poise_ok and poise_launch_through and poise_knock_through,
+		"青笠旋斩出手霸体挡普通击飞击退砸落，规则级位移仍可穿透")
 	e._release_token()
 	e.queue_free()
 	await get_tree().process_frame

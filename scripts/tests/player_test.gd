@@ -19,6 +19,14 @@ class Trainer extends Node2D:
 	var _stop_timer := 0.0
 	var _stun_timer := 0.0
 	var _target: Node2D = null
+	var body_radius := 30.0
+	var stop_kind := "mob"
+
+	func time_stop(dur: float) -> void:
+		_stop_timer = dur
+
+	func stop_tier() -> String:
+		return stop_kind
 
 	func take_damage(amount: int, _source_x: float) -> void:
 		damage_taken += amount
@@ -41,6 +49,9 @@ class Trainer extends Node2D:
 	func slam() -> void:
 		slams += 1
 		airborne = false
+
+	func knock_back(_dir: int, _force: float, _impact: int, _ignore_armor := false) -> void:
+		pass
 
 	func apply_bleed(layers: int) -> void:
 		bleeds = mini(5, bleeds + layers)
@@ -1052,8 +1063,11 @@ func _innate_passive_regression() -> void:
 	var night_roll := randf()
 	seed(19)
 	var night_hp: int = _player.hp
+	_player._sfx_player.stream = null
 	_player.hurt(1)
 	_check((_player.hp == night_hp) == (night_roll < 0.2), "暗夜按 20% 判定免除被命中的伤害")
+	_check((_player._sfx_player.stream == _player._sfx_cache.get("z003_night")) == (night_roll < 0.2),
+		"暗夜仅在成功免伤时播放专属音效")
 
 	# 血色切割：实例化真实敌人，走玩家扣血 → 敌人死亡 → 死亡回报的完整链路。
 	var mob_path_ok := true
@@ -1212,6 +1226,7 @@ func _player_spine_regression() -> void:
 	Input.action_release("dash")
 	var dash_nodes := _direct_spine(self, "E53026", "dash")
 	_check(dash_nodes.size() == 1, "闪避在身后生成唯一 E53026")
+	_check(_player._sfx_player.stream == _player._sfx_cache.get("dash_step"), "全化身闪避统一使用新 dash_step 音效")
 	if not dash_nodes.is_empty():
 		var dash_fx = dash_nodes[0]
 		var dash_data = SpineFX.data("E53026")
@@ -1288,25 +1303,151 @@ func _player_spine_regression() -> void:
 	_player._sync_persistent_spine()
 	_check(_player._awaken_spine == null and awaken.is_queued_for_deletion(), "剑仙觉醒结束释放环绕")
 
-	# 将去未还 U 固定在身后世界坐标，收招不移除，独立存活满 5 秒。
+	# 将去未还 I：完成前没有觉醒特效，完成后头顶出现完成特效，持续环绕下移到脚下。
+	_clear_spine_regression_world()
+	_prepare_innate("z003")
+	_player.global_position = Vector2.ZERO
+	_player._awaken_time = 0.0
+	_player._start_skill("skill10")
+	_check(_player._sfx_player.stream == _player._sfx_cache.get("z003_awaken"), "将去未还 I 起手播放新觉醒音效")
+	_check(not is_instance_valid(_player._awaken_spine) and _direct_spine(self, "E100186", "awaken_cast").is_empty(),
+		"将去未还 I 动画完成前不提前生成觉醒特效")
+	_player._skill_tick(_player._skill_timer + 0.001)
+	var awaken_casts := _direct_spine(self, "E100186", "awaken_cast")
+	_check(awaken_casts.size() == 1 and bool(awaken_casts[0]._center) \
+		and awaken_casts[0].global_position.is_equal_approx(Vector2(0.0, -150.0)), "将去未还 I 完成后在头顶生成 E100186")
+	_check(is_instance_valid(_player._awaken_spine) and str(_player._awaken_spine.get_meta("fx_id")) == "E21105" \
+		and _player._awaken_spine.position.is_equal_approx(Vector2.ZERO),
+		"将去未还 I 完成特效出现后才在脚下生成 E21105 持续环绕")
+
+	# 将去未还 P：太极八卦按视觉中心放在模型正上方；独立长音不被其他音效和收招截断。
+	_player._start_skill("sky_skill18_02")
+	var p_fx = _player._skill_spine
+	var p_audio: AudioStreamPlayer = null
+	for child in _player.get_children():
+		if child is AudioStreamPlayer and child.stream == _player._sfx_cache.get("z003_p_cast"):
+			p_audio = child
+	_check(is_instance_valid(p_fx) and str(p_fx.get_meta("fx_id")) == "E100105" \
+		and bool(p_fx._center) and p_fx.position.is_equal_approx(Vector2(0.0, -310.0)),
+		"将去未还 P 在模型正上方居中生成 E100105")
+	var p_bounds: Rect2 = p_fx.sprite.call("get_skeleton").call("get_bounds")
+	var p_center: Vector2 = p_fx.position + p_fx.sprite.position + p_bounds.get_center() * p_fx.sprite.scale
+	var p_bottom: float = p_fx.position.y + p_fx.sprite.position.y + p_bounds.end.y * p_fx.sprite.scale.y
+	_check(absf(p_center.x) < 0.01 and p_bottom <= -128.0,
+		"将去未还 P 太极保持水平居中且下沿不遮挡人物头顶")
+	_check(is_instance_valid(p_audio) and p_audio != _player._sfx_player and p_audio.playing,
+		"将去未还 P 使用独立完整施法音通道")
+	_player._play_sfx("gold")
+	_check(is_instance_valid(p_audio) and p_audio.playing, "将去未还 P 长音不被普通音效截断")
+	_player._skill_tick(_player._skill_timer + 0.001)
+	_check(_player._skill_spine == null and p_fx.is_queued_for_deletion() \
+		and is_instance_valid(p_audio) and p_audio.playing, "将去未还 P 收招释放特效但继续播放完整音效")
+
+	# K 在出手帧必响；L 只有实际伤害结算才响。
+	for e in get_tree().get_nodes_in_group("enemies"):
+		e.free()
+	_prepare_innate("z003")
+	_player.global_position = Vector2.ZERO
+	_player._start_skill("skill14_02")
+	_player._deal_skill_hit(_player._skill_hits.pop_front())
+	_check(_player._sfx_player.stream == _player._sfx_cache.get("z003_k_thrust"), "将去未还 K 空挥也在向前捅出时播放新音效")
+	_player._start_skill("skill02")
+	var l_hit: Dictionary = _player._skill_hits[0]
+	_player._sfx_player.stream = null
+	_player._deal_skill_hit(l_hit)
+	_check(_player._sfx_player.stream == null, "将去未还 L 空挥不播放伤害音效")
+	var hit_target := Trainer.new()
+	hit_target.add_to_group("enemies")
+	hit_target.position = Vector2.ZERO
+	add_child(hit_target)
+	_player._start_skill("skill02")
+	_player._deal_skill_hit(_player._skill_hits.pop_front())
+	_check(hit_target.damage_taken > 0 and _player._sfx_player.stream == _player._sfx_cache.get("z003_l_hit"),
+		"将去未还 L 实际造成伤害时播放新音效")
+	hit_target.free()
+
+	# 将去未还 U：无目标时至少 5 秒；收招不会截断独立长音。
 	_clear_spine_regression_world()
 	_prepare_innate("z003")
 	_player.global_position = Vector2.ZERO
 	_player.facing = 1
 	_player._start_skill("skill06")
 	var world_fx = _player._world_skill_spine
-	var world_pos: Vector2 = world_fx.global_position
+	var u_audio: AudioStreamPlayer = null
+	for child in _player.get_children():
+		if child is AudioStreamPlayer and child.stream == _player._sfx_cache.get("jiangqu_silence"):
+			u_audio = child
 	_check(is_instance_valid(world_fx) and str(world_fx.get_meta("fx_id")) == "E100006" \
-		and is_equal_approx(float(_player._world_skill_spine_left), 5.0), "将去未还 U 生成独立 5 秒世界特效")
+		and bool(world_fx._center) and world_fx.global_position.is_equal_approx(Vector2(0.0, -64.0)) \
+		and is_equal_approx(float(_player._world_skill_spine_left), 5.0), "将去未还 U 在角色身体中心生成至少 5 秒双鱼")
+	_check(is_instance_valid(u_audio) and u_audio != _player._sfx_player and u_audio.playing,
+		"将去未还 U 使用独立完整施法音通道")
+	_player._skill_tick(_player._skill_timer + 0.001)
+	_check(is_instance_valid(u_audio) and u_audio.playing, "将去未还 U 收招后音效仍继续播放")
+	_player._spine_fx_tick(5.0001)
+	_check(_player._world_skill_spine == null and world_fx.is_queued_for_deletion(), "将去未还 U 场上无时停目标时满 5 秒释放")
+
+	# 每个目标按体积生成独立特效；最后目标解冻或死亡前，双鱼一直保留。
+	var small := Trainer.new()
+	small.add_to_group("enemies")
+	small.position = Vector2(200.0, 0.0)
+	add_child(small)
+	var large := Trainer.new()
+	large.add_to_group("enemies")
+	large.position = Vector2(500.0, 0.0)
+	large.body_radius = 80.0
+	large.stop_kind = "boss"
+	add_child(large)
+	_player._start_skill("skill06")
+	_player._skill_tick(0.5001)
+	_check(is_equal_approx(small._stop_timer, 10.0) and is_equal_approx(large._stop_timer, 5.0),
+		"将去未还 U 按杂兵 10 秒、Boss 5 秒施加控制")
+	_check(_player._stop_target_spines.size() == 2, "将去未还 U 为每个中招目标生成独立特效")
+	var small_fx = instance_from_id(int(_player._stop_target_spines.get(small.get_instance_id(), 0)))
+	var large_fx = instance_from_id(int(_player._stop_target_spines.get(large.get_instance_id(), 0)))
+	_check(is_instance_valid(small_fx) and is_instance_valid(large_fx) \
+		and str(small_fx.get_meta("fx_id")) == "E54169" and str(large_fx.get_meta("fx_id")) == "E54169" \
+		and bool(small_fx._center) and bool(large_fx._center) \
+		and is_equal_approx(float(small_fx._fit_height), 120.0) and is_equal_approx(float(large_fx._fit_height), 320.0) \
+		and small_fx.position.is_equal_approx(Vector2(0.0, -60.0)) and large_fx.position.is_equal_approx(Vector2(0.0, -160.0)),
+		"将去未还 U 目标特效居中并随 body_radius 缩放")
+	world_fx = _player._world_skill_spine
+	var world_pos: Vector2 = world_fx.global_position
 	_player.global_position.x += 200.0
+	small.position.x += 50.0
 	_player._spine_fx_tick(0.0)
 	_player._set_state(PlayerClass.State.IDLE)
-	_check(is_instance_valid(world_fx) and not world_fx.is_queued_for_deletion() \
-		and world_fx.global_position.is_equal_approx(world_pos), "将去未还 U 不跟随且收招后仍保留")
+	_check(world_fx.global_position.is_equal_approx(world_pos) \
+		and small_fx.global_position.is_equal_approx(small.global_position + Vector2(0.0, -60.0)),
+		"将去未还 U 双鱼驻留原地而目标特效跟随目标")
 	_player._spine_fx_tick(4.9)
 	_check(is_instance_valid(world_fx) and not world_fx.is_queued_for_deletion(), "将去未还 U 在 4.9 秒仍存在")
 	_player._spine_fx_tick(0.1001)
-	_check(_player._world_skill_spine == null and world_fx.is_queued_for_deletion(), "将去未还 U 满 5 秒后释放")
+	_check(is_instance_valid(world_fx) and not world_fx.is_queued_for_deletion(), "将去未还 U 超过 5 秒仍有时停目标就保留")
+	small._stop_timer = 0.0
+	_player._spine_fx_tick(0.0)
+	_check(small_fx.is_queued_for_deletion() and not large_fx.is_queued_for_deletion() \
+		and not world_fx.is_queued_for_deletion(), "将去未还 U 单个目标解冻只清理自己的特效")
+	large.hp = 0
+	_player._spine_fx_tick(0.0)
+	_check(large_fx.is_queued_for_deletion() and _player._stop_target_spines.is_empty() \
+		and _player._world_skill_spine == null and world_fx.is_queued_for_deletion(),
+		"将去未还 U 最后目标死亡后清理目标特效与双鱼")
+	small.free()
+	large.free()
+
+	# 目标先 queue_free 时，实例 ID 映射不会访问已释放对象；此后无目标仍按最短时长收尾。
+	var fleeting := Trainer.new()
+	fleeting.add_to_group("enemies")
+	add_child(fleeting)
+	_player._start_skill("skill06")
+	_player._skill_tick(0.5001)
+	fleeting.queue_free()
+	await get_tree().process_frame
+	_player._spine_fx_tick(0.0)
+	_check(_player._stop_target_spines.is_empty(), "将去未还 U 目标释放后安全清理特效映射")
+	_player._spine_fx_tick(5.0001)
+	_check(_player._world_skill_spine == null, "将去未还 U 目标提前释放后双鱼仍在最短时限后消失")
 
 	# 将去未还 P 的全屏演出统一交给 SpineFX 延迟测量，不再使用首帧固定倍数回退。
 	var full_fx := _player._spawn_fullscreen_spine("E54012", "action3")

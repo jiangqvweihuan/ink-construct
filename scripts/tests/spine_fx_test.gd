@@ -9,6 +9,7 @@ const IDS := [
 	"E53038", "E53026", "E53009", "E53008", "E52025", "E52007", "E52000",
 	"E50127", "E50041", "E100186", "E100182", "E100180", "E100177", "E100172",
 	"E100129", "E54068", "E100006", "E21105", "E21022", "E21019", "E21013",
+	"E54169", "E100105",
 ]
 const EXPECTED_ANIMS := {
 	"E54110": ["action1"],
@@ -27,6 +28,7 @@ const THUMB_SCALE := {
 	"E100182": 0.55, "E100180": 1.2, "E100177": 0.4, "E100172": 0.5,
 	"E100129": 0.1, "E54068": 0.2, "E100006": 0.15, "E21105": 0.1,
 	"E21022": 0.18, "E21019": 0.18, "E21013": 0.18,
+	"E54169": 0.65, "E100105": 0.35,
 }
 
 var _log: FileAccess
@@ -55,10 +57,10 @@ func _ready() -> void:
 		for method in ClassDB.class_get_method_list(cls, true):
 			methods.append(str(method["name"]))
 		p("methods %s: %s" % [cls, ", ".join(methods)])
-	get_window().size = Vector2i(1400, 800)
+	get_window().size = Vector2i(1400, 1000)
 	var bg := ColorRect.new()
 	bg.color = Color(0.12, 0.13, 0.15)
-	bg.size = Vector2(1400, 800)
+	bg.size = Vector2(1400, 1000)
 	bg.z_index = -100
 	add_child(bg)
 	for i in IDS.size():

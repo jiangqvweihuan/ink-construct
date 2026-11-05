@@ -1,0 +1,76 @@
+E54169.png
+size: 1844, 110
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+A_suolian_00000
+  rotate: false
+  xy: 1659, 8
+  size: 183, 100
+  orig: 230, 128
+  offset: 24, 14
+  index: -1
+A_suolian_00001
+  rotate: false
+  xy: 1475, 7
+  size: 182, 101
+  orig: 230, 128
+  offset: 25, 14
+  index: -1
+A_suolian_00002
+  rotate: false
+  xy: 1291, 6
+  size: 182, 102
+  orig: 230, 128
+  offset: 25, 13
+  index: -1
+A_suolian_00003
+  rotate: false
+  xy: 1108, 5
+  size: 181, 103
+  orig: 230, 128
+  offset: 25, 12
+  index: -1
+A_suolian_00004
+  rotate: false
+  xy: 739, 4
+  size: 182, 104
+  orig: 230, 128
+  offset: 24, 12
+  index: -1
+A_suolian_00005
+  rotate: false
+  xy: 554, 4
+  size: 183, 104
+  orig: 230, 128
+  offset: 24, 13
+  index: -1
+A_suolian_00006
+  rotate: false
+  xy: 2, 2
+  size: 183, 106
+  orig: 230, 128
+  offset: 24, 12
+  index: -1
+A_suolian_00007
+  rotate: false
+  xy: 187, 2
+  size: 181, 106
+  orig: 230, 128
+  offset: 25, 12
+  index: -1
+A_suolian_00008
+  rotate: false
+  xy: 370, 3
+  size: 182, 105
+  orig: 230, 128
+  offset: 24, 12
+  index: -1
+A_suolian_00009
+  rotate: false
+  xy: 923, 5
+  size: 183, 103
+  orig: 230, 128
+  offset: 24, 12
+  index: -1
+
