@@ -1770,7 +1770,10 @@ func _bleed_tick(delta: float) -> void:
 func apply_poison(dur: float) -> void:
 	if state == State.DEAD or dur <= 0.0:
 		return
+	var newly_poisoned := _poison_time <= 0.0
 	_poison_time = maxf(_poison_time, dur)
+	if not newly_poisoned:
+		return # 重复命中只刷新时长，不再重复播放音效与飘出「中毒」
 	if _sfx_player != null:
 		_sfx_player.stream = SFX_POISON
 		_sfx_player.play()
