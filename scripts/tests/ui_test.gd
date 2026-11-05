@@ -42,7 +42,7 @@ const EXPECTED_STATUS_IDS := [
 	"bleed", "cut", "jump_seal", "dash_seal", "stun", "root", "slow", "time_stop",
 	"poison", "frenzy", "charm", "grudge", "six_senses", "mind_shock", "transferred_debuffs",
 	"red_butterfly", "branch_zone", "plum_marks", "openings", "k_sealed", "seal_targets", "time_marks",
-	"cripple", "mo_ting_burn", "fen_ding_burn", "vulnerable", "passive_seal", "sui_yue_pressure",
+	"cripple", "mo_ting_burn", "fen_ding_burn", "vulnerable", "sword_vulnerable", "passive_seal", "sui_yue_pressure",
 	"wu_che_wanted", "mo_ting_grab", "ming_zhong_hold", "ming_zhong_holy", "stolen_passives",
 	"room_cd_curse", "sword_sect",
 ]
@@ -114,11 +114,58 @@ func _ready() -> void:
 		p("致谢模板占位已清空=%s（期望 true）" % (not has_placeholder))
 		p("致谢滚动 offset=%.1f（期望 > 0）" % credits._offset)
 		await _shot("01b_credits")
+		# 致谢独占卷终曲：普通 BGM 暂停、音效总线静音，只留这一首在播
+		var sfx_idx := AudioServer.get_bus_index("SFX")
+		var solo_playing: bool = BGM._solo != null and BGM._solo.playing
+		var others_hushed: bool = sfx_idx >= 0 and AudioServer.is_bus_mute(sfx_idx) \
+			and not BGM._solo_paused.is_empty()
+		p("致谢独占曲目播放=%s 普通 BGM/音效已让位=%s（期望 true/true）" % [solo_playing, others_hushed])
+		assert(solo_playing, "打开致谢必须播放卷终曲")
+		assert(others_hushed, "致谢期间普通 BGM 与音效必须暂停")
+		# 直接接近末尾触发真实结束分支，避免冒烟测试等待整轮名单。
+		credits._offset = credits._max_offset - 1.0
+		credits._process(0.1)
+		await get_tree().create_timer(1.0).timeout
+		var credits_stopped: bool = is_instance_valid(credits) and not credits.is_queued_for_deletion() and credits._done
+		p("致谢结尾停住且不关闭=%s（期望 true）" % credits_stopped)
+		assert(credits_stopped, "致谢播完后必须保留面板并停止自动滚动")
+		var credits_opaque: bool = credits.visible and is_equal_approx(credits._scroll.modulate.a, 1.0)
+		p("致谢结尾保持显示=%s（期望 true）" % credits_opaque)
+		p("致谢结尾偏移=%.1f / %.1f（期望相等）" % [credits._offset, credits._max_offset])
+		assert(credits_opaque, "致谢播完后不能隐藏或淡出")
+		assert(is_equal_approx(credits._offset, credits._max_offset), "致谢结尾必须精确停在最大偏移")
+		await _shot("01c_credits_bottom")
+
+		var stopped_offset: float = credits._offset
+		var wheel_up := InputEventMouseButton.new()
+		wheel_up.button_index = MOUSE_BUTTON_WHEEL_UP
+		wheel_up.pressed = true
+		wheel_up.position = Vector2(640, 360)
+		get_viewport().push_input(wheel_up, true)
+		await get_tree().process_frame
+		p("致谢滚轮上翻=%s（期望 true）" % (credits._offset < stopped_offset and credits._offset >= 0.0))
+		assert(credits._offset < stopped_offset and credits._offset >= 0.0, "播完后滚轮向上必须回看名单")
+		var review_offset: float = credits._offset
+		await get_tree().create_timer(0.2).timeout
+		p("致谢复查保持静止=%s（期望 true）" % is_equal_approx(credits._offset, review_offset))
+		assert(is_equal_approx(credits._offset, review_offset), "手动复查时不能恢复自动滚动")
+
+		var wheel_down := InputEventMouseButton.new()
+		wheel_down.button_index = MOUSE_BUTTON_WHEEL_DOWN
+		wheel_down.pressed = true
+		wheel_down.position = Vector2(640, 360)
+		get_viewport().push_input(wheel_down, true)
+		await get_tree().process_frame
+		p("致谢滚轮下翻回底部=%s（期望 true）" % is_equal_approx(credits._offset, stopped_offset))
+		assert(is_equal_approx(credits._offset, stopped_offset), "滚轮向下必须返回结尾且不能超过底部")
 		# 致谢期间点主菜单区域不能穿透（全屏遮罩必须吃掉点击）
 		await _click(Vector2(200, 624))
 		p("致谢中点击菜单区 -> 开始面板=%s（期望 false）" % (_find_panel("start_panel.gd") != null))
 		credits.queue_free()
 		await get_tree().process_frame
+		var restored: bool = BGM._solo_paused.is_empty() and not AudioServer.is_bus_mute(sfx_idx)
+		p("致谢退出恢复普通 BGM 与音效=%s（期望 true）" % restored)
+		assert(restored, "退出致谢后必须恢复普通 BGM 与音效")
 
 	# 设置：三页签截图 + 改键/冲突/Esc 取消（persist 关掉，不写玩家配置）
 	Settings.persist = false
@@ -967,7 +1014,7 @@ func _ready() -> void:
 		for id in EXPECTED_STATUS_IDS:
 			assert(not expected_status_set.has(id), "独立预期状态 ID 不得重复：" + str(id))
 			expected_status_set[id] = true
-		assert(EXPECTED_STATUS_IDS.size() == 75, "独立预期状态数必须固定为 75")
+		assert(EXPECTED_STATUS_IDS.size() == 76, "独立预期状态数必须固定为 76")
 		for e in status_entries:
 			var id := str(e.get("id", ""))
 			var kind := str(e.get("kind", ""))
@@ -1000,7 +1047,7 @@ func _ready() -> void:
 		for id in status_ids:
 			assert(expected_status_set.has(id), "状态目录出现未预期条目：" + str(id))
 		assert(status_ids.size() == EXPECTED_STATUS_IDS.size(), "状态目录总数必须与独立预期双向一致")
-		assert(buff_count == 40 and debuff_count == 35, "状态目录必须为 40 增益 + 35 减益")
+		assert(buff_count == 40 and debuff_count == 36, "状态目录必须为 40 增益 + 36 减益")
 		assert(status_shape_ok, "全部状态的结构、标题、摘要、规则、来源与运行时映射必须完整")
 
 		# 人物词条：独立 35 项基线、17 名角色双向覆盖、四组释义与指定纠错。
@@ -1407,23 +1454,9 @@ func _find_panel(script_name: String) -> Node:
 func _assert_cursor_hotspot() -> void:
 	var image: Image = ScreenFX.MOUSE_CURSOR.get_image()
 	assert(image != null and not image.is_empty(), "自定义鼠标源图必须可读取")
-	var tip_y := -1
-	var tip_left := 0
-	var tip_right := -1
-	for y in image.get_height():
-		for x in image.get_width():
-			if image.get_pixel(x, y).a <= 0.01:
-				continue
-			if tip_y < 0:
-				tip_y = y
-				tip_left = x
-			tip_right = x
-		if tip_y >= 0:
-			break
-	assert(tip_y >= 0, "自定义鼠标源图必须包含可见像素")
-	var expected := Vector2(roundi(float(tip_left + tip_right) * 0.5), tip_y)
-	p("自定义鼠标尖端热点：期望=%s 实际=%s（最上方可见行 x=%d～%d, y=%d）" % [str(expected), str(ScreenFX.CURSOR_HOTSPOT), tip_left, tip_right, tip_y])
-	assert(ScreenFX.CURSOR_HOTSPOT == expected, "自定义鼠标点击热点必须位于图标最上方尖端中心")
+	var expected := Vector2.ZERO
+	p("自定义鼠标左上角热点：期望=%s 实际=%s（源图=%dx%d）" % [str(expected), str(ScreenFX.CURSOR_HOTSPOT), image.get_width(), image.get_height()])
+	assert(ScreenFX.CURSOR_HOTSPOT == expected, "自定义鼠标点击热点必须位于源图左上角 (0, 0)")
 
 
 func _assert_sfx_buses(node: Node) -> void:

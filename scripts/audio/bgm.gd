@@ -20,6 +20,8 @@ var _fades: Dictionary = {} # 播放器索引 -> 当前淡化；切换代际时�
 var _active := -1 # 当前正在播放的播放器索引，-1 表示还没有曲子在放
 var _current := "" # 当前曲目名，防同名重播
 var _menu_rng := RandomNumberGenerator.new()
+var _solo: AudioStreamPlayer # 独占曲目（致谢等）：普通 BGM 让位时使用
+var _solo_paused: Array[AudioStreamPlayer] = [] # 被暂停的普通 BGM，退出独占时恢复
 
 
 func _ready() -> void:
@@ -88,3 +90,34 @@ func _cancel_fade(i: int) -> void:
 func _stop_player(i: int) -> void:
 	if i >= 0 and i < _players.size():
 		_players[i].stop()
+
+
+## 独占曲目（致谢等）：暂停普通 BGM（保留播放进度），只播这一首；结束调 stop_solo 恢复。
+func play_solo(path: String) -> void:
+	stop_solo()
+	var stream = load(path)
+	if stream == null:
+		push_error("BGM: 独占曲目加载失败 " + path)
+		return
+	if stream is AudioStreamOggVorbis or stream is AudioStreamMP3:
+		stream.loop = true
+	if _solo == null:
+		_solo = AudioStreamPlayer.new()
+		_solo.bus = "Music"
+		add_child(_solo)
+	for p in _players:
+		if p.playing:
+			_solo_paused.append(p)
+			p.stream_paused = true
+	_solo.stream = stream
+	_solo.play()
+
+
+## 退出独占：停掉独占曲，普通 BGM 从原进度继续（音量与曲目状态都不动）。
+func stop_solo() -> void:
+	if _solo != null and _solo.playing:
+		_solo.stop()
+	for p in _solo_paused:
+		if is_instance_valid(p):
+			p.stream_paused = false
+	_solo_paused.clear()

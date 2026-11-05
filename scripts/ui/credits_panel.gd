@@ -2,21 +2,25 @@ extends CanvasLayer
 
 ## 致谢名单：主界面左下角竖排「致谢」入口打开，全屏向上滚动（标准游戏致谢顺序）。
 ## 顺序：制作 → 核心开发团队 → 外部协作 → 软件与素材署名 → 特别感谢 → 版权免责 → 纠错 → 结尾。
-## 自动滚动，Esc 立即返回；滚完自动淡出。尚未确定的署名保留空位，不显示模板占位文本。
+## 自动滚到末尾后停住，滚轮上下复查；Esc 立即返回。尚未确定的署名保留空位，不显示模板占位文本。
+## 打开期间只播卷终曲：普通 BGM 暂停、音效静音，Esc 返回后原样恢复。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const BODY_FONT = preload("res://art/ui/fonts/pangmen.ttf") # 庞门正道粗书体：正文
 const TITLE_FONT = preload("res://art/ui/fonts/slidefu_regular.ttf") # 演示佛系体：标题 / 章节
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
+const CREDITS_MUSIC := "res://audio/music/credits_roll.mp3" # 卷终曲 · 落款
 
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.66, 0.63, 0.58)
 const GOLD := Color(0.82, 0.68, 0.42)
 
 const SCROLL_SPEED := 56.0 # 每秒上移像素
+const WHEEL_STEP := 72.0 # 播完后的单次滚轮复查步长
 const COL_X := 260.0 # 正文列左边
 const COL_W := 760.0 # 正文列宽（超出折行）
 const START_Y := 620.0 # 进场位置：标题刚好露在屏幕下沿，打开即见内容
+const END_BOTTOM_Y := 620.0 # 播完时名单底部仍留在屏幕内，不继续滚到空白
 
 ## 名单数据：t = 条目类型（决定字号 / 配色 / 间距），s = 文本
 const CREDITS := [
@@ -75,23 +79,43 @@ const CREDITS := [
 ]
 
 var _scroll: Control
+var _hint: Label
 var _offset := 0.0 # 已上移的像素
-var _total := 0.0 # 名单总高（滚过这个值即播完）
+var _total := 0.0 # 名单总高
+var _max_offset := 0.0 # 最后一行停留在屏幕内时的最大偏移
 var _done := false
+var _sfx_muted := false # 进入前 SFX 总线是否已静音：退出时按原状态恢复
 
 
 func _ready() -> void:
 	layer = 12
 	_build()
+	_enter_audio()
 	set_process(true)
+
+
+func _exit_tree() -> void:
+	BGM.stop_solo()
+	var sfx := AudioServer.get_bus_index("SFX")
+	if sfx >= 0:
+		AudioServer.set_bus_mute(sfx, _sfx_muted)
+
+
+## 致谢期间只留卷终曲：普通 BGM 暂停（保留进度），音效总线静音；退出时恢复。
+func _enter_audio() -> void:
+	BGM.play_solo(CREDITS_MUSIC)
+	var sfx := AudioServer.get_bus_index("SFX")
+	if sfx >= 0:
+		_sfx_muted = AudioServer.is_bus_mute(sfx)
+		AudioServer.set_bus_mute(sfx, true)
 
 
 func _process(delta: float) -> void:
 	if _done:
 		return
-	_offset += SCROLL_SPEED * delta
+	_offset = minf(_offset + SCROLL_SPEED * delta, _max_offset)
 	_scroll.position.y = -_offset
-	if _offset >= _total:
+	if _offset >= _max_offset:
 		_finish()
 
 
@@ -107,12 +131,29 @@ func _unhandled_input(event: InputEvent) -> void:
 		queue_free()
 
 
-## 滚完：淡出后自动回主菜单（不漏掉最后一行的阅读时间，所以淡出 0.8s）
+func _input(event: InputEvent) -> void:
+	if not _done or not (event is InputEventMouseButton) or not event.pressed:
+		return
+	var wheel := event as InputEventMouseButton
+	var step := 0.0
+	match wheel.button_index:
+		MOUSE_BUTTON_WHEEL_UP:
+			step = -WHEEL_STEP
+		MOUSE_BUTTON_WHEEL_DOWN:
+			step = WHEEL_STEP
+		_:
+			return
+	get_viewport().set_input_as_handled()
+	_offset = clampf(_offset + step, 0.0, _max_offset)
+	_scroll.position.y = -_offset
+
+
+## 播完只停止自动滚动，保留结尾供玩家静态查看；Esc 仍可随时返回。
 func _finish() -> void:
 	_done = true
-	var tw := create_tween()
-	tw.tween_property(self, "modulate:a", 0.0, 0.8)
-	tw.tween_callback(queue_free)
+	_offset = clampf(_offset, 0.0, _max_offset)
+	_scroll.position.y = -_offset
+	_hint.text = "滚轮上下查看 · 按 Esc 返回"
 
 
 func _build() -> void:
@@ -139,17 +180,18 @@ func _build() -> void:
 	for e in CREDITS:
 		y += _add(str(e["t"]), str(e["s"]), y)
 	_total = y
+	_max_offset = maxf(0.0, _total - END_BOTTOM_Y)
 
 	# 固定提示：不随名单滚动
-	var hint := Label.new()
-	hint.text = "按 Esc 返回"
-	hint.position = Vector2(1080, 676)
-	hint.size = Vector2(160, 24)
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	hint.add_theme_color_override("font_color", Color(DIM.r, DIM.g, DIM.b, 0.55))
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(hint)
+	_hint = Label.new()
+	_hint.text = "按 Esc 返回"
+	_hint.position = Vector2(920, 676)
+	_hint.size = Vector2(320, 24)
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_hint.add_theme_color_override("font_color", Color(DIM.r, DIM.g, DIM.b, 0.55))
+	_hint.add_theme_font_size_override("font_size", 14)
+	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_hint)
 
 
 ## 放一条名单，返回它占的高度（含上方间距）
