@@ -30,6 +30,7 @@ class Trainer extends Node2D:
 
 	func take_damage(amount: int, _source_x: float) -> void:
 		damage_taken += amount
+		hp -= amount # 真实扣血：攻击方按血差判定“实际造成伤害”，测试替身也必须同步
 
 	func stun(dur: float) -> void:
 		stunned = maxf(stunned, dur)
@@ -1209,6 +1210,14 @@ func _direct_spine(root: Node, fx_id := "", role := "") -> Array:
 	return out
 
 
+func _count_audio_stream(stream: AudioStream) -> int:
+	var n := 0
+	for child in get_children():
+		if child is AudioStreamPlayer and child.stream == stream:
+			n += 1
+	return n
+
+
 func _clear_spine_regression_world() -> void:
 	for child in get_children():
 		if child.has_meta("fx_id") or child.get_script() == ProjectileClass:
@@ -1291,9 +1300,49 @@ func _player_spine_regression() -> void:
 		and bool(l_nodes[0]._center) and l_nodes[0].global_position.is_equal_approx(Vector2(191.0, 0.0)),
 		"定山 L 居中于实际最远落点并匹配技能范围")
 
+	# 剑仙 L 月华斩末端：挥剑落点喷出 E54145 火焰，宽度跟随本次判定距离。
+	_clear_spine_regression_world()
+	_prepare_innate("z000")
+	_player.global_position = Vector2.ZERO
+	_player.facing = 1
+	_player._start_skill("skill02-")
+	_player._skill_tick(1.2001)
+	var l_fire := _direct_spine(self, "E54145", "skill_hit")
+	var l_range := 210.0 if str(_player._skill_anim) == "skill02-" else 240.0
+	_check(l_fire.size() == 1 and l_fire[0].global_position.is_equal_approx(
+		Vector2(l_range * 0.72, 0.0)) and is_equal_approx(l_fire[0]._base_scale.x, 0.2) \
+		and bool(l_fire[0]._bottom), "剑仙 L 末端在挥剑落点贴地喷出 E54145，固定缩放保证整段完整")
+
+	# 剑仙 P 觉醒踢：5 点伤害实际结算后才追加 3 秒眩晕与目标专属受击特效 E54181。
+	_clear_spine_regression_world()
+	var kick_target := Trainer.new()
+	kick_target.add_to_group("enemies")
+	add_child(kick_target)
+	kick_target.global_position = _player.global_position + Vector2(80.0, 0.0)
+	_player._skill_name = "skill20_03"
+	_player._deal_skill_hit({"at": 0.85, "range": 110.0, "height": 110.0, "damage": 5,
+		"launch": {"vx": 100.0, "vy": 300.0}})
+	var kick_fx := _direct_spine(self, "E54181", "skill_hit")
+	var kick_anchor_ok := false
+	for n in kick_fx:
+		if n.global_position.is_equal_approx(kick_target.global_position) \
+				and is_equal_approx(n._base_scale.x, 0.12) and bool(n._bottom):
+			kick_anchor_ok = true
+	_check(int(_player.skill_config["skill20_03"]["hits"][0]["damage"]) == 5 \
+		and kick_target.damage_taken >= 5 and is_equal_approx(kick_target.stunned, 3.0),
+		"剑仙 P 基础伤害 5 且命中后追加 3 秒眩晕")
+	_check(kick_fx.size() >= 1 and kick_anchor_ok,
+		"剑仙 P 命中目标后在其脚底生成完整 E54181")
+	kick_target.queue_free()
+
 	# 剑仙 I 只有收招进入真实觉醒窗口后才出现持续环绕，归零即释放。
 	_prepare_innate("z000")
 	_player._start_skill("skill08")
+	var i_ground_fx := _player._skill_spine
+	_check(is_instance_valid(i_ground_fx) and str(i_ground_fx.get_meta("fx_id")) == "E54057" \
+		and i_ground_fx.position.is_equal_approx(Vector2.ZERO) and bool(i_ground_fx._center) \
+		and is_equal_approx(i_ground_fx._base_scale.x, 0.6),
+		"剑仙 I 起手在脚底中心浮现 E54057 法阵")
 	_check(_player._awaken_pending > 0.0 and not is_instance_valid(_player._awaken_spine), "剑仙 I 曲终前不提前生成觉醒环绕")
 	_player._skill_tick(_player._skill_timer + 0.001)
 	var awaken = _player._awaken_spine
@@ -1496,12 +1545,19 @@ func _player_spine_regression() -> void:
 	_check(first.damage_taken == 5 and second.damage_taken == 0, "剑仙 U 首目标基础伤害严格为 5")
 	_check(first_hits.size() == 1 and str(first_hits[0].get_meta("fx_anim")) == "action3" and normal_hits.is_empty(),
 		"剑仙 U 首目标只播 action3，不叠加普通命中 action2")
+	_check(first_hits.size() == 1 and first_hits[0].global_position.is_equal_approx(first.global_position) \
+		and bool(first_hits[0]._bottom) and is_equal_approx(first_hits[0]._base_scale.x, 0.3),
+		"剑仙 U 首击特效按脚底对齐且缩放 0.3，完整显示激光坠落")
+	var u_sound := load("res://audio/sfx/z000_u_hit.wav")
+	var u_voices := _count_audio_stream(u_sound)
+	_check(u_voices == 1, "剑仙 U 首次命中播放专属音效且一次技能只响一次")
 	shot._physics_process(0.04)
 	first_hits = _direct_spine(self, "E54083", "first_hit")
 	normal_hits = _direct_spine(self, "E54083", "hit")
 	_check(first.damage_taken == 5 and second.damage_taken == 2, "剑仙 U 后续目标基础伤害严格为 2 且不重复首目标")
 	_check(first_hits.size() == 1 and normal_hits.size() == 1 \
 		and str(normal_hits[0].get_meta("fx_anim")) == "action2", "剑仙 U 普通后续目标只播 action2")
+	_check(_count_audio_stream(u_sound) == u_voices, "剑仙 U 命中第二个目标不再重复播放专属音效")
 	_check(shot._hit_list.size() == 2 and not shot.is_queued_for_deletion(), "剑仙 U 穿透两个目标后仍可继续飞行")
 	shot.free()
 	first.free()

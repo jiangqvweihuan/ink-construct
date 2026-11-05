@@ -1,4 +1,4 @@
-[ET] created player=@SpineSprite@9:<SpineSprite#45248153126> enemy=@SpineSprite@76:<SpineSprite#49375348356>
+[ET] created player=@SpineSprite@9:<SpineSprite#53284439602> enemy=@SpineSprite@78:<SpineSprite#63099111087>
 [ET] player state -> 0
 [ET] enemy state -> 0 x=980.0
 [ET] enemy hp -> 6
@@ -19,31 +19,24 @@
 [ET] saved 03_enemy_attack err=0
 [ET] player state -> 7
 [ET] player state -> 0
-[ET] player state -> 7
-[ET] player state -> 0
-[ET] player state -> 7
-[ET] player state -> 0
-[ET] player state -> 5
 [ET] enemy state -> 0 x=852.502136230469
-[ET] enemy state -> 4 x=855.364990234375
+[ET] enemy state -> 2 x=852.502136230469
+[ET] player state -> 5
+[ET] enemy state -> 4 x=898.864379882813
 [ET] enemy hp -> 3
-[ET] enemy state -> 5 x=862.642700195313
+[ET] enemy state -> 5 x=906.124694824219
 [ET] enemy hp -> 0
 [ET] saved 04_enemy_dead err=0
 [ET] player state -> 0
 [ET] saved 05_corpse err=0
 [ET] elite c012 spawned hp=20 scale=0.563
-[ET] elite attack anim=skill01 hits_left=2（两连击应为 2）
+[ET] elite attack anim=skill01 hits_left=2（双剑斩应为 2）
 [ET] player state -> 7
-[ET] player state -> 0
 [ET] saved 06_c012_attack err=0
-[ET] elite 两连击后 player_hp=4（前 5；第二段落在 0.8s 受击无敌内应被吞，净掉 1）
-[ET] elite attack2 anim=skill02 hits_left=1（跳斩应为 1）
-[ET] player state -> 7
+[ET] elite 双剑斩后 player_hp=46 sword_intent=1 bleed=1
+[ET] elite attack2 anim=skill02 hits_left=1（旋斩应为 1）
 [ET] saved 07_c012_leap err=0
-[ET] elite 跳斩后 player_hp=2
-[ET] player state -> 0
-[ET] elite enrage hp=10/20 cooldown=1.11（基础 1.70，狂暴后应约 1.11）
+[ET] elite 旋斩后 player_hp=46 sword_intent=1 dash_seal=0.0
 [ET] saved 08_c012_dead err=0
 [ET] consume_bleed 收走=2 剩余=0（期望 2/0）
 [ET] 影饵索敌 优先残影=true（期望 true）
@@ -54,26 +47,81 @@
 [ET] 刀客移动动画 巡逻=run 追击=speed_run（期望 run / speed_run）
 [ET] 三刀命中段=3 时刻=[0.36, 0.88, 1.33]（期望 3 / [0.36, 0.88, 1.33]）
 [ET] 三刀结算 首段=true 次段=true 末段=true 净伤害=1（期望 true/true/true/1）
-[ET] player state -> 7
-[ET] 升龙刀 瞬移贴身=true 前摇=0.87s 实伤=true 短击飞=true 独立CD=12.0s 冷却禁重入=true 到点可放=true 闪避不击飞=true（期望全 true / 0.87 / >=10）
+[ET] 升龙刀 瞬移贴身=true 前摇=0.87s 实伤=true 短击飞=true 独立CD14.4秒=true 冷却禁重入=true 到点可放=true 闪避不击飞=true（期望全 true / 0.87）
 [ET] player state -> 4
-[ET] 出手规则 普攻占比=0.84 近身池合规=true 螺旋鞭距离窗=true 特殊招冷却普攻兜底=true（期望 >=0.75 / true / true / true）
+[ET] 出手规则 双镰优先=true 冷却普攻兜底=true 冷却结束恢复优先=true 螺旋鞭距离窗=true（期望全 true）
 [ET] 高伤倒地链 顺序与防重入=true 链中受伤后HP=17（期望 true / 17）
 [ET] 山民回血 间隔与上限=true 当前HP=20/20（期望 true / 满血）
 [ET] 蛮兵体型 身高=129.7px 最大杂兵且小于精英=true 碰撞/受击/UI同步=true（期望约130 / true / true）
 [ET] 蛮兵移动 共用walk2且不重启轨道=true 巡逻/追击=40/52 动画倍率=1.2（期望 true / 40/52 / 1.2）
-[ET] 蛮兵出手池 开天占比=0.88 连段不入随机池=true（期望 >=0.75 / true）
+[ET] 蛮兵出手池 辟地优先=true 冷却开天兜底=true 主招计时/收尾共享=true（期望全 true）
 [ET] 开天 蓄力无判=true 0.64秒时刻/2伤/81px=true 短击退=true 背向无伤=true 超程无伤=true（期望全 true）
-[ET] 辟地 2伤/9秒CD/8秒封跳=true 封跳禁跳=true 解禁可跳=true 闪避/护盾/无敌不附加=true/true/true（期望全 true）
+[ET] 辟地 2伤/10.8秒CD/8秒封跳=true 封跳禁跳=true 解禁可跳=true 闪避/护盾/无敌不附加=true/true/true（期望全 true）
 [ET] player state -> 0
 [ET] 赶山三斧 追击触发不瞬移=true 蓄力无判=true 三劈实伤=true/true/true 前半推进=true 后半原地=true 力竭3秒=true（期望全 true）
-[ET] 赶山三斧 16秒冷却禁重入=true 到点可放=true（期望 true / true）
+[ET] PASS 赶山三斧全程保留cast key，0.8秒受击无敌不吞同连段
+[ET] PASS 赶山三斧独立新起手不穿上次受击无敌
+[ET] 赶山三斧 19.2秒冷却禁重入=true 到点可放=true（期望 true / true）
 [ET] player state -> 7
-[ET] 蛮力霸体 受击不断招=true 普通控制免疫=true 牵引免疫=true 无视霸体击飞/时停/击退=true/true/true（期望全 true）
+[ET] PASS 时停中普通/规则级击飞击退砸落均不打断，伤害仍结算
+[ET] PASS 时停计时未被后续控制重置，并能自然到期恢复
+[ET] PASS 时停计时到期前易伤不随时间流失
+[ET] PASS 斩焰易伤 25%：4 点直接伤害实际结算 5 点，且敌人侧不重复放大
+[ET] PASS 易伤比例取最高、时长刷新，到期后承伤恢复原值
 [ET] player state -> 0
+[ET] 蛮力霸体 受击不断招=true 普通控制免疫=true 牵引免疫=true 无视霸体击飞/时停/击退=true/true/true（期望全 true）
 [ET] 镖去 动画别名/两段=true 首段实伤=true 同招次段穿无敌=true 整招一组割伤=true 新起手不穿=true（期望全 true）
 [ET] player state -> 7
 [ET] 阴影 背后直伤双倍=true 净伤害=2（期望 true / 2）
-[ET] 偷袭 11号动画/绕背72px/12秒CD=true 前摇无判=true 0.94秒背刺4伤=true 无割伤=true 冷却禁重入=true 到点可放=true（期望全 true）
+[ET] 偷袭 11号动画/绕背72px/14.4秒CD=true 前摇无判=true 0.94秒背刺4伤=true 无割伤=true 冷却禁重入=true 到点可放=true（期望全 true）
 [ET] 刺客高伤倒地链 顺序与防重入=true 链中受伤后HP=17（期望 true / 17）
-[ET] ALL DONE, enemy state=freed hp=- player state=7
+[ET] 镰舞 两段实伤/各1层普通流血=true/true 非割伤=true 双段标定=true（期望全 true）
+[ET] 镰舞身后第二段 190px 命中=true 后侧射程=209.0（期望 true/209）
+[ET] 镰碎 实伤等额回血=true 闪避不回血=false（期望全 true）
+[ET] 绽花 未命中无效=true 无直伤/正上方/上限-2/冷却减半=true 跨房保留=true（期望全 true）
+[ET] 嗜血 虚弱待机/巡逻/追击=true/true/true 回血恢复外观且被动常驻=true 非虚弱技能-1并吸血=true（期望全 true）
+[ET] PASS 绽花受击/技能无敌与护盾不增益，真实零伤结算仍减CD并嗜血
+[ET] 双镰高伤倒地链 5伤不触发/6伤触发/顺序防重入=true（期望 true）
+[ET] 双剑斩 首段1伤后叠层=true 次段2+1伤/3秒普通流血=true 两招标定=true（期望全 true）
+[ET] 旋斩/剑意 2+1伤与封闪8秒=true 旋斩12秒CD/冷却普攻兜底/到点可放=true 三层唯一凝华分身/淡青虚影墨环/同步姿态/无敌=true（期望全 true）
+[ET] 凝华分身 同步招式/朝向/出手编号=true 同段同伤/共享穿透/双倍普通流血=true（期望全 true）
+[ET] 凝华旋斩 镜像同伤/封闪8秒/不叠层不繁殖=true（期望 true）
+[ET] PASS 青笠分身同步时停/晕眩，控制中拒绝同步起手并正常解除
+[ET] 剑意凝华 本体死亡分身消失=true（期望 true）
+[ET] 青笠高伤倒地链 5伤不触发/6伤穿旋斩霸体/11号起身=true（期望 true）
+[ET] PASS 青笠旋斩出手霸体挡普通击飞击退砸落，规则级位移仍可穿透
+[ET] PASS 中毒/晕眩/魅惑/癫狂生成对应真实Spine子节点，普通怪无金钟
+[ET] PASS 重复刷新四种状态不重复生成或替换持续特效
+[ET] PASS 状态特效随敌人时停冻结并在解冻后恢复，不另跑计时
+[ET] PASS 四种状态自然结束立即释放各自持续特效
+[ET] PASS 普通c016死亡清除状态且不触发青笠亡语视觉
+[ET] PASS 真正青笠精英仅替换死亡视觉，不新增伤害次数/范围并保留原hit_at/range
+[ET] player state -> 0
+[ET] PASS 青笠死亡Spine按原动画生命周期自动销毁
+[ET] PASS 碎岳E52025随金钟生成，两次抵挡期间去重并在耗尽后释放
+[ET] 统一出手规则 c016 冷却配置=true 技能优先=true 普攻兜底=true 恢复优先=true（期望全 true）
+[ET] 统一出手规则 c017 冷却配置=true 技能优先=true 普攻兜底=true 恢复优先=true（期望全 true）
+[ET] 统一出手规则 c035 冷却配置=true 技能优先=true 普攻兜底=true 恢复优先=true（期望全 true）
+[ET] 统一出手规则 c037 冷却配置=true 技能优先=true 普攻兜底=true 恢复优先=true（期望全 true）
+[ET] 统一出手规则 c018 冷却配置=true 技能优先=true 普攻兜底=true 恢复优先=true（期望全 true）
+[ET] 统一出手规则 c012 冷却配置=true 技能优先=true 普攻兜底=true 恢复优先=true（期望全 true）
+[ET] 六种敌人统一出手规则=true（期望 true）
+[ET] 亭台剑 首段半速/真实判定0.98/1.68/1.99=true 三段1/1/2实伤=true/true/true（期望全 true）
+[ET] 转 首次2伤/击退/二次3伤=true/true 受击无敌不叠层=true 不同目标独立=true（期望全 true）
+[ET] player state -> 7
+[ET] 藏剑式 三变式各自三段1/2/3与判定范围/末段单组3及6秒割伤=true（期望 true）
+[ET] PASS 祭剑严格跨半血一次，令牌竞争与时停只排队不起手
+[ET] 断楹祭剑 半血/回满/令牌等待/每实体一次=true 强化后每段独立割伤=true（期望全 true）
+[ET] PASS DoT跨严格半血触发一次祭剑并回满
+[ET] 青魇高伤链 5伤不倒/6伤倒地/9号起身=true（期望 true）
+[ET] player state -> 0
+[ET] player state -> 7
+[ET] PASS 魔爆hp归零与演出期间不清波，真实died后才结算波次
+[ET] 魔爆 起身/22号变身/延迟死亡信号=true 前方敌我3伤与魔诅/后方无伤=true（期望全 true）
+[ET] 魔诅 敌人逐用+1且普攻不受罚=true 玩家逐用+1=true 新房间实例清除=true（期望全 true）
+[ET] player state -> 6
+[ET] PASS 炽热之心只在怒焰实际扣血后回报一次
+[ET] PASS 剑宗固定减半且累计小数治疗，重复命中不继续叠乘
+[ET] PASS 魅唤只从敌人组选择攻击目标
+[ET] PASS 魅唤死亡不计局外击杀、图鉴或本局战绩
+[ET] ALL DONE, enemy state=freed hp=- player state=6 checks=25 failed=0

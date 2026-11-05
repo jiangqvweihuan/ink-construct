@@ -770,12 +770,13 @@ func _play_sfx(sfx_name: String) -> void:
 
 
 ## 完整施法音独占临时通道，收招和其他短音都不会把它截断。
-func _play_full_sfx(sfx_name: String) -> AudioStreamPlayer:
+func _play_full_sfx(sfx_name: String, volume_db := 0.0) -> AudioStreamPlayer:
 	var source = _sfx_cache.get(sfx_name)
 	if source == null:
 		return null
 	var player := AudioStreamPlayer.new()
 	player.bus = "SFX"
+	player.volume_db = volume_db
 	add_child(player)
 	player.stream = source
 	player.finished.connect(player.queue_free)
@@ -1044,7 +1045,11 @@ func _spawn_fullscreen_spine(fx_id: String, anim: String) -> Node2D:
 
 func _start_skill_spine(n: String) -> void:
 	_clear_skill_spine()
-	if skull_id == "c013":
+	if skull_id == "z000" and n == "skill08":
+		# I 觉醒：脚底水平线、身体垂直中心浮现的地面法阵
+		_skill_spine = _attach_spine_fx("E54057", Vector2.ZERO, "action", false,
+			{"scale": 0.6, "center": true, "fx_role": "skill"})
+	elif skull_id == "c013":
 		_attach_spine_fx("E100182", Vector2(0.0, -150.0), "action", false,
 			{"fx_role": "skill_start"})
 	elif skull_id == "c021" and n == "skill02-cankao":
@@ -1597,6 +1602,10 @@ func _damage_enemy(target: Node, amount: int) -> int:
 		var target_facing = target.get("facing")
 		if target_facing != null and (global_position.x - (target as Node2D).global_position.x) * float(target_facing) < 0.0:
 			amount *= 2 # 阴影只放大玩家直接伤害，目标自身的持续伤害不会经过这里
+	if target.has_method("damage_taken_scale"):
+		var taken_scale := float(target.call("damage_taken_scale"))
+		if taken_scale > 1.0:
+			amount = maxi(1, int(round(float(amount) * taken_scale))) # 易伤统一在攻击方换算，敌人内部不再重复放大
 	var before := int(target.get("hp"))
 	if target.has_method("take_damage_from"):
 		target.call("take_damage_from", amount, self)
@@ -2208,6 +2217,11 @@ func _deal_skill_hit(h: Dictionary) -> void:
 	elif skull_id == "c013" and _skill_name == "skill03":
 		_world_spine_fx("E53201", global_position + Vector2(facing * skill_range, 0.0), "action", false,
 			{"width": skill_range, "center": true, "flip": facing < 0, "fx_role": "skill_hit"})
+	elif skull_id == "z000" and _skill_name == "skill02-":
+		# L 月华斩末端：在挥剑落点从地面喷出火焰。固定缩放保证整段动画都能完整显示，
+		# 底部对齐让火头始终贴住脚底水平线，不随 bounds 变化上下漂移。
+		_world_spine_fx("E54145", global_position + Vector2(facing * skill_range * 0.72, 0.0), "action", false,
+			{"scale": 0.2, "bottom": true, "flip": facing < 0, "fx_role": "skill_hit"})
 	if full and skull_id == "z003" and _skill_name == "sky_skill18_02":
 		_spawn_fullscreen_spine("E54012", "action3")
 	for e in get_tree().get_nodes_in_group("enemies"):
@@ -2240,12 +2254,23 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				_o_kill_window = 0.3 # 必须在扣血前开窗口，直接击杀也会归给本次 O
 			var hit_damage := dmg
 			hit_damage += _target_damage_bonus(p)
-			_skill_damage_total += _damage_enemy(p, hit_damage)
+			var dealt_now := _damage_enemy(p, hit_damage)
+			_skill_damage_total += dealt_now
 			hit_scored()
 			_apply_hit_bleed(p, h)
 			_apply_hit_poison(p, h)
+			if h.has("vulnerable") and int(e.get("hp")) > 0 and p.has_method("apply_vulnerable"):
+				var vuln: Dictionary = h["vulnerable"]
+				p.call("apply_vulnerable", float(vuln.get("time", 5.0)), float(vuln.get("ratio", 0.25)))
 			_skill_kinetic(p, h)
 			_apply_hit_control(p, h)
+			# 剑仙 P：实际造成伤害后才追加 3 秒眩晕与该目标的专属受击特效
+			if skull_id == "z000" and _skill_name == "skill20_03" and dealt_now > 0 and int(e.get("hp")) > 0 \
+					and p.has_method("stun"):
+				p.call("stun", 3.0)
+				# 地裂爆炸烟尘：脚底对齐、固定缩放，完整呈现整段特效（原来按体型算太小）
+				_world_spine_fx("E54181", p.global_position, "action", false,
+					{"scale": 0.12, "bottom": true, "z": -1, "fx_role": "skill_hit"})
 			if int(e.get("hp")) > 0 and h.has("frenzy") and p.has_method("apply_frenzy"):
 				p.call("apply_frenzy", float(h["frenzy"]) + (2.0 if _form_node("z002_echo_1") else 0.0), bool(h.get("frenzy_empower", false)))
 			_on_build_hit(p, _skill_name)
@@ -3236,7 +3261,7 @@ func _start_skill(n: String) -> void:
 			"path": bool(cfg.get("path", false)),
 			"sfx": str(cfg.get("sfx", "")),
 		}
-		for extra in ["projectile", "bleed", "poison", "stun", "root", "knockback", "launch",
+		for extra in ["projectile", "bleed", "poison", "vulnerable", "stun", "root", "knockback", "launch",
 				"heal", "heal_ratio", "self_buff", "self_shield", "full_screen", "room_buff", "sfx_on_release"]:
 			if cfg.has(extra):
 				h[extra] = cfg[extra]
@@ -3247,7 +3272,7 @@ func _start_skill(n: String) -> void:
 		_skill_hits = [{"at": 0.48, "damage": 5, "sfx": "hit_heavy", "projectile": {
 			"speed": 900.0, "range": 620.0, "pierce": true, "style": "qi",
 			"fx_id": "E54083", "fx_anim": "action1", "fx_scale": 0.35,
-			"first_fx_anim": "action3", "first_damage": 5,
+			"first_fx_anim": "action3", "first_fx_scale": 0.3, "first_damage": 5, "hit_sfx": "z000_u_hit",
 			"hit_fx_id": "E54083", "hit_fx_anim": "action2", "hit_fx_scale": 0.35, "later_damage": 2,
 		}}]
 	_skill_start_x = global_position.x
@@ -3304,7 +3329,7 @@ func _start_skill(n: String) -> void:
 		_stop_skill_loop()
 		var full_cast_sfx := str(cfg.get("full_cast_sfx", ""))
 		if not full_cast_sfx.is_empty():
-			_play_full_sfx(full_cast_sfx)
+			_play_full_sfx(full_cast_sfx, float(cfg.get("full_cast_volume_db", 0.0)))
 		else:
 			_play_sfx(str(cfg.get("cast_sfx", "voice_skill_cast"))) # 技能起手嗡一声
 	# 其他技能排队 stand 防止收招空窗；银夜 I 必须保留原轨道供 _skill_tick 监听完成，收招时再切 stand。

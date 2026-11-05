@@ -440,6 +440,8 @@ func slow(dur: float, scale: float, ignore_armor := false) -> void:
 func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 	if state == State.DEAD or amount <= 0 or _invincible:
 		return
+	if _vuln_timer > 0.0 and _vuln_ratio > 0.0:
+		amount = maxi(1, int(round(float(amount) * damage_taken_scale()))) # 流血/中毒等内部持续伤害同样吃易伤
 	hp -= amount
 	_spawn_number(amount, color)
 	hp_changed.emit(hp, max_hp)

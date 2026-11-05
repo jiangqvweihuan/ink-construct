@@ -626,6 +626,38 @@ func _brute_probe() -> void:
 	e._physics_process(0.7)
 	stop_holds = stop_holds and e._stop_timer <= 0.0 and e.sprite.process_mode == Node.PROCESS_MODE_INHERIT
 	_check(stop_holds, "时停计时未被后续控制重置，并能自然到期恢复")
+	e.apply_vulnerable(5.0, 0.25)
+	e.time_stop(1.0)
+	var frozen_vuln: float = e._vuln_timer
+	e._physics_process(1.1)
+	var vuln_frozen: bool = e.state == e.State.IDLE and e._stop_timer <= 0.0 \
+		and e.sprite.process_mode == Node.PROCESS_MODE_INHERIT and is_equal_approx(e._vuln_timer, frozen_vuln)
+	_check(vuln_frozen, "时停计时到期前易伤不随时间流失")
+
+	var vuln_enemy = load("res://scenes/enemies/c016.tscn").instantiate()
+	vuln_enemy.position = Vector2(900, 560)
+	add_child(vuln_enemy)
+	vuln_enemy.set_physics_process(false)
+	vuln_enemy.max_hp = 40
+	vuln_enemy.hp = 40
+	var vuln_hp: int = vuln_enemy.hp
+	vuln_enemy.apply_vulnerable(5.0, 0.25)
+	vuln_enemy.take_damage(4, 900.0) # 敌人本体不自我放大，由攻击方统一换算，避免重复
+	var raw_hit: bool = vuln_enemy.hp == vuln_hp - 4
+	var scaled_hit: int = 0
+	if _player != null:
+		scaled_hit = _player._damage_enemy(vuln_enemy, 4)
+	var vuln_hp2: int = vuln_enemy.hp
+	vuln_enemy.apply_vulnerable(3.0, 0.5)
+	var strongest: bool = is_equal_approx(vuln_enemy._vuln_ratio, 0.5) and is_equal_approx(vuln_enemy._vuln_timer, 5.0)
+	vuln_enemy._vuln_tick(5.0)
+	var expired: bool = is_equal_approx(vuln_enemy.damage_taken_scale(), 1.0) and is_equal_approx(vuln_enemy._vuln_ratio, 0.0)
+	_check(raw_hit and scaled_hit == 5 and vuln_hp2 == vuln_hp - 9,
+		"斩焰易伤 25%：4 点直接伤害实际结算 5 点，且敌人侧不重复放大")
+	_check(strongest and expired, "易伤比例取最高、时长刷新，到期后承伤恢复原值")
+	vuln_enemy.queue_free()
+	await get_tree().process_frame
+
 	e._end_stop()
 	e._start_attack("skill03_2")
 	e.knock_back(1, 400.0, 0, true)

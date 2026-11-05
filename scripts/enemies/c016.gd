@@ -131,6 +131,8 @@ var _elite := false # 精英标记（时停分档用：杂兵 10s / 精英 8s / 
 var _stop_timer := 0.0 # 时间暂停（银夜 U）剩余
 var _slow_timer := 0.0 # 余滞剩余：时停期间冻结，其余状态照常计时
 var _slow_scale := 1.0 # 余滞横向速度倍率：只缩放移动目标，不改形态参数
+var _vuln_timer := 0.0 # 易伤剩余（剑仙 L 斩焰）：时停冻结，其余状态照常计时
+var _vuln_ratio := 0.0 # 易伤承伤倍率加成：0.25 = 受到的所有直接伤害 +25%
 # ---------- 定身 / 流血（双刺 L/U 的机制接口，Boss 继承后按体型覆盖） ----------
 var _root_timer := 0.0 # 定身剩余：不能移动，但可以照常出手
 var _stun_timer := 0.0 # 晕眩剩余：不能移动、也不能出手（力僧 L）
@@ -498,6 +500,7 @@ func _physics_process(delta: float) -> void:
 	_find_target()
 	_bleed_tick(delta) # 流血照常跳（时停里不动，所以放在 stop 分支之后）
 	_poison_tick(delta) # 中毒同理：时停期间不跳毒
+	_vuln_tick(delta) # 易伤同理：时停冻结，其余状态照常倒计时
 	_regen_tick(delta) # 山民：时停冻结，其他状态照常计时
 	_pipa_status_tick(delta)
 	if state == State.DEAD:
@@ -1436,7 +1439,7 @@ func _trigger_six_senses() -> void:
 ## 返回引爆前的增益/减益总层数；计时状态统一每 2 秒一层，向上取整。
 func mind_status_count() -> int:
 	var count := _grudge + _six_senses + _bleed_stacks + _mind_shock
-	for time in [_poison_time, _frenzy_time, _charm_time, _root_timer, _stun_timer, _slow_timer, _stop_timer]:
+	for time in [_poison_time, _frenzy_time, _charm_time, _root_timer, _stun_timer, _slow_timer, _vuln_timer, _stop_timer]:
 		if float(time) > 0.0:
 			count += int(ceilf(float(time) / 2.0))
 	for id in _transferred_debuffs:
@@ -1472,6 +1475,8 @@ func _clear_mind_statuses() -> void:
 	_bleed_acc = 0.0
 	_poison_time = 0.0
 	_poison_acc = 0.0
+	_vuln_timer = 0.0
+	_vuln_ratio = 0.0
 	_root_timer = 0.0
 	_stun_timer = 0.0
 	_slow_timer = 0.0
@@ -1503,6 +1508,7 @@ func amplify_debuffs() -> void:
 	_root_timer += 5.0 if _root_timer > 0.0 else 0.0
 	_stun_timer += 5.0 if _stun_timer > 0.0 else 0.0
 	_slow_timer += 5.0 if _slow_timer > 0.0 else 0.0
+	_vuln_timer += 5.0 if _vuln_timer > 0.0 else 0.0
 	_stop_timer += 5.0 if _stop_timer > 0.0 else 0.0
 	_frenzy_time += 5.0 if _frenzy_time > 0.0 else 0.0
 	_charm_time += 5.0 if _charm_time > 0.0 else 0.0
@@ -1748,6 +1754,31 @@ func _poison_tick(delta: float) -> void:
 		_poison_acc = 0.0
 
 
+## 易伤（剑仙 L 斩焰）：持续期间承受的所有伤害按 ratio 放大；比例取最高，时长取最长。
+func apply_vulnerable(dur: float, ratio: float) -> void:
+	if state == State.DEAD or dur <= 0.0 or ratio <= 0.0:
+		return
+	_vuln_ratio = maxf(_vuln_ratio, ratio)
+	_vuln_timer = maxf(_vuln_timer, dur)
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("易伤 +%d%%" % int(round(ratio * 100.0)), Color(0.86, 0.45, 0.2))
+	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
+	get_tree().current_scene.add_child(dn)
+
+
+func _vuln_tick(delta: float) -> void:
+	if _vuln_timer <= 0.0 or state == State.DEAD:
+		return
+	_vuln_timer = maxf(0.0, _vuln_timer - delta)
+	if _vuln_timer <= 0.0:
+		_vuln_ratio = 0.0
+
+
+## 承伤倍率：供攻击方在结算前把原始伤害换算成最终伤害，避免与 take_damage 内部重复放大。
+func damage_taken_scale() -> float:
+	return 1.0 + (_vuln_ratio if _vuln_timer > 0.0 else 0.0)
+
+
 ## 山民：计时始终推进，到点有伤才回血；满血不会越界，也不会囤出额外治疗次数。
 func _regen_tick(delta: float) -> void:
 	if _regen_interval <= 0.0 or _regen_amount <= 0 or state == State.DEAD:
@@ -1765,6 +1796,8 @@ func _regen_tick(delta: float) -> void:
 func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 	if state == State.DEAD or amount <= 0:
 		return
+	if _vuln_timer > 0.0 and _vuln_ratio > 0.0:
+		amount = maxi(1, int(round(float(amount) * damage_taken_scale()))) # 流血/中毒等内部持续伤害同样吃易伤
 	hp -= amount
 	_spawn_number(amount, color)
 	_update_hp_bar()

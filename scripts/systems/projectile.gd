@@ -107,21 +107,31 @@ func _spawn_hit_spine(pos: Vector2, first: bool) -> void:
 		var first_anim := _resolve_fx_anim(_fx_id, str(_effects["first_fx_anim"]))
 		var first_fx := SPINE_FX.spawn(host, _fx_id, pos, {
 			"anim": first_anim, "loop": false, "auto_free": true,
-			"scale": float(_effects.get("fx_scale", 1.0)) * _size,
-			"height": float(_effects.get("fx_height", 0.0)) * _size,
+			"scale": float(_effects.get("first_fx_scale", _effects.get("fx_scale", 1.0))) * _size,
 			"flip": _dir < 0,
-			"center": true,
+			"bottom": true, # 落地爆炸按脚底对齐，整段激光坠落画面才不会偏到地面以下
 		})
 		if first_fx != null:
 			first_fx.set_meta("fx_id", _fx_id)
 			first_fx.set_meta("fx_anim", first_anim)
 			first_fx.set_meta("fx_role", "first_hit")
+		# 首击专属音效：一次技能只响一次，命中多人也只有第一次命中触发
+		var hit_sfx := str(_effects.get("hit_sfx", ""))
+		if not hit_sfx.is_empty():
+			var stream := load("res://audio/sfx/%s.wav" % hit_sfx)
+			if stream != null:
+				var voice := AudioStreamPlayer.new()
+				voice.bus = "SFX"
+				voice.stream = stream
+				host.add_child(voice)
+				voice.finished.connect(voice.queue_free)
+				voice.play()
 		return
 	var hit_id := str(_effects.get("hit_fx_id", ""))
 	if hit_id.is_empty():
 		return
 	var hit_anim := _resolve_fx_anim(hit_id, str(_effects.get("hit_fx_anim", "")))
-	var hit_fx := SPINE_FX.spawn(host, hit_id, pos, {
+	var hit_fx := SPINE_FX.spawn(host, hit_id, pos + Vector2(0.0, -60.0), {
 		"anim": hit_anim, "loop": false, "auto_free": true,
 		"scale": float(_effects.get("hit_fx_scale", 1.0)) * _size,
 		"height": float(_effects.get("hit_fx_height", 0.0)) * _size,
@@ -207,7 +217,7 @@ func _physics_process(delta: float) -> void:
 			else:
 				hit_damage = int(_effects.get("later_damage", hit_damage))
 			_hits_done += 1
-			_spawn_hit_spine(p.global_position + Vector2(0.0, -60.0), _hits_done == 1)
+			_spawn_hit_spine(p.global_position, _hits_done == 1)
 			if bool(_effects.get("pipa_wave", false)) and is_instance_valid(_source) and _source.has_method("on_pipa_wave_hit"):
 				_source.call("on_pipa_wave_hit", p, hit_damage)
 			else:

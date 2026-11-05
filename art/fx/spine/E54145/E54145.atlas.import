@@ -1,0 +1,16 @@
+[remap]
+
+importer="spine.atlas"
+type="SpineAtlasResource"
+uid="uid://gyneelssu246"
+path="res://.godot/imported/E54145.atlas-08e68b02b00c43ce32a54db6c67db4e7.spatlas"
+
+[deps]
+
+source_file="res://art/fx/spine/E54145/E54145.atlas"
+dest_files=["res://.godot/imported/E54145.atlas-08e68b02b00c43ce32a54db6c67db4e7.spatlas"]
+
+[params]
+
+normal_map_prefix="n"
+specular_map_prefix="s"

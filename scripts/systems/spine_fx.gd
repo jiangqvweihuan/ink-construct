@@ -15,6 +15,7 @@ var _fit_cover := Vector2.ZERO
 var _flip := false
 var _offset := Vector2.ZERO
 var _center := false
+var _bottom := false
 
 
 static func data(fx_id: String):
@@ -83,6 +84,7 @@ static func _make(parent: Node, fx_id: String, pos: Vector2, opts: Dictionary) -
 	f._flip = bool(opts.get("flip", false))
 	f._offset = opts.get("offset", Vector2.ZERO)
 	f._center = bool(opts.get("center", false))
+	f._bottom = bool(opts.get("bottom", false))
 	# 首帧等待时只设透明：零缩放或隐藏会让部分 4.2 素材停止产出有效 bounds。
 	f.sprite.scale = f._base_scale
 	f.sprite.self_modulate = Color(1, 1, 1, 0) if f._requires_bounds() else Color.WHITE
@@ -121,7 +123,7 @@ func play(anim: String, loop := false, speed := 1.0, auto_free := true) -> void:
 
 func _requires_bounds() -> bool:
 	return _fit_height > 0.0 or _fit_width > 0.0 \
-		or (_fit_cover.x > 0.0 and _fit_cover.y > 0.0) or _center
+		or (_fit_cover.x > 0.0 and _fit_cover.y > 0.0) or _center or _bottom
 
 
 static func _valid_bounds(bounds: Rect2) -> bool:
@@ -155,6 +157,9 @@ func _apply_scale() -> void:
 	if _center:
 		var center := bounds.get_center()
 		sprite.position = _offset - Vector2(center.x * sc.x, center.y * sc.y)
+	elif _bottom:
+		# 底部对齐：把动画当前可见范围的下沿钉在节点位置，落地/喷涌类特效不会陷进地面
+		sprite.position = _offset - Vector2(0.0, bounds.end.y * sc.y)
 	else:
 		sprite.position = _offset
 

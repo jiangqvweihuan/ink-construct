@@ -260,12 +260,14 @@ const SKULLS := {
 					{"at": 0.16, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "voice_fan_hit"},
 					{"at": 0.34, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "voice_fan_hit"},
 					{"at": 0.50, "range": 170.0, "height": 120.0, "damage": 1, "bleed": 1, "both": true, "sfx": "voice_fan_hit"}]},
-			# L 月华斩：第 64 / 58 号随机，两套动作都只按挥剑落点做近战判定，命中叠 1 层流血。
+			# L 月华斩：第 64 / 58 号随机，两套动作都只按挥剑落点做近战判定。
+			# 命中叠 1 层流血并附加 5 秒易伤（后续承伤 +25%），末端同时喷出火焰特效。
 			"skill02-": {"action": "skill_sweep", "cooldown": 8.0, "poise": true,
 				"pool": ["skill02-", "skill12"],
 				"hit_at": {"skill02-": 1.20, "skill12": 0.62},
 				"range": {"skill02-": 210.0, "skill12": 240.0},
-				"height": 130.0, "damage": 5, "bleed": 1, "sfx": "skill_blade"},
+				"height": 130.0, "damage": 5, "bleed": 1, "sfx": "skill_blade",
+				"vulnerable": {"ratio": 0.25, "time": 5.0}},
 			# U 飞脚：第 50 号，超高击飞（无视霸体，连 Boss 也能挑起来）
 			"skill04": {"action": "skill_ult", "cooldown": 10.0, "poise": true,
 				"hits": [{"at": 0.48, "range": 110.0, "height": 120.0, "damage": 3, "sfx": "hit_heavy",
@@ -283,10 +285,11 @@ const SKULLS := {
 					{"at": 3.0, "range": 260.0, "height": 130.0, "damage": 4, "sfx": "skill_blade", "bleed": 2,
 						"knockback": {"force": 900.0, "impact": 0, "ignore_armor": true}},
 					{"at": 5.2, "heal_ratio": 0.3, "self_buff": {"damage": 1, "time": 6.0}, "sfx": "voice_skill_cast"}]},
-			# P 翻滚踢（觉醒限定，第 77 号）：0.20~0.55s 向前约 200px 且无敌穿身，末段踢击 2 伤 + 小击飞，命中返还 50% 冷却
+			# P 翻滚踢（觉醒限定，第 77 号）：0.20~0.55s 向前约 200px 且无敌穿身。
+			# 末段踢击 5 伤 + 小击飞；实际造成伤害后追加 3 秒眩晕与目标专属受击特效，命中返还 50% 冷却。
 			"skill20_03": {"action": "skill_p", "cooldown": 8.0, "poise": true, "require_buff": true,
 				"blink_from": 0.20, "blink_to": 0.55, "blink_speed": 571.0, "refund_ratio": 0.5,
-				"hits": [{"at": 0.85, "range": 110.0, "height": 110.0, "damage": 2, "sfx": "skill_fist",
+				"hits": [{"at": 0.85, "range": 110.0, "height": 110.0, "damage": 5, "sfx": "skill_fist",
 					"launch": {"vx": 100.0, "vy": 300.0}}]},
 		},
 		"hud_skills": ["atk04", "skill02-", "skill04", "skill08", "skill09", "skill20_03"],
@@ -467,6 +470,7 @@ const SKULLS := {
 			# 本房全伤 +3——玩家实例随房间重建，_room_buff_used 天然一房一次，再放只剩伤害
 			"sky_skill18_02": {
 				"action": "skill_p", "cooldown": 25.0, "poise": true, "require_buff": true, "full_cast_sfx": "z003_p_cast",
+				"full_cast_volume_db": 8.0, # 笑声原本太轻，单独提高这一条完整施法音
 				"pool": ["sky_skill18_02", "sky_skill24_03"],
 				"hit_at": {"sky_skill18_02": 1.20, "sky_skill24_03": 1.00},
 				"range": {"sky_skill18_02": 0.0, "sky_skill24_03": 0.0},
