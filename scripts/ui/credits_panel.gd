@@ -4,6 +4,8 @@ extends CanvasLayer
 ## 顺序：制作 → 核心开发团队 → 外部协作 → 软件与素材署名 → 特别感谢 → 版权免责 → 纠错 → 结尾。
 ## 自动滚到末尾后停住，滚轮上下复查；Esc 立即返回。尚未确定的署名保留空位，不显示模板占位文本。
 ## 打开期间只播卷终曲：普通 BGM 暂停、音效静音，Esc 返回后原样恢复。
+## 右侧留白放两列竖排歌词（右列当前句、左列下一句），严格按人声实测时间轴浮现：
+## 前奏先亮歌名，1:41—2:17 长间奏改画墨圈，2:53 后留住末句，整首循环时回到歌名重走。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const BODY_FONT = preload("res://art/ui/fonts/pangmen.ttf") # 庞门正道粗书体：正文
@@ -21,6 +23,63 @@ const COL_X := 260.0 # 正文列左边
 const COL_W := 760.0 # 正文列宽（超出折行）
 const START_Y := 620.0 # 进场位置：标题刚好露在屏幕下沿，打开即见内容
 const END_BOTTOM_Y := 620.0 # 播完时名单底部仍留在屏幕内，不继续滚到空白
+
+# 右侧题跋：两列竖排歌词，全部在名单正文（x ≤ 1020）之外
+const LYRIC_TOP := 128.0
+const LYRIC_BLOCK_H := 372.0 # 题跋可用高度：再长就自动缩字号，避免压到下方印章
+const LYRIC_W := 36.0
+const LYRIC_NOW_X := 1188.0 # 右列：当前句（竖排右起）
+const LYRIC_NEXT_X := 1116.0 # 左列：下一句
+const LYRIC_DIVIDER_X := 1086.0
+const LYRIC_SEAL_X := 1188.0
+const LYRIC_SEAL_Y := 518.0
+const LYRIC_FONT_SIZE := 21 # 词句用庞门正道粗书体
+const TITLE_FONT_SIZE := 30 # 歌名用演示佛系体
+const TITLE_FADE_IN := 0.9
+
+## 人声实测时间轴（秒）：与 CREDITS_LYRICS 逐句对应
+const LYRIC_CUES := [
+	16.0, 23.0, 31.0, 38.0, 45.0, 53.0, 61.0, 68.0,
+	76.0, 79.0, 83.0, 86.0, 91.0, 94.0, 97.0, 101.0,
+	137.0, 145.0, 151.0, 159.0, 166.0, 173.0,
+]
+const TITLE_END := 16.0 # 前面全是伴奏：先亮完整歌名，第一句人声起才切词
+const TITLE_NOW := "卷终曲" # 右列
+const TITLE_NEXT := "·落款" # 左列：与右列拼出《卷终曲 · 落款》
+const LYRIC_FADE_OUT := 0.35 # 下一句人声前提前收墨
+const LYRIC_FADE_IN := 0.25 # 到点换词后浮上来
+const INTERLUDE_START := 105.5 # 1:41 那句唱完，进入长间奏
+const INTERLUDE_END := 137.0 # 2:17 人声回来
+const INTERLUDE_FADE := 0.8
+const ENSO_FADE_IN := 1.5 # 墨圈起笔
+const ENSO_DRAW_END := 119.0 # 画圆完成
+const ENSO_FADE_OUT := 2.5 # 回收，给下一句让位
+
+## 《落款》全词，与 LYRIC_CUES 逐句对应；与 docs/theme-songs.txt 保持一致
+const CREDITS_LYRICS := [
+	"一笔起于砚心 山河便有了影",
+	"残页翻过千遍 仍留旧世的风",
+	"谁把名字写在 卷角的空白",
+	"谁的执念未散 还在字里相逢",
+	"走过长街雪 也走过断桥烟",
+	"刀锋与琴声 都收进这一卷",
+	"有人问归途 有人只问本心",
+	"我们以墨为身 便不惧墨尽",
+	"卷终处 落一行款",
+	"写我们 曾并肩走完",
+	"山会褪 水会远 名字不散",
+	"这一纸 记得所有的答案",
+	"卷终处 不必圆满",
+	"留白处 还等你来看",
+	"墨会淡 纸会旧 灯还会燃",
+	"愿此身 无悔此卷 无悔此岸",
+	"若有一天 残页再翻",
+	"愿你仍认得 我们的眉眼",
+	"那些没说完的话",
+	"就留在最后一笔的留白间",
+	"砚未干 卷未合",
+	"归途在下一页 等着你我",
+]
 
 ## 名单数据：t = 条目类型（决定字号 / 配色 / 间距），s = 文本
 const CREDITS := [
@@ -85,6 +144,13 @@ var _total := 0.0 # 名单总高
 var _max_offset := 0.0 # 最后一行停留在屏幕内时的最大偏移
 var _done := false
 var _sfx_muted := false # 进入前 SFX 总线是否已静音：退出时按原状态恢复
+var _lyric_now: Label
+var _lyric_next: Label
+var _divider: ColorRect
+var _enso: Enso
+var _enso_word: Label # 墨圈里的极淡「留白」二字
+var _shown_kind := "" # 当前题跋形态：title / verse，避免每帧重设字体与文本
+var _shown_idx := -1 # 已渲染的词句下标
 
 
 func _ready() -> void:
@@ -111,6 +177,7 @@ func _enter_audio() -> void:
 
 
 func _process(delta: float) -> void:
+	_lyric_tick() # 名单停住后歌词仍随音乐继续走
 	if _done:
 		return
 	_offset = minf(_offset + SCROLL_SPEED * delta, _max_offset)
@@ -192,6 +259,254 @@ func _build() -> void:
 	_hint.add_theme_font_size_override("font_size", 14)
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hint)
+	_build_lyrics()
+
+
+## 右侧题跋：淡墨竖线 + 两列竖排歌词 + 朱文款印；间奏时在同一片留白里画墨圈
+func _build_lyrics() -> void:
+	_divider = ColorRect.new()
+	_divider.color = Color(PAPER.r, PAPER.g, PAPER.b, 0.12)
+	_divider.position = Vector2(LYRIC_DIVIDER_X, 112)
+	_divider.size = Vector2(1, 402)
+	_divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_divider)
+
+	# 间奏过场：一管墨在空处缓画一个不合口的圈，圈里再浮出极淡的「留白」
+	_enso = Enso.new()
+	_enso.position = Vector2(1082, 152)
+	_enso.size = Vector2(176, 176)
+	_enso.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_enso)
+
+	_enso_word = Label.new()
+	_enso_word.text = _vertical("留白")
+	_enso_word.position = Vector2(74, 58)
+	_enso_word.size = Vector2(28, 60)
+	_enso_word.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_enso_word.add_theme_font_override("font", TITLE_FONT)
+	_enso_word.add_theme_font_size_override("font_size", 22)
+	_enso_word.add_theme_constant_override("line_spacing", 4)
+	_enso_word.add_theme_color_override("font_color", Color(0.90, 0.86, 0.78, 0.55))
+	_enso_word.modulate.a = 0.0
+	_enso_word.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_enso.add_child(_enso_word)
+
+	_lyric_now = _make_lyric_column(LYRIC_NOW_X, Color(0.93, 0.90, 0.84, 0.92))
+	_lyric_next = _make_lyric_column(LYRIC_NEXT_X, Color(0.72, 0.70, 0.66, 0.78))
+	_build_seal()
+	_show_title(0.0) # 人声未起时先亮歌名
+
+
+func _make_lyric_column(x: float, color: Color) -> Label:
+	var l := Label.new()
+	l.position = Vector2(x, LYRIC_TOP)
+	l.size = Vector2(LYRIC_W, LYRIC_BLOCK_H)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_override("font", BODY_FONT)
+	l.add_theme_font_size_override("font_size", LYRIC_FONT_SIZE)
+	l.add_theme_constant_override("line_spacing", 2)
+	l.add_theme_color_override("font_color", color)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(l)
+	return l
+
+
+## 朱文印：只留红框与红字，透底不压纸色；整体轻转一点，像手盖上去的
+func _build_seal() -> void:
+	var stamp := Control.new()
+	stamp.position = Vector2(LYRIC_SEAL_X, LYRIC_SEAL_Y)
+	stamp.size = Vector2(36, 36)
+	stamp.pivot_offset = Vector2(18, 18)
+	stamp.rotation = -0.06
+	stamp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(stamp)
+
+	var box := Panel.new()
+	box.position = Vector2.ZERO
+	box.size = stamp.size
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0)
+	sb.border_color = Color(0.68, 0.19, 0.14, 0.88)
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(2)
+	box.add_theme_stylebox_override("panel", sb)
+	stamp.add_child(box)
+
+	var word := Label.new()
+	word.text = "款"
+	word.position = Vector2.ZERO
+	word.size = stamp.size
+	word.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	word.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	word.add_theme_font_override("font", TITLE_FONT)
+	word.add_theme_font_size_override("font_size", 20)
+	word.add_theme_color_override("font_color", Color(0.68, 0.19, 0.14, 0.88))
+	word.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stamp.add_child(word)
+
+
+## 一句一行，按字竖排；原文的空格留成一格空白，读起来有句读停顿
+func _vertical(text: String) -> String:
+	var rows := PackedStringArray()
+	for ch in text:
+		rows.append("" if ch == " " else ch)
+	return "\n".join(rows)
+
+
+## 切字体：歌名沿用标题体，词句换成准备好的另一款（庞门正道粗书体）
+func _apply_lyric_style(title: bool) -> void:
+	for l in [_lyric_now, _lyric_next]:
+		l.add_theme_font_override("font", TITLE_FONT if title else BODY_FONT)
+		l.add_theme_font_size_override("font_size", TITLE_FONT_SIZE if title else LYRIC_FONT_SIZE)
+		l.add_theme_constant_override("line_spacing", 6 if title else 2)
+
+
+## 竖排一列：统一从顶部起笔；字多时逐级缩字号，保证不压到下方印章
+func _render_column(l: Label, x: float, text: String, title: bool) -> void:
+	l.position.x = x
+	l.position.y = LYRIC_TOP
+	var rows := _vertical(text)
+	var base := TITLE_FONT_SIZE if title else LYRIC_FONT_SIZE
+	for s in range(base, base - 4, -1):
+		l.add_theme_font_size_override("font_size", s)
+		l.text = rows
+		if l.get_combined_minimum_size().y <= LYRIC_BLOCK_H:
+			break
+
+
+## 每帧都读独占曲的真实播放位置：循环回到 0 秒时歌名会自动重新出现
+func _lyric_tick() -> void:
+	if _lyric_now == null:
+		return
+	_apply_lyric_position(BGM.solo_position())
+
+
+## 题跋的唯一入口：给一个播放位置就能还原整幅字
+func _apply_lyric_position(pos: float) -> void:
+	if _lyric_now == null:
+		return
+	if pos < TITLE_END:
+		_show_title(pos)
+	else:
+		_show_verse(pos)
+
+
+func _show_title(pos: float) -> void:
+	if _shown_kind != "title":
+		_shown_kind = "title"
+		_apply_lyric_style(true)
+		_render_column(_lyric_now, LYRIC_NOW_X, TITLE_NOW, true)
+		_render_column(_lyric_next, LYRIC_NEXT_X, TITLE_NEXT, true)
+	var a := clampf(pos / TITLE_FADE_IN, 0.0, 1.0)
+	a -= clampf((pos - (TITLE_END - LYRIC_FADE_OUT)) / LYRIC_FADE_OUT, 0.0, 1.0)
+	a = clampf(a, 0.0, 1.0)
+	_lyric_now.modulate.a = a
+	_lyric_next.modulate.a = a * 0.8
+	_divider.modulate.a = a
+	_enso.set_state(0.0, 0.0)
+	_enso_word.modulate.a = 0.0
+
+
+func _show_verse(pos: float) -> void:
+	var idx := _cue_index(pos)
+	if _shown_kind != "verse" or _shown_idx != idx:
+		_shown_kind = "verse"
+		_shown_idx = idx
+		_apply_lyric_style(false)
+		_render_column(_lyric_now, LYRIC_NOW_X, str(CREDITS_LYRICS[idx]), false)
+		var nxt := str(CREDITS_LYRICS[idx + 1]) if idx + 1 < CREDITS_LYRICS.size() else ""
+		_render_column(_lyric_next, LYRIC_NEXT_X, nxt, false) # 末句之后左列留空，只留最后一句
+	var presence := _lyric_presence(pos)
+	var a := _cue_alpha(pos, idx) * presence
+	_lyric_now.modulate.a = a
+	_lyric_next.modulate.a = a * 0.78
+	_divider.modulate.a = presence
+	_update_enso(pos)
+
+
+## 当前句下标：最后一个已经到点的开口时刻
+func _cue_index(pos: float) -> int:
+	var idx := 0
+	for i in LYRIC_CUES.size():
+		if pos >= LYRIC_CUES[i]:
+			idx = i
+	return idx
+
+
+## 下一句开口前 0.35s 收墨，到点换词后再用 0.25s 浮上来
+func _cue_alpha(pos: float, idx: int) -> float:
+	var cue: float = LYRIC_CUES[idx]
+	var a := 1.0
+	if pos < cue + LYRIC_FADE_IN:
+		a = (pos - cue) / LYRIC_FADE_IN
+	if idx + 1 < LYRIC_CUES.size():
+		var nxt: float = LYRIC_CUES[idx + 1]
+		if pos >= nxt - LYRIC_FADE_OUT:
+			a = minf(a, (nxt - pos) / LYRIC_FADE_OUT)
+	return clampf(a, 0.0, 1.0)
+
+
+## 长间奏把词让出去，空出画墨圈的位置；2:17 人声回来时再浮现
+func _lyric_presence(pos: float) -> float:
+	if pos < INTERLUDE_START:
+		return 1.0
+	if pos < INTERLUDE_START + INTERLUDE_FADE:
+		return 1.0 - (pos - INTERLUDE_START) / INTERLUDE_FADE
+	if pos < INTERLUDE_END:
+		return 0.0
+	return 1.0
+
+
+func _update_enso(pos: float) -> void:
+	var s := 0.0
+	var p := 0.0
+	if pos >= INTERLUDE_START and pos <= INTERLUDE_END:
+		if pos < INTERLUDE_START + ENSO_FADE_IN:
+			s = (pos - INTERLUDE_START) / ENSO_FADE_IN
+		elif pos < ENSO_DRAW_END:
+			s = 1.0
+			p = (pos - INTERLUDE_START - ENSO_FADE_IN) / (ENSO_DRAW_END - INTERLUDE_START - ENSO_FADE_IN)
+		elif pos < INTERLUDE_END - ENSO_FADE_OUT:
+			s = 1.0
+			p = 1.0
+		else:
+			s = maxf(0.0, (INTERLUDE_END - pos) / ENSO_FADE_OUT)
+			p = 1.0
+	_enso.set_state(p, s)
+	_enso_word.modulate.a = clampf((p - 0.62) / 0.38, 0.0, 1.0) * s * 0.55
+
+
+## 间奏墨圈：一管墨自左下起笔，绕过一圈却不合口，收笔时点一小团墨
+class Enso extends Control:
+	var progress := 0.0
+	var strength := 0.0
+	var _last_p := -1.0
+	var _last_s := -1.0
+
+	func set_state(p: float, s: float) -> void:
+		if is_equal_approx(p, _last_p) and is_equal_approx(s, _last_s):
+			return
+		_last_p = p
+		_last_s = s
+		progress = p
+		strength = s
+		queue_redraw()
+
+	func _draw() -> void:
+		if strength <= 0.01:
+			return
+		var c := size * 0.5
+		var r := minf(size.x, size.y) * 0.42
+		var a0 := -2.1
+		var sweep := TAU * 0.92 * progress
+		draw_arc(c, r, a0, a0 + sweep, 72, Color(0.90, 0.86, 0.78, 0.52 * strength), 3.4, true)
+		if sweep > TAU * 0.42:
+			draw_arc(c, r + 4.5, a0 + 0.22, a0 + minf(sweep, TAU * 0.72), 72,
+				Color(0.90, 0.86, 0.78, 0.20 * strength), 2.0, true)
+		if progress > 0.03:
+			var tip := c + Vector2(cos(a0), sin(a0)) * r
+			draw_circle(tip, 2.4, Color(0.90, 0.86, 0.78, 0.5 * strength))
 
 
 ## 放一条名单，返回它占的高度（含上方间距）

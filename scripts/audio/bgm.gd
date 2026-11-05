@@ -113,6 +113,11 @@ func play_solo(path: String) -> void:
 	_solo.play()
 
 
+## 独占曲目当前播放位置（秒）：循环播放时由引擎自动回到 0，歌词可按真实人声对轴。
+func solo_position() -> float:
+	return _solo.get_playback_position() if _solo != null and _solo.playing else 0.0
+
+
 ## 退出独占：停掉独占曲，普通 BGM 从原进度继续（音量与曲目状态都不动）。
 func stop_solo() -> void:
 	if _solo != null and _solo.playing:

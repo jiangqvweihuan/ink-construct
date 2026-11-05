@@ -122,6 +122,36 @@ func _ready() -> void:
 		p("致谢独占曲目播放=%s 普通 BGM/音效已让位=%s（期望 true/true）" % [solo_playing, others_hushed])
 		assert(solo_playing, "打开致谢必须播放卷终曲")
 		assert(others_hushed, "致谢期间普通 BGM 与音效必须暂停")
+		# 右侧题跋：开场先亮完整歌名，之后严格按人声时间轴逐句浮现
+		credits._apply_lyric_position(0.0)
+		var lyric_title: String = credits._lyric_now.text.replace("\n", "")
+		var lyric_title_next: String = credits._lyric_next.text.replace("\n", "")
+		assert(credits._shown_kind == "title" and lyric_title == "卷终曲" and lyric_title_next == "·落款",
+			"致谢开场必须竖排完整歌名")
+		credits._apply_lyric_position(16.4)
+		var lyric_first: String = credits._lyric_now.text.replace("\n", "")
+		assert(credits._shown_kind == "verse" and lyric_first == "一笔起于砚心山河便有了影",
+			"16 秒人声起时必须切到首句歌词")
+		credits._apply_lyric_position(101.1)
+		assert(credits._lyric_now.text.replace("\n", "") == "愿此身无悔此卷无悔此岸",
+			"1:41 必须切到第十五句")
+		# 1:41—2:17 长间奏：词退场，墨圈起笔
+		credits._apply_lyric_position(110.0)
+		assert(is_zero_approx(credits._lyric_now.modulate.a) and credits._enso.strength > 0.0,
+			"长间奏必须收起歌词并画出墨圈")
+		credits._apply_lyric_position(137.2)
+		assert(credits._lyric_now.text.replace("\n", "") == "若有一天残页再翻",
+			"2:17 人声回来必须接上第十六句")
+		# 2:53 之后只留最后一句，等整首循环回 0 秒再显示歌名
+		credits._apply_lyric_position(173.4)
+		var lyric_last: String = credits._lyric_now.text.replace("\n", "")
+		var lyric_last_next: String = credits._lyric_next.text.replace("\n", "")
+		assert(lyric_last == "归途在下一页等着你我" and lyric_last_next == "",
+			"2:53 之后必须留住最后一句")
+		credits._apply_lyric_position(0.4)
+		assert(credits._shown_kind == "title" and credits._lyric_now.text.replace("\n", "") == "卷终曲",
+			"整首循环回 0 秒必须重新显示歌名")
+		p("致谢歌词时间轴正常：歌名 → 首句 → 1:41 → 间奏墨圈 → 2:17 → 末句 → 循环")
 		# 直接接近末尾触发真实结束分支，避免冒烟测试等待整轮名单。
 		credits._offset = credits._max_offset - 1.0
 		credits._process(0.1)
