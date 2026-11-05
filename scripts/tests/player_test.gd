@@ -1311,7 +1311,8 @@ func _player_spine_regression() -> void:
 	var l_range := 210.0 if str(_player._skill_anim) == "skill02-" else 240.0
 	_check(l_fire.size() == 1 and l_fire[0].global_position.is_equal_approx(
 		Vector2(l_range * 0.72, 0.0)) and is_equal_approx(l_fire[0]._base_scale.x, 0.2) \
-		and bool(l_fire[0]._bottom), "剑仙 L 末端在挥剑落点贴地喷出 E54145，固定缩放保证整段完整")
+		and bool(l_fire[0]._bottom) and is_equal_approx(l_fire[0]._offset.y, 22.0), \
+		"剑仙 L 末端在挥剑落点贴地喷出 E54145，固定缩放 + 下压 22px 保证火头不悬空")
 
 	# 剑仙 P 觉醒踢：5 点伤害实际结算后才追加 3 秒眩晕与目标专属受击特效 E54181。
 	_clear_spine_regression_world()

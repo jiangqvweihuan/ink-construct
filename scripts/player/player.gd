@@ -929,7 +929,8 @@ func _world_spine_fx(fx_id: String, pos: Vector2, anim: String, loop := false, o
 	return _make_spine_fx(host, fx_id, local_pos, anim, loop, opts)
 
 
-func _release_spine(fx: Node2D) -> void:
+func _release_spine(fx) -> void:
+	# 参数不能标 Node2D：one-shot 特效自释放后，残留引用传进来会在类型校验处直接报错
 	if is_instance_valid(fx) and not fx.is_queued_for_deletion():
 		fx.queue_free()
 
@@ -2221,7 +2222,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		# L 月华斩末端：在挥剑落点从地面喷出火焰。固定缩放保证整段动画都能完整显示，
 		# 底部对齐让火头始终贴住脚底水平线，不随 bounds 变化上下漂移。
 		_world_spine_fx("E54145", global_position + Vector2(facing * skill_range * 0.72, 0.0), "action", false,
-			{"scale": 0.2, "bottom": true, "flip": facing < 0, "fx_role": "skill_hit"})
+			{"scale": 0.2, "bottom": true, "offset": Vector2(0.0, 22.0), "flip": facing < 0, "fx_role": "skill_hit"})
 	if full and skull_id == "z003" and _skill_name == "sky_skill18_02":
 		_spawn_fullscreen_spine("E54012", "action3")
 	for e in get_tree().get_nodes_in_group("enemies"):
