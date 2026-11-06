@@ -590,16 +590,17 @@ func set_upgrades(up: Dictionary) -> void:
 	var cd := int(up.get("cooldown", 0)) if not _passives_disabled() else 0
 	damage_bonus = int(up.get("damage", 0)) if not _passives_disabled() else 0
 	run_speed = 240.0 # 上一房间石碑的"疾风"随换房清掉（原位漂移不跨房）
-	cooldown_scale = maxf(0.55, 1.0 - 0.15 * cd)
+	# 称号的冷却缩减不受邪佛压制（成就底子），与局内强化叠加
+	cooldown_scale = maxf(0.5, 1.0 - 0.15 * cd + Achievements.bonus("cooldown"))
 	max_hp = 8 + int(up.get("hp", 0)) if not _passives_disabled() else 8
 	# 疾影：冲刺时长/距离 +20%，完美闪避判定窗口同步变长；冷却 -10%
 	var dash_lv := int(up.get("dash", 0)) if not _passives_disabled() else 0
-	_dash_time_scale = 1.0 + 0.2 * dash_lv
+	_dash_time_scale = (1.0 + 0.2 * dash_lv) * (1.0 + Achievements.bonus("dash"))
 	_dash_cd_scale = maxf(0.6, 1.0 - 0.1 * dash_lv)
 	# 掠影：完美闪避收益加档
 	var dodge_lv := int(up.get("dodge", 0)) if not _passives_disabled() else 0
 	_dodge_bonus = dodge_lv
-	_dodge_time_bonus = 0.2 * dodge_lv
+	_dodge_time_bonus = 0.2 * dodge_lv + Achievements.bonus("dodge_window")
 	_apply_form_mods()
 
 
@@ -666,7 +667,7 @@ func _form_node(id: String) -> bool:
 
 
 func _move_speed() -> float:
-	return 240.0 if _passives_disabled() else run_speed
+	return 240.0 if _passives_disabled() else run_speed * (1.0 + Achievements.bonus("move_speed"))
 
 
 func _own(key: String) -> bool:
@@ -1713,6 +1714,7 @@ func _combo_finish_wave() -> void:
 func _damage_enemy(target: Node, amount: int) -> int:
 	if target == null or not is_instance_valid(target) or amount <= 0 or int(target.get("hp")) <= 0:
 		return 0
+	amount += Achievements.bonus_int("damage") # 称号加伤：统一在伤害入口加，覆盖普攻/技能/持续段
 	if _stolen_divine and _stolen("c032_divine_favor"):
 		return _stolen_holy_hit(target)
 	if _stolen("c035_shadow"):

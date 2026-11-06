@@ -319,7 +319,11 @@ func shop_cost(key: String) -> int:
 	var lv := 0 if item.has("supply") else shop_level(key)
 	if lv >= costs.size():
 		return -1
-	return int(costs[lv])
+	var price := int(costs[lv])
+	var discount := Achievements.bonus("shop_discount") # 负数表示降价
+	if discount < 0.0:
+		price = maxi(1, int(round(float(price) * (1.0 + discount))))
+	return price
 
 
 func can_buy(key: String) -> bool:
@@ -450,6 +454,9 @@ func diff_since(snap: Dictionary) -> Dictionary:
 ## 聚墨每级再 +2；阵亡同样按已有战绩结算，不再依赖局内货币余量。
 func deposit_ink(run_kills: int, cleared_rooms: int, cleared: bool, bonus := 0) -> int:
 	var n := 2 + maxi(0, run_kills) / 2 + maxi(0, cleared_rooms) * 5 + (25 if cleared else 0) + 2 * shop_level("start_ink") + maxi(0, bonus)
+	var gain := Achievements.bonus("ink_gain")
+	if gain != 0.0:
+		n = maxi(1, int(round(float(n) * (1.0 + gain)))) # 称号墨锭加成只作用于本局结算
 	ink += n
 	Achievements.event("ink_earned", n)
 	Achievements.max_event("ink_hold", ink)

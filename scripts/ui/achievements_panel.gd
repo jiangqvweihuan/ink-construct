@@ -15,7 +15,7 @@ const RED := Color(0.66, 0.2, 0.16)
 const GOLD := Color(0.87, 0.70, 0.28)
 
 const CARD_W := 368.0
-const CARD_H := 96.0
+const CARD_H := 108.0
 const GAP_X := 16.0
 const GAP_Y := 12.0
 const COLS := 3
@@ -50,13 +50,14 @@ func _build() -> void:
 
 	_text("功 名 录", Vector2(72, 68), Vector2(260, 48), 36, PAPER, self)
 	_header = _text("", Vector2(320, 80), Vector2(400, 30), 16, DIM, self)
-	_title_label = _text("", Vector2(760, 80), Vector2(410, 30), 15, GOLD, self)
+	_title_label = _text("", Vector2(700, 80), Vector2(470, 30), 14, GOLD, self)
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_title_label.clip_text = true
 
 	_build_tabs()
 	_build_scroll()
 
-	_text("点击带称号的条目可佩戴；未达成条目显示当前进度", Vector2(72, 556), Vector2(640, 30), 13, DIM, self)
+	_text("点击带称号的条目可佩戴，加成下一局生效；未达成条目显示当前进度", Vector2(72, 556), Vector2(760, 30), 13, DIM, self)
 	_make_button("返  回", Vector2(1040, 556), Vector2(150, 44), _close, SFX_BACK)
 	_rebuild_cards()
 
@@ -182,19 +183,24 @@ func _make_card(a: Dictionary, pos: Vector2) -> void:
 	d.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	d.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 
+	# 称号加成：未解锁也展示，方便挑目标；秘闻未解锁不剧透
+	var bonus_line := "" if hidden else Achievements.bonus_text(id)
+	if bonus_line != "":
+		_text(bonus_line, Vector2(64, 64), Vector2(CARD_W - 82, 17), 11, GOLD if got else DIM, card)
+
 	# 进度：顶部一条细线按比例填充，右下角写「12 / 50」
 	var p: Array = Achievements.progress(id)
 	var target := maxi(1, int(p[1]))
 	var ratio := clampf(float(p[0]) / float(target), 0.0, 1.0)
 	var track := ColorRect.new()
 	track.color = Color(1, 1, 1, 0.06)
-	track.position = Vector2(64, 88)
+	track.position = Vector2(64, 103)
 	track.size = Vector2(CARD_W - 82, 2)
 	track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(track)
 	var fill := ColorRect.new()
 	fill.color = Color(accent, 0.75)
-	fill.position = Vector2(64, 88)
+	fill.position = Vector2(64, 103)
 	fill.size = Vector2((CARD_W - 82) * ratio, 2)
 	fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(fill)
@@ -206,7 +212,7 @@ func _make_card(a: Dictionary, pos: Vector2) -> void:
 		tag = "—" if str(a.get("stat", "")) == "" else "%d / %d" % [int(p[0]), int(p[1])]
 	if got and str(a.get("title", "")) != "":
 		tag = "称号 · %s" % str(a["title"])
-	var t := _text(tag, Vector2(64, 65), Vector2(CARD_W - 82, 18), 12, GOLD if got else DIM, card)
+	var t := _text(tag, Vector2(64, 82), Vector2(CARD_W - 82, 18), 12, GOLD if got else DIM, card)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 
 	if got and str(a.get("title", "")) != "":
@@ -236,7 +242,13 @@ func _refresh_header() -> void:
 		_header.text = "已达成 %d / %d" % [Achievements.unlocked_count(), Achievements.total_count()]
 	if _title_label != null:
 		var t := Achievements.equipped_title()
-		_title_label.text = ("佩戴称号 · %s" % t) if t != "" else "尚未佩戴称号"
+		var b := Achievements.equipped_bonus_text()
+		if t == "":
+			_title_label.text = "尚未佩戴称号"
+		elif b == "":
+			_title_label.text = "佩戴称号 · %s" % t
+		else:
+			_title_label.text = "佩戴称号 · %s ｜ %s" % [t, b]
 
 
 func _text(text: String, pos: Vector2, dimensions: Vector2, font_size: int, color: Color, parent: Node) -> Label:

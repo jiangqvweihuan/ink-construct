@@ -194,6 +194,48 @@ const ACHIEVEMENTS := [
 
 const RUN_KEYS := ["kills", "damage_dealt", "skills_used", "perfect_dodges", "parries", "boss_kills", "elite_kills", "blocks"]
 
+## 佩戴称号的属性加成：克制向，部分带轻微代价（负数）。
+## 战斗：hp / damage / move_speed / cooldown / dodge_window / dash；
+## 局外：ink_gain / shop_discount。百分比用小数表示。
+const TITLE_BONUS := {
+	"j03": {"damage": 1, "hp": -1},                       # 千人斩：杀伐过甚
+	"j04": {"damage": 2, "hp": -1},                       # 万人敌
+	"j07": {"ink_gain": 0.08, "move_speed": -0.03},       # 千室：久战成习
+	"j08": {"hp": 1},                                     # 破墨人
+	"j10": {"hp": 1, "damage": 1, "move_speed": -0.04},   # 百炼
+	"j12": {"ink_gain": 0.08},                            # 深入者
+	"j13": {"ink_gain": 0.12, "hp": -1},                  # 深渊客
+	"j16": {"damage": 1},                                 # 伐木人
+	"j21": {"damage": 1, "move_speed": 0.05, "hp": -1},   # 无归
+	"s03": {"dodge_window": 0.04},                        # 无影
+	"s09": {"damage": 1},                                 # 不辍笔
+	"s12": {"damage": 1, "move_speed": -0.04},            # 崩山：力沉步滞
+	"s17": {"hp": 1},                                     # 不染
+	"s18": {"hp": 1, "damage": -1},                       # 雪衣：守成
+	"s19": {"hp": 2, "damage": -1},                       # 澄怀
+	"s20": {"hp": 2, "ink_gain": -0.06},                  # 一线：险中求存
+	"f_all": {"cooldown": -0.05, "hp": -1},               # 六相：博而不精
+	"e_all": {"damage": 1, "ink_gain": 0.05},             # 百相
+	"m03": {"ink_gain": 0.12},                            # 墨海
+	"m10": {"cooldown": -0.05},                           # 修行者
+	"m19": {"shop_discount": -0.10},                      # 藏家
+	"h03": {"move_speed": 0.06, "hp": -1},                # 疾书
+	"h10": {"hp": 1, "damage": 1, "ink_gain": 0.08},      # 无字碑：终极，无代价
+}
+
+const BONUS_NAME := {
+	"hp": "生命上限",
+	"damage": "伤害",
+	"move_speed": "移速",
+	"cooldown": "技能冷却",
+	"dodge_window": "闪避余韵",
+	"dash": "冲刺距离",
+	"ink_gain": "墨锭获取",
+	"shop_discount": "商铺价格",
+}
+
+const BONUS_ORDER := ["hp", "damage", "move_speed", "cooldown", "dodge_window", "dash", "ink_gain", "shop_discount"]
+
 signal unlocked_signal(id: String)
 
 var stats := {}
@@ -314,6 +356,42 @@ func equipped_title() -> String:
 	if equipped == "":
 		return ""
 	return str(_defs.get(equipped, {}).get("title", ""))
+
+
+## 当前佩戴称号的某项加成；未佩戴或该称号没有这项时返回 0
+func bonus(key: String) -> float:
+	if equipped == "":
+		return 0.0
+	return float(TITLE_BONUS.get(equipped, {}).get(key, 0.0))
+
+
+func bonus_int(key: String) -> int:
+	return int(round(bonus(key)))
+
+
+## 称号加成文案：「生命上限 +1 · 伤害 -1」
+func bonus_text(id: String) -> String:
+	var b: Dictionary = TITLE_BONUS.get(id, {})
+	if b.is_empty():
+		return ""
+	var parts: Array = []
+	for key in BONUS_ORDER:
+		if not b.has(key):
+			continue
+		var v := float(b[key])
+		var label := str(BONUS_NAME.get(key, key))
+		var sign_text := "+" if v >= 0.0 else "-"
+		if key == "hp" or key == "damage":
+			parts.append("%s %s%d" % [label, sign_text, int(round(absf(v)))])
+		elif key == "dodge_window":
+			parts.append("%s %s%.2f 秒" % [label, sign_text, absf(v)])
+		else:
+			parts.append("%s %s%d%%" % [label, sign_text, roundi(absf(v) * 100.0)])
+	return " · ".join(parts)
+
+
+func equipped_bonus_text() -> String:
+	return bonus_text(equipped) if equipped != "" else ""
 
 
 # ---------- 记录 ----------

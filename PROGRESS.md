@@ -122,3 +122,11 @@
 - 埋点（只统计、不改判定）：`Meta`（击杀、墨锭收支、节点、买断、补给）、`player`（伤害、受伤、招架、金钟、完美闪避、技能、复活）、`c016`（精英 / 首领 / 最高连击）、`run_state`（开局、强化）、`room_01`（清房、无伤、结算）、`blessing_panel`、`decor_interactive`。
 - 验证：无头全量解析无错误；`ui_test`、`start_flow_test`、`room_test`、`settlement_dead_test`、`settlement_clear_test` 全部通过；截图验收主菜单称号行、小印章、功名录各页与结算功名行。结算测试的墨锭预期已把功名奖励计入。
 
+### 后续：称号属性加成（2026-11-06）
+
+- 23 个称号全部带属性，走「克制 + 轻微代价」：单项约半张强化卡，部分称号一正一负（如「万人敌」伤害 +2、生命上限 -1）。
+- 属性池：战斗向 `hp / damage / move_speed / cooldown / dodge_window / dash`，局外向 `ink_gain / shop_discount`；定义集中在 `TITLE_BONUS`。
+- 生效位置：生命上限并入 `Run.calculated_max_hp()`；伤害在 `_damage_enemy` 入口统一加（覆盖普攻/技能/持续段）；移速、冷却、冲刺、闪避余韵在 `player.set_upgrades()` 与 `_move_speed()`；墨锭在 `Meta.deposit_ink()`，商铺折扣在 `Meta.shop_cost()`（自动同步显示价与扣款）。
+- 功名录卡片新增一行金色加成文案，未解锁也展示（秘闻未解锁不剧透）；顶部「佩戴称号」与主菜单标题下同步显示加成摘要，底部提示「加成下一局生效」。
+- 验证：生命 +1/-1、墨锭 +12%、商铺 -10% 数值校验全部通过；`ui_test` 与 `settlement_clear_test` 回归通过（未佩戴时不改变原有结算）。
+

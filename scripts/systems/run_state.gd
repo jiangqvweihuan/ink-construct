@@ -217,7 +217,8 @@ func calculated_max_hp() -> int:
 		return maxi(1, 100 - max_hp_loss)
 	var form_base := 60 if skull_id == "c023" else BASE_HP
 	return maxi(1, form_base + level("hp") + (2 if blessing == "hp" else 0) \
-		+ Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + supply_hp - max_hp_loss + z003_madness_hp)
+		+ Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + Achievements.bonus_int("hp") \
+		+ supply_hp - max_hp_loss + z003_madness_hp)
 
 
 ## 血色切割统一入口：敌人死亡提交 export_passives()；化身与未来 PvP 直接提交同构被动包。
