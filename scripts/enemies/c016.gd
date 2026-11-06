@@ -2057,6 +2057,7 @@ func die() -> void:
 		Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
 		Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
 		Score.add_kill() # 本局击杀计数（结算战绩用）
+		Achievements.note_enemy_killed(type_id, stop_tier() == "elite")
 		var pl = get_tree().get_first_node_in_group("player")
 		if pl != null and pl.has_method("on_enemy_killed"):
 			pl.call("on_enemy_killed", self)

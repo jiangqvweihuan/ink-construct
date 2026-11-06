@@ -172,8 +172,11 @@ func can_learn(id: String) -> bool:
 func learn_node(id: String) -> bool:
 	if not can_learn(id):
 		return false
-	ink -= node_cost(id)
+	var cost := node_cost(id)
+	ink -= cost
 	form_nodes[id] = true
+	Achievements.event("form_nodes")
+	Achievements.event("ink_spent", cost)
 	_save()
 	return true
 
@@ -332,12 +335,24 @@ func buy(key: String) -> bool:
 	var item: Dictionary = INK_SHOP[key]
 	if item.has("form"):
 		purchases[key] = true
+		Achievements.event("buyouts")
 	elif item.has("supply"):
 		inventory[key] = supply_count(key) + 1
 	else:
 		purchases[key] = shop_level(key) + 1
+	Achievements.event("buys")
+	Achievements.event("ink_spent", cost)
 	_save()
 	return true
+
+
+## 成就奖励等外部来源加墨锭（不走 ink_earned，避免奖励再生奖励）
+func add_ink(amount: int) -> void:
+	if amount == 0:
+		return
+	ink = maxi(0, ink + amount)
+	Achievements.max_event("ink_hold", ink)
+	_save()
 
 
 # ---------- 一次性补给行囊 ----------
@@ -364,6 +379,7 @@ func consume_selected_supply() -> String:
 		return ""
 	inventory[key] = supply_count(key) - 1
 	selected_supply = ""
+	Achievements.event("supplies_used")
 	_save()
 	return key
 
@@ -435,6 +451,8 @@ func diff_since(snap: Dictionary) -> Dictionary:
 func deposit_ink(run_kills: int, cleared_rooms: int, cleared: bool, bonus := 0) -> int:
 	var n := 2 + maxi(0, run_kills) / 2 + maxi(0, cleared_rooms) * 5 + (25 if cleared else 0) + 2 * shop_level("start_ink") + maxi(0, bonus)
 	ink += n
+	Achievements.event("ink_earned", n)
+	Achievements.max_event("ink_hold", ink)
 	_save()
 	return n
 
@@ -445,12 +463,17 @@ func deposit_ink(run_kills: int, cleared_rooms: int, cleared: bool, bonus := 0) 
 func add_kill(form_id: String) -> void:
 	kills += 1
 	mastery[form_id] = mastery_exp(form_id) + 1
+	Achievements.event("kills")
+	Achievements.event("form_kill_" + form_id)
+	Achievements.max_event("mastery_" + form_id, mastery_level(form_id))
 	_save()
 
 
 ## 击败一只敌人 / Boss：图鉴收录计数 +1（同一只被击败多次会一直累加）
 func add_enemy_kill(id: String) -> void:
 	seen[id] = enemy_kills(id) + 1
+	Achievements.event("enemy_" + id)
+	Achievements.refresh_meta()
 	_save()
 
 

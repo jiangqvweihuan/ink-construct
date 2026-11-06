@@ -77,6 +77,8 @@ func _process(delta: float) -> void:
 func _trigger() -> void:
 	_fired = true
 	var burst_y := float(PROPS[kind]["burst"])
+	Achievements.event("decor_pickups")
+	Achievements.event("decor_" + kind)
 	match kind:
 		"scroll": # 残卷：回血 +1，统一走玩家恢复入口以保留不朽与合法超额生命
 			_player._restore_hp(1)

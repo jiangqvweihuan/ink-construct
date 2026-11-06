@@ -78,6 +78,7 @@ func pick(id: String) -> void:
 	if Run.blessing != "":
 		return
 	Run.blessing = id
+	Achievements.event("blessings_picked")
 	match id:
 		"hp":
 			Run.hp += 2 # apply_to 重算上限时会带上赐福的 +2，这里先把当前血量加上

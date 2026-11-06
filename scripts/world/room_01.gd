@@ -36,6 +36,7 @@ func _ready() -> void:
 	# 直接跑场景 = 开新一局；从上一层过来时 Run.active 已为 true，状态（血量/形态/强化）沿用
 	if not Run.active:
 		Run.start()
+	Achievements.room_begin() # 本房受伤清零，用于无伤房判定
 	_build_background()
 	_build_ground()
 	_build_actors()
@@ -265,6 +266,7 @@ func _on_all_cleared() -> void:
 	if _ended: # 玩家已阵亡、结算计时已启动时，飞在途中的投射物清场不再叠开强化面板
 		return
 	_ended = true
+	Achievements.room_cleared() # 记一个房间；本房未受伤则同时记无伤房
 	# 把玩家现在的血量/形态写进 run，下一层继承
 	if is_instance_valid(_player):
 		Run.snapshot(_player)
@@ -278,6 +280,7 @@ func _on_boss_died() -> void:
 	if _ended:
 		return
 	_ended = true
+	Achievements.room_cleared() # 首领房同样算一个房间
 	if is_instance_valid(_player):
 		Run.snapshot(_player)
 	if not Run.boss_defeated.has(Run.boss_id):
@@ -328,6 +331,7 @@ func _on_player_died() -> void:
 func _show_settlement(title_text: String, cleared: bool) -> void:
 	if get_node_or_null("Settlement") != null:
 		return
+	Achievements.finish_run(cleared) # 单局条件（无伤 / 残血 / 速通 / 空手）在结算前结清
 	var s = load("res://scenes/ui/settlement_panel.tscn").instantiate()
 	s.name = "Settlement"
 	s.setup(title_text, cleared)

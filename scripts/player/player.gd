@@ -1731,6 +1731,8 @@ func _damage_enemy(target: Node, amount: int) -> int:
 	var dealt := maxi(0, before - int(target.get("hp")))
 	if dealt > 0:
 		_on_innate_damage(target, dealt)
+		Achievements.event("damage_dealt", dealt)
+		Achievements.max_event("max_hit", dealt)
 	return dealt
 
 
@@ -3319,6 +3321,7 @@ func _skill_has_displacement(n: String, cfg: Dictionary) -> bool:
 
 func _start_skill(n: String) -> void:
 	_begin_attack_recovery_if_needed()
+	Achievements.event("skills_used")
 	if skull_id == "c021" and n == "skill01" and _own("c021_return_2"):
 		_recall_daggers()
 	state = State.SKILL
@@ -3813,9 +3816,11 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		_play(feedback_anim, false)
 		return
 	if _parry_ready and attacker != null and is_instance_valid(attacker) and _counter_attack(attacker):
+		Achievements.event("parries")
 		return
 	if _bell_shell:
 		_bell_shell = false
+		Achievements.event("blocks")
 		_hurt_invincible = maxf(_hurt_invincible, 0.35)
 		if attacker != null and is_instance_valid(attacker) and int(attacker.get("hp")) > 0:
 			attacker.call("stun", 1.2)
@@ -3933,6 +3938,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	_reset_root_follow() # 技能被受击打断：把根骨位移结算进节点，别把骨架留在偏移位置
 	var dealt := mini(amount, hp) # 过量伤害不计入镰碎回血；反伤/护盾/闪避在上方已直接返回
 	hp -= amount
+	Achievements.hurt_event(dealt)
 	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
 		attacker.call("on_player_hit", dealt, move, self)
 	if not _stolen("c009_construct"):
@@ -4454,6 +4460,7 @@ func _try_revive(knockback: Vector2) -> bool:
 		can_revive = true
 	if not can_revive:
 		return false
+	Achievements.event("revives")
 	if max_hp <= 0 and _stolen("c009_madness"):
 		Run.max_hp = maxi(1, Run.calculated_max_hp())
 		max_hp = Run.max_hp
@@ -4550,6 +4557,7 @@ func _perfect_dodge(attacker: Node = null, incoming_damage: int = 0) -> void:
 			and attacker != null and is_instance_valid(attacker) and int(attacker.get("hp")) > 0:
 		_damage_enemy(attacker, incoming_damage) # 闪身只回敬这一段原始伤害，不再叠加玩家加伤
 	_play_sfx("weapon_sword") # 侧身擦过的嗖声当闪避音
+	Achievements.event("perfect_dodges")
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("完美闪避", Color(0.9, 0.75, 0.3)) # 金：奖励时刻
 	dn.global_position = global_position + Vector2(0, -150)

@@ -17,9 +17,9 @@ const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const RED := Color(0.66, 0.2, 0.16)
 
-## 菜单条几何：6 项等宽等间距，整条居中
-const ITEM_W := 164.0
-const ITEM_GAP := 12.0
+## 菜单条几何：8 项等宽等间距，整条居中
+const ITEM_W := 148.0
+const ITEM_GAP := 10.0
 const ITEM_Y := 588.0
 const ITEM_H := 72.0
 
@@ -53,6 +53,7 @@ func _ready() -> void:
 		["化身谱", _open_forms], # 角色解锁与永久修炼
 		["墨锭商栈", _open_shop], # 通用强化 / 重随 / 一次性补给
 		["图鉴", _open_codex], # 收录：击败过的敌人 + 已解锁化身的人设与招式演示
+		["功名录", _open_achievements], # 成就：累计战绩、技艺、百相收录与隐藏秘闻
 		["设置", _open_settings],
 		["致谢", _open_credits],
 		["退出", func(): get_tree().quit()],
@@ -139,6 +140,20 @@ func _make_title() -> void:
 	seal.size = Vector2(110, 3)
 	seal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(seal)
+
+	# 佩戴的称号：没佩戴就整行不出现，不占视觉
+	var worn := Achievements.equipped_title()
+	if worn != "":
+		var t := Label.new()
+		t.text = "称号 · %s" % worn
+		t.add_theme_font_size_override("font_size", 17)
+		t.add_theme_color_override("font_color", Color(0.87, 0.70, 0.28))
+		t.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.6))
+		t.add_theme_constant_override("outline_size", 5)
+		t.position = Vector2(122, 238)
+		t.size = Vector2(400, 28)
+		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(t)
 
 
 ## 菜单项：默认纸白字 + 短朱砂线；悬停上浮 4px、墨底淡入、字转纯白、朱砂线拉满，其余项压暗
@@ -233,6 +248,11 @@ func _open_forms() -> void:
 
 func _open_shop() -> void:
 	add_child(load("res://scenes/ui/shop_panel.tscn").instantiate())
+
+
+func _open_achievements() -> void:
+	Achievements.refresh_meta()
+	add_child(load("res://scenes/ui/achievements_panel.tscn").instantiate())
 
 
 ## 图鉴是全场最重的一块：先把残卷幕布展开，再搭界面，避免点下去的瞬间整帧卡死

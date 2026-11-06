@@ -113,7 +113,16 @@ func _build(diff: Dictionary, ink_gain: int) -> void:
 			ink_text = "墨锭 +%d（墨梅 +%d｜总 %d）" % [ink_gain, Run.c023_ink_bonus, Meta.ink]
 		_make_line(ink_text, PAPER, 19, cy)
 		cy += 30.0
-	if rows == 0 and diff["unlocks"].is_empty() and ink_gain <= 0:
+	# 本局功名：只在一行里点名最多三项，完整列表回功名录看
+	var gained: Array = Achievements.session_unlocks()
+	if not gained.is_empty() and cy <= 470.0:
+		var names: Array = []
+		for id in gained.slice(0, 3):
+			names.append(str(Achievements.get_def(str(id)).get("name", "")))
+		var tail := "" if gained.size() <= 3 else " 等 %d 项" % gained.size()
+		_make_line("功名 · %s%s" % ["、".join(names), tail], GOLD, 18, cy)
+		cy += 30.0
+	if rows == 0 and diff["unlocks"].is_empty() and ink_gain <= 0 and gained.is_empty():
 		_make_line("本局无额外收获", DIM, 17, cy)
 
 	_make_button("再来一局", 508, _restart)

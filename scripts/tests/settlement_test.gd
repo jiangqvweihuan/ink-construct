@@ -180,9 +180,13 @@ func _check_result_fx(panel: Node, expected: String) -> void:
 func _check_ink(cleared: bool) -> void:
 	var kills := Score.kills
 	var rooms := Run.cleared_room_count()
-	var expected := 2 + floori(kills / 2.0) + rooms * 5 + (25 if cleared else 0) + 2 * Meta.shop_level("start_ink")
+	# 成就解锁的墨锭奖励也计入 Meta.ink，这里一并算进预期
+	var ach_ink := 0
+	for id in Achievements.session_unlocks():
+		ach_ink += int(Achievements.get_def(str(id)).get("ink", 0))
+	var expected := 2 + floori(kills / 2.0) + rooms * 5 + (25 if cleared else 0) + 2 * Meta.shop_level("start_ink") + ach_ink
 	var actual := Meta.ink - _ink_before
-	p("墨锭结算：击杀=%d 已清房间=%d 通关=%s 聚墨=%d 实际=%d 预期=%d（期望一致）" % [kills, rooms, cleared, Meta.shop_level("start_ink"), actual, expected])
+	p("墨锭结算：击杀=%d 已清房间=%d 通关=%s 聚墨=%d 功名奖励=%d 实际=%d 预期=%d（期望一致）" % [kills, rooms, cleared, Meta.shop_level("start_ink"), ach_ink, actual, expected])
 
 
 func _shot(tag: String) -> void:

@@ -106,3 +106,19 @@
 - 取舍：设置 / 化身谱 / 商店 / 致谢 / 开始面板**不套幕布**——它们开销很小，白加 0.46 秒只会让点击手感变钝。`LoadVeil` 保留为通用件，之后哪块面板变重可以直接接入。
 - 涉及文件：`scripts/ui/load_veil.gd`、`project.godot`、`scripts/ui/main_menu.gd`、`scripts/ui/codex_panel.gd`、`scripts/ui/start_panel.gd`、`scripts/ui/pause_menu.gd`、`scripts/ui/settlement_panel.gd`、`scripts/world/room_01.gd`
 
+---
+
+## 追加：功名录 · 成就系统（2026-11-06）
+
+- 规模与分类：共 **125 条**，六类页签——行旅 22、技艺 30、化身 25、百相 17、墨缘 20、秘闻 11。每条分三阶（墨 / 朱 / 金），奖励墨锭，部分带可佩戴称号。
+- 数据分层：
+  - `stats`：跨周目累计（击杀、清房、闪避、招架、墨锭收支、拾取、强化……）。
+  - `run`：本局临时统计（受伤、技能次数、开局时刻），用于无伤、速通、空手这类单局条件。
+  - `unlocked`：id → 解锁时间戳；`equipped` 记录当前佩戴称号。
+- 定义驱动：`ACHIEVEMENTS` 表 + `_by_stat` 索引，事件只检查受影响的条目，不为每条成就写专用判定。存档 `user://achievements.json`，临时文件替换写盘，跟随 `Meta.persist`（测试不落盘）。
+- 老存档补种：首次读档若本地无成就数据，用 `Meta` 的击杀 / 通关 / 节点 / 购买 / 墨锭 / 收录 / 契合度反向补种；补种期间静默，不会开机连刷印章。
+- 实时反馈：解锁时右上角浮出一枚朱砂小印（品阶着色，`CanvasLayer 95`、`PROCESS_MODE_ALWAYS`），多条排队串行播放；结算面板在墨锭下方追加一行「功名 · 最近三项 等 N 项」。
+- 界面：主菜单新增「功名录」入口，`achievements_panel` 为 7 页签三列卡片；未达成显示当前 / 目标进度，秘闻类未解锁显示「？？？」「达成后揭晓」，带称号的已达成卡可点击佩戴。主菜单标题下展示当前称号。
+- 埋点（只统计、不改判定）：`Meta`（击杀、墨锭收支、节点、买断、补给）、`player`（伤害、受伤、招架、金钟、完美闪避、技能、复活）、`c016`（精英 / 首领 / 最高连击）、`run_state`（开局、强化）、`room_01`（清房、无伤、结算）、`blessing_panel`、`decor_interactive`。
+- 验证：无头全量解析无错误；`ui_test`、`start_flow_test`、`room_test`、`settlement_dead_test`、`settlement_clear_test` 全部通过；截图验收主菜单称号行、小印章、功名录各页与结算功名行。结算测试的墨锭预期已把功名奖励计入。
+

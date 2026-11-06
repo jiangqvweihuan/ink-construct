@@ -171,6 +171,7 @@ var meta_snapshot := {} # 开局时的 Meta 快照，结算面板 diff 出本局
 
 ## 开新一局（开始流程面板选完模式、难度与角色后调用；测试无参 = 冒险 + 落笔 + 双刺）
 func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1) -> void:
+	Achievements.begin_run() # 本局统计清零：无伤 / 速通 / 空手这些单局条件靠它
 	active = true
 	mode = MODE_ENDLESS if new_mode == MODE_ENDLESS else MODE_ADVENTURE
 	difficulty = clampi(new_difficulty, 0, DIFFICULTIES.size() - 1)
@@ -430,6 +431,7 @@ func buy(key: String) -> bool:
 	if level(key) >= int(info["max"]):
 		return false
 	upgrades[key] = level(key) + 1
+	Achievements.event("upgrades_picked")
 	if key == "hp":
 		max_hp = calculated_max_hp()
 		hp = max_hp # 买了加血就回满，下一层的起始血量一并提高
