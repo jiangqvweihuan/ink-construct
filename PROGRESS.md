@@ -93,3 +93,16 @@
 - 读招含义：K 起手会小幅前冲，所以刀痕落在身后。正面砍一个、背后还挂着第二刀，于是「往前砍」变成「前后都收得住」；空挥不留痕，避免无脑刷。
 - 实现：`player.gd` 新增 `_arm_scar / _scar_tick / _scar_ring / _clear_scar`，配置写在 `skulls.gd` 的 `scar` 字段里，先例是预警墨环 `FX` + 朱砂斩击。
 
+---
+
+## 追加：加载幕「残卷展开」（2026-11-06）
+
+- 现象：打开图鉴会卡 1～2 秒。原因是 `codex_panel._refresh()` 先销毁全部子节点，再在同一帧同步重建：实例化 Spine 演示台、铺几十张带贴图的条目卡，主线程被连续占满，幕上看起来就是死机。
+- 方案（方案 A：加载幕 + 分帧构建）：
+  1. 新增通用自动加载 `LoadVeil`（CanvasLayer 100，`PROCESS_MODE_ALWAYS`）：残卷从中间向两侧铺开，卷面竖排小字「正在展卷 / 正在入卷 / 正在合卷」；展开完成后才把控制权交回调用方，重活期间玩家看到的是**一整幅已展开的残卷**，而不是卡在一半的动画。收起时补足最短停留 0.46 秒，避免一闪而过。
+  2. 图鉴首开改走 `await LoadVeil.cover()` → 实例化面板 → `await LoadVeil.reveal()`；`_opening` 标记挡住连点叠面板。
+  3. 图鉴条目卡延后一帧铺：`_build_detail()` 与演示台仍保持同步（测试要在 `_pick()` 后立刻读 `_preview`），卡片与「返回」按钮推到下一帧，并用 `_build_gen` 作废过早的延迟构建（快速切页时不会把上一页的卡铺到新页上）。
+  4. 进出关卡、重开本局、回主菜单统一改走 `transition_to / transition_reload`，切场景本身也落在幕布下；幕布期间吞掉输入，按 Esc 不会穿透关掉底下正在重建的面板。
+- 取舍：设置 / 化身谱 / 商店 / 致谢 / 开始面板**不套幕布**——它们开销很小，白加 0.46 秒只会让点击手感变钝。`LoadVeil` 保留为通用件，之后哪块面板变重可以直接接入。
+- 涉及文件：`scripts/ui/load_veil.gd`、`project.godot`、`scripts/ui/main_menu.gd`、`scripts/ui/codex_panel.gd`、`scripts/ui/start_panel.gd`、`scripts/ui/pause_menu.gd`、`scripts/ui/settlement_panel.gd`、`scripts/world/room_01.gd`
+

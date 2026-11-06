@@ -482,6 +482,7 @@ var _pool: Array = [] # 当前动作的动画池
 var _pool_i := 0 # 池内当前变式下标
 var _music_on := true # 图鉴音乐开关：每次打开图鉴默认开启
 var _music_btn: TextureButton = null # 音乐开关按钮：切开关只重绘它，不重建整个面板
+var _build_gen := 0 # 构建代次：切页太快时，上一轮的延迟铺卡要自行作废
 
 
 func _ready() -> void:
@@ -503,6 +504,7 @@ func _exit_tree() -> void:
 
 
 func _build() -> void:
+	_build_gen += 1
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.45)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -564,6 +566,11 @@ func _build() -> void:
 
 		# 先搭演示与详情，再铺条目卡：招式动画会甩出演示台，卡片后画才能盖住溢出的部分
 		_build_detail()
+		# 条目卡每张要两张贴图，数量又最多；推到下一帧再铺，避免和演示台挤在同一帧
+		var gen := _build_gen
+		await get_tree().process_frame
+		if gen != _build_gen or not is_inside_tree():
+			return
 
 		if _tab == TAB_ENEMY:
 			# 每个分组独占标题行；卡片只在组内按两列排布，行高不跨组累加。

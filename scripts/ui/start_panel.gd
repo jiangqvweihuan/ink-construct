@@ -159,7 +159,7 @@ func _start_run() -> void:
 	_play_sfx(SFX_RUN_EMBARK)
 	Meta.select_supply(_supply)
 	Run.start(_mode, _char, _difficulty)
-	get_tree().change_scene_to_file("res://scenes/world/room_01.tscn")
+	await LoadVeil.transition_to("res://scenes/world/room_01.tscn", "正在入卷")
 
 
 func _play_sfx(stream: AudioStream) -> void:

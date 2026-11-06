@@ -23,6 +23,7 @@ ScreenFX="*res://scripts/systems/screen_fx.gd"
 Score="*res://scripts/systems/score.gd"
 Run="*res://scripts/systems/run_state.gd"
 Meta="*res://scripts/systems/meta.gd"
+LoadVeil="*res://scripts/ui/load_veil.gd"
 
 [display]
 

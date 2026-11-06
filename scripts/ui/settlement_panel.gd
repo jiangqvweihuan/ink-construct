@@ -393,12 +393,12 @@ func _frac_of(exp: int) -> float:
 func _restart() -> void:
 	get_tree().paused = false
 	Run.start(Run.mode, Run.skull_id, Run.difficulty)
-	get_tree().reload_current_scene()
+	await LoadVeil.transition_reload("正在重入此卷")
 
 
 func _to_menu() -> void:
 	get_tree().paused = false
-	get_tree().change_scene_to_file("res://scenes/ui/main_menu.tscn")
+	await LoadVeil.transition_to("res://scenes/ui/main_menu.tscn", "正在合卷")
 
 
 func _text(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color) -> void:

@@ -371,7 +371,7 @@ func _on_proceed() -> void:
 	_proceeding = true
 	Run.advance()
 	get_tree().paused = false # 强化面板是时停的，进下一层前必须恢复
-	get_tree().change_scene_to_file("res://scenes/world/room_01.tscn")
+	await LoadVeil.transition_to("res://scenes/world/room_01.tscn", "正在入卷")
 
 
 # ---------- 自动演示（测试用） ----------
