@@ -8,6 +8,7 @@ extends CanvasLayer
 ## 玩家文案与内部动画键、判定参数分离；没有正式来历的区块直接省略。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const Skins = preload("res://scripts/systems/skins.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
 const SpinePoseMixer = preload("res://scripts/systems/spine_pose_mixer.gd")
@@ -1119,6 +1120,8 @@ func _build_detail() -> void:
 	if has_portrait:
 		_make_button("原 画", Vector2(688, 94), Vector2(78, 28), 13, _set_portrait_view.bind(true), _show_portrait)
 		_make_button("动 作", Vector2(774, 94), Vector2(78, 28), 13, _set_portrait_view.bind(false), not _show_portrait)
+	if not m.is_empty() and not bool(m["locked"]):
+		_build_skin_switch()
 
 	# 演示先画：甩出演示台的刀光会被后面的文字 / 卡片盖住，不会糊字
 	var data = null
@@ -1226,6 +1229,49 @@ func _build_detail() -> void:
 	_acts = built
 	for i in _acts.size():
 		_make_action_button(_acts[i], i)
+
+
+## 外观切换：只列出已购皮肤，购自墨锭商栈；未购买的按原装展示
+func _build_skin_switch() -> void:
+	var is_enemy := _tab == TAB_ENEMY
+	var defs: Array = Skins.defs(_sel, is_enemy)
+	if defs.is_empty():
+		return
+	var opts := _skin_options(_sel, is_enemy)
+	if opts.size() <= 1:
+		return
+	var worn := Skins.worn(_sel)
+	var idx := 0
+	for i in opts.size():
+		if str(opts[i]["id"]) == worn:
+			idx = i
+	_make_button("‹", Vector2(470, 94), Vector2(28, 28), 16, _cycle_skin.bind(-1))
+	_make_button(str(opts[idx].get("name", "原装")), Vector2(502, 94), Vector2(142, 28), 13,
+		_cycle_skin.bind(1), worn != "")
+	_make_button("›", Vector2(648, 94), Vector2(28, 28), 16, _cycle_skin.bind(1))
+
+
+func _skin_options(owner_id: String, is_enemy: bool) -> Array:
+	var out: Array = [{"id": "", "name": "原装"}]
+	for d in Skins.defs(owner_id, is_enemy):
+		if Skins.owned(owner_id, str(d["id"])):
+			out.append(d)
+	return out
+
+
+func _cycle_skin(step: int) -> void:
+	var is_enemy := _tab == TAB_ENEMY
+	var opts := _skin_options(_sel, is_enemy)
+	if opts.size() <= 1:
+		return
+	var worn := Skins.worn(_sel)
+	var idx := 0
+	for i in opts.size():
+		if str(opts[i]["id"]) == worn:
+			idx = i
+	idx = posmod(idx + step, opts.size())
+	Skins.wear(_sel, str(opts[idx]["id"]))
+	call_deferred("_refresh")
 
 
 ## 条目详情模型：敌人与化身统一成同一份结构，右栏只认这一份

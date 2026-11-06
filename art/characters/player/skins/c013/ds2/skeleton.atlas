@@ -1,0 +1,230 @@
+skeleton.png
+size: 512, 512
+format: RGBA8888
+filter: Linear, Linear
+repeat: none
+b-cloth
+  rotate: false
+  xy: 2, 246
+  size: 108, 151
+  orig: 108, 151
+  offset: 0, 0
+  index: -1
+b-fozhu
+  rotate: false
+  xy: 279, 34
+  size: 48, 22
+  orig: 48, 22
+  offset: 0, 0
+  index: -1
+b-hand
+  rotate: true
+  xy: 327, 195
+  size: 38, 32
+  orig: 38, 32
+  offset: 0, 0
+  index: -1
+b-skirt
+  rotate: true
+  xy: 359, 261
+  size: 136, 82
+  orig: 136, 82
+  offset: 0, 0
+  index: -1
+body
+  rotate: false
+  xy: 464, 436
+  size: 46, 74
+  orig: 46, 74
+  offset: 0, 0
+  index: -1
+f-cloth
+  rotate: false
+  xy: 2, 93
+  size: 105, 151
+  orig: 105, 151
+  offset: 0, 0
+  index: -1
+f-fozhu
+  rotate: true
+  xy: 262, 181
+  size: 52, 63
+  orig: 52, 63
+  offset: 0, 0
+  index: -1
+f-hand
+  rotate: false
+  xy: 109, 93
+  size: 19, 11
+  orig: 19, 11
+  offset: 0, 0
+  index: -1
+f-ribbon
+  rotate: false
+  xy: 139, 4
+  size: 36, 100
+  orig: 36, 100
+  offset: 0, 0
+  index: -1
+f-skirt
+  rotate: false
+  xy: 2, 2
+  size: 135, 89
+  orig: 135, 89
+  offset: 0, 0
+  index: -1
+gunzi
+  rotate: false
+  xy: 2, 399
+  size: 460, 111
+  orig: 460, 111
+  offset: 0, 0
+  index: -1
+hand
+  rotate: true
+  xy: 279, 13
+  size: 19, 40
+  orig: 19, 40
+  offset: 0, 0
+  index: -1
+head
+  rotate: true
+  xy: 226, 6
+  size: 43, 51
+  orig: 43, 51
+  offset: 0, 0
+  index: -1
+head1
+  rotate: false
+  xy: 290, 58
+  size: 44, 57
+  orig: 44, 57
+  offset: 0, 0
+  index: -1
+l-forearm
+  rotate: false
+  xy: 464, 371
+  size: 46, 63
+  orig: 46, 63
+  offset: 0, 0
+  index: -1
+l-lowerleg
+  rotate: false
+  xy: 109, 106
+  size: 64, 97
+  orig: 64, 97
+  offset: 0, 0
+  index: -1
+l-lowerleg1
+  rotate: false
+  xy: 175, 115
+  size: 57, 88
+  orig: 57, 88
+  offset: 0, 0
+  index: -1
+l-thigh
+  rotate: false
+  xy: 112, 280
+  size: 121, 117
+  orig: 121, 117
+  offset: 0, 0
+  index: -1
+l-upperarm
+  rotate: false
+  xy: 234, 121
+  size: 57, 58
+  orig: 57, 58
+  offset: 0, 0
+  index: -1
+lb-hand
+  rotate: false
+  xy: 234, 181
+  size: 23, 22
+  orig: 23, 22
+  offset: 0, 0
+  index: -1
+lf-hand
+  rotate: false
+  xy: 336, 104
+  size: 22, 27
+  orig: 22, 27
+  offset: 0, 0
+  index: -1
+pelvis
+  rotate: true
+  xy: 266, 58
+  size: 61, 22
+  orig: 61, 22
+  offset: 0, 0
+  index: -1
+r-forearm
+  rotate: true
+  xy: 293, 117
+  size: 62, 38
+  orig: 62, 38
+  offset: 0, 0
+  index: -1
+r-forearm1
+  rotate: true
+  xy: 226, 51
+  size: 62, 38
+  orig: 62, 38
+  offset: 0, 0
+  index: -1
+r-lowerleg
+  rotate: false
+  xy: 443, 266
+  size: 47, 103
+  orig: 47, 103
+  offset: 0, 0
+  index: -1
+r-lowerleg1
+  rotate: false
+  xy: 177, 16
+  size: 47, 97
+  orig: 47, 97
+  offset: 0, 0
+  index: -1
+r-thigh
+  rotate: false
+  xy: 235, 287
+  size: 122, 110
+  orig: 122, 110
+  offset: 0, 0
+  index: -1
+r-upperarm
+  rotate: false
+  xy: 262, 235
+  size: 76, 50
+  orig: 76, 50
+  offset: 0, 0
+  index: -1
+rb-hand
+  rotate: false
+  xy: 336, 80
+  size: 21, 22
+  orig: 21, 22
+  offset: 0, 0
+  index: -1
+rf-hand
+  rotate: false
+  xy: 333, 133
+  size: 25, 26
+  orig: 25, 26
+  offset: 0, 0
+  index: -1
+sb-cloth
+  rotate: true
+  xy: 112, 205
+  size: 73, 148
+  orig: 73, 148
+  offset: 0, 0
+  index: -1
+sf-cloth
+  rotate: false
+  xy: 333, 161
+  size: 25, 32
+  orig: 25, 32
+  offset: 0, 0
+  index: -1
+

@@ -113,6 +113,8 @@ var battle_passives := {} # 未来图鉴角色战斗被动：注册后可被玩�
 var inventory := {} # 一次性补给 id -> 库存数量
 var selected_supply := "" # 下一局选用的补给；Run.start 时消耗一个
 var seen := {} # 图鉴收录：敌人 / Boss id -> 已击败次数（>0 即收录，图鉴里才不是 ？？？）
+var skins := {} # 已购皮肤："owner/skin" -> true
+var skin_worn := {} # 皮肤穿戴记录：owner_id -> skin_id（缺失 = 原装外观）
 var persist := true # 测试场景里关掉，别把 debug 数据写进玩家存档
 
 
@@ -359,6 +361,33 @@ func add_ink(amount: int) -> void:
 	_save()
 
 
+# ---------- 外观收藏 ----------
+
+func owns_skin(key: String) -> bool:
+	return bool(skins.get(key, false))
+
+
+func worn_skin(owner_id: String) -> String:
+	return str(skin_worn.get(owner_id, ""))
+
+
+func wear_skin(owner_id: String, skin_id: String) -> void:
+	if skin_id == "":
+		skin_worn.erase(owner_id)
+	else:
+		skin_worn[owner_id] = skin_id
+	_save()
+
+
+func buy_skin(key: String, price: int) -> bool:
+	if bool(skins.get(key, false)) or ink < price:
+		return false
+	ink -= price
+	skins[key] = true
+	_save()
+	return true
+
+
 # ---------- 一次性补给行囊 ----------
 
 func supply_count(key: String) -> int:
@@ -518,6 +547,7 @@ func _save() -> void:
 		"kills": kills, "clears": clears, "mastery": mastery, "ink": ink,
 		"purchases": purchases, "form_nodes": form_nodes, "inventory": inventory,
 		"selected_supply": selected_supply, "seen": seen,
+		"skins": skins, "skin_worn": skin_worn,
 	}))
 	f.close()
 	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(temp_path), ProjectSettings.globalize_path(SAVE_PATH))
@@ -553,6 +583,12 @@ func _load() -> void:
 	var inv = data.get("inventory", {})
 	if typeof(inv) == TYPE_DICTIONARY:
 		inventory = inv
+	var sk = data.get("skins", {})
+	if typeof(sk) == TYPE_DICTIONARY:
+		skins = sk
+	var sw = data.get("skin_worn", {})
+	if typeof(sw) == TYPE_DICTIONARY:
+		skin_worn = sw
 	selected_supply = str(data.get("selected_supply", ""))
 	# 旧存档迁移：保留已购等级与补给库存，替换为无墨骨经济下的等阶条目。
 	if purchases.has("start_bones"):

@@ -4,6 +4,8 @@ extends RefCounted
 ## 形态差异（骨架 / 缩放 / 动作名 / 招式 / 判定范围 / 命中时刻 / 血量 / 抗性）全在这里，
 ## 新增敌人只需加一项 + 一个只改 type_id 的 tscn。
 
+const Skins := preload("res://scripts/systems/skins.gd")
+
 const DEFAULT_ID := "c016"
 
 const TYPES := {
@@ -315,4 +317,4 @@ const TYPES := {
 
 static func get_type(id: String) -> Dictionary:
 	var type: Dictionary = TYPES.get(id, TYPES[DEFAULT_ID])
-	return type
+	return Skins.enemy_profile(id, type)

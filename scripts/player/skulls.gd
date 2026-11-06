@@ -8,6 +8,8 @@ extends RefCounted
 ##   c021 骨架 324.8px -> 0.394
 ##   c023 骨架 270px   -> 0.474
 
+const Skins := preload("res://scripts/systems/skins.gd")
+
 const DEFAULT_ID := "c021"
 
 ## 形态强度顺序（由弱到强）：选角界面 / 化身谱按此排列，解锁条件也按同一梯度递增
@@ -487,7 +489,7 @@ const SKULLS := {
 
 static func get_profile(id: String) -> Dictionary:
 	var profile: Dictionary = SKULLS.get(id, SKULLS[DEFAULT_ID])
-	return profile
+	return Skins.player_profile(id, profile)
 
 
 static func ids() -> Array:

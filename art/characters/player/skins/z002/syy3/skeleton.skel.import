@@ -1,0 +1,14 @@
+[remap]
+
+importer="spine.skel"
+type="SpineSkeletonFileResource"
+uid="uid://cr3p4wsp4r8wg"
+path="res://.godot/imported/skeleton.skel-c7a00bc61fa0295d52be27b527ef38e6.spskel"
+
+[deps]
+
+source_file="res://art/characters/player/skins/z002/syy3/skeleton.skel"
+dest_files=["res://.godot/imported/skeleton.skel-c7a00bc61fa0295d52be27b527ef38e6.spskel"]
+
+[params]
+

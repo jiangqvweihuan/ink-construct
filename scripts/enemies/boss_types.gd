@@ -5,6 +5,8 @@ extends RefCounted
 ## 变身期间无敌）、死后尸体停留更久、头顶不挂小血条（HUD 大血条代之）。
 ## ranges / hit_at 均由 scenes/tests/range_probe.tscn 实测骨架像素 × 本形态 scale 得出。
 
+const Skins := preload("res://scripts/systems/skins.gd")
+
 const DEFAULT_ID := "_debug"
 
 ## 一局随机登场哪一个 Boss（_debug 仅供 boss_test 冒烟，不进随机池）
@@ -285,4 +287,4 @@ const BOSSES := {
 
 static func get_boss(id: String) -> Dictionary:
 	var boss: Dictionary = BOSSES.get(id, BOSSES[DEFAULT_ID])
-	return boss
+	return Skins.enemy_profile(id, boss)

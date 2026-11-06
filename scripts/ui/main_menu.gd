@@ -141,30 +141,7 @@ func _make_title() -> void:
 	seal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(seal)
 
-	# 佩戴的称号：没佩戴就整行不出现，不占视觉
-	var worn := Achievements.equipped_title()
-	if worn != "":
-		var bonus_line := Achievements.equipped_bonus_text()
-		var t := Label.new()
-		t.text = "称号 · %s" % worn
-		if not Achievements.bonus_on:
-			t.text += " ｜ 加成已关"
-		elif bonus_line != "":
-			t.text += " ｜ %s" % bonus_line
-		t.add_theme_font_size_override("font_size", 16)
-		t.add_theme_color_override("font_color", Color(1.0, 0.87, 0.52))
-		t.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-		t.add_theme_constant_override("outline_size", 7)
-		# 压在亮天空上时补一层投影，避免细金字发灰
-		t.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-		t.add_theme_constant_override("shadow_offset_x", 2)
-		t.add_theme_constant_override("shadow_offset_y", 2)
-		t.add_theme_constant_override("shadow_outline_size", 4)
-		t.position = Vector2(122, 240)
-		t.size = Vector2(640, 28)
-		t.clip_text = true
-		t.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(t)
+	# 称号只在「功名录」里展示，主界面不占版面
 
 
 ## 菜单项：默认纸白字 + 短朱砂线；悬停上浮 4px、墨底淡入、字转纯白、朱砂线拉满，其余项压暗

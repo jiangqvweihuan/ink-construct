@@ -952,7 +952,7 @@ func _setup_spine() -> void:
 	_skill_cds.clear()
 	_skill_cd_totals.clear()
 	for n in skill_config:
-		var names: Array = (skill_config[n].get("pool", [n]) as Array).duplicate()
+		var names: Array = (skill_config[n].get("pool", [skill_config[n].get("anim", n)]) as Array).duplicate()
 		var alternate: Dictionary = skill_config[n].get("awaken", {})
 		for an in alternate.get("pool", [alternate.get("anim", "")]):
 			if str(an) != "" and not names.has(str(an)):
@@ -3369,7 +3369,7 @@ func _start_skill(n: String) -> void:
 		_return_time = 6.0
 		_outbound_hits.clear()
 	# 随机池技能（银夜 I/O）：每次从池里抽一种动画，时长按抽中的走；冷却/命中段全技能统一
-	_skill_anim = n
+	_skill_anim = str(cfg.get("anim", n))
 	if cfg.has("pool"):
 		var pool: Array = cfg["pool"]
 		_skill_anim = str(pool[randi() % pool.size()])

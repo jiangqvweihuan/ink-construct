@@ -1,9 +1,10 @@
 extends CanvasLayer
 
-## 独立墨锭商栈：永久强化 / 重随秘宝 / 开局补给 / 外观分类。
-## 角色买断仍在各角色修炼页顶部；外观只预留分类，不上架空商品。
+## 独立墨锭商栈：永久强化 / 重随秘宝 / 开局补给 / 外观收藏。
+## 角色买断仍在各角色修炼页顶部；外观按化身 / 敌人类别分册出售，购买后在图鉴里更换。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const Skins = preload("res://scripts/systems/skins.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_PURCHASE := preload("res://audio/sfx/shop_purchase.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
@@ -21,6 +22,9 @@ const TABS := {
 
 var _tab := "permanent"
 var _sfx: AudioStreamPlayer
+var _appearance_enemy := false
+var _appearance_owner := ""
+var _appearance_pick := ""
 
 
 func _ready() -> void:
@@ -104,23 +108,212 @@ func _shop_card(key: String, pos: Vector2) -> void:
 
 
 func _build_appearance() -> void:
-	_text(self, "主角与敌人的外观将分册收藏", Vector2(230, 245), Vector2(820, 42), 25, PAPER)
-	_plate(Vector2(155, 330), Vector2(440, 150), "主 角 外 观", "按化身分册\n等待新外观制作完成")
-	_plate(Vector2(685, 330), Vector2(440, 150), "敌 人 外 观", "按敌人类别分册\n等待新外观制作完成")
-	_text(self, "此处只保留分类，不出售尚未制作的内容", Vector2(230, 525), Vector2(820, 36), 17, DIM)
+	var owners: Array = Skins.owners(_appearance_enemy)
+	if not owners.has(_appearance_owner):
+		_appearance_owner = str(owners[0]) if not owners.is_empty() else ""
+	var hero_tab := _button(self, "主 角 外 观", Vector2(100, 224), Vector2(120, 36), _set_appearance_side.bind(false))
+	hero_tab.modulate = Color.WHITE if not _appearance_enemy else Color(1, 1, 1, 0.6)
+	var enemy_tab := _button(self, "敌 人 外 观", Vector2(230, 224), Vector2(120, 36), _set_appearance_side.bind(true))
+	enemy_tab.modulate = Color.WHITE if _appearance_enemy else Color(1, 1, 1, 0.6)
+
+	var y := 276.0
+	for oid in owners:
+		_owner_row(str(oid), Vector2(100, y))
+		y += 52.0
+	if Skins.worn(_appearance_owner) != "":
+		_button(self, "恢复原装", Vector2(100, y + 6), Vector2(250, 40), _reset_skin)
+
+	if _appearance_owner == "":
+		return
+	var list: Array = Skins.defs(_appearance_owner, _appearance_enemy)
+	_pick_default(list)
+	_build_stage(Skins.find(_appearance_owner, _appearance_pick, _appearance_enemy))
+	for i in list.size():
+		_pick_row(list[i], Vector2(752, 276 + i * 58))
+	_text(self, "点左侧分类翻册 · 点右侧条目在左侧试穿 · 统一 %d 墨锭 · 购买后在图鉴中更换" % Skins.PRICE,
+		Vector2(100, 648), Vector2(1050, 22), 14, DIM)
 
 
-func _plate(pos: Vector2, size: Vector2, title: String, desc: String) -> void:
-	var r := TextureRect.new()
-	r.texture = InkTex.load("res://art/ui/menu/btn_normal.png")
-	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	r.stretch_mode = TextureRect.STRETCH_SCALE
-	r.position = pos
-	r.size = size
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(r)
-	_text(r, title, Vector2(20, 20), Vector2(size.x - 40, 40), 26, GOLD)
-	_text(r, desc, Vector2(20, 72), Vector2(size.x - 40, 58), 17, DIM)
+## 左侧分类：每个化身 / 敌种一行，附带「已穿哪套」
+func _owner_row(oid: String, pos: Vector2) -> void:
+	var info: Dictionary = Skins.group(oid, _appearance_enemy)
+	var list: Array = Skins.defs(oid, _appearance_enemy)
+	var worn := Skins.worn(oid)
+	var b := TextureButton.new()
+	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
+	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
+	b.ignore_texture_size = true
+	b.stretch_mode = TextureButton.STRETCH_SCALE
+	b.position = pos
+	b.size = Vector2(250, 46)
+	b.modulate = Color.WHITE if oid == _appearance_owner else Color(1, 1, 1, 0.6)
+	add_child(b)
+	_text(b, str(info.get("label", oid)), Vector2(14, 1), Vector2(222, 24), 19, PAPER)
+	var sub := "%d 套" % list.size()
+	if worn != "":
+		var d: Dictionary = Skins.find(oid, worn, _appearance_enemy)
+		sub += " · " + str(d.get("name", worn))
+	_text(b, sub, Vector2(14, 24), Vector2(222, 18), 13, GOLD if worn != "" else DIM)
+	b.pressed.connect(func():
+		_appearance_owner = oid
+		_appearance_pick = ""
+		call_deferred("_refresh"))
+
+
+## 中间试衣台：大图预览当前选中的皮肤（真实骨骼动画，不是静态贴图）
+func _build_stage(d: Dictionary) -> void:
+	var plate := Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.99, 0.96, 0.88, 0.45)
+	sb.border_color = Color(0.20, 0.17, 0.13, 0.32)
+	sb.set_border_width_all(1)
+	plate.add_theme_stylebox_override("panel", sb)
+	plate.position = Vector2(372, 276)
+	plate.size = Vector2(368, 268)
+	plate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(plate)
+	if d.is_empty():
+		return
+	var sid := str(d["id"])
+	var ok := _skin_loadable(sid)
+	_text(self, str(d.get("name", sid)), Vector2(372, 548), Vector2(368, 26), 21, GOLD)
+	if ok:
+		var data = load(Skins.data_path(_appearance_owner, sid, _appearance_enemy))
+		var sprite = ClassDB.instantiate("SpineSprite")
+		add_child(sprite)
+		sprite.set("skeleton_data_res", data)
+		data.call("set_default_mix", 0.2)
+		var h := maxf(float(data.call("get_height")), 1.0)
+		var sc := 238.0 / h
+		sprite.scale = Vector2(sc, sc)
+		sprite.position = Vector2(556, 534)
+		var anim := _idle_anim(data, d)
+		if anim != "":
+			sprite.call("get_animation_state").call("set_animation", anim, true, 0)
+
+	var owned := Skins.owned(_appearance_owner, sid)
+	var worn := Skins.worn(_appearance_owner) == sid
+	var affordable := Meta.ink >= Skins.PRICE
+	var status := "当前穿戴"
+	var color := GOLD
+	if not ok:
+		status = "素材待补 · 暂不可购买"
+		color = RED
+	elif not worn:
+		status = "已拥有 · 穿戴后在图鉴中生效" if owned else "尚未拥有"
+		color = DIM
+	_text(self, status, Vector2(372, 574), Vector2(368, 20), 14, color)
+	if not ok:
+		return
+	if worn:
+		var b := _button(self, "使 用 中", Vector2(372, 598), Vector2(368, 40), func(): pass)
+		b.disabled = true
+	elif owned:
+		_button(self, "穿    戴", Vector2(372, 598), Vector2(368, 40), _wear_pick)
+	elif affordable:
+		_button(self, "购买 · %d 墨锭" % Skins.PRICE, Vector2(372, 598), Vector2(368, 40), _buy_pick)
+	else:
+		var b := _button(self, "墨锭不足 · 需 %d" % Skins.PRICE, Vector2(372, 598), Vector2(368, 40), func(): pass)
+		b.disabled = true
+
+
+## 右侧条目：只负责选中，买 / 穿都在左侧试衣台确认
+func _pick_row(d: Dictionary, pos: Vector2) -> void:
+	var sid := str(d["id"])
+	var owned := Skins.owned(_appearance_owner, sid)
+	var worn := Skins.worn(_appearance_owner) == sid
+	var sel := sid == _appearance_pick
+	var broken := not _skin_loadable(sid)
+	var b := TextureButton.new()
+	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
+	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
+	b.ignore_texture_size = true
+	b.stretch_mode = TextureButton.STRETCH_SCALE
+	b.position = pos
+	b.size = Vector2(398, 52)
+	b.modulate = Color.WHITE if sel else Color(1, 1, 1, 0.56)
+	add_child(b)
+	var title := _text(b, str(d.get("name", sid)), Vector2(18, 2), Vector2(232, 26), 19, PAPER)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var st := "%d 墨锭" % Skins.PRICE
+	var color := RED
+	if broken:
+		st = "素材待补"
+		color = DIM
+	elif worn:
+		st = "当前穿戴"
+		color = GOLD
+	elif owned:
+		st = "已拥有"
+		color = DIM
+	_text(b, st, Vector2(250, 2), Vector2(132, 26), 14, color)
+	if sel:
+		var bar := ColorRect.new()
+		bar.color = RED
+		bar.size = Vector2(3, 52)
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(bar)
+	b.pressed.connect(func():
+		_play_sfx(SFX_CLICK)
+		_appearance_pick = sid
+		call_deferred("_refresh"))
+
+
+## 选中项失效（换分类 / 换页）时落到已穿的那套，再不行落到第一套
+func _pick_default(list: Array) -> void:
+	for d in list:
+		if str(d["id"]) == _appearance_pick:
+			return
+	var w := Skins.worn(_appearance_owner)
+	if w != "" and not Skins.find(_appearance_owner, w, _appearance_enemy).is_empty():
+		_appearance_pick = w
+	elif not list.is_empty():
+		_appearance_pick = str(list[0]["id"])
+	else:
+		_appearance_pick = ""
+
+
+func _skin_loadable(sid: String) -> bool:
+	return Skins.loadable(_appearance_owner, sid, _appearance_enemy)
+
+
+## 试穿动作：优先站姿（所有角色都被映射成 stand），实在没有就退回第一个动画
+func _idle_anim(data, d: Dictionary) -> String:
+	var names := {}
+	for a in data.call("get_animations"):
+		names[str(a.call("get_name"))] = true
+	var amap: Dictionary = d.get("anim", {})
+	for cand in ["stand", "idle", "daiji"]:
+		var n := str(amap.get(cand, cand))
+		if names.has(n):
+			return n
+	return str(names.keys()[0]) if not names.is_empty() else ""
+
+
+func _wear_pick() -> void:
+	Skins.wear(_appearance_owner, _appearance_pick)
+	call_deferred("_refresh")
+
+
+func _buy_pick() -> void:
+	if Skins.buy(_appearance_owner, _appearance_pick, _appearance_enemy):
+		_play_sfx(SFX_PURCHASE)
+		call_deferred("_refresh")
+	else:
+		_click()
+
+
+func _set_appearance_side(is_enemy: bool) -> void:
+	_appearance_enemy = is_enemy
+	_appearance_owner = ""
+	_appearance_pick = ""
+	call_deferred("_refresh")
+
+
+func _reset_skin() -> void:
+	Skins.wear(_appearance_owner, "")
+	_appearance_pick = ""
+	call_deferred("_refresh")
 
 
 func _set_tab(tab: String) -> void:
