@@ -416,18 +416,18 @@ const SKULLS := {
 			},
 		],
 		"skills": {
-			# K 蓄力斩（atk03_03/atk04_02 随机，编号 #15/#17）：蓄力期间霸体。
+			# K 崩云·斩影（atk03_03/atk04_02 随机，编号 #15/#17）：蓄力期间霸体。
 			# 两段都是双手蓄力大斩，hit_at 标"刀刃扫出"的中段（出手即判定不拖泥）。
 			# speed 0.8 慢放：原速太赶，蓄力顿挫感出不来——慢放后实长 1.21/1.44s。
-			# sword_qi：预留的远程剑气接口——以后这里填 {speed, range, damage} 就会在
-			# 挥剑时刻发射剑气（走 projectile 管线），现在为 null 只发近战判定
+			# scar（独门机制）：刀痕留在蓄力起点 0.55 秒后自主回响第二刀——
+			# 向前挥斩时刀痕正好封住身后的退路，回响命中还返还 1 秒冷却。
 			"skill14_02": {
-				"action": "skill", "cooldown": 8.0, "poise": true, "speed": 0.8,
+				"action": "skill", "cooldown": 7.0, "poise": true, "speed": 0.8,
 				"pool": ["atk03_03", "atk04_02"],
-				"sword_qi": null, # 接口预留：剑气配置（未实装）
+				"scar": {"delay": 0.55, "damage": 2, "bleed": 1, "refund": 1.0, "range_scale": 1.15},
 				"hit_at": {"atk03_03": 0.34, "atk04_02": 0.53},
-				"range": {"atk03_03": 165.0, "atk04_02": 165.0},
-				"height": 100.0, "damage": 3, "both": true, "sfx": "z003_k_thrust", "sfx_on_release": true,
+				"range": {"atk03_03": 180.0, "atk04_02": 180.0},
+				"height": 110.0, "damage": 4, "both": true, "sfx": "z003_k_thrust", "sfx_on_release": true,
 			},
 			# L 冲拳（skill02 0.883s）：不动剑的武德拳，伤害低冷却短；
 			# 击退机制：命中把敌人往攻击方向轰飞，撞到同伴双方吃组合伤害、撞墙自己再吃一下

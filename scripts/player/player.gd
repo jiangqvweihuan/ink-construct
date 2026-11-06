@@ -301,6 +301,16 @@ var _qg_hover_base := 0.0 # 形态表原始悬停时长
 var _hover_left := 0.0 # 本次跳跃剩余悬停时间
 var _hover_frozen := false # 悬停期间动画已定格（time_scale=0 冻成漂浮姿态）
 var _room_buff_used := false # 银夜 P：本房间的觉醒强化是否已加持（玩家随房间重建 = 天然一房一次）
+# 银夜 K「斩影」：蓄力起点会留下一道刀痕，短暂停留后自主回响第二刀
+var _scar_x := 0.0 # 刀痕中心（记在蓄力起点：挥斩时人已向前，刀痕便留在身后）
+var _scar_facing := 1
+var _scar_range := 0.0
+var _scar_time := 0.0 # 刀痕停留（也是回响倒计时）
+var _scar_echo_done := false
+var _scar_damage := 0
+var _scar_bleed := 1
+var _scar_refund := 1.0
+var _scar_fx: Node2D = null
 var _buff_damage := 0 # 觉醒（I）：限时内全伤害 +N
 var _buff_timer := 0.0 # 觉醒剩余时间
 var _attack_anim := "" # 本段普攻实际抽中的动画（随机池段用）
@@ -711,6 +721,81 @@ func _build_tick(delta: float) -> void:
 					and absf(p.global_position.y - global_position.y) <= 150.0 and e.has_method("contain"):
 				var dur := 0.12 if not e.has_method("stop_tier") or str(e.call("stop_tier")) != "boss" else 0.06
 				e.call("contain", dur)
+	_scar_tick(delta)
+
+
+## 银夜 K 斩影：刀痕留在蓄力起点，短暂预警后自主回响一次，再自行散去。
+func _scar_tick(delta: float) -> void:
+	if _scar_time <= 0.0:
+		return
+	_scar_time = maxf(0.0, _scar_time - delta)
+	if _scar_time <= 0.0 and not _scar_echo_done:
+		_scar_ring()
+		_clear_scar()
+
+
+## 落刀即留痕：刀痕中心取本次 K 的蓄力起点，因此向前挥斩时它正好封住身后的退路。
+func _arm_scar(x: float, skill_range: float) -> void:
+	_clear_scar()
+	var cfg: Dictionary = _skill_runtime.get("scar", {})
+	_scar_x = x
+	_scar_facing = facing
+	_scar_range = skill_range * float(cfg.get("range_scale", 1.15))
+	_scar_time = float(cfg.get("delay", 0.55))
+	_scar_damage = int(cfg.get("damage", 2))
+	_scar_bleed = int(cfg.get("bleed", 1))
+	_scar_refund = float(cfg.get("refund", 1.0))
+	_scar_echo_done = false
+	var scene := get_tree().current_scene
+	if scene == null:
+		return
+	_scar_fx = FX.spawn(scene, "telegraph", Vector2(_scar_x, global_position.y),
+		{"scale": maxf(0.55, _scar_range / 150.0), "loop": true, "z": -1,
+		"mod": Color(0.40, 0.28, 0.32, 0.70)})
+
+
+func _scar_ring() -> void:
+	_scar_echo_done = true
+	if is_instance_valid(_scar_fx):
+		_scar_fx.queue_free()
+	_scar_fx = null
+	var scene := get_tree().current_scene
+	if scene != null:
+		FX.spawn(scene, "slash", Vector2(_scar_x, global_position.y - 52.0),
+			{"scale": 1.15, "flip": _scar_facing < 0, "z": 21})
+	_play_sfx("skill_blade")
+	var hits := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var p := e as Node2D
+		if p == null or int(e.get("hp")) <= 0:
+			continue
+		if absf(p.global_position.x - _scar_x) > _scar_range + _radius_of(p):
+			continue
+		if absf(p.global_position.y - global_position.y) > 120.0:
+			continue
+		var dealt := _damage_enemy(p, _scar_damage + damage_bonus + _buff_now())
+		if dealt <= 0:
+			continue
+		hits += 1
+		_apply_hit_bleed(p, {"bleed": _scar_bleed})
+	if hits > 0:
+		Feel.hitstop(0.04)
+		Feel.shake(6.0, 0.16)
+		if _scar_refund > 0.0 and _skill_cds.has("skill14_02"):
+			_skill_cds["skill14_02"] = maxf(0.0, float(_skill_cds["skill14_02"]) - _scar_refund)
+		var label := DAMAGE_NUMBER.new()
+		label.setup("斩影 · 回响", Color(0.86, 0.68, 0.42))
+		label.global_position = Vector2(_scar_x, global_position.y - 78.0)
+		if scene != null:
+			scene.add_child(label)
+
+
+func _clear_scar() -> void:
+	if is_instance_valid(_scar_fx):
+		_scar_fx.queue_free()
+	_scar_fx = null
+	_scar_time = 0.0
+	_scar_echo_done = true
 
 
 ## 影饵只是一段可被敌人索敌的墨影，不是第二个玩家，也不承受伤害。
@@ -2324,6 +2409,8 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				_pull_enemy(p, global_position.x + facing * 110.0)
 			did_hit = true
 	if did_hit:
+		if skull_id == "z003" and _skill_name == "skill14_02":
+			_arm_scar(_skill_start_x, skill_range) # K 落地即留痕，第二刀从蓄力点回响
 		if skull_id == "z000" and _skill_name == "skill02-" and _form_node("z000_volley_1"):
 			_skill_cancel_ready = true
 		if skull_id == "c023" and _skill_name == "skill02" and _own("c023_bind_3"):
@@ -3564,6 +3651,7 @@ func swap_skull(id: String) -> void:
 	_bait = null
 	_bait_time = 0.0
 	_branch_zones.clear()
+	_clear_scar()
 	_plum_marks.clear()
 	_parry_ready = false
 	_bell_shell = false
@@ -4480,6 +4568,7 @@ func die() -> void:
 	clear_fen_ding_burn()
 	state = State.DEAD
 	_dismiss_stolen_sword_clone()
+	_clear_scar()
 	_stolen_death_burst()
 	clear_ming_zhong_effects()
 	_set_blink(false) # 尸体也别穿怪
