@@ -14,7 +14,7 @@ config/name="墨构"
 config/version="0.9.0"
 run/main_scene="res://intro/Intro.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
-config/icon="res://icon.svg"
+config/icon="res://art/ui/app_icon.png"
 boot_splash/minimum_display_time=1500
 
 [autoload]
