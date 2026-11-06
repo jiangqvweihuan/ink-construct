@@ -147,7 +147,9 @@ func _make_title() -> void:
 		var bonus_line := Achievements.equipped_bonus_text()
 		var t := Label.new()
 		t.text = "称号 · %s" % worn
-		if bonus_line != "":
+		if not Achievements.bonus_on:
+			t.text += " ｜ 加成已关"
+		elif bonus_line != "":
 			t.text += " ｜ %s" % bonus_line
 		t.add_theme_font_size_override("font_size", 16)
 		t.add_theme_color_override("font_color", Color(1.0, 0.87, 0.52))

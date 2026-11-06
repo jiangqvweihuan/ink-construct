@@ -25,6 +25,7 @@ var _scroll: ScrollContainer
 var _content: Control
 var _header: Label
 var _title_label: Label
+var _bonus_button: Button
 var _tabs: Array = []
 
 
@@ -57,7 +58,9 @@ func _build() -> void:
 	_build_tabs()
 	_build_scroll()
 
-	_text("点击带称号的条目可佩戴，加成下一局生效；未达成条目显示当前进度", Vector2(72, 556), Vector2(760, 30), 13, DIM, self)
+	_text("点击带称号的条目可佩戴；右下可开关加成，数值下一局生效", Vector2(72, 556), Vector2(760, 30), 13, DIM, self)
+	_bonus_button = _make_button("", Vector2(856, 556), Vector2(164, 44), _toggle_bonus)
+	_refresh_bonus_button()
 	_make_button("返  回", Vector2(1040, 556), Vector2(150, 44), _close, SFX_BACK)
 	_rebuild_cards()
 
@@ -245,10 +248,28 @@ func _refresh_header() -> void:
 		var b := Achievements.equipped_bonus_text()
 		if t == "":
 			_title_label.text = "尚未佩戴称号"
+		elif not Achievements.bonus_on:
+			_title_label.text = "佩戴称号 · %s ｜ 加成已关" % t
 		elif b == "":
 			_title_label.text = "佩戴称号 · %s" % t
 		else:
 			_title_label.text = "佩戴称号 · %s ｜ %s" % [t, b]
+	_refresh_bonus_button()
+
+
+## 加成开关：只切数值，称号名号保留
+func _toggle_bonus() -> void:
+	Achievements.toggle_bonus_on()
+	_rebuild_cards()
+
+
+func _refresh_bonus_button() -> void:
+	if _bonus_button == null:
+		return
+	var on := Achievements.bonus_on
+	_bonus_button.text = "称号加成 · %s" % ("开" if on else "关")
+	_bonus_button.tooltip_text = "关闭后只保留称号名号，不获得属性加成与代价"
+	_bonus_button.add_theme_color_override("font_color", GOLD if on else DIM)
 
 
 func _text(text: String, pos: Vector2, dimensions: Vector2, font_size: int, color: Color, parent: Node) -> Label:
@@ -264,7 +285,7 @@ func _text(text: String, pos: Vector2, dimensions: Vector2, font_size: int, colo
 	return l
 
 
-func _make_button(text: String, pos: Vector2, dimensions: Vector2, cb: Callable, sfx: AudioStream = SFX_CLICK) -> void:
+func _make_button(text: String, pos: Vector2, dimensions: Vector2, cb: Callable, sfx: AudioStream = SFX_CLICK) -> Button:
 	var b := Button.new()
 	b.text = text
 	b.position = pos
@@ -288,6 +309,7 @@ func _make_button(text: String, pos: Vector2, dimensions: Vector2, cb: Callable,
 		_play_sfx(sfx)
 		cb.call())
 	add_child(b)
+	return b
 
 
 func _play_sfx(stream: AudioStream) -> void:

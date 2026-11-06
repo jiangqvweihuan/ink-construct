@@ -242,6 +242,7 @@ var stats := {}
 var run := {}
 var unlocked := {}
 var equipped := ""
+var bonus_on := true # 佩戴称号的属性加成是否生效（玩家可手动关掉，改名不背代价）
 var _by_stat := {}
 var _defs := {}
 var _session: Array = []
@@ -358,9 +359,9 @@ func equipped_title() -> String:
 	return str(_defs.get(equipped, {}).get("title", ""))
 
 
-## 当前佩戴称号的某项加成；未佩戴或该称号没有这项时返回 0
+## 当前佩戴称号的某项加成；未佩戴、加成关闭或该称号没有这项时返回 0
 func bonus(key: String) -> float:
-	if equipped == "":
+	if equipped == "" or not bonus_on:
 		return 0.0
 	return float(TITLE_BONUS.get(equipped, {}).get(key, 0.0))
 
@@ -392,6 +393,19 @@ func bonus_text(id: String) -> String:
 
 func equipped_bonus_text() -> String:
 	return bonus_text(equipped) if equipped != "" else ""
+
+
+## 称号加成开关：只影响实际数值，不影响称号名号与展示
+func set_bonus_on(on: bool) -> void:
+	if bonus_on == on:
+		return
+	bonus_on = on
+	_save()
+
+
+func toggle_bonus_on() -> bool:
+	set_bonus_on(not bonus_on)
+	return bonus_on
 
 
 # ---------- 记录 ----------
@@ -711,6 +725,7 @@ func _save() -> void:
 		return
 	f.store_string(JSON.stringify({
 		"ver": SAVE_VER, "stats": stats, "unlocked": unlocked, "equipped": equipped,
+		"bonus_on": bonus_on,
 	}))
 	f.close()
 	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(temp_path), ProjectSettings.globalize_path(SAVE_PATH))
@@ -740,3 +755,4 @@ func _load() -> void:
 	equipped = str(data.get("equipped", ""))
 	if equipped != "" and not unlocked.has(equipped):
 		equipped = ""
+	bonus_on = bool(data.get("bonus_on", true))
