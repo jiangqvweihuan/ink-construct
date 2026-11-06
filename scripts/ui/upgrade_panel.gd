@@ -7,11 +7,11 @@ signal purchased
 signal proceed
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const SFX_LEVEL := preload("res://audio/sfx/level_up.wav")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_REWARD := preload("res://audio/sfx/room_reward.wav")
 
-const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 
 var _cards: Array = []
@@ -111,12 +111,13 @@ func _make_label(text: String, y: float, font_size: int, color: Color) -> Label:
 
 
 
-## 流派配色：0 朱砂 / 1 墨青 / 2 赭金（与 run_state.FORM_UPGRADES 的 theme 对齐）
-func _theme_color(theme: int) -> Color:
+## 卡片落在深墨底上，文字要用同色系的亮档，否则暗红/暗青糊成一片
+## theme：0 朱砂 / 1 墨青 / 2 赭金
+func _theme_text(theme: int) -> Color:
 	match theme:
-		1: return Color(0.18, 0.38, 0.40)
-		2: return Color(0.52, 0.34, 0.12)
-		_: return Color(0.55, 0.16, 0.13)
+		1: return Color(0.56, 0.80, 0.80)
+		2: return Color(0.91, 0.73, 0.42)
+		_: return Color(0.89, 0.46, 0.40)
 
 
 func _build_cards() -> void:
@@ -126,7 +127,6 @@ func _build_cards() -> void:
 		var key := str(_cards[i])
 		var info: Dictionary = Run.card_info(key)
 		var is_form := info.has("tier")
-		var accent := _theme_color(int(info.get("theme", 0)))
 		var b := TextureButton.new()
 		b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 		b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
@@ -154,7 +154,7 @@ func _build_cards() -> void:
 		path.text = str(info.get("path", "通用强化"))
 		path.size = Vector2(160, 28)
 		path.position = Vector2(76, 20)
-		path.add_theme_color_override("font_color", accent if is_form else Color(0.32, 0.30, 0.26))
+		path.add_theme_color_override("font_color", _theme_text(int(info.get("theme", 0))) if is_form else Color(0.74, 0.71, 0.65))
 		path.add_theme_font_size_override("font_size", 17)
 		path.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(path)
@@ -164,7 +164,7 @@ func _build_cards() -> void:
 		tag.size = Vector2(70, 26)
 		tag.position = Vector2(236, 20)
 		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		tag.add_theme_color_override("font_color", accent if is_form else Color(0.32, 0.30, 0.26))
+		tag.add_theme_color_override("font_color", _theme_text(int(info.get("theme", 0))) if is_form else Color(0.74, 0.71, 0.65))
 		tag.add_theme_font_size_override("font_size", 16)
 		tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(tag)
@@ -172,38 +172,47 @@ func _build_cards() -> void:
 		var title := Label.new()
 		title.text = str(info["label"]) if is_form else "%s  Lv%d" % [str(info["label"]), Run.level(key) + 1]
 		title.size = Vector2(286, 44)
-		title.position = Vector2(22, 62)
-		title.add_theme_color_override("font_color", accent if is_form else INK)
+		title.position = Vector2(22, 60)
+		title.add_theme_color_override("font_color", _theme_text(int(info.get("theme", 0))) if is_form else PAPER)
 		title.add_theme_font_size_override("font_size", 28)
 		title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(title)
 
 		var divider := ColorRect.new()
-		divider.color = Color(accent, 0.55) if is_form else Color(0.2, 0.18, 0.15, 0.35)
+		divider.color = Color(_theme_text(int(info.get("theme", 0))), 0.38) if is_form else Color(0.74, 0.71, 0.65, 0.22)
 		divider.size = Vector2(286, 2)
-		divider.position = Vector2(22, 114)
+		divider.position = Vector2(22, 112)
 		divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(divider)
 
-		# 正文使用独立固定区域；底部领取提示另起一行，任何换行都不会与之重叠。
-		var desc := Label.new()
+		# 说明文字：左侧 24 起排、右侧留 24；中文没有词界，按字断行才不会顶出卡片
+		var desc := RichTextLabel.new()
 		desc.text = str(info["desc"])
-		desc.size = Vector2(282, 140)
-		desc.position = Vector2(24, 132)
-		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		desc.clip_text = true
-		desc.max_lines_visible = 6
-		desc.add_theme_color_override("font_color", Color(0.16, 0.15, 0.13))
-		desc.add_theme_font_size_override("font_size", 18)
+		desc.position = Vector2(24, 128)
+		desc.size = Vector2(282, 126)
+		desc.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+		desc.scroll_active = false
 		desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		desc.add_theme_color_override("default_color", Color(0.88, 0.85, 0.78))
+		desc.add_theme_font_size_override("normal_font_size", 17)
+		desc.add_theme_constant_override("line_separation", 7)
 		b.add_child(desc)
+
+		# 底部分隔与领取落款：和正文分开，不会互相压字
+		var foot := ColorRect.new()
+		foot.color = Color(0.74, 0.71, 0.65, 0.16)
+		foot.size = Vector2(286, 1)
+		foot.position = Vector2(22, 272)
+		foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(foot)
 
 		var price := Label.new()
 		price.text = "免 费 领 取"
-		price.size = Vector2(286, 36)
-		price.position = Vector2(22, 292)
+		price.size = Vector2(286, 40)
+		price.position = Vector2(22, 284)
 		price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		price.add_theme_color_override("font_color", Color(0.58, 0.16, 0.12))
+		price.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		price.add_theme_color_override("font_color", Color(0.92, 0.79, 0.46))
 		price.add_theme_font_size_override("font_size", 20)
 		price.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		b.add_child(price)
@@ -244,25 +253,7 @@ func _play_transition_sfx(stream: AudioStream) -> void:
 
 
 func _make_button(text: String, y: float, cb: Callable, x := 520.0, sfx: AudioStream = SFX_CLICK) -> TextureButton:
-	var b := TextureButton.new()
-	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
-	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = Vector2(240, 60)
-	b.position = Vector2(x, y)
-	var l := Label.new()
-	l.text = text
-	l.size = b.size
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_color_override("font_color", INK)
-	l.add_theme_font_size_override("font_size", 24)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(l)
-	b.pressed.connect(func():
+	return UiKit.texture_button(self, text, Vector2(x, y), Vector2(240, 60), 24, PAPER, func():
 		if sfx != null:
 			_play_sfx(sfx)
 		cb.call())
-	add_child(b)
-	return b

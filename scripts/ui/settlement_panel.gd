@@ -4,6 +4,7 @@ extends CanvasLayer
 ## 阵亡按真实攻击者、招式、命中时刻和实际扣血重演；通关以胜利动作与讨伐印落款。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
 const BossTypes = preload("res://scripts/enemies/boss_types.gd")
@@ -411,49 +412,17 @@ func _to_menu() -> void:
 
 
 func _text(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color) -> void:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.size = size
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(l)
+	UiKit.label(self, text, pos, size, font_size, color, HORIZONTAL_ALIGNMENT_CENTER, true)
 
 
 func _rule(pos: Vector2, size: Vector2) -> void:
-	var r := ColorRect.new()
-	r.color = Color(0.66, 0.2, 0.16, 0.62)
-	r.position = pos
-	r.size = size
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(r)
+	UiKit.rule(self, pos, size, Color(0.66, 0.2, 0.16, 0.62))
 
 
 func _make_button(text: String, y: float, cb: Callable) -> void:
-	var b := TextureButton.new()
-	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
-	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = Vector2(220, 52)
-	b.position = Vector2(820, y)
-	var l := Label.new()
-	l.text = text
-	l.size = b.size
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_color_override("font_color", INK)
-	l.add_theme_font_size_override("font_size", 21)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(l)
-	b.pressed.connect(func():
+	UiKit.texture_button(self, text, Vector2(820, y), Vector2(220, 52), 21, PAPER, func():
 		_play_transition_sound(SFX_CLICK)
 		cb.call())
-	add_child(b)
 
 
 func _play_sound(stream: AudioStream) -> void:

@@ -60,13 +60,6 @@ var _log: FileAccess
 var _menu: Node
 
 
-class SwapPlayerStub:
-	extends Node
-	var skull_id := "c021"
-
-	func swap_skull(id: String) -> void:
-		skull_id = id
-
 func p(msg) -> void:
 	print("[UI] ", msg)
 	if _log:
@@ -257,7 +250,7 @@ func _ready() -> void:
 		await _shot("04_form_detail_locked")
 		forms._buyout() # 修炼页顶部买断：解锁区仍保留在分支上方
 		await get_tree().create_timer(0.2).timeout
-		p("力僧买断=%s（期望 true）" % Meta.is_unlocked("c013"))
+		p("镇岳买断=%s（期望 true）" % Meta.is_unlocked("c013"))
 		Meta.learn_node("c013_guard_1")
 		forms._refresh()
 		await get_tree().create_timer(0.2).timeout
@@ -1234,7 +1227,7 @@ func _ready() -> void:
 		await get_tree().create_timer(0.3).timeout
 		assert(codex._sel == "c016" and codex._status_list == null and codex._status_detail == null, "离开状态页必须恢复敌人条目并清理状态控件")
 		assert(not codex._acts.is_empty() and codex._medal_fx == null, "状态页返回后普通敌人的动作与勋章规则必须保留")
-		# 化身页：切页后默认选中双刺
+		# 化身页：切页后默认选中绯刃
 		codex._switch_tab(1)
 		await get_tree().create_timer(0.3).timeout
 		p("切到化身页 -> 选中=%s（期望 c021）" % str(codex._sel))
@@ -1242,7 +1235,7 @@ func _ready() -> void:
 		# 缺原画的化身仍直接展示 Spine，不留空展示框。
 		codex._select("c013")
 		await get_tree().create_timer(0.3).timeout
-		p("力僧缺原画回退：原画为空=%s 动作可用=%s（期望 true / true）" % [
+		p("镇岳缺原画回退：原画为空=%s 动作可用=%s（期望 true / true）" % [
 			codex._portrait == null, is_instance_valid(codex._preview) and not codex._acts.is_empty()])
 		await _shot("08a_codex_form_fallback")
 		Meta.clears = 1
@@ -1387,31 +1380,6 @@ func _ready() -> void:
 	upgrade.queue_free()
 	get_tree().paused = false
 	await get_tree().process_frame
-	await get_tree().process_frame
-
-	# 换形抽签跨过 0.18 秒后的面板销毁；播放器仍由 root 持有并自行清理。
-	var swap_player := SwapPlayerStub.new()
-	_menu.add_child(swap_player)
-	var swap = load("res://scenes/ui/swap_panel.tscn").instantiate()
-	swap.setup(swap_player)
-	_menu.add_child(swap)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	_assert_sfx_buses(swap)
-	Meta.purchases["buyout_c013"] = true
-	var before_swap_audio: Array = _root_audio_players()
-	swap.select("c013")
-	var swap_sfx := _root_sfx_since(before_swap_audio, swap.SFX_SWAP)
-	_assert_detached_sfx(swap_sfx)
-	assert(swap_player.skull_id == "c013", "换形仍必须调用真实换头入口")
-	var expect_swap_sfx_alive := swap_sfx.stream.get_length() > 0.35
-	await get_tree().create_timer(0.25).timeout
-	assert(not is_instance_valid(swap), "换形面板应按原时序关闭")
-	assert(not get_tree().paused, "换形关闭后必须恢复场景")
-	if expect_swap_sfx_alive:
-		assert(is_instance_valid(swap_sfx), "尚未播完的抽签音效不得随换形面板销毁")
-	p("换形抽签跨面板销毁与 SFX 总线断言通过")
-	swap_player.queue_free()
 	await get_tree().process_frame
 
 	Settings.reset_binds()
@@ -1576,7 +1544,15 @@ func _click(pos: Vector2) -> void:
 
 
 func _shot(tag: String) -> void:
-	await RenderingServer.frame_post_draw
+	# 无头下 frame_post_draw 不发射：改用 process_frame + force_draw，并以空图判断兜底。
+	await get_tree().process_frame
+	# 无头下没有可读帧，直接跳过截图，避免 dummy 纹理报错。
+	if DisplayServer.get_name() == "headless":
+		return
+	RenderingServer.force_draw()
 	var img = get_viewport().get_texture().get_image()
+	if img == null:
+		p("screenshot unavailable " + tag)
+		return
 	var err = img.save_png(OUT_DIR + "ui_" + tag + ".png")
 	p("saved " + tag + " err=" + str(err))

@@ -11,7 +11,11 @@ extends CanvasLayer
 ##     await LoadVeil.transition_to("res://scenes/world/room_01.tscn", "正在入卷")
 ##
 ## 注意：cover() 会等两帧再返回，确保幕布已经真正画到屏幕上，之后的卡顿才被挡住。
+##
+## HIDDEN 为 true 时幕布整体隐藏：不遮屏、不等待，只保留切场景本身的动作。
+## 目前各项加载实测都不卡，先关掉过渡；需要恢复时把 HIDDEN 改回 false 即可。
 
+const HIDDEN := true
 const PAPER := Color(0.935, 0.905, 0.835)
 const INK := Color(0.055, 0.050, 0.045)
 const ROLLER := Color(0.20, 0.165, 0.130)
@@ -94,6 +98,9 @@ func cover(text := "正在展卷") -> void:
 	if _busy:
 		return
 	_busy = true
+	if HIDDEN:
+		await get_tree().process_frame
+		return
 	_view = get_viewport().get_visible_rect().size # 窗口改过大小也要居中
 	_text.text = _vertical(text)
 	visible = true
@@ -108,6 +115,9 @@ func cover(text := "正在展卷") -> void:
 
 ## 收起幕布（自动补足最短停留时间）。
 func reveal() -> void:
+	if HIDDEN:
+		_busy = false
+		return
 	if not visible:
 		return
 	var wait := MIN_SHOW - (Time.get_ticks_msec() - _shown_at) / 1000.0
@@ -124,6 +134,9 @@ func reveal() -> void:
 
 ## 幕布落下后切场景，等新场景站住再收起。
 func transition_to(path: String, text := "正在入卷") -> void:
+	if HIDDEN:
+		get_tree().change_scene_to_file(path)
+		return
 	await cover(text)
 	get_tree().change_scene_to_file(path)
 	await get_tree().process_frame
@@ -133,6 +146,9 @@ func transition_to(path: String, text := "正在入卷") -> void:
 
 ## 幕布落下后重开当前场景。
 func transition_reload(text := "正在入卷") -> void:
+	if HIDDEN:
+		get_tree().reload_current_scene()
+		return
 	await cover(text)
 	get_tree().reload_current_scene()
 	await get_tree().process_frame

@@ -24,7 +24,8 @@ var _log: FileAccess
 
 
 func p(msg) -> void:
-	print("[R] ", msg)
+	if OS.is_debug_build():
+		print("[R] ", msg)
 	if _log:
 		_log.store_line("[R] " + str(msg))
 		_log.flush()
@@ -51,7 +52,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# 已分出胜负（通关/阵亡）或其他面板开着时，Esc 不再弹暂停菜单
 	if _ended:
 		return
-	if get_node_or_null("PauseMenu") != null or get_node_or_null("SwapPanel") != null or get_node_or_null("Blessing") != null:
+	if get_node_or_null("PauseMenu") != null or get_node_or_null("Blessing") != null:
 		return
 	var pm = load("res://scenes/ui/pause_menu.tscn").instantiate()
 	pm.name = "PauseMenu"
@@ -271,6 +272,11 @@ func _on_all_cleared() -> void:
 	if is_instance_valid(_player):
 		Run.snapshot(_player)
 	await get_tree().create_timer(0.8).timeout # 等最后一只倒地动画
+	# 这 0.8 秒内仍可能被飞行中的投射物 / 毒素带走，不能让 _ended 吞掉死亡信号
+	if is_instance_valid(_player) and _player.state == _player.State.DEAD:
+		_ended = false
+		_on_player_died()
+		return
 	# 三间普通房清空都出强化三选一；第三间的前进方向就是 Boss 房
 	_show_upgrade()
 
@@ -421,16 +427,10 @@ func _run_demo() -> void:
 	await _shot("03_fight")
 	await get_tree().create_timer(1.2).timeout
 	await _shot("04_after")
-	# 换头验证：化身面板选形态 -> HUD 技能栏应跟着重建
+	# 换头验证：直接调用换头入口 -> HUD 技能栏应跟着重建
 	Meta.debug_unlock_all() # 测试环境直接拉满解锁条件，别让存档挡住换头验证
 	await _shot("05_before_swap")
-	var panel = load("res://scenes/ui/swap_panel.tscn").instantiate()
-	panel.setup(_player) # 必须在 add_child 前：面板 _ready 要读当前形态
-	add_child(panel)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	await _shot("05b_panel") # 面板开着的样子（时停中）
-	panel.select("c023") # 选中即换头并解除时停
+	_player.swap_skull("c023")
 	await get_tree().create_timer(0.6).timeout
 	await _shot("06_swap")
 	_tap("skill")

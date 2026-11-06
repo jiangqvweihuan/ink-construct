@@ -10,7 +10,7 @@ extends Node
 const PRICE := 100
 
 const PLAYER := {
-	"c013": {"label": "力僧", "skins": [
+	"c013": {"label": "镇岳", "skins": [
 		{"id": "ds1", "name": "枯禅", "scale": 0.487},
 		{"id": "ds2", "name": "镇岳", "scale": 0.460},
 		{"id": "ds3", "name": "伏魔", "scale": 0.494},

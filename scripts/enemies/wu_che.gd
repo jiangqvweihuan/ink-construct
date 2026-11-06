@@ -59,7 +59,7 @@ func _apply_type() -> void:
 	super()
 	max_hp = _durability_for_run()
 	hp = max_hp
-	boss_label = "武车 · 耐久"
+	boss_label = "武车"
 
 
 func _ready() -> void:
@@ -247,7 +247,9 @@ func on_player_hit(amount: int, move: Dictionary, player: Node) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("通缉", Color(0.78, 0.38, 0.28))
 	dn.global_position = (player as Node2D).global_position + Vector2(0, -150)
-	get_tree().current_scene.add_child(dn)
+	var root := get_tree().current_scene
+	if root != null:
+		root.add_child(dn)
 
 
 func _begin_brake() -> void:
@@ -313,7 +315,8 @@ func _summon_animation_finished() -> void:
 
 func _spawn_one(elite: bool) -> void:
 	var pool := ELITE_SCENES if elite else NORMAL_SCENES
-	var e = load(str(pool[randi() % pool.size()])).instantiate()
+	var scene = load(str(pool[randi() % pool.size()])) if not pool.is_empty() else null
+	var e = scene.instantiate() if scene != null else null
 	if e == null:
 		return
 	e.set("wu_che_summon", true)

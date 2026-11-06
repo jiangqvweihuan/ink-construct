@@ -421,12 +421,12 @@ func _charge_hit_wall() -> void:
 
 # ---------- 受击 / 死亡 ----------
 
-## 定身（双刺 U）：Boss 体量太大，定身时长减半，同一张卡对 Boss 不至于过界
+## 定身（绯刃 U）：Boss 体量太大，定身时长减半，同一张卡对 Boss 不至于过界
 func root(dur: float, ignore_armor := false) -> void:
 	super(dur * 0.5, ignore_armor)
 
 
-## 晕眩（力僧 L）：与定身同一规则，Boss 时长减半
+## 晕眩（镇岳 L）：与定身同一规则，Boss 时长减半
 func stun(dur: float, ignore_armor := false) -> void:
 	super(dur * 0.5, ignore_armor)
 

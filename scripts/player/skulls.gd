@@ -17,7 +17,7 @@ const ORDER := ["c021", "c013", "c023", "z000", "z002", "z003"]
 
 const SKULLS := {
 	"c021": {
-		"label": "双刺", # 代称：红缨双匕 + 面纱长裙的女刺客造型
+		"label": "绯刃", # 代称：红缨双匕 + 面纱长裙的女刺客造型
 		"name": "冷红绫",
 		"data": "res://art/characters/player/c021_data.tres",
 		"portrait": "res://art/characters/portraits/c021.png",
@@ -71,7 +71,7 @@ const SKULLS := {
 					{"at": 2.25, "range": 90.0, "height": 110.0, "damage": 2, "both": true, "sfx": "hit_heavy", "bleed": 1},
 				],
 			},
-			# U 掷匕·缚（第 25 号 skill02-cankao，2.05s）：远程投掷一把双刺（1.43s 出手），
+			# U 掷匕·缚（第 25 号 skill02-cankao，2.05s）：远程投掷一柄飞刃（1.43s 出手），
 			# 命中后定身 3 秒（期间敌人不能移动但可以出手），并从命中点分裂出第二把继续飞。
 			# 无 blink / teleport：位移只靠动画本身的根骨后跃（root_motion），不会出现闪现或残影。
 			"skill02-cankao": {
@@ -140,9 +140,9 @@ const SKULLS := {
 		},
 		"hud_skills": ["skill02"],
 	},
-	# ---------- 力僧：C013，长柄狼牙棒，动作全是挥砸，出手重、收招慢 ----------
+	# ---------- 镇岳：C013，长柄狼牙棒，动作全是挥砸，出手重、收招慢 ----------
 	"c013": {
-		"label": "力僧",
+		"label": "镇岳",
 		"name": "定山",
 		"data": "res://art/characters/player/skulls/c013/c013_data.tres",
 		"scale": 0.487, # 骨架 262.9px -> 128px
@@ -161,7 +161,7 @@ const SKULLS := {
 		"dash_speed": 300.0,
 		# 受击分档：1 伤=轻（第 1 号 atked）；2 伤=重（第 6 号 atked_heavy）；≥3 伤走下面的整条链
 		"hurt_tiers": {"heavy": 2, "knockdown": 3},
-		# 倒地链（力僧专用）：6 重受击 → 3 浮空重受击 → 5 倒地 → 9 起身，段与段按动画真实时长无缝接续，
+		# 倒地链（镇岳专用）：6 重受击 → 3 浮空重受击 → 5 倒地 → 9 起身，段与段按动画真实时长无缝接续，
 		# 起身段整段无敌；播放期间全程 State.HURT，结束回 IDLE/FALL
 		"knock_chain": ["atked_heavy", "atked_air_heavy", "atked_fall_end", "getup"],
 		# 探针实测（已乘 0.487）：skill02_01 后侧 156@0.13，skill02_03 后侧 185@0.26
@@ -383,7 +383,7 @@ const SKULLS := {
 			"air": "jump", # 轻功跳跃动画兼滞空姿态
 			"hurt": "atked", # 第 22 号：1 点伤害轻受击
 			"hurt_heavy": "atked_heavy", # 第 27 号：2 点伤害重受击
-			"low_idle": "weak", # 第 128 号：残血待机（血量比例 ≤ 20%，与双刺同界限）
+			"low_idle": "weak", # 第 128 号：残血待机（血量比例 ≤ 20%，与绯刃同界限）
 			"dead": "atked_fall_end", # 第 26 号：先播一遍倒地（0.833s）
 			"dead_hold": "dead", # 再循环躺尸定格（dead 只有 0.083s，不循环会闪回 setup pose）
 			"getup": "getup", # 第 55 号：倒地链末段起身，整段无敌

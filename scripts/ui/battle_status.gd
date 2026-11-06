@@ -142,7 +142,8 @@ static func skill_cooldown(player, skill_id: String) -> float:
 
 
 static func skill_lock(player, skill_id: String) -> String:
-	var cfg: Dictionary = player.get("skill_config").get(skill_id, {})
+	var configs = player.get("skill_config")
+	var cfg: Dictionary = configs.get(skill_id, {}) if configs is Dictionary else {}
 	if cfg.is_empty():
 		return "不可用"
 	if bool(cfg.get("require_buff", false)) and float(player.get("_awaken_time")) <= 0.0 and float(player.get("_buff_timer")) <= 0.0:

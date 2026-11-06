@@ -138,9 +138,9 @@ var _slow_timer := 0.0 # 余滞剩余：时停期间冻结，其余状态照常�
 var _slow_scale := 1.0 # 余滞横向速度倍率：只缩放移动目标，不改形态参数
 var _vuln_timer := 0.0 # 易伤剩余（剑仙 L 斩焰）：时停冻结，其余状态照常计时
 var _vuln_ratio := 0.0 # 易伤承伤倍率加成：0.25 = 受到的所有直接伤害 +25%
-# ---------- 定身 / 流血（双刺 L/U 的机制接口，Boss 继承后按体型覆盖） ----------
+# ---------- 定身 / 流血（绯刃 L/U 的机制接口，Boss 继承后按体型覆盖） ----------
 var _root_timer := 0.0 # 定身剩余：不能移动，但可以照常出手
-var _stun_timer := 0.0 # 晕眩剩余：不能移动、也不能出手（力僧 L）
+var _stun_timer := 0.0 # 晕眩剩余：不能移动、也不能出手（镇岳 L）
 var _bleed_stacks := 0 # 流血层数：每层每秒扣 1 血
 var _bleed_time := 0.0 # 流血剩余时间（再次命中会刷新）
 var _bleed_acc := 0.0 # 流血的计时累计
@@ -517,7 +517,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_try_start_limit() # DoT 或状态伤害触发祭剑后，也在本轮普通 AI 前排队取得令牌
 
-	# 晕眩（力僧 L）：比定身更强——站桩发愣，不出手也不移动（放在定身之前结算）
+	# 晕眩（镇岳 L）：比定身更强——站桩发愣，不出手也不移动（放在定身之前结算）
 	if _stun_timer > 0.0:
 		_stun_tick(delta)
 		_update_peer_ghosts()
@@ -525,7 +525,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	# 定身（双刺 U）：只锁移动，不锁出手——站桩期间贴脸照样能挥刀
+	# 定身（绯刃 U）：只锁移动，不锁出手——站桩期间贴脸照样能挥刀
 	if _root_timer > 0.0:
 		_root_tick(delta)
 		_update_peer_ghosts()
@@ -793,7 +793,7 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 	if not _is_sword_clone:
 		_attacker = self # 本体占住出手令牌；凝华分身只同步，不阻断其他敌人
 	_attack_visual = str(_move_anims.get(anim, anim))
-	if _move_pool.has(anim):
+	if _move_pool.has(anim) and not (_move_pool[anim] as Array).is_empty():
 		var visuals: Array = _move_pool[anim]
 		_attack_visual = str(visuals[randi() % visuals.size()])
 	elif anim == str(_limit.get("move", "")):
@@ -902,7 +902,8 @@ func _deal_hit(seg := 0) -> void:
 	# 阴影只放大本次直接命中；割伤在玩家侧独立计时，绝不回到这里二次暴击。
 	if dmg > 0 and _backstab:
 		var raw_facing = _target.get("facing")
-		if raw_facing != null and (global_position.x - _target.global_position.x) * float(raw_facing) < 0.0:
+		if (raw_facing is int or raw_facing is float) \
+				and (global_position.x - _target.global_position.x) * float(raw_facing) < 0.0:
 			dmg *= 2
 	# 红尘：每 3 层怨逐段 -1，每段最低仍为 1；强化癫狂在最后翻倍。
 	if dmg > 0:
@@ -910,11 +911,12 @@ func _deal_hit(seg := 0) -> void:
 		if _frenzy_time > 0.0 and _frenzy_empowered and not _evil_buddha_pressure:
 			dmg *= 2
 	# 本体先结算时记录同段伤害，分身后结算直接复用，避免首段叠层让镜像多打 1 点。
-	if _is_sword_clone and is_instance_valid(_sword_owner) \
-			and int(_sword_owner.get("_attack_cast_id")) == _attack_cast_id:
-		var recorded: Dictionary = _sword_owner.get("_sword_hit_damage")
-		if recorded.has(seg):
-			dmg = int(recorded[seg])
+	if _is_sword_clone and is_instance_valid(_sword_owner):
+		var cast_v = _sword_owner.get("_attack_cast_id")
+		var recorded_v = _sword_owner.get("_sword_hit_damage")
+		if (cast_v is int or cast_v is float) and int(cast_v) == _attack_cast_id \
+				and recorded_v is Dictionary and (recorded_v as Dictionary).has(seg):
+			dmg = int(recorded_v[seg])
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
 	var side_ok: bool = in_front or bool(_both_anims.get(_attack_move, false))
 	var rng := _range_of(_attack_move, seg) if in_front else _back_range_of(_attack_move, seg)
@@ -996,7 +998,7 @@ func on_player_hit(amount: int, move: Dictionary, _player: Node) -> void:
 		var dn := DAMAGE_NUMBER.new()
 		dn.setup("转 · 叠剑 %d" % int(_turn_stacks[id]), Color(0.48, 0.72, 0.62))
 		dn.global_position = global_position + Vector2(0, _number_y - 18.0)
-		get_tree().current_scene.add_child(dn)
+		_world_add(dn)
 
 
 ## _apply_bloom 会先进入 HURT 并移到攻击者正上方，再回报攻击者；防御零伤反馈没有这两步。
@@ -1014,9 +1016,19 @@ func _gain_sword_intent(amount: int) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("剑意凝华" if _sword_intent >= 3 else "剑意 %d/3" % _sword_intent, Color(0.55, 0.78, 0.82))
 	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
-	get_tree().current_scene.add_child(dn)
+	_world_add(dn)
 	if _sword_intent >= 3 and not is_instance_valid(_sword_clone_node):
 		_spawn_sword_clone()
+
+
+## 场景切换瞬间 current_scene 可能为空：生成物宁可丢弃也不崩，返回是否成功挂载。
+func _world_add(node: Node) -> bool:
+	var root := get_tree().current_scene
+	if root == null:
+		node.queue_free()
+		return false
+	root.add_child(node)
+	return true
 
 
 func _spawn_sword_clone() -> void:
@@ -1025,7 +1037,8 @@ func _spawn_sword_clone() -> void:
 	clone.set("_sword_owner", self)
 	clone.position = global_position + Vector2(-facing * 58.0, 0.0)
 	clone.set("facing", facing)
-	get_tree().current_scene.add_child(clone)
+	if not _world_add(clone):
+		return
 	_sword_clone_node = clone
 	clone.call("_play", _current_anim, state != State.ATTACK)
 	clone.call("_apply_facing")
@@ -1049,20 +1062,28 @@ func _make_sword_clone_visual() -> void:
 	add_child(ring)
 
 
+## 分身同步取本体朝向：取不到或类型异常时保持当前朝向。
+func _owner_facing() -> int:
+	var v = _sword_owner.get("facing")
+	return int(v) if (v is int or v is float) else facing
+
+
 func _sword_sync_attack(anim: String) -> void:
 	if not _is_sword_clone or not is_instance_valid(_sword_owner) or _stop_timer > 0.0 or _stun_timer > 0.0:
 		return
 	_target = _sword_owner.get("_target") as Node2D
-	facing = int(_sword_owner.get("facing"))
+	facing = _owner_facing()
 	_apply_facing()
 	_start_attack(anim)
-	_attack_cast_id = int(_sword_owner.get("_attack_cast_id"))
+	var cast_v = _sword_owner.get("_attack_cast_id")
+	if cast_v is int or cast_v is float:
+		_attack_cast_id = int(cast_v)
 
 
 func _sword_sync_player_action() -> void:
 	if not _is_sword_clone or not _sword_player_clone or not is_instance_valid(_sword_owner):
 		return
-	facing = int(_sword_owner.get("facing"))
+	facing = _owner_facing()
 	_apply_facing()
 	global_position = _sword_owner.global_position + Vector2(-facing * 58.0, 0.0)
 	_target = null
@@ -1073,7 +1094,7 @@ func _sword_sync_player_action() -> void:
 func _sword_player_clone_tick(delta: float) -> void:
 	if state == State.ATTACK:
 		_attack_tick(delta)
-	facing = int(_sword_owner.get("facing"))
+	facing = _owner_facing()
 	_apply_facing()
 	global_position = _sword_owner.global_position + Vector2(-facing * 58.0, 0.0)
 	if state != State.ATTACK:
@@ -1095,7 +1116,7 @@ func _sword_clone_tick(delta: float) -> void:
 		global_position.x += velocity.x * delta
 		global_position.y = _sword_owner.global_position.y
 		return
-	facing = int(_sword_owner.get("facing"))
+	facing = _owner_facing()
 	_apply_facing()
 	global_position = _sword_owner.global_position + Vector2(-facing * 58.0, 0.0)
 	var owner_state := int(_sword_owner.get("state"))
@@ -1133,7 +1154,7 @@ func _heal(amount: int) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("+%d" % actual, POISON_LABEL_COLOR)
 	dn.global_position = global_position + Vector2(0, _number_y)
-	get_tree().current_scene.add_child(dn)
+	_world_add(dn)
 
 
 func _check_limit() -> bool:
@@ -1179,14 +1200,15 @@ func apply_room_cd_curse() -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("魔诅", Color(0.62, 0.38, 0.72))
 	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
-	get_tree().current_scene.add_child(dn)
+	_world_add(dn)
 
 
 ## 把本次真实招式与命中段交给玩家记录，结算可按同一时刻重演最后一击。
 func _replay_move(seg: int) -> Dictionary:
 	var at = _hit_at_map.get(_hit_key(_attack_move), 0.8)
 	if at is Array:
-		at = at[mini(seg, (at as Array).size() - 1)]
+		var arr := at as Array
+		at = arr[mini(seg, arr.size() - 1)] if not arr.is_empty() else 0.8
 	var move := {"anim": _attack_visual, "move_id": _attack_move, "hit_at": float(at), "cast_id": _attack_cast_id, "seg": seg}
 	if _is_sword_clone and is_instance_valid(_sword_owner):
 		move["cast_owner_id"] = _sword_owner.get_instance_id()
@@ -1217,7 +1239,8 @@ func _radius_of(t) -> float:
 func _range_of(anim: String, seg: int) -> float:
 	var r = _ranges.get(_hit_key(anim), _ranges.get(anim, attack_range))
 	if r is Array:
-		return float(r[mini(seg, (r as Array).size() - 1)])
+		var arr := r as Array
+		return float(arr[mini(seg, arr.size() - 1)]) if not arr.is_empty() else attack_range
 	return float(r)
 
 
@@ -1225,7 +1248,8 @@ func _back_range_of(anim: String, seg: int) -> float:
 	var key := _hit_key(anim)
 	var r = _back_ranges.get(key, _ranges.get(key, _ranges.get(anim, attack_range)))
 	if r is Array:
-		return float(r[mini(seg, (r as Array).size() - 1)])
+		var arr := r as Array
+		return float(arr[mini(seg, arr.size() - 1)]) if not arr.is_empty() else attack_range
 	return float(r)
 
 
@@ -1632,9 +1656,9 @@ func _end_stop(natural := false) -> void:
 			pl.call("on_time_stop_end", self)
 
 
-# ---------- 双刺机制接口：定身 / 流血 ----------
+# ---------- 绯刃机制接口：定身 / 流血 ----------
 
-## 定身（双刺 U 掷匕）：dur 秒内不能移动，但可以照常出手攻击。
+## 定身（绯刃 U 掷匕）：dur 秒内不能移动，但可以照常出手攻击。
 ## 打断巡逻/追击移动，已在挥的招照打完（不可以攻击的控制要另开接口，别混用）
 func root(dur: float, _ignore_armor := false) -> void:
 	if state == State.DEAD or dur <= 0.0 or _is_uninterruptible() or (_super_armor and not _ignore_armor):
@@ -1644,7 +1668,7 @@ func root(dur: float, _ignore_armor := false) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("定身", Color(0.9, 0.75, 0.3)) # 金：和完美闪避同色系的"控制生效"提示
 	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
-	get_tree().current_scene.add_child(dn)
+	_world_add(dn)
 
 
 ## 枝界持续约束：每帧只延续定身计时，不重复控制反馈。
@@ -1662,7 +1686,7 @@ func slow(dur: float, scale: float, _ignore_armor := false) -> void:
 	_slow_scale = clampf(scale, 0.0, 1.0)
 
 
-## 晕眩（力僧 L）：dur 秒内不能移动、也不能出手——比定身更强。
+## 晕眩（镇岳 L）：dur 秒内不能移动、也不能出手——比定身更强。
 ## 立即打断正在起的招（前摇直接掐掉，交还出手令牌），站桩发愣到时间结束；
 ## 被打飞/受击照样推进各自状态，落地后仍保持晕眩。
 func stun(dur: float, _ignore_armor := false) -> void:
@@ -1685,7 +1709,7 @@ func stun(dur: float, _ignore_armor := false) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("晕眩", Color(0.62, 0.78, 0.95)) # 淡蓝：和定身的金色区分开
 	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
-	get_tree().current_scene.add_child(dn)
+	_world_add(dn)
 
 
 func _stun_tick(delta: float) -> void:
@@ -1731,7 +1755,7 @@ func _root_tick(delta: float) -> void:
 			_start_attack()
 
 
-## 流血（双刺 L 裂帛）：叠层后每秒按层数直扣血，不触发硬直/白闪，也不打断出手
+## 流血（绯刃 L 裂帛）：叠层后每秒按层数直扣血，不触发硬直/白闪，也不打断出手
 func apply_bleed(layers: int) -> void:
 	if state == State.DEAD or layers <= 0:
 		return
@@ -1780,7 +1804,7 @@ func apply_poison(dur: float) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("中毒", POISON_LABEL_COLOR)
 	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
-	get_tree().current_scene.add_child(dn)
+	_world_add(dn)
 
 
 func _poison_tick(delta: float) -> void:
@@ -1814,7 +1838,7 @@ func apply_vulnerable(dur: float, ratio: float) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup("易伤 +%d%%" % int(round(ratio * 100.0)), Color(0.86, 0.45, 0.2))
 	dn.global_position = global_position + Vector2(0, _number_y - 18.0)
-	get_tree().current_scene.add_child(dn)
+	_world_add(dn)
 
 
 func _vuln_tick(delta: float) -> void:
@@ -1955,6 +1979,9 @@ func _fly_tick(delta: float) -> void:
 	# 落地：短暂硬直再起身（重力与 move_and_slide 在主循环末尾统一走）
 	if is_on_floor() and velocity.y >= 0.0:
 		_report_slam_landing()
+		var pl = get_tree().get_first_node_in_group("player")
+		if pl != null and pl.has_method("on_knock_landing"):
+			pl.call("on_knock_landing", self)
 		state = State.HURT
 		_hurt_timer = 0.3
 
@@ -2033,7 +2060,7 @@ func _spawn_number(amount: int, color: Color = DMG_COLOR) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup(str(amount), color, amount)
 	dn.global_position = global_position + Vector2(randf_range(-12.0, 12.0), _number_y)
-	get_tree().current_scene.add_child(dn)
+	_world_add(dn)
 
 
 func die() -> void:

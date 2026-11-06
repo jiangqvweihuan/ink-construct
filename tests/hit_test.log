@@ -1,9 +1,0 @@
-[H] t=0.0 player_hp=4 player_state=0 enemy_state=2 dx=37.2 dy=0.0
-[H] t=0.5 player_hp=4 player_state=0 enemy_state=2 dx=30.0 dy=0.1
-[H] t=1.0 player_hp=4 player_state=0 enemy_state=2 dx=30.0 dy=0.1
-[H] t=1.5 player_hp=3 player_state=6 enemy_state=3 dx=36.0 dy=0.0
-[H] t=2.0 player_hp=3 player_state=0 enemy_state=2 dx=30.0 dy=0.1
-[H] t=2.5 player_hp=3 player_state=0 enemy_state=2 dx=30.0 dy=0.1
-[H] t=3.0 player_hp=3 player_state=0 enemy_state=2 dx=30.0 dy=0.1
-[H] t=3.5 player_hp=3 player_state=0 enemy_state=3 dx=30.0 dy=0.0
-[H] ALL DONE

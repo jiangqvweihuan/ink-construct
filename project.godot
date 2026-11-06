@@ -10,10 +10,12 @@ config_version=5
 
 [application]
 
-config/name="InkConstruct"
-run/main_scene="res://scenes/ui/main_menu.tscn"
+config/name="墨构"
+config/version="0.9.0"
+run/main_scene="res://intro/Intro.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
+boot_splash/minimum_display_time=1500
 
 [autoload]
 
@@ -30,11 +32,16 @@ LoadVeil="*res://scripts/ui/load_veil.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
+window/size/mode=3
 window/stretch/mode="canvas_items"
 
 [dotnet]
 
 project/assembly_name="InkConstruct"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/copy_all_errors/plugin.cfg")
 
 [gui]
 
@@ -100,6 +107,10 @@ skill_p={
 ]
 }
 
+[intro]
+
+return_scene="res://scenes/ui/main_menu.tscn"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
@@ -110,3 +121,4 @@ common/physics_interpolation=true
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+environment/defaults/default_clear_color=Color(0.968627, 0.960784, 0.941176, 1)

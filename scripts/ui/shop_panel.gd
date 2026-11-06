@@ -4,6 +4,7 @@ extends CanvasLayer
 ## 角色买断仍在各角色修炼页顶部；外观按化身 / 敌人类别分册出售，购买后在图鉴里更换。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Skins = preload("res://scripts/systems/skins.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_PURCHASE := preload("res://audio/sfx/shop_purchase.wav")
@@ -146,7 +147,7 @@ func _owner_row(oid: String, pos: Vector2) -> void:
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.position = pos
 	b.size = Vector2(250, 46)
-	b.modulate = Color.WHITE if oid == _appearance_owner else Color(1, 1, 1, 0.6)
+	b.modulate = Color.WHITE if oid == _appearance_owner else Color(1, 1, 1, 0.78)
 	add_child(b)
 	_text(b, str(info.get("label", oid)), Vector2(14, 1), Vector2(222, 24), 19, PAPER)
 	var sub := "%d 套" % list.size()
@@ -164,8 +165,9 @@ func _owner_row(oid: String, pos: Vector2) -> void:
 func _build_stage(d: Dictionary) -> void:
 	var plate := Panel.new()
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.99, 0.96, 0.88, 0.45)
-	sb.border_color = Color(0.20, 0.17, 0.13, 0.32)
+	sb.bg_color = Color(0.902, 0.867, 0.784, 0.96)
+	sb.border_color = Color(0.16, 0.13, 0.10, 0.38)
+	sb.set_corner_radius_all(2)
 	sb.set_border_width_all(1)
 	plate.add_theme_stylebox_override("panel", sb)
 	plate.position = Vector2(372, 276)
@@ -231,7 +233,7 @@ func _pick_row(d: Dictionary, pos: Vector2) -> void:
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.position = pos
 	b.size = Vector2(398, 52)
-	b.modulate = Color.WHITE if sel else Color(1, 1, 1, 0.56)
+	b.modulate = Color.WHITE if sel else Color(1, 1, 1, 0.78)
 	add_child(b)
 	var title := _text(b, str(d.get("name", sid)), Vector2(18, 2), Vector2(232, 26), 19, PAPER)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -367,7 +369,7 @@ func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callab
 	b.position = pos
 	b.size = size
 	parent.add_child(b)
-	_text(b, text, Vector2.ZERO, size, 19, INK)
+	_text(b, text, Vector2.ZERO, size, 19, PAPER)
 	b.pressed.connect(func():
 		_play_sfx(sfx)
 		cb.call())
@@ -375,15 +377,4 @@ func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callab
 
 
 func _text(parent: Node, text: String, pos: Vector2, size: Vector2, font_size: int, color: Color) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.size = size
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(l)
-	return l
+	return UiKit.label(parent, text, pos, size, font_size, color, HORIZONTAL_ALIGNMENT_CENTER, true)

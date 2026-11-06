@@ -71,6 +71,9 @@ static func _make(parent: Node, fx_id: String, pos: Vector2, opts: Dictionary) -
 	f.process_mode = Node.PROCESS_MODE_ALWAYS if bool(opts.get("always", false)) else Node.PROCESS_MODE_INHERIT
 	parent.add_child(f)
 	f.sprite = ClassDB.instantiate("SpineSprite")
+	if f.sprite == null: # Spine 插件缺失/实例化失败时安全放弃，不空引用
+		f.queue_free()
+		return null
 	f.sprite.process_mode = f.process_mode
 	f.add_child(f.sprite)
 	f.sprite.set("skeleton_data_res", d)

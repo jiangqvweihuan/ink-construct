@@ -24,7 +24,6 @@ const STATUS_PER_ROW := 9
 var _root: Control
 var _action_root: Control
 var _hp_bar: Control
-var _hp_label: Label
 var _combo_label: Label
 var _mode_label: Label
 var _hud_skills: Array = []
@@ -87,15 +86,6 @@ func _build_hp_bar(root: Control) -> void:
 	_hp_bar.bar_width = BAR_W
 	_hp_bar.bar_height = BAR_H
 	bar.add_child(_hp_bar)
-	_hp_label = Label.new()
-	_hp_label.position = Vector2(12, 4)
-	_hp_label.size = Vector2(BAR_W - 24, BAR_H)
-	_hp_label.add_theme_color_override("font_color", PAPER)
-	_hp_label.add_theme_color_override("font_outline_color", INK)
-	_hp_label.add_theme_constant_override("outline_size", 3)
-	_hp_label.add_theme_font_size_override("font_size", 15)
-	_hp_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.add_child(_hp_label)
 
 
 # ---------- 底部动作栏 ----------
@@ -385,7 +375,6 @@ func _on_hp_changed(hp: int, max_hp: int) -> void:
 	if _hp_bar == null:
 		return
 	_hp_bar.set_vital(hp, max_hp, _player_extra)
-	_hp_label.text = "%d/%d" % [hp, max_hp]
 
 
 func _on_combo_changed(count: int) -> void:
@@ -450,8 +439,6 @@ func _on_boss_hp_changed(hp: int, max_hp: int) -> void:
 	if _boss_vital == null:
 		return
 	_boss_vital.set_vital(hp, maxi(1, max_hp), _boss_extra)
-	if is_instance_valid(_boss) and str(_boss.get("type_id")) == "c001":
-		_boss_name.text = "武车 · 耐久 %d/%d" % [hp, max_hp]
 
 
 func _build_boss_bar(root: Control) -> void:

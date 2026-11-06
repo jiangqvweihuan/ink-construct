@@ -6,6 +6,7 @@ extends RefCounted
 
 const PATH := "user://settings.cfg"
 const RESOLUTIONS: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]
+const CONFIG_VERSION := 1 # 配置结构版本：1 = 默认无边框全屏
 
 ## 可改键动作 -> 默认物理键码（与 project.godot [input] 一致，恢复默认用）
 const DEFAULT_BINDS := {
@@ -30,16 +31,18 @@ const KEY_TEXT := {
 static var master_volume := 1.0 # 线性 0~1
 static var music_volume := 1.0
 static var sfx_volume := 1.0
-static var display_mode := 0 # 0 窗口化 / 1 无边框窗口 / 2 全屏
+static var display_mode := 2 # 0 窗口化 / 1 无边框窗口 / 2 无边框全屏（0.9 起默认全屏）
 static var resolution := Vector2i(1280, 720)
 static var fps_limit := 0 # 0 = 不限制
 static var vsync := true
 static var brightness := 1.0 # 0.5 ~ 1.5
 static var screen_shake := true
 static var damage_numbers := 1 # 伤害飘字：0 关闭 / 1 仅重击（≥3）/ 2 全部显示
+static var intro_skip := false # 关闭启动开场视频（user://settings.cfg 的 ui/intro_skip）
 static var binds := {} # action -> 物理键码（只记用户改过的键）
 static var persist := true # 测试置 false：不写玩家配置
 static var _loaded := false
+static var _migrated := false
 
 
 static func _ensure_loaded() -> void:
@@ -57,16 +60,35 @@ static func _ensure_loaded() -> void:
 		display_mode = cfg.get_value("video", "display_mode", 0)
 	elif cfg.get_value("video", "fullscreen", false):
 		display_mode = 2
+	# 0.9 起默认无边框全屏：老配置迁移一次，之后尊重玩家自己的选择
+	if int(cfg.get_value("video", "config_version", 0)) < CONFIG_VERSION:
+		display_mode = 2
+		_migrated = true
 	resolution = cfg.get_value("video", "resolution", Vector2i(1280, 720))
 	fps_limit = cfg.get_value("video", "fps_limit", 0)
 	vsync = cfg.get_value("video", "vsync", true)
 	brightness = cfg.get_value("video", "brightness", 1.0)
 	screen_shake = cfg.get_value("video", "screen_shake", true)
 	damage_numbers = clampi(int(cfg.get_value("video", "damage_numbers", 1)), 0, 2)
+	intro_skip = bool(cfg.get_value("ui", "intro_skip", false))
 	var saved: Dictionary = cfg.get_value("input", "binds", {})
 	for action in saved:
 		if DEFAULT_BINDS.has(action):
 			binds[action] = int(saved[action])
+	if _migrated:
+		_save()
+
+
+## 只应用显示设置：开场场景在进入主菜单之前就要按全屏尺寸铺开
+static func apply_display() -> void:
+	_ensure_loaded()
+	_apply_display()
+
+
+## 启动开场是否播放（false = 正常播放；true = 直接进主场景）
+static func intro_skip_enabled() -> bool:
+	_ensure_loaded()
+	return intro_skip
 
 
 static func _save() -> void:
@@ -76,6 +98,7 @@ static func _save() -> void:
 	cfg.set_value("audio", "master", master_volume)
 	cfg.set_value("audio", "music", music_volume)
 	cfg.set_value("audio", "sfx", sfx_volume)
+	cfg.set_value("video", "config_version", CONFIG_VERSION)
 	cfg.set_value("video", "display_mode", display_mode)
 	cfg.set_value("video", "resolution", resolution)
 	cfg.set_value("video", "fps_limit", fps_limit)
@@ -83,6 +106,7 @@ static func _save() -> void:
 	cfg.set_value("video", "brightness", brightness)
 	cfg.set_value("video", "screen_shake", screen_shake)
 	cfg.set_value("video", "damage_numbers", damage_numbers)
+	cfg.set_value("ui", "intro_skip", intro_skip)
 	cfg.set_value("input", "binds", binds)
 	cfg.save(PATH)
 
@@ -136,7 +160,7 @@ static func snapshot() -> Dictionary:
 static func default_snapshot() -> Dictionary:
 	return {
 		"master": 1.0, "music": 1.0, "sfx": 1.0,
-		"display_mode": 0, "resolution": RESOLUTIONS[0], "fps_limit": 0,
+		"display_mode": 2, "resolution": RESOLUTIONS[0], "fps_limit": 0,
 		"vsync": true, "brightness": 1.0, "screen_shake": true, "damage_numbers": 1, "binds": {},
 	}
 
@@ -303,7 +327,7 @@ static func reset_all() -> void:
 	master_volume = 1.0
 	music_volume = 1.0
 	sfx_volume = 1.0
-	display_mode = 0
+	display_mode = 2
 	resolution = RESOLUTIONS[0]
 	fps_limit = 0
 	vsync = true

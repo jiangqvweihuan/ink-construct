@@ -106,14 +106,21 @@ func _spawn_tip(text: String, color: Color) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup(text, color)
 	dn.global_position = global_position + Vector2(-20, float(PROPS[kind]["tip"]))
-	get_tree().current_scene.add_child(dn)
+	var root := get_tree().current_scene
+	if root == null:
+		dn.queue_free()
+		return
+	root.add_child(dn)
 
 
 func _play_sfx(stream: AudioStream) -> void:
 	# 挂场景根：本体 queue_free 后音效照常播完
+	var root := get_tree().current_scene
+	if root == null:
+		return
 	var s := AudioStreamPlayer.new()
 	s.bus = "SFX"
-	get_tree().current_scene.add_child(s)
+	root.add_child(s)
 	s.stream = stream
 	s.play()
 	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)

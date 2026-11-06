@@ -100,7 +100,7 @@ func _ready() -> void:
 		add_child(room)
 		await get_tree().create_timer(1.0).timeout
 		_ink_before = Meta.ink
-		# 阵亡路径：先换成银夜再死，验证「再来一局」沿用当前形态（不能掉回默认双刺）
+		# 阵亡路径：先换成银夜再死，验证「再来一局」沿用当前形态（不能掉回默认绯刃）
 		room._player.swap_skull("z003")
 		p("换形态 -> " + str(room._player.skull_id))
 		# 固定实伤条件，避免等待期间受击无敌或银夜 20% 暗夜让测试补刀随机落空。
@@ -190,7 +190,15 @@ func _check_ink(cleared: bool) -> void:
 
 
 func _shot(tag: String) -> void:
-	await RenderingServer.frame_post_draw
+	# 无头下 frame_post_draw 不发射：改用 process_frame + force_draw，并以空图判断兜底。
+	await get_tree().process_frame
+	# 无头下没有可读帧，直接跳过截图，避免 dummy 纹理报错。
+	if DisplayServer.get_name() == "headless":
+		return
+	RenderingServer.force_draw()
 	var img = get_viewport().get_texture().get_image()
+	if img == null:
+		p("screenshot unavailable " + tag)
+		return
 	var err = img.save_png(OUT_DIR + "settle_" + tag + ".png")
 	p("saved " + tag + " err=" + str(err))

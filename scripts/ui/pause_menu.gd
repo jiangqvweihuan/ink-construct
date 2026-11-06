@@ -1,13 +1,13 @@
 extends CanvasLayer
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const BattleStatus = preload("res://scripts/ui/battle_status.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
 ## 暂停菜单：Esc 继续，左侧导航，右侧查看全部战斗状态、被动与强化。
 
-const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.72, 0.69, 0.62)
 const RED := Color(0.78, 0.30, 0.24)
@@ -57,35 +57,14 @@ func _ready() -> void:
 
 
 func _text(text: String, pos: Vector2, dimensions: Vector2, font_size: int, color: Color, parent: Node) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.size = dimensions
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(l)
-	return l
+	return UiKit.label(parent, text, pos, dimensions, font_size, color, HORIZONTAL_ALIGNMENT_CENTER, false)
 
 
 func _make_button(text: String, y: float, cb: Callable, sfx: AudioStream = SFX_CLICK) -> void:
-	var b := TextureButton.new()
-	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
-	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = Vector2(220, 56)
-	b.position = Vector2(250, y)
-	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	var l := _text(text, Vector2.ZERO, b.size, 22, INK, b)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.pressed.connect(func():
+	UiKit.texture_button(self, text, Vector2(250, y), Vector2(220, 56), 22, PAPER, func():
 		if sfx != null:
 			_play_sfx(sfx)
 		cb.call())
-	add_child(b)
 
 
 func _build_status_details() -> void:

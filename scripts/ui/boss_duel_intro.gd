@@ -57,8 +57,15 @@ func _ready() -> void:
 	var idle_anim := str(boss_anims.get("idle", "stand"))
 	var intro: Dictionary = BossTypes.get_boss(str(_boss.get("type_id"))).get("intro", {"anim": idle_anim, "loop": true})
 	var intro_anim := str(intro.get("anim", idle_anim))
-	var duration := float(_boss.get("_anim_durations").get(intro_anim, 2.2))
-	_make_preview(root, _boss.get("sprite").get("skeleton_data_res"), float(_boss.get("_scale")) * 0.9,
+	# Boss 脚本可能尚未完成骨架挂载：取不到就按默认时长/默认缩放走，绝不空引用。
+	var durations_v = _boss.get("_anim_durations")
+	var durations: Dictionary = durations_v if durations_v is Dictionary else {}
+	var duration := float(durations.get(intro_anim, 2.2))
+	var boss_sprite = _boss.get("sprite")
+	var boss_skin = boss_sprite.get("skeleton_data_res") if is_instance_valid(boss_sprite) else null
+	var scale_v = _boss.get("_scale")
+	var boss_scale := float(scale_v) if (scale_v is int or scale_v is float) else 1.0
+	_make_preview(root, boss_skin, boss_scale * 0.9,
 		Vector2(984, 600), intro_anim, bool(intro.get("loop", false)), true)
 	await get_tree().create_timer(maxf(1.2, duration)).timeout
 	_finish()

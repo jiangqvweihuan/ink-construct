@@ -83,9 +83,12 @@ func _next_wave() -> void:
 func _spawn_one() -> void:
 	var cfg: Dictionary = waves[_wave]
 	var is_elite := _elites_left > 0
-	var scene_path: String = ELITE_SCENES[randi() % ELITE_SCENES.size()] if is_elite else NORMAL_SCENES[randi() % NORMAL_SCENES.size()]
-	var e = load(scene_path).instantiate()
+	var list: Array = ELITE_SCENES if is_elite else NORMAL_SCENES
+	var scene = load(str(list[randi() % list.size()])) if not list.is_empty() else null
+	var e = scene.instantiate() if scene != null else null
 	if e == null:
+		# 配置/资源异常时也消耗一个名额，避免波次永远清不完、房间卡死
+		_to_spawn -= 1
 		return
 	e.position = Vector2(_pick_x() + randf_range(-25.0, 25.0), spawn_y)
 	e.died.connect(_on_enemy_died.bind(e))
@@ -109,6 +112,8 @@ func _spawn_one() -> void:
 
 ## 挑一个离玩家不太近、也不压着其他存活怪的出生点，避免贴脸刷出 / 叠罗汉
 func _pick_x() -> float:
+	if spawn_xs.is_empty():
+		return 640.0
 	var px: float = player_ref.global_position.x if is_instance_valid(player_ref) else 640.0
 	var ok: Array = spawn_xs.filter(func(x: float): return absf(x - px) > 260.0 and _peer_gap(x) > 110.0)
 	if ok.is_empty():

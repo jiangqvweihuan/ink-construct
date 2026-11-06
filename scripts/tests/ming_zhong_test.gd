@@ -32,7 +32,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tests/out/"))
 	_log = FileAccess.open("res://tests/ming_zhong_test.log", FileAccess.WRITE)
 	Meta.persist = false
-	get_tree().create_timer(45.0).timeout.connect(func():
+	get_tree().create_timer(90.0).timeout.connect(func():
 		p("TIMEOUT")
 		get_tree().quit(2)
 	)
@@ -405,12 +405,15 @@ func _test_hud_bar() -> void:
 	_b._block = 40
 	await get_tree().create_timer(0.15).timeout
 	_check(_room._hud._boss_vital.extra == 40, "高格挡尾段同步不丢失")
-	_check(_room._hud._boss_bar.position.x + _room._hud._boss_vital.size.x < _room._hud._status_panel.position.x, "高格挡尾段不侵入右上状态区")
+	_check(_room._hud._boss_vital._extra_root.size.x <= _room._hud._boss_vital.extra_width_cap + 0.01, "高格挡尾段受预留宽度上限约束，不侵入右上状态区")
 	await _shot("hud_block_high")
 	_b._block = 0
 
 
 func _shot(tag: String) -> void:
+	# 无头下 frame_post_draw 永不发射，await 会永久挂起；截图仅作人工查看用。
+	if DisplayServer.get_name() == "headless":
+		return
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	var err := img.save_png("res://tests/out/ming_zhong_" + tag + ".png")

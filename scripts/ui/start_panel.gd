@@ -4,12 +4,12 @@ extends CanvasLayer
 ## 角色卡只负责选中，右侧显示真实 Spine 待机；最后点「启程」才开新一局。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_RUN_EMBARK := preload("res://audio/sfx/run_embark.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
-const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.82, 0.79, 0.72)
 const RED := Color(0.66, 0.2, 0.16)
@@ -181,40 +181,15 @@ func _label(text: String, y: float, font_size: int, color: Color) -> void:
 
 
 func _text(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color, alignment := HORIZONTAL_ALIGNMENT_CENTER) -> void:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.size = size
-	l.horizontal_alignment = alignment
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(l)
+	UiKit.label(self, text, pos, size, font_size, color, alignment, true)
 
 
 func _card_text(card: Control, text: String, pos: Vector2, size: Vector2, font_size: int, color: Color) -> void:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.size = size
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	card.add_child(l)
+	UiKit.label(card, text, pos, size, font_size, color, HORIZONTAL_ALIGNMENT_CENTER, true)
 
 
 func _rule(pos: Vector2, size: Vector2) -> void:
-	var r := ColorRect.new()
-	r.color = Color(0.66, 0.2, 0.16, 0.6)
-	r.position = pos
-	r.size = size
-	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(r)
+	UiKit.rule(self, pos, size, Color(0.66, 0.2, 0.16, 0.6))
 
 
 func _texture_card(pos: Vector2, size: Vector2, selected := false, parent: Node = null) -> TextureButton:
@@ -330,7 +305,7 @@ func _char_card(id: String, i: int, parent: Control) -> void:
 		_card_text(card, "已 选" if id == _char else "选 择", Vector2(0, 202), Vector2(122, 24), 13, RED if id == _char else DIM)
 	else:
 		_card_text(card, "？？？", Vector2(0, 34), Vector2(122, 38), 22, PAPER)
-		_card_text(card, Meta.unlock_hint(id), Vector2(8, 94), Vector2(106, 76), 12, DIM)
+		_card_text(card, Meta.unlock_hint(id), Vector2(4, 94), Vector2(114, 76), 12, DIM)
 		_card_text(card, "尚未解锁", Vector2(0, 202), Vector2(122, 24), 12, RED)
 
 
@@ -371,7 +346,7 @@ func _supply_selector() -> void:
 			text = "%s ×%d" % [Meta.INK_SHOP[id]["label"], Meta.supply_count(id)]
 		var b := _texture_card(Vector2(90 + i * 169, 532), Vector2(158, 42), id == _supply)
 		b.disabled = id != "" and Meta.supply_count(id) <= 0
-		_card_text(b, text, Vector2.ZERO, b.size, 14, INK if not b.disabled else DIM)
+		_card_text(b, text, Vector2.ZERO, b.size, 14, PAPER if not b.disabled else DIM)
 		b.pressed.connect(func():
 			_supply = id
 			_click_sfx()
@@ -380,7 +355,7 @@ func _supply_selector() -> void:
 
 func _button(text: String, x: float, y: float, cb: Callable, sfx: AudioStream = SFX_CLICK) -> TextureButton:
 	var b := _texture_card(Vector2(x, y), Vector2(220, 52))
-	_card_text(b, text, Vector2.ZERO, b.size, 22, INK)
+	_card_text(b, text, Vector2.ZERO, b.size, 22, PAPER)
 	b.pressed.connect(func():
 		if sfx != null:
 			_play_sfx(sfx)

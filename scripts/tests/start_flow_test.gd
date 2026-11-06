@@ -40,15 +40,15 @@ func _ready() -> void:
 
 	await _click(Vector2(1060, 365)) # 无归
 	p("点「无归」-> step=%d difficulty=%d（期望 2 / 4）" % [_step(_panel()), _difficulty(_panel())])
-	await _click(Vector2(150, 360)) # 选中双刺，不直接开局
+	await _click(Vector2(150, 360)) # 选中绯刃，不直接开局
 	p("点角色卡 -> step=%d char=%s scene=%s（选中但不启程）" % [_step(_panel()), str(_panel().get("_char")), get_tree().current_scene.name])
 	var char_panel := _panel()
-	p("双刺选角原画=%s 完整容纳=%s（期望 true / true）" % [
+	p("绯刃选角原画=%s 完整容纳=%s（期望 true / true）" % [
 		is_instance_valid(char_panel._portrait) and char_panel._portrait.texture != null,
 		is_instance_valid(char_panel._portrait) and char_panel._portrait.stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED])
 	await _shot("run_03_character_preview")
 
-	# 没有原画的力僧仍显示原有 Spine 动作，不留空框；随后恢复双刺继续旧流程。
+	# 没有原画的镇岳仍显示原有 Spine 动作，不留空框；随后恢复绯刃继续旧流程。
 	var purchases_before: Dictionary = Meta.purchases.duplicate()
 	Meta.purchases["buyout_c013"] = true
 	char_panel._pick_char("c013")
@@ -58,7 +58,7 @@ func _ready() -> void:
 	for child in char_panel.get_children():
 		if child.get_class() == "SpineSprite":
 			has_spine = true
-	p("力僧缺原画回退：原画为空=%s Spine动作=%s（期望 true / true）" % [char_panel._portrait == null, has_spine])
+	p("镇岳缺原画回退：原画为空=%s Spine动作=%s（期望 true / true）" % [char_panel._portrait == null, has_spine])
 	await _shot("run_03b_character_spine_fallback")
 	Meta.purchases = purchases_before
 	char_panel._pick_char("c021")
@@ -124,12 +124,14 @@ func _ready() -> void:
 	p("无参开局难度=%d（期望默认落笔 1）" % Run.difficulty)
 
 	# 最终真实点一次「启程」，确认只有按钮会开局，且模式/难度/角色正确带入。
+	# 补给卡在面板构建时按库存决定能否点击，必须先塞库存再进化身步，
+	# 否则本地存档补给为空时点击会被 disabled 吞掉。
+	Meta.persist = false
+	Meta.inventory["supply_revive"] = 2
 	await _click(Vector2(440, 365))
 	await _click(Vector2(635, 365)) # 惊锋
 	await _click(Vector2(150, 360))
 	p("即将启程：mode=%s difficulty=%d skull=%s（期望 adventure / 2 / c021）" % [_mode(_panel()), _difficulty(_panel()), str(_panel().get("_char"))])
-	Meta.persist = false
-	Meta.inventory["supply_revive"] = 2
 	await _click(Vector2(507, 553)) # 复活墨符：真实选择两件同类补给，供重复启程回归使用。
 	assert(_panel()._supply == "supply_revive", "启程前必须选中复活墨符")
 	assert(_panel()._start_button != null, "必须持有实际启程按钮")
@@ -248,7 +250,15 @@ func _drag(from: Vector2, to: Vector2) -> void:
 
 
 func _shot(shot_name: String) -> void:
-	await RenderingServer.frame_post_draw
+	# 无头下 frame_post_draw 不发射：改用 process_frame + force_draw，并以空图判断兜底。
+	await get_tree().process_frame
+	# 无头下没有可读帧，直接跳过截图，避免 dummy 纹理报错。
+	if DisplayServer.get_name() == "headless":
+		return
+	RenderingServer.force_draw()
 	var img = get_viewport().get_texture().get_image()
+	if img == null:
+		p("screenshot unavailable " + shot_name)
+		return
 	var err = img.save_png("res://tests/out/" + shot_name + ".png")
 	p("saved " + shot_name + " err=" + str(err))

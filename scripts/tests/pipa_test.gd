@@ -174,19 +174,19 @@ func _test_profile_and_attacks() -> void:
 		before -= int(expected[i])
 		_check(e.hp == before, "普攻第 %d 段造成 %d 伤" % [i + 1, int(expected[i])])
 	_p._start_attack(3)
-	_p._sfx_player.stop()
+	_p.audio.sfx_player.stop()
 	_p._attack_tick(0.81)
-	_check(_shots().is_empty() and not _p._sfx_player.playing, "普攻末段发射前不提前生成魔音或播放发射音")
+	_check(_shots().is_empty() and not _p.audio.sfx_player.playing, "普攻末段发射前不提前生成魔音或播放发射音")
 	_p._attack_tick(0.02)
 	var second = _enemy_at(150.0)
 	var shots := _shots()
 	_check(e.hp == before and shots.size() == 1, "普攻末段在 0.82 秒只发一道魔音而不直接近战结算")
-	_check(_p._wave_sfx_player.playing and _p._wave_sfx_player.stream == _p._sfx_cache["pipa_basic_wave"] \
-		and not _p._sfx_player.playing, "普攻末段发射魔音时使用独立通道播放新音波音效")
+	_check(_p.audio.wave_player.playing and _p.audio.wave_player.stream == _p.audio.cache["pipa_basic_wave"] \
+		and not _p.audio.sfx_player.playing, "普攻末段发射魔音时使用独立通道播放新音波音效")
 	_p._set_state(PlayerClass.State.RUN)
 	_p._play_sfx("player_footstep")
-	_check(_p._wave_sfx_player.playing and _p._wave_sfx_player.stream == _p._sfx_cache["pipa_basic_wave"] \
-		and _p._sfx_player.stream == _p._sfx_cache["player_footstep"], "普攻末段音波发射后，移动与其他音效均不截断播放")
+	_check(_p.audio.wave_player.playing and _p.audio.wave_player.stream == _p.audio.cache["pipa_basic_wave"] \
+		and _p.audio.sfx_player.stream == _p.audio.cache["player_footstep"], "普攻末段音波发射后，移动与其他音效均不截断播放")
 	if shots.is_empty():
 		return
 	var pr = shots[0]
@@ -371,12 +371,12 @@ func _run_o_case(awaken_count: int, expected_senses: int, label: String) -> void
 		var at := float(h["at"])
 		var delta := at - elapsed + 0.0001
 		var before: int = e.hp
-		_p._sfx_player.stop()
+		_p.audio.sfx_player.stop()
 		_p._skill_tick(delta)
 		elapsed += delta
 		var shots := _shots()
 		_check(shots.size() == 1 and int(e.hp) == before, "%s O 第 %d 段只发一颗弹，发射本身不扣血" % [label, i + 1])
-		_check(_p._sfx_player.playing and _p._sfx_player.stream == _p._sfx_cache["pipa_eight_tones"], "%s O 第 %d 段发射时播放一次八音" % [label, i + 1])
+		_check(_p.audio.sfx_player.playing and _p.audio.sfx_player.stream == _p.audio.cache["pipa_eight_tones"], "%s O 第 %d 段发射时播放一次八音" % [label, i + 1])
 		var shot = shots[0] if shots.size() == 1 else null
 		_check(shot != null and ["E53008", "E53009"].has(str(shot._effects.get("fx_id", ""))) \
 			and str(shot._effects.get("fx_anim", "")) == "action" and is_instance_valid(shot._spine_fx) \
@@ -446,7 +446,7 @@ func _test_p() -> void:
 	_check(e.mind_status_count() == 9, "心魔引按层数与每 2 秒一层统计全部状态")
 	_p._start_skill("skill09")
 	var hit_at := float(_p.skill_config["skill09"]["hits"][0]["at"])
-	var voice = _p._sfx_cache["pipa_inner_demon"] as AudioStream
+	var voice = _p.audio.cache["pipa_inner_demon"] as AudioStream
 	_check(_p._skill_anim == "skill16_02-" and is_equal_approx(_p._skill_dur, 5.333333) \
 		and voice != null and hit_at > voice.get_length(), "P 使用第 100 号完整动画，伤害帧晚于心魔引音效")
 	_check(_p._skill_poise and is_equal_approx(float(_p._skill_cds["skill09"]), 22.0), "P 具有霸体且冷却 22 秒")
@@ -621,7 +621,7 @@ func _test_sorrow() -> void:
 	e.apply_charm(3.0)
 	_p._pipa_sorrow_timer = 0.01
 	_p._pipa_passive_tick(0.01)
-	_check(_p._sfx_player.playing and _p._sfx_player.stream == _p._sfx_cache["pipa_sorrow"], "神伤全屏波纹触发时播放专属音效")
+	_check(_p.audio.sfx_player.playing and _p.audio.sfx_player.stream == _p.audio.cache["pipa_sorrow"], "神伤全屏波纹触发时播放专属音效")
 	_check(e.hp == 97 and is_equal_approx(_p._pipa_sorrow_timer, 30.0), "神伤 5 伤经魅惑减半为 3，并重置 30 秒计时")
 	_check(e._mind_shock == 1 and e._bleed_stacks == 2 and is_equal_approx(e._bleed_time, 10.0) \
 		and is_equal_approx(e._poison_time, 7.0) and is_equal_approx(e._root_timer, 8.0), "神伤增幅：shock=%d bleed=%d/%.2f poison=%.2f root=%.2f" % [e._mind_shock, e._bleed_stacks, e._bleed_time, e._poison_time, e._root_timer])
@@ -753,8 +753,8 @@ func _test_state_boundaries() -> void:
 	Run.supply_revive_used = false
 	_p.hp = 0
 	var revived: bool = _p._try_revive(Vector2.ZERO)
-	_check(revived and _p.state == PlayerClass.State.HURT and _p.hp == 4 and not _p._skill_loop_active \
-		and not _p._loop_sfx_player.playing and not _p._blink_active and not _p._skill_root_follow \
+	_check(revived and _p.state == PlayerClass.State.HURT and _p.hp == 4 and not _p.audio._loop_active \
+		and not _p.audio._loop_player.playing and not _p._blink_active and not _p._skill_root_follow \
 		and not _p._invincible, "技能中复活会停止循环音并收掉穿身、根骨跟随与技能无敌")
 	_check(_p._skill_hits.is_empty() and _p._skill_audio_events.is_empty() and _p._delayed.is_empty() \
 		and _p._skill_runtime.is_empty() and _p._skill_name.is_empty() and is_zero_approx(_p._skill_timer) \
@@ -766,7 +766,7 @@ func _test_state_boundaries() -> void:
 	Run.supply_revive_used = false
 
 	_reset_world()
-	_check(_p._sfx_player.bus == "SFX" and _p._loop_sfx_player.bus == "SFX", "玩家普通与循环音效均走 SFX 总线")
+	_check(_p.audio.sfx_player.bus == "SFX" and _p.audio._loop_player.bus == "SFX", "玩家普通与循环音效均走 SFX 总线")
 	_p.cooldown_scale = 0.5
 	_p._start_skill("skill03")
 	_p._skill_cds["skill03"] = 2.0
@@ -836,23 +836,23 @@ func _test_spine_fx() -> void:
 	_p._start_skill("skill07_02")
 	var cast_nodes := _direct_spine(_p, "E53174", "awaken_cast")
 	_check(cast_nodes.size() == 1 and str(cast_nodes[0].get_meta("fx_anim")) == "action" \
-		and cast_nodes[0].position.is_equal_approx(Vector2.ZERO) and not is_instance_valid(_p._awaken_spine),
+		and cast_nodes[0].position.is_equal_approx(Vector2.ZERO) and not is_instance_valid(_p.fx.awaken_spine),
 		"苏挽音 I 起手荷花在脚下地面生成，不提前生成觉醒环绕")
 	_p._skill_tick(_p._skill_timer + 0.001)
-	var awaken = _p._awaken_spine
+	var awaken = _p.fx.awaken_spine
 	_check(is_instance_valid(awaken) and str(awaken.get_meta("fx_id")) == "E100172" \
 		and str(awaken.get_meta("fx_anim")) == "action" and awaken.position.is_equal_approx(Vector2(0.0, -64.0)) \
 		and bool(awaken._center), "苏挽音 I 收招后以胸口为中心生成 E100172 持续环绕")
 	_p._awaken_time = 0.0
-	_p._sync_persistent_spine()
-	_check(_p._awaken_spine == null and awaken.is_queued_for_deletion(), "苏挽音觉醒结束释放 E100172")
+	_p.fx.sync_persistent(_p.state == _p.State.DEAD)
+	_check(_p.fx.awaken_spine == null and awaken.is_queued_for_deletion(), "苏挽音觉醒结束释放 E100172")
 
 	# O 不再于起手额外生成视觉弹，八颗真实弹及逐次发音由 _test_o 完整检查。
 	_reset_world()
 	_p._awaken_time = 8.0
 	_p._start_skill("skill10_03")
 	shots = _shots()
-	_check(shots.is_empty() and _p._skill_hits.size() == 8 and not _p._skill_loop_active,
+	_check(shots.is_empty() and _p._skill_hits.size() == 8 and not _p.audio._loop_active,
 		"苏挽音 O 起手无视觉弹且不循环播放八音")
 
 	# 神伤以视口宽度拟合 6400 原始素材，视觉中心仍位于玩家上方。

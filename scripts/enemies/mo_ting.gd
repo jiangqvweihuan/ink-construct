@@ -483,7 +483,12 @@ func _spawn_marker() -> void:
 	_marker = RedMark.new()
 	_marker.z_index = 6
 	_marker.global_position = _target.global_position
-	get_tree().current_scene.add_child(_marker)
+	var root := get_tree().current_scene
+	if root == null:
+		_marker.queue_free()
+		_marker = null
+		return
+	root.add_child(_marker)
 	_marker_locked = false
 
 
@@ -504,9 +509,12 @@ func _try_tremor_grab() -> void:
 
 func _update_laser() -> void:
 	if not is_instance_valid(_laser):
+		var root := get_tree().current_scene
+		if root == null:
+			return
 		_laser = InkLaser.new()
 		_laser.z_index = 7
-		get_tree().current_scene.add_child(_laser)
+		root.add_child(_laser)
 	_laser.global_position = global_position + Vector2(facing * LASER_OFFSET.x, LASER_OFFSET.y)
 	_laser.set("direction", float(facing))
 	var length := (1920.0 - _laser.global_position.x) if facing > 0 else _laser.global_position.x
@@ -617,8 +625,13 @@ func on_player_hit(amount: int, _move: Dictionary, _player: Node) -> void:
 func _modify_outgoing_damage(dmg: int, target: Node, _move: Dictionary) -> int:
 	if dmg <= 0 or target == null or not is_instance_valid(target) or target != _target:
 		return dmg
-	var target_max := int(target.get("max_hp"))
-	var target_hp := int(target.get("hp"))
+	# 影饵等纯 Node2D 诱饵没有生命字段，get() 会返回 null，不能直接 int()
+	var max_v = target.get("max_hp")
+	var hp_v = target.get("hp")
+	if not (max_v is int or max_v is float) or not (hp_v is int or hp_v is float):
+		return dmg
+	var target_max := int(max_v)
+	var target_hp := int(hp_v)
 	if target_max > 0 and target_hp >= target_max:
 		return dmg * 2
 	return dmg

@@ -222,7 +222,7 @@ func _test_fists() -> void:
 	Run.c013_buddha = 1
 	_b._start_fen_move(_b.FISTS)
 	_b._cast_tick(0.91)
-	_check(_p.hp == 17 and Run.c013_buddha == 0 and _p._hurt_chain.is_empty(), "真实 Boss 恰好 3 实伤消耗力僧佛陀且只免除倒地")
+	_check(_p.hp == 17 and Run.c013_buddha == 0 and _p._hurt_chain.is_empty(), "真实 Boss 恰好 3 实伤消耗镇岳佛陀且只免除倒地")
 	_p.swap_skull(previous_skull)
 
 

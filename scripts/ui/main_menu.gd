@@ -24,7 +24,6 @@ const ITEM_Y := 588.0
 const ITEM_H := 72.0
 
 var _start_panel: Node # 开始面板引用：连点「开始游戏」不叠加
-var _opening := false # 图鉴正在展开：帘子落下期间连点不叠第二块
 var _sfx: AudioStreamPlayer # 点击音（常驻一个，不再每次新建）
 var _hover_sfx: AudioStreamPlayer # 悬停轻响
 var _items: Array = [] # 每项 {box, plate, label, line, base_y, cb}
@@ -243,13 +242,6 @@ func _open_achievements() -> void:
 	add_child(load("res://scenes/ui/achievements_panel.tscn").instantiate())
 
 
-## 图鉴是全场最重的一块：先把残卷幕布展开，再搭界面，避免点下去的瞬间整帧卡死
+## 图鉴直接挂载；实测加载不卡，不再用残卷幕布做过渡
 func _open_codex() -> void:
-	if _opening:
-		return
-	_opening = true
-	await LoadVeil.cover("正在展卷")
 	add_child(load("res://scenes/ui/codex_panel.tscn").instantiate())
-	await get_tree().process_frame
-	await LoadVeil.reveal()
-	_opening = false

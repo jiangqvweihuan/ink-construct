@@ -272,7 +272,11 @@ func _hit_front(damage: int, reach: float, extra: Dictionary = {}) -> void:
 	var dy := absf(_target.global_position.y - global_position.y)
 	reach *= 1.0 + _eye_effect("reach")
 	if (dx == 0.0 or (dx > 0.0) == (facing > 0)) and absf(dx) <= reach + _radius_of(_target) and dy <= 190.0:
-		var controlled := float(_target.get("_stun_time")) > 0.0 or float(_target.get("_cripple_time")) > 0.0
+		# 影饵是裸 Node2D，没有状态计时字段；取不到就按未受控处理。
+		var stun_v = _target.get("_stun_time")
+		var cripple_v = _target.get("_cripple_time")
+		var controlled := ((stun_v is int or stun_v is float) and float(stun_v) > 0.0) \
+			or ((cripple_v is int or cripple_v is float) and float(cripple_v) > 0.0)
 		var total := damage + int(_eye_effect("damage")) + (int(_eye_effect("controlled_damage")) if controlled else 0)
 		_hit_status_target(_target, total, Vector2.ZERO, _move_data(extra))
 
@@ -438,7 +442,9 @@ func _text(text: String, color: Color) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup(text, color)
 	dn.global_position = global_position + Vector2(0, _number_y - 25.0)
-	get_tree().current_scene.add_child(dn)
+	var root := get_tree().current_scene
+	if root != null:
+		root.add_child(dn)
 
 
 func die() -> void:

@@ -5,6 +5,7 @@ extends CanvasLayer
 ## 已购末节点可点击全额退款；整角色重置返还该角色全部修炼投入。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_META_UPGRADE_01 := preload("res://audio/sfx/meta_upgrade_01.wav")
@@ -259,7 +260,7 @@ func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callab
 	b.position = pos
 	b.size = size
 	parent.add_child(b)
-	_text(b, text, Vector2.ZERO, size, 18, INK)
+	_text(b, text, Vector2.ZERO, size, 18, PAPER)
 	b.pressed.connect(func():
 		_play_sfx(sfx)
 		cb.call())
@@ -267,15 +268,4 @@ func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callab
 
 
 func _text(parent: Node, text: String, pos: Vector2, size: Vector2, font_size: int, color: Color, align := HORIZONTAL_ALIGNMENT_CENTER) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.size = size
-	l.horizontal_alignment = align
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(l)
-	return l
+	return UiKit.label(parent, text, pos, size, font_size, color, align, true)

@@ -8,6 +8,7 @@ extends CanvasLayer
 ## 玩家文案与内部动画键、判定参数分离；没有正式来历的区块直接省略。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Skins = preload("res://scripts/systems/skins.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const EnemyTypes = preload("res://scripts/enemies/enemy_types.gd")
@@ -20,7 +21,6 @@ const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 const CODEX_MUSIC := "res://audio/music/codex_theme.mp3" # 图鉴曲《百相入卷》，进入图鉴时独占播放
 
-const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.82, 0.79, 0.72)
 const RED := Color(0.66, 0.2, 0.16)
@@ -71,7 +71,7 @@ const FORM_SKILL_TEXT := {
 	"c021": [
 		{"name": "流光度影", "num": "2 伤 ｜ 路径贯穿 ｜ 全程无敌", "mech": "隐身向前穿刺，对路径上的敌人造成 2 点伤害；施展期间无敌，可穿过敌身。", "lore": "火场里，她背着孩子穿过一道将塌的灯廊，脚步比坠火还快。后来她独自行刺，仍沿那条看不见的旧路前进；红裙现身时，沿途只留一道冷光。"},
 		{"name": "罗刹旋舞", "num": "4 段 × 2 伤 ｜ 每段 1 层流血 ｜ 全程无敌", "mech": "原地旋斩四周，四段各造成 2 点伤害并叠 1 层流血；每层每秒造成 1 伤，持续 5 秒，最多 5 层，新层刷新持续时间。", "lore": "她曾扮罗刹女压轴，四面彩旗围着她转，班主要求每面旗都得扫到。如今彩旗换成刀兵，她仍四面照拂，一处也不肯冷落。"},
-		{"name": "红缨缚雁", "num": "2 伤 ｜ 定身 3 秒 ｜ 命中分裂", "mech": "后跃投出双刺，造成 2 点伤害并使首个命中者定身 3 秒；命中后分裂一柄续飞匕首。定身只锁移动，敌人仍可出手。", "lore": "班中旧戏有掷缨擒雁一折，红绸离手，空中纸雁便要落地。她把绸结藏进匕柄，又把纸雁换成真正的追兵；第一柄认人，第二柄替她赶未尽的路。"},
+		{"name": "红缨缚雁", "num": "2 伤 ｜ 定身 3 秒 ｜ 命中分裂", "mech": "后跃掷出双匕，造成 2 点伤害并使首个命中者定身 3 秒；命中后分裂一柄续飞匕首。定身只锁移动，敌人仍可出手。", "lore": "班中旧戏有掷缨擒雁一折，红绸离手，空中纸雁便要落地。她把绸结藏进匕柄，又把纸雁换成真正的追兵；第一柄认人，第二柄替她赶未尽的路。"},
 	],
 	"c013": [
 		{"name": "钟荡群山", "num": "3 伤 ｜ 击退定身 2 秒 ｜ 护身 1 次", "mech": "第一棒横扫前后，造成 3 点伤害并击退；被击退者撞到同伴时双方各受 1 伤，落点定身 2 秒。收势展开金钟罩，8 秒内抵挡一次攻击。", "lore": "他在钟楼下扫雪，见老僧敲钟前总要先让众人退开。后来狼牙棒代替钟槌，一棒送出去的是人，留下来的那圈护光，才算给他自己的钟声。"},
@@ -1803,8 +1803,8 @@ func _refresh_btns() -> void:
 		_act_bars[i].visible = i == _pick_idx
 		var tex := "res://art/ui/menu/btn_clicked.png" if lit else "res://art/ui/menu/btn_normal.png"
 		(_act_btns[i] as TextureButton).texture_normal = InkTex.load(tex)
-		# 亮底（选中 / 悬停）必须转墨字，否则白底白字看不清
-		(_act_labels[i] as Label).add_theme_color_override("font_color", INK if lit else PAPER)
+		# 墨牌底色统一为深墨，选中/悬停用金边与朱线区分，字始终用浅纸色
+		(_act_labels[i] as Label).add_theme_color_override("font_color", PAPER)
 
 
 func _on_btn_hover(i: int) -> void:
@@ -1984,27 +1984,13 @@ func _entry_label(parent: Control, text: String, y: float, font_size: int, color
 
 
 func _make_button(text: String, pos: Vector2, size: Vector2, font_size: int, cb: Callable, active := false, sfx: AudioStream = SFX_CLICK) -> TextureButton:
-	var b := TextureButton.new()
-	b.texture_normal = InkTex.load("res://art/ui/menu/btn_clicked.png" if active else "res://art/ui/menu/btn_normal.png")
-	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_normal.png")
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.size = size
-	b.position = pos
-	var l := Label.new()
-	l.text = text
-	l.size = size
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_color_override("font_color", RED if active else PAPER)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(l)
-	b.pressed.connect(func():
+	# 选中页签用按下态底图当常态，形成「压在纸上」的反色效果
+	var normal := UiKit.BTN_PRESSED if active else UiKit.BTN_NORMAL
+	var act := func():
 		_play_sfx(sfx)
-		cb.call())
-	add_child(b)
-	return b
+		cb.call()
+	return UiKit.texture_button(self, text, pos, size, font_size, RED if active else PAPER,
+		act, normal, UiKit.BTN_NORMAL)
 
 
 func _play_sfx(stream: AudioStream) -> void:

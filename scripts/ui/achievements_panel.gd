@@ -5,6 +5,7 @@ extends CanvasLayer
 ## 隐藏条目达成前只显示「？？？」。带称号的条目点亮后可点击佩戴。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
@@ -273,16 +274,7 @@ func _refresh_bonus_button() -> void:
 
 
 func _text(text: String, pos: Vector2, dimensions: Vector2, font_size: int, color: Color, parent: Node) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.position = pos
-	l.size = dimensions
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_color_override("font_color", color)
-	l.add_theme_font_size_override("font_size", font_size)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(l)
-	return l
+	return UiKit.label(parent, text, pos, dimensions, font_size, color, HORIZONTAL_ALIGNMENT_LEFT, false)
 
 
 func _make_button(text: String, pos: Vector2, dimensions: Vector2, cb: Callable, sfx: AudioStream = SFX_CLICK) -> Button:

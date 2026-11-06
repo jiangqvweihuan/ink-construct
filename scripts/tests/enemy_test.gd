@@ -40,6 +40,13 @@ func _check(ok: bool, label: String) -> void:
 	p(("PASS " if ok else "FAIL ") + label)
 
 
+## 测试同步推进逻辑帧时会跨过真实时间：手动清空静态出手令牌，
+## 否则上一段 _release_token() 留下的 260ms 窗口会让下一次起手永远被挡。
+func _free_attack_token() -> void:
+	C016Class._attacker = null
+	C016Class._token_free_at = 0
+
+
 func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_log = FileAccess.open("res://tests/enemy_test.log", FileAccess.WRITE)
@@ -510,6 +517,7 @@ func _brute_probe() -> void:
 	e = _spawn_brute(Vector2(900, 560))
 	e._set_state(e.State.CHASE)
 	var start_x := e.global_position.x
+	_free_attack_token()
 	e._chase_tick(0.0)
 	var chain_ok: bool = e.state == e.State.ATTACK and e._current_anim == "skill03_2" \
 		and is_equal_approx(e.global_position.x, start_x) and e._chain_next == "skill03_3" \
@@ -575,6 +583,7 @@ func _brute_probe() -> void:
 	e._chase_tick(0.0)
 	var cd_blocks: bool = e.state == e.State.CHASE and e._current_anim != "skill03_2"
 	e._attack_rule_cds["skill03_2"] = 0.0
+	_free_attack_token()
 	e._chase_tick(0.0)
 	var cd_ready: bool = e.state == e.State.ATTACK and e._current_anim == "skill03_2"
 	p("赶山三斧 19.2秒冷却禁重入=%s 到点可放=%s（期望 true / true）" % [cd_blocks, cd_ready])
@@ -1402,6 +1411,7 @@ func _qingyan_probe() -> void:
 	limit_wait = limit_wait and e.hp == e.max_hp - 1 and e._limit_pending
 	e.time_stop(1.0)
 	blocker._release_token()
+	_free_attack_token()
 	e._try_start_limit()
 	var limit_stop: bool = e._limit_pending and e.state != e.State.ATTACK
 	e._end_stop()
@@ -1433,6 +1443,7 @@ func _qingyan_probe() -> void:
 	dot.set_physics_process(false)
 	dot._target = _player
 	dot.hp = 13
+	_free_attack_token()
 	dot._direct_damage(2)
 	_check(dot.hp == dot.max_hp and dot._limit_used and not dot._limit_pending \
 		and dot._attack_move == "jijian" and not dot._hurt_chain_active,
@@ -1674,7 +1685,13 @@ func _tap(action: String) -> void:
 
 func _shot(name: String) -> void:
 	await get_tree().process_frame
+	# 无头下没有可读帧，直接跳过截图，避免 dummy 纹理报错。
+	if DisplayServer.get_name() == "headless":
+		return
 	RenderingServer.force_draw()
 	var img = get_viewport().get_texture().get_image()
+	if img == null:
+		p("screenshot unavailable " + name)
+		return
 	var err = img.save_png(OUT_DIR + "ai_" + name + ".png")
 	p("saved " + name + " err=" + str(err))

@@ -584,7 +584,9 @@ func _text(text: String, color: Color) -> void:
 	var dn := DAMAGE_NUMBER.new()
 	dn.setup(text, color)
 	dn.global_position = global_position + Vector2(0, _number_y - 20.0)
-	get_tree().current_scene.add_child(dn)
+	var root := get_tree().current_scene
+	if root != null:
+		root.add_child(dn)
 
 
 func die() -> void:

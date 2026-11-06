@@ -29,16 +29,20 @@ var _t := 0.0
 
 
 static func spawn(parent: Node, fx_name: String, pos: Vector2, opts: Dictionary = {}) -> Node2D:
+	if parent == null or not is_instance_valid(parent):
+		return null
 	var meta: Dictionary = LIB.get(fx_name, {})
 	if meta.is_empty():
 		push_warning("FX: 未登记特效 " + fx_name)
 		return null
 	if _self_script == null:
 		_self_script = load("res://scripts/systems/fx.gd")
+	var tex: Texture2D = load(str(meta["tex"]))
+	if tex == null:
+		return null
 	var f: Node2D = _self_script.new()
 	f._fps = float(meta["fps"])
 	f._loop = bool(opts.get("loop", false))
-	var tex: Texture2D = load(str(meta["tex"]))
 	var frames := int(meta["frames"])
 	var s := Sprite2D.new()
 	s.texture = tex

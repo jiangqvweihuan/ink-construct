@@ -24,8 +24,8 @@ var _hit_list: Array = [] # 穿透模式下已结算过的敌人，防止同一�
 var _source: Node = null # 来源玩家：目标状态加伤、技能命中与多道剑气回报
 var _from_skill := false
 var _cast_id := 0
-var _root_time := 0.0 # 命中定身秒数（双刺 U：无法移动但可以攻击）
-var _split_left := 0 # 命中后还要分裂出去的第二把数量（双刺 U）
+var _root_time := 0.0 # 命中定身秒数（绯刃 U：无法移动但可以攻击）
+var _split_left := 0 # 命中后还要分裂出去的第二把数量（绯刃 U）
 var _from_split := false # 是否由另一把匕命中后分裂而来
 var _style := "qi" # 视觉：qi=朱砂剑气弧 / dagger=短匕
 var _bleed := 0 # 命中叠流血层数（剑仙月华斩）
@@ -166,7 +166,7 @@ func _draw() -> void:
 	draw_line(Vector2(-4, 14), Vector2(-30, 8), Color(INK, 0.4), 2.0)
 
 
-## 短匕：刃身朝前 + 朱砂护手 + 墨色缠柄，后方一缕红线拖尾（双刺 U 投掷）
+## 短匕：刃身朝前 + 朱砂护手 + 墨色缠柄，后方一缕红线拖尾（绯刃 U 投掷）
 func _draw_dagger() -> void:
 	draw_colored_polygon(PackedVector2Array([
 		Vector2(4, -4), Vector2(34, 0), Vector2(4, 4),
@@ -252,7 +252,7 @@ func _physics_process(delta: float) -> void:
 				_source.call("on_pipa_sound_hit", p)
 			Feel.hitstop(0.04)
 			Feel.shake(3.0, 0.1)
-			# 分裂（双刺 U）：第一把钉进敌人，第二把从命中点继续飞，忽略刚命中的目标防重复掉血
+			# 分裂（绯刃 U）：第一把钉进敌人，第二把从命中点继续飞，忽略刚命中的目标防重复掉血
 			var split_hit := false
 			if _split_left > 0:
 				_split_left -= 1

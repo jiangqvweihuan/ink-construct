@@ -175,6 +175,14 @@ func _test_artifice_passive() -> void:
 	_check(_p.hp == 98, "机关造物：对满血角色造成双倍伤害")
 	_b._hit_front(1, 400.0, 190.0)
 	_check(_p.hp == 97, "机关造物：角色已受伤后恢复常规伤害")
+	# 影饵是裸 Node2D，没有 hp / max_hp 字段：伤害修正必须原样返回而不是崩溃。
+	var decoy := Node2D.new()
+	decoy.add_to_group("player_decoy")
+	add_child(decoy)
+	_b._target = decoy
+	_check(_b._modify_outgoing_damage(1, decoy, {}) == 1, "机关造物：无生命字段的影饵不翻倍且不崩溃")
+	_b._target = _p
+	decoy.queue_free()
 
 
 func _test_basic() -> void:

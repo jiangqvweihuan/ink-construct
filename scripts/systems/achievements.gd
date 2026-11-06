@@ -44,8 +44,8 @@ const BEASTS := [
 ]
 
 const FORMS := [
-	{"id": "c021", "name": "双刺"},
-	{"id": "c013", "name": "力僧"},
+	{"id": "c021", "name": "绯刃"},
+	{"id": "c013", "name": "镇岳"},
 	{"id": "c023", "name": "梅剑"},
 	{"id": "z000", "name": "剑仙"},
 	{"id": "z002", "name": "绛弦"},
@@ -105,20 +105,20 @@ const ACHIEVEMENTS := [
 	{"id": "s24", "name": "百钟不破", "desc": "金钟罩抵挡 200 次攻击", "cat": CAT_SKILL, "tier": 2, "ink": 16, "stat": "blocks", "target": 200},
 	{"id": "s25", "name": "百技", "desc": "累计施展 100 次技能", "cat": CAT_SKILL, "tier": 1, "ink": 4, "stat": "skills_used", "target": 100},
 	{"id": "s26", "name": "千技", "desc": "累计施展 1000 次技能", "cat": CAT_SKILL, "tier": 2, "ink": 12, "stat": "skills_used", "target": 1000},
-	{"id": "s27", "name": "五室不染", "desc": "连续 5 个房间未受伤", "cat": CAT_SKILL, "tier": 2, "ink": 14, "stat": "no_hit_streak", "target": 5},
+	{"id": "s27", "name": "四室不染", "desc": "连续 4 个房间未受伤", "cat": CAT_SKILL, "tier": 2, "ink": 14, "stat": "no_hit_streak", "target": 4},
 	{"id": "s28", "name": "一线清室", "desc": "仅剩 1 点生命时清空 10 个房间", "cat": CAT_SKILL, "tier": 2, "ink": 14, "stat": "low_hp_rooms", "target": 10},
 	{"id": "s29", "name": "精英猎手", "desc": "累计击败 50 名精英", "cat": CAT_SKILL, "tier": 2, "ink": 14, "stat": "elite_kills", "target": 50},
 	{"id": "s30", "name": "精英屠夫", "desc": "累计击败 200 名精英", "cat": CAT_SKILL, "tier": 3, "ink": 26, "stat": "elite_kills", "target": 200},
 
 	# ---------- 化身 ----------
-	{"id": "f_c021_clear", "name": "双刺 · 初演", "desc": "以双刺通关一局", "cat": CAT_FORM, "tier": 1, "ink": 10, "stat": "clear_c021", "target": 1},
-	{"id": "f_c021_kill", "name": "双刺 · 三百", "desc": "以双刺累计击败 300 名敌人", "cat": CAT_FORM, "tier": 2, "ink": 12, "stat": "form_kill_c021", "target": 300},
-	{"id": "f_c021_kill2", "name": "双刺 · 千斩", "desc": "以双刺累计击败 1000 名敌人", "cat": CAT_FORM, "tier": 3, "ink": 20, "stat": "form_kill_c021", "target": 1000},
-	{"id": "f_c021_mastery", "name": "双刺 · 大成", "desc": "双刺契合度达到 Lv3", "cat": CAT_FORM, "tier": 3, "ink": 18, "stat": "mastery_c021", "target": 3},
-	{"id": "f_c013_clear", "name": "力僧 · 初演", "desc": "以力僧通关一局", "cat": CAT_FORM, "tier": 1, "ink": 10, "stat": "clear_c013", "target": 1},
-	{"id": "f_c013_kill", "name": "力僧 · 三百", "desc": "以力僧累计击败 300 名敌人", "cat": CAT_FORM, "tier": 2, "ink": 12, "stat": "form_kill_c013", "target": 300},
-	{"id": "f_c013_kill2", "name": "力僧 · 千斩", "desc": "以力僧累计击败 1000 名敌人", "cat": CAT_FORM, "tier": 3, "ink": 20, "stat": "form_kill_c013", "target": 1000},
-	{"id": "f_c013_mastery", "name": "力僧 · 大成", "desc": "力僧契合度达到 Lv3", "cat": CAT_FORM, "tier": 3, "ink": 18, "stat": "mastery_c013", "target": 3},
+	{"id": "f_c021_clear", "name": "绯刃 · 初演", "desc": "以绯刃通关一局", "cat": CAT_FORM, "tier": 1, "ink": 10, "stat": "clear_c021", "target": 1},
+	{"id": "f_c021_kill", "name": "绯刃 · 三百", "desc": "以绯刃累计击败 300 名敌人", "cat": CAT_FORM, "tier": 2, "ink": 12, "stat": "form_kill_c021", "target": 300},
+	{"id": "f_c021_kill2", "name": "绯刃 · 千斩", "desc": "以绯刃累计击败 1000 名敌人", "cat": CAT_FORM, "tier": 3, "ink": 20, "stat": "form_kill_c021", "target": 1000},
+	{"id": "f_c021_mastery", "name": "绯刃 · 大成", "desc": "绯刃契合度达到 Lv3", "cat": CAT_FORM, "tier": 3, "ink": 18, "stat": "mastery_c021", "target": 3},
+	{"id": "f_c013_clear", "name": "镇岳 · 初演", "desc": "以镇岳通关一局", "cat": CAT_FORM, "tier": 1, "ink": 10, "stat": "clear_c013", "target": 1},
+	{"id": "f_c013_kill", "name": "镇岳 · 三百", "desc": "以镇岳累计击败 300 名敌人", "cat": CAT_FORM, "tier": 2, "ink": 12, "stat": "form_kill_c013", "target": 300},
+	{"id": "f_c013_kill2", "name": "镇岳 · 千斩", "desc": "以镇岳累计击败 1000 名敌人", "cat": CAT_FORM, "tier": 3, "ink": 20, "stat": "form_kill_c013", "target": 1000},
+	{"id": "f_c013_mastery", "name": "镇岳 · 大成", "desc": "镇岳契合度达到 Lv3", "cat": CAT_FORM, "tier": 3, "ink": 18, "stat": "mastery_c013", "target": 3},
 	{"id": "f_c023_clear", "name": "梅剑 · 初演", "desc": "以梅剑通关一局", "cat": CAT_FORM, "tier": 1, "ink": 10, "stat": "clear_c023", "target": 1},
 	{"id": "f_c023_kill", "name": "梅剑 · 三百", "desc": "以梅剑累计击败 300 名敌人", "cat": CAT_FORM, "tier": 2, "ink": 12, "stat": "form_kill_c023", "target": 300},
 	{"id": "f_c023_kill2", "name": "梅剑 · 千斩", "desc": "以梅剑累计击败 1000 名敌人", "cat": CAT_FORM, "tier": 3, "ink": 20, "stat": "form_kill_c023", "target": 1000},
@@ -322,28 +322,6 @@ func progress(id: String) -> Array:
 	return [cur, target]
 
 
-func category_progress(cat: String) -> Array:
-	var done := 0
-	var total := 0
-	for a in ACHIEVEMENTS:
-		if str(a["cat"]) != cat:
-			continue
-		total += 1
-		if is_unlocked(str(a["id"])):
-			done += 1
-	return [done, total]
-
-
-## 已解锁的称号：[{id, title}]
-func unlocked_titles() -> Array:
-	var out: Array = []
-	for a in ACHIEVEMENTS:
-		var t := str(a.get("title", ""))
-		if t != "" and is_unlocked(str(a["id"])):
-			out.append({"id": str(a["id"]), "title": t})
-	return out
-
-
 func equip_title(id: String) -> bool:
 	var a: Dictionary = _defs.get(id, {})
 	if a.is_empty() or str(a.get("title", "")) == "" or not is_unlocked(id):
@@ -427,10 +405,6 @@ func max_event(key: String, value: int) -> void:
 		return
 	stats[key] = value
 	_check(key)
-
-
-func run_event(key: String, amount := 1) -> void:
-	_mirror_run(key, amount)
 
 
 func _add(key: String, amount: int) -> void:

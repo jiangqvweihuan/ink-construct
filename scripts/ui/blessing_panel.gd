@@ -6,6 +6,7 @@ extends CanvasLayer
 signal chosen(id: String)
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -120,14 +121,15 @@ func _make_card(id: String, i: int) -> void:
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(title)
 
-	var desc := Label.new()
-	desc.text = str(info["desc"])
-	desc.size = Vector2(210, 70)
+	var desc := RichTextLabel.new()
+	desc.bbcode_enabled = true
+	desc.text = "[center]%s[/center]" % str(info["desc"])
 	desc.position = Vector2(10, 82)
-	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.add_theme_color_override("font_color", DIM)
-	desc.add_theme_font_size_override("font_size", 17)
+	desc.size = Vector2(210, 70)
+	desc.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
+	desc.scroll_active = false
+	desc.add_theme_color_override("default_color", DIM)
+	desc.add_theme_font_size_override("normal_font_size", 17)
 	desc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(desc)
 
@@ -135,22 +137,4 @@ func _make_card(id: String, i: int) -> void:
 
 
 func _make_button(text: String, pos: Vector2, cb: Callable) -> TextureButton:
-	var b := TextureButton.new()
-	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
-	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
-	b.ignore_texture_size = true
-	b.stretch_mode = TextureButton.STRETCH_SCALE
-	b.position = pos
-	b.size = Vector2(240, 44)
-	var l := Label.new()
-	l.text = text
-	l.size = b.size
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	l.add_theme_color_override("font_color", INK)
-	l.add_theme_font_size_override("font_size", 20)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	b.add_child(l)
-	b.pressed.connect(cb)
-	add_child(b)
-	return b
+	return UiKit.texture_button(self, text, pos, Vector2(240, 44), 20, PAPER, cb)
