@@ -3,12 +3,13 @@ extends CanvasLayer
 ## 致谢名单：主界面左下角竖排「致谢」入口打开，全屏向上滚动（标准游戏致谢顺序）。
 ## 顺序：制作 → 开发（程序 / 美术 / 设计）→ 音频（音乐 / 音效 / 整合）→ 质量管理 → 软件与素材署名 → 特别感谢 → 版权免责 → 纠错 → 结尾。
 ## 音频署名按素材实况归档：音乐 10 首、音效 70 条，按战斗 / 武器技能 / 角色 / 界面 / 流程 / 人声分列。
-## 自动滚到末尾后停住，滚轮上下复查；Esc 立即返回。尚未确定的署名保留空位，不显示模板占位文本。
+## 自动滚到末尾后停住，滚轮 / 上下拖动复查；Esc 或左上角「返回」按钮退出。尚未确定的署名保留空位，不显示模板占位文本。
 ## 打开期间只播卷终曲：普通 BGM 暂停、音效静音，Esc 返回后原样恢复。
 ## 右侧留白放两列竖排歌词（右列当前句、左列下一句），严格按人声实测时间轴浮现：
 ## 前奏先亮歌名，1:41—2:17 长间奏改画墨圈，2:53 后留住末句，整首循环时回到歌名重走。
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const BODY_FONT = preload("res://art/ui/fonts/pangmen.ttf") # 庞门正道粗书体：正文
 const TITLE_FONT = preload("res://art/ui/fonts/slidefu_regular.ttf") # 演示佛系体：标题 / 章节
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
@@ -165,7 +166,6 @@ var _shown_kind := "" # 当前题跋形态：title / verse，避免每帧重设�
 var _shown_idx := -1 # 已渲染的词句下标
 var _dx := 0.0 # 画布比 1280 宽时整体右移的偏移（手机 20:9 用），保证整版居中
 var _closing := false
-var _opened_ms := 0.0 # 打开时刻：放过「点开致谢」那一下的触摸，否则面板刚开就被自己关掉
 
 
 func _ready() -> void:
@@ -173,9 +173,6 @@ func _ready() -> void:
 	_build()
 	_enter_audio()
 	set_process(true)
-	# 计时放在最后：加载字体/纹理要一会儿，而安卓「点开致谢」那一手的触摸事件
-	# 是在本函数返回后才派发过来的，必须从可以交互的时刻开始算宽限。
-	_opened_ms = float(Time.get_ticks_msec())
 
 
 func _exit_tree() -> void:
@@ -205,45 +202,39 @@ func _process(delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
-	# 返回：Esc（桌面）/ 轻点（手机）。手机上全屏遮罩是 MOUSE_FILTER_STOP，点击会被它吃掉，
-	# 到不了 _unhandled_input，所以必须在这里接住。
-	var back := event.is_action_pressed("ui_cancel")
-	if not back and _is_back_tap(event):
-		back = true
-	if back:
+	# 返回只有两条路：Esc（桌面）/ 左上角「返回」按钮（手机）。全屏遮罩是 MOUSE_FILTER_STOP，
+	# 点按不再关闭面板，只做滚动；手机播完后上下拖动就是正常滑动。
+	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
 		_close()
 		return
-	# 播完后滚轮上下复查（仅桌面；手机靠点按/拖动浏览，见 _gui_input 无需处理）
-	if not _done or not (event is InputEventMouseButton) or not event.pressed:
+	if not _done:
 		return
-	var wheel := event as InputEventMouseButton
-	var step := 0.0
-	match wheel.button_index:
-		MOUSE_BUTTON_WHEEL_UP:
-			step = -WHEEL_STEP
-		MOUSE_BUTTON_WHEEL_DOWN:
-			step = WHEEL_STEP
-		_:
-			return
-	get_viewport().set_input_as_handled()
-	_offset = clampf(_offset + step, 0.0, _max_offset)
+	# 播完后：滚轮 / 拖动上下复查（拖动按手指位移反向搬名单，松手即停）
+	if event is InputEventMouseButton and event.pressed:
+		var step := 0.0
+		match (event as InputEventMouseButton).button_index:
+			MOUSE_BUTTON_WHEEL_UP:
+				step = -WHEEL_STEP
+			MOUSE_BUTTON_WHEEL_DOWN:
+				step = WHEEL_STEP
+			_:
+				return
+		get_viewport().set_input_as_handled()
+		_scroll_by(step)
+	elif event is InputEventScreenDrag:
+		get_viewport().set_input_as_handled()
+		_scroll_by(-(event as InputEventScreenDrag).relative.y)
+	elif event is InputEventMouseMotion and not OS.has_feature("mobile"):
+		# 桌面按住左键拖动也能复查（手机不开这条：触摸会同时派发模拟鼠标事件，会算两遍）
+		var motion := event as InputEventMouseMotion
+		if motion.button_mask & MOUSE_BUTTON_MASK_LEFT:
+			_scroll_by(-motion.relative.y)
+
+
+func _scroll_by(delta_px: float) -> void:
+	_offset = clampf(_offset + delta_px, 0.0, _max_offset)
 	_scroll.position.y = -_offset
-
-
-## 手机没有 Esc：轻点屏幕任意处返回（--touch-preview 时也接受鼠标左键，方便桌面验证）
-## 打开后的 300ms 内不认点击：安卓会把「点开致谢」这一下拆成模拟鼠标 + 触摸两个事件，
-## 触摸那份要等面板建好才派发过来，不设宽限就会刚打开就自我关闭，表现为点了没反应。
-func _is_back_tap(event: InputEvent) -> bool:
-	if float(Time.get_ticks_msec()) - _opened_ms < 300.0:
-		return false
-	if event is InputEventScreenTouch:
-		return (event as InputEventScreenTouch).pressed
-	if OS.has_feature("mobile") or OS.get_cmdline_args().has("--touch-preview"):
-		if event is InputEventMouseButton:
-			var mb := event as InputEventMouseButton
-			return mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT
-	return false
 
 
 func _close() -> void:
@@ -259,12 +250,12 @@ func _close() -> void:
 	queue_free()
 
 
-## 播完只停止自动滚动，保留结尾供玩家静态查看；Esc 仍可随时返回。
+## 播完只停止自动滚动，保留结尾供玩家静态查看；Esc / 左上角返回仍可随时退出。
 func _finish() -> void:
 	_done = true
 	_offset = clampf(_offset, 0.0, _max_offset)
 	_scroll.position.y = -_offset
-	_hint.text = "轻点屏幕返回" if OS.has_feature("mobile") else "滚轮上下查看 · 按 Esc 返回"
+	_hint.text = "上下拖动查看 · 左上角返回" if OS.has_feature("mobile") else "滚轮或拖动查看 · Esc 返回"
 
 
 func _build() -> void:
@@ -298,7 +289,7 @@ func _build() -> void:
 
 	# 固定提示：不随名单滚动
 	_hint = Label.new()
-	_hint.text = "按 Esc 返回" if not OS.has_feature("mobile") else "轻点屏幕返回"
+	_hint.text = "左上角返回" if OS.has_feature("mobile") else "左上角返回 · Esc"
 	_hint.position = Vector2(920 + _dx, 676)
 	_hint.size = Vector2(320, 24)
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -306,6 +297,10 @@ func _build() -> void:
 	_hint.add_theme_font_size_override("font_size", 14)
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_hint)
+
+	# 左上角返回：固定不动，点按才退出（替换原来「点屏幕任意处退出」）
+	UiKit.texture_button(self, "返  回", Vector2(40 + _dx, 24), Vector2(130, 44), 20,
+		PAPER, _close)
 	_build_lyrics()
 
 
@@ -410,8 +405,9 @@ func _apply_lyric_style(title: bool) -> void:
 
 
 ## 竖排一列：统一从顶部起笔；字多时逐级缩字号，保证不压到下方印章
+## 入参 x 是 1280 设计坐标，真实位置要补上宽屏居中偏移 _dx，否则手机上整列会偏左
 func _render_column(l: Label, x: float, text: String, title: bool) -> void:
-	l.position.x = x
+	l.position.x = x + _dx
 	l.position.y = LYRIC_TOP
 	var rows := _vertical(text)
 	var base := TITLE_FONT_SIZE if title else LYRIC_FONT_SIZE

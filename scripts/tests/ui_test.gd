@@ -145,6 +145,18 @@ func _ready() -> void:
 		assert(credits._shown_kind == "title" and credits._lyric_now.text.replace("\n", "") == "卷终曲",
 			"整首循环回 0 秒必须重新显示歌名")
 		p("致谢歌词时间轴正常：歌名 → 首句 → 1:41 → 间奏墨圈 → 2:17 → 末句 → 循环")
+		# 手机画布比 1280 宽：歌词列必须跟着 _dx 一起右移，否则会跑到分割线左边
+		credits._dx = 160.0
+		credits._shown_kind = ""
+		credits._apply_lyric_position(20.0)
+		var wide_lyric_x: float = credits._lyric_now.position.x
+		p("宽屏歌词右列 x=%.1f（期望 %.1f）" % [wide_lyric_x, credits.LYRIC_NOW_X + 160.0])
+		assert(is_equal_approx(wide_lyric_x, credits.LYRIC_NOW_X + 160.0),
+			"宽屏下歌词必须补上 _dx，与朱印同列")
+		assert(wide_lyric_x > credits.LYRIC_DIVIDER_X + 160.0, "歌词必须留在分割线右侧")
+		credits._dx = 0.0
+		credits._shown_kind = ""
+		credits._apply_lyric_position(20.0)
 		# 直接接近末尾触发真实结束分支，避免冒烟测试等待整轮名单。
 		credits._offset = credits._max_offset - 1.0
 		credits._process(0.1)
@@ -181,6 +193,42 @@ func _ready() -> void:
 		await get_tree().process_frame
 		p("致谢滚轮下翻回底部=%s（期望 true）" % is_equal_approx(credits._offset, stopped_offset))
 		assert(is_equal_approx(credits._offset, stopped_offset), "滚轮向下必须返回结尾且不能超过底部")
+
+		# 播完后触摸上下拖动 = 正常滑动（手指下滑 → 名单回落，上滑 → 回到底部）
+		var drag_down := InputEventScreenDrag.new()
+		drag_down.position = Vector2(640, 300)
+		drag_down.relative = Vector2(0, 80)
+		get_viewport().push_input(drag_down, true)
+		await get_tree().process_frame
+		p("致谢拖动下滑 offset=%.1f（期望 %.1f）" % [credits._offset, stopped_offset - 80.0])
+		assert(is_equal_approx(credits._offset, stopped_offset - 80.0), "播完后下滑必须按手指位移回看名单")
+		var drag_up := InputEventScreenDrag.new()
+		drag_up.position = Vector2(640, 300)
+		drag_up.relative = Vector2(0, -80)
+		get_viewport().push_input(drag_up, true)
+		await get_tree().process_frame
+		assert(is_equal_approx(credits._offset, stopped_offset), "上滑必须回到底部且不能超过")
+
+		# 轻点屏幕不再退出：只剩左上角「返回」按钮与 Esc
+		var back_btn: TextureButton = null
+		for c in credits.get_children():
+			if c is TextureButton:
+				back_btn = c
+		p("致谢左上角返回按钮=%s（期望 true）" % (back_btn != null))
+		assert(back_btn != null, "致谢必须提供左上角返回按钮")
+		assert(back_btn.position.x < 300.0 and back_btn.position.y < 80.0, "返回按钮必须固定在左上角")
+		var tap := InputEventScreenTouch.new()
+		tap.position = Vector2(640, 360)
+		tap.pressed = true
+		get_viewport().push_input(tap, true)
+		var tap_up := InputEventScreenTouch.new()
+		tap_up.position = Vector2(640, 360)
+		tap_up.pressed = false
+		get_viewport().push_input(tap_up, true)
+		await get_tree().process_frame
+		p("致谢轻点空白处仍停留=%s（期望 true）" % (is_instance_valid(credits) and not credits.is_queued_for_deletion()))
+		assert(is_instance_valid(credits) and not credits.is_queued_for_deletion(), "轻点屏幕不能再关闭致谢")
+
 		# 致谢期间点主菜单区域不能穿透（全屏遮罩必须吃掉点击）
 		await _click(Vector2(200, 624))
 		p("致谢中点击菜单区 -> 开始面板=%s（期望 false）" % (_find_panel("start_panel.gd") != null))
@@ -260,6 +308,24 @@ func _ready() -> void:
 		forms._toggle_music()
 		await get_tree().process_frame
 		assert(form_solo.playing and forms._music_on, "化身曲开关必须能重新起播")
+		# 未解锁化身：总览行整行不可点，不能进入修炼页；买断入口挪到行内
+		var scroll: ScrollContainer = null
+		for c in forms.get_children():
+			if c is ScrollContainer:
+				scroll = c
+		var rows := scroll.get_child(0).get_children()
+		var ids := Skulls.ids()
+		var locked_row: TextureButton = rows[ids.find("c013")]
+		var open_row: TextureButton = rows[ids.find("c021")]
+		p("未解锁行禁用=%s 已解锁行可点=%s（期望 true/true）" % [locked_row.disabled, not open_row.disabled])
+		assert(locked_row.disabled and not open_row.disabled, "未解锁化身不得进入修炼页")
+		assert(locked_row.get_signal_connection_list("pressed").is_empty(), "未解锁行不得接进入修炼的回调")
+		var buy_btn: TextureButton = null
+		for c in locked_row.get_children():
+			if c is TextureButton:
+				buy_btn = c
+		p("未解锁行买断按钮=%s（期望 true）" % (buy_btn != null))
+		assert(buy_btn != null, "未解锁行必须保留墨锭买断入口")
 		forms._form_id = "c013"
 		forms._refresh()
 		await get_tree().create_timer(0.2).timeout

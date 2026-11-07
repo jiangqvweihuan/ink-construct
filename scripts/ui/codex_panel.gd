@@ -915,7 +915,8 @@ func _build_status_detail() -> void:
 	_status_detail.size = Vector2(740, 432)
 	_status_detail.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	_status_detail.scroll_active = true
-	_status_detail.selection_enabled = true
+	# 手机拖动浏览会误触发文字选中（整段变蓝并弹复制），触屏一律关掉选中；桌面保留
+	_status_detail.selection_enabled = not OS.has_feature("mobile")
 	_status_detail.add_theme_stylebox_override("normal", _panel_style())
 	_status_detail.add_theme_color_override("default_color", DIM)
 	_status_detail.add_theme_font_size_override("normal_font_size", 16)
@@ -1048,7 +1049,8 @@ func _build_story_detail() -> void:
 	_story_detail.size = Vector2(740, 432)
 	_story_detail.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
 	_story_detail.scroll_active = true
-	_story_detail.selection_enabled = true
+	# 同上：手机上仅保留滚动，不选中文字，避免拖动时整段变蓝
+	_story_detail.selection_enabled = not OS.has_feature("mobile")
 	_story_detail.add_theme_stylebox_override("normal", _panel_style())
 	_story_detail.add_theme_color_override("default_color", DIM)
 	_story_detail.add_theme_font_size_override("normal_font_size", 16)

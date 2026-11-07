@@ -85,7 +85,7 @@ func _build_overview() -> void:
 	scroll.add_child(list)
 	for id in Skulls.ids():
 		_form_row(list, str(id))
-	_text(self, "点击角色进入专属修炼页 ｜ " + ("上下拖动浏览" if OS.has_feature("mobile") else "鼠标滚轮浏览"),
+	_text(self, "点击已解锁角色进入专属修炼页 ｜ " + ("上下拖动浏览" if OS.has_feature("mobile") else "鼠标滚轮浏览"),
 		Vector2(280, 615), Vector2(720, 28), 16, DIM)
 
 
@@ -99,9 +99,6 @@ func _form_row(parent: Control, id: String) -> void:
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.custom_minimum_size = Vector2(1040, 108)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	if not unlocked:
-		b.modulate = Color(1, 1, 1, 0.68)
 	parent.add_child(b)
 	_text(b, str(profile["label"]) if unlocked else "？？？", Vector2(22, 12), Vector2(170, 42), 28, PAPER, HORIZONTAL_ALIGNMENT_LEFT)
 	_text(b, str(profile.get("name", "")) if unlocked else "尚未解锁", Vector2(22, 57), Vector2(190, 26), 16, DIM, HORIZONTAL_ALIGNMENT_LEFT)
@@ -109,11 +106,27 @@ func _form_row(parent: Control, id: String) -> void:
 	_text(b, status, Vector2(245, 15), Vector2(410, 32), 18, RED if unlocked else DIM, HORIZONTAL_ALIGNMENT_LEFT)
 	var progress := "永久修炼  %d / 9" % Meta.form_node_count(id) if unlocked else Meta.unlock_progress(id).replace(" · ", " ｜ ")
 	_text(b, progress, Vector2(245, 57), Vector2(450, 28), 16, DIM, HORIZONTAL_ALIGNMENT_LEFT)
-	_text(b, "进入修炼  →", Vector2(790, 35), Vector2(210, 34), 19, GOLD if unlocked else DIM)
-	b.pressed.connect(func():
-		_click()
-		_form_id = id
-		call_deferred("_refresh"))
+	if unlocked:
+		_text(b, "进入修炼  →", Vector2(790, 35), Vector2(210, 34), 19, GOLD)
+		b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		b.pressed.connect(func():
+			_click()
+			_form_id = id
+			call_deferred("_refresh"))
+		return
+	# 未解锁：总览行整行不可点，不再进入修炼页；只把「墨锭买断」留在行内
+	b.disabled = true
+	b.mouse_default_cursor_shape = Control.CURSOR_ARROW
+	var key := "buyout_" + id
+	var cost := Meta.shop_cost(key)
+	if cost < 0:
+		_text(b, "尚未解锁", Vector2(790, 35), Vector2(210, 34), 19, DIM)
+		return
+	var buy := _button(b, "%d 墨锭买断" % cost, Vector2(832, 32), Vector2(178, 44),
+		func(): _buyout_form(id), SFX_CLICK)
+	if not Meta.can_buy(key):
+		buy.disabled = true
+		buy.modulate = Color(1, 1, 1, 0.6)
 
 
 func _build_form_detail() -> void:
@@ -204,7 +217,12 @@ func _node_card(id: String, pos: Vector2, unlocked: bool) -> void:
 
 
 func _buyout() -> void:
-	Meta.buy("buyout_" + _form_id)
+	_buyout_form(_form_id)
+
+
+## 买断：详情页与总览行的未解锁行共用；总览买断后 _form_id 仍为空，重绘回总览
+func _buyout_form(id: String) -> void:
+	Meta.buy("buyout_" + id)
 	call_deferred("_refresh")
 
 
