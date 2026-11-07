@@ -39,6 +39,19 @@ const ELITE_SCENES := [
 
 var arena_left := 0.0
 var arena_right := 1920.0
+## 斗蛐蛐召唤安全区（由竞技场写入）：所有小弟只允许落在这条 x 区间内、贴着地面生成。
+## 留 <=0 表示没有指定，退回原竞技场可站立范围；剧情模式不写，行为与原来一致。
+var summon_min_x := -1.0
+var summon_max_x := -1.0
+var summon_ground_y := -1.0
+
+## 生成点校验间距：到锁定目标、武车本体、其他单位的最近距离，
+## 以及为了让脚底不被安全边距顶进地面，统一抬高 1px 生成。
+const SUMMON_SELF_CLEAR := 360.0
+const SUMMON_TARGET_CLEAR := 240.0
+const SUMMON_UNIT_CLEAR := 90.0
+const SUMMON_CHARIOT_CLEAR := 300.0
+const SUMMON_LIFT := 1.0
 
 var _wc_charge_dir := 1
 var _charge_elapsed := 0.0
@@ -205,7 +218,7 @@ func _start_charge() -> void:
 	_charge_contact_done = false
 	velocity = Vector2.ZERO
 	_play(START_ANIM, false)
-	_telegraph()
+	_track_fx(_telegraph()) # 蓄力墨环也归到本车名下，撞边致死时同帧一起清掉
 
 
 func _advance_charge(delta: float) -> void:
@@ -263,14 +276,49 @@ func _begin_brake() -> void:
 	velocity = Vector2.ZERO
 	_set_ghost(false) # 马头碰边、开始刹车时立刻恢复实体
 	_charges_completed += 1
-	# 斗蛐蛐：耐久只由「小弟被击败」消耗，撞墙不再扣（正式房间保持原机制）。
-	if _charges_completed > 1 and not duel_mode:
+	# 武车核心机制：撞墙只掉 1 点耐久（首轮入场不扣），斗蛐蛐同样沿用，不做模式特判。
+	if _charges_completed > 1:
 		hp = maxi(0, hp - 1)
 		hp_changed.emit(hp, max_hp)
 	_state_timer = float(_anim_durations.get(BRAKE_ANIM, 0.8))
 	_play(BRAKE_ANIM, false)
 	Feel.shake(9.0, 0.28)
 	_fx_play(_fx.get("charge_wall", {}))
+	# 撞边致死：碰撞触发的当帧直接清场，不等 0.8 秒刹车动画、不走延迟的死亡流程，
+	# 否则 2.5 秒的地裂残影会一直卡在地图边界上。
+	if hp <= 0 and duel_mode:
+		_wall_death_purge()
+
+
+## 边界撞击致死：同一帧内完成「特效清理 → 实体注销 → 隐藏禁用 → 释放」。
+## 中间不 await、不进定时器、不排队，保证没有一帧的清理滞后。
+func _wall_death_purge() -> void:
+	if state == State.DEAD:
+		return
+	state = State.DEAD
+	hp = 0
+	velocity = Vector2.ZERO
+	_charge_ghost = false
+	_charge_moving = false
+	_charge_contact_done = true
+	_attack_hits_left.clear()
+	# 1~4：停掉本车所有归属特效的发射/更新，摘出场景树并释放引用（含状态 Spine 子特效）
+	_clear_owned_fx()
+	_clear_status_effects()
+	# 6：从竞技场实体管理系统注销——血条行置空占位，同伴表/敌对表/锁定目标同步摘引用
+	var parent := get_parent()
+	if parent != null and parent.has_method("_forget_unit"):
+		parent.call("_forget_unit", self)
+	_summons.clear()
+	_position_history.clear()
+	# 5：立刻不可见、不再参与任何更新；实体碰撞同帧关闭，物理回调安全
+	visible = false
+	set_process(false)
+	set_physics_process(false)
+	var shape := get_node_or_null("CollisionShape2D")
+	if shape != null:
+		shape.set_deferred("disabled", true)
+	queue_free()
 
 
 func _set_ghost(value: bool) -> void:
@@ -336,7 +384,7 @@ func _spawn_one(elite: bool) -> void:
 	get_parent().add_child(e)
 	if duel_mode and not duel_peers.has(e):
 		duel_peers.append(e)
-	e.global_position = _spawn_position()
+	e.global_position = _spawn_position(e)
 	if elite:
 		e.configure({"speed": 0.9})
 	else:
@@ -350,22 +398,47 @@ func _spawn_one(elite: bool) -> void:
 	_summons.append(e)
 
 
-func _spawn_position() -> Vector2:
-	for attempt in 16:
-		var x := randf_range(arena_left + 110.0, arena_right - 110.0)
-		if is_instance_valid(_target) and absf(x - _target.global_position.x) < 240.0:
+## 只允许落在竞技场写入的中间安全区内，并且必须贴着地面生成。
+## 每个候选点都要校验：离锁定目标、离武车本体、离场上所有单位（含敌方武车的大碰撞块）
+## 都留有足够间距——压在别人身体上生成会被物理去穿透弹进地面，就是「卡到地下」的成因。
+## 随机取点失败时在安全区内枚举最空的一格兜底，绝不把坐标 clamp 到边界或武车身上。
+func _spawn_position(newcomer) -> Vector2:
+	var min_x := summon_min_x
+	var max_x := summon_max_x
+	if max_x - min_x < 1.0:
+		min_x = arena_left + 110.0
+		max_x = arena_right - 110.0
+	var ground_y := summon_ground_y if summon_ground_y > 0.0 else global_position.y
+	for attempt in 24:
+		var x := randf_range(min_x, max_x)
+		if _spawn_gap(x, newcomer) >= 1.0:
+			return Vector2(x, ground_y - SUMMON_LIFT)
+	var best_x := clampf(global_position.x, min_x, max_x)
+	var best_gap := -INF
+	for i in 33:
+		var x := lerpf(min_x, max_x, float(i) / 32.0)
+		var gap := _spawn_gap(x, newcomer)
+		if gap > best_gap:
+			best_gap = gap
+			best_x = x
+	return Vector2(best_x, ground_y - SUMMON_LIFT)
+
+
+## 候选点的安全裕量：>=1 表示到最近一个干扰源的距离都达标，数值越大越空。
+func _spawn_gap(x: float, newcomer) -> float:
+	var gap := INF
+	if is_instance_valid(_target):
+		gap = minf(gap, (absf(x - _target.global_position.x) - SUMMON_TARGET_CLEAR) / SUMMON_TARGET_CLEAR)
+	gap = minf(gap, (absf(x - global_position.x) - SUMMON_SELF_CLEAR) / SUMMON_SELF_CLEAR)
+	var others: Array = duel_peers if duel_mode else _summons
+	for u in others:
+		if not is_instance_valid(u) or u == newcomer or u == self:
 			continue
-		if absf(x - global_position.x) < 360.0:
-			continue
-		var crowded := false
-		for e in _summons:
-			if is_instance_valid(e) and absf(x - e.global_position.x) < 110.0:
-				crowded = true
-				break
-		if not crowded:
-			return Vector2(x, global_position.y)
-	var fallback := clampf(global_position.x + facing * (420.0 + _summon_index * 120.0), arena_left + 110.0, arena_right - 110.0)
-	return Vector2(fallback, global_position.y)
+		if u.is_queued_for_deletion() or int(u.get("hp")) <= 0:
+			continue # 尸体不占位，否则安全区会被越挤越满
+		var clear := SUMMON_CHARIOT_CLEAR if bool(u.get("duel_untargetable")) else SUMMON_UNIT_CLEAR
+		gap = minf(gap, (absf(x - u.global_position.x) - clear) / clear)
+	return gap
 
 
 func _prune_summons() -> void:
@@ -374,12 +447,6 @@ func _prune_summons() -> void:
 
 func _on_summon_died(e) -> void:
 	_summons.erase(e)
-	# 斗蛐蛐：击败武车的小弟是唯一能削减其耐久的途径，耐久耗尽即死亡。
-	if duel_mode and state != State.DEAD:
-		hp = maxi(0, hp - 1)
-		hp_changed.emit(hp, max_hp)
-		if hp <= 0:
-			die()
 
 
 ## 时停直接取消整条武撞链；已生成的召唤物保留，但未结算的召唤不再补发。

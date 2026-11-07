@@ -25,13 +25,31 @@ const BLUE_X := ARENA_W * 0.690625
 const TEAM_STEP := 186.0
 const CHARIOT_STEP := 460.0
 const CHARIOT_CLEARANCE := 470.0
-## 相机横向跟随的收敛速度（越大越快贴住战况）
-const CAMERA_FOLLOW := 3.5
+## 自由视角：平移速度按「屏幕像素/秒」计，缩放不会改变手感（≈10px/帧 @60fps）
+const CAMERA_SPEED := 600.0
+const CAMERA_ACCEL := 3600.0
+const CAMERA_BRAKE := 4800.0
+## 触边前的减速缓冲距离（屏幕像素），越靠近边界允许的速度越低
+const CAMERA_EDGE_PAD := 110.0
+const CAMERA_ZOOM_MIN := 0.55
+const CAMERA_ZOOM_MAX := 1.45
+const CAMERA_ZOOM_STEP := 1.12
+## 地图的纵向像素范围（横向范围见 ARENA_W），用于动态计算视角边界
+const MAP_TOP := 0.0
+const MAP_H := 720.0
+## 召唤安全区：地图正中 40% 的区间。武车的小弟只允许落在这里——
+## 远离左右墙、出生点与场地障碍，也不会压进武车 460×200 的大碰撞块里被弹到地下。
+const SUMMON_ZONE_MIN := ARENA_W * 0.30
+const SUMMON_ZONE_MAX := ARENA_W * 0.70
 
 var _panel
 var _camera: Camera2D
+var _pan_speed := 0.0 # 当前平移速度（屏幕像素/秒）
+var _zoom := 1.0
+var _dragging := false
 var _red_team: Array = []
 var _blue_team: Array = []
+var _peers: Array = [] # 全场单位共享的同伴表（即生成时的 all_units），注销实体时原地摘除引用
 var _result_delay := -1.0
 var _setup := {}
 # 两队各自「可攻击目标」共享数组：武车本体永久排除，只收它的召唤物。
@@ -55,7 +73,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	_follow_camera(delta)
+	_update_camera(delta)
 	_foe_sync -= delta
 	if _foe_sync <= 0.0:
 		_foe_sync = 0.2
@@ -85,15 +103,15 @@ func _spawn(red_ids: Array, blue_ids: Array, red_stats: Dictionary, blue_stats: 
 	_disable_chariot_collisions(all_units)
 	_red_foes = []
 	_blue_foes = []
+	_peers = all_units
 	for u in all_units:
-		u.set("duel_peers", all_units) # 斗蛐蛐不在 enemies 组，软推挤/对穿改看这份同伴表
+		u.set("duel_peers", _peers) # 斗蛐蛐不在 enemies 组，软推挤/对穿改看这份同伴表
 		u.set("duel_foes", _red_foes if _red_team.has(u) else _blue_foes)
 	_sync_foes()
 	_assign_targets() # 左右按顺序配对，各打各的，不都往最近那个身上挤
 	if _panel != null:
 		_panel.bind_fighters(_red_team, _blue_team) # 顶部血条按帧跟着两队走
-	_follow_camera(1.0) # 新一局直接把镜头对准开战位置，不做缓动
-
+	_center_camera() # 新一局把视角对回地图中央
 
 ## 一队的出生间距：普通单位沿用原 186；带武车时按武车体型放大，
 ## 并保证两队各自的排面不越过中场（左右半场关系与原图一致）。
@@ -181,42 +199,101 @@ func _disable_chariot_collisions(units: Array) -> void:
 			b.add_collision_exception_with(a)
 
 
-## 竞技场比屏幕宽，镜头只做横向跟随：y 固定 360，缩放保持 1，
-## 这样 CanvasLayer 里的地线（屏幕 y = GROUND_Y）和世界地面始终对齐，不会出现拉伸或错位。
+## 自由视角相机：不写死任何整型边界，边界全部由「地图像素范围 / 当前缩放后的可视尺寸」
+## 在运行时算出来。横向 A/D 或拖拽平移，滚轮/双指缩放，两者互不干扰。
 func _build_camera() -> void:
 	_camera = Camera2D.new()
-	_camera.position = Vector2(ARENA_W * 0.5, 360.0)
-	_camera.limit_left = 0
-	_camera.limit_right = int(ARENA_W)
-	_camera.limit_top = 0
-	_camera.limit_bottom = 720
+	_camera.position = Vector2(ARENA_W * 0.5, MAP_H * 0.5)
+	_camera.zoom = Vector2.ONE
 	add_child(_camera)
 	_camera.make_current()
 
 
-## 取场上所有存活单位的横向中点做跟随目标，并夹在场地边界内。
-## 战斗集中在半场时镜头不动；武车冲过中场时镜头平滑跟过去，不会漏掉交战。
-func _follow_camera(delta: float) -> void:
+func _unhandled_input(event: InputEvent) -> void:
+	if _camera == null or not _has_fighters():
+		return
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
+			_zoom_by(CAMERA_ZOOM_STEP)
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
+			_zoom_by(1.0 / CAMERA_ZOOM_STEP)
+			get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_LEFT:
+			_dragging = event.pressed # 桌面端也可以按住左键拖动，和手机滑动同一条路径
+	elif event is InputEventScreenDrag:
+		_drag_pan(event.relative)
+	elif event is InputEventMouseMotion and _dragging:
+		_drag_pan(event.relative)
+
+
+## 每帧推进：键盘持续平移 + 平滑加减速 + 触边缓冲。
+## 用 _process（渲染帧）而不是定时器轮询，按下到画面移动不超过 1 帧（16.7ms）。
+func _update_camera(delta: float) -> void:
 	if _camera == null:
 		return
-	var lo := INF
-	var hi := -INF
-	for u in _red_team + _blue_team:
-		if not is_instance_valid(u) or int(u.get("hp")) <= 0:
-			continue
-		var x := (u as Node2D).global_position.x
-		lo = minf(lo, x)
-		hi = maxf(hi, x)
-	if lo > hi:
+	if _dragging and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_dragging = false # 鼠标在 UI 上松开时事件会被吃掉，这里兜底防止拖拽粘住
+	var dir := 0.0
+	if _has_fighters():
+		if Input.is_action_pressed("move_left"):
+			dir -= 1.0
+		if Input.is_action_pressed("move_right"):
+			dir += 1.0
+	var target := dir * CAMERA_SPEED
+	if dir != 0.0:
+		var edge := _pan_bounds().y if dir > 0.0 else _pan_bounds().x
+		var dist_px := absf(edge - _camera.position.x) * _zoom
+		if dist_px < CAMERA_EDGE_PAD:
+			target *= clampf(dist_px / CAMERA_EDGE_PAD, 0.0, 1.0) # 边界缓冲：越近越慢
+	var rate := CAMERA_ACCEL if dir != 0.0 else CAMERA_BRAKE
+	_pan_speed = move_toward(_pan_speed, target, rate * delta)
+	if absf(_pan_speed) < 0.05:
+		_pan_speed = 0.0
 		return
-	var view_w: float = get_viewport().get_visible_rect().size.x
-	var target := (lo + hi) * 0.5
-	if view_w < ARENA_W:
-		target = clampf(target, view_w * 0.5, ARENA_W - view_w * 0.5)
-	else:
-		target = ARENA_W * 0.5
-	var k := clampf(CAMERA_FOLLOW * delta, 0.0, 1.0)
-	_camera.position = Vector2(lerpf(_camera.position.x, target, k), 360.0)
+	_camera.position = _clamp_camera(
+		_camera.position + Vector2(_pan_speed * delta / _zoom, 0.0))
+
+
+## 手指/鼠标拖动：1:1 跟手，向右拖视野向左（地图随手走），键盘与拖动共用同一套边界。
+func _drag_pan(rel: Vector2) -> void:
+	_pan_speed = 0.0
+	_camera.position = _clamp_camera(_camera.position - rel / _zoom)
+
+
+func _zoom_by(factor: float) -> void:
+	_zoom = clampf(_zoom * factor, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX)
+	_camera.zoom = Vector2(_zoom, _zoom)
+	_camera.position = _clamp_camera(_camera.position)
+
+
+## 当前缩放下的可移动范围（相机中心坐标）：视口比地图大时直接锁中心。
+func _pan_bounds() -> Vector2:
+	var view := get_viewport().get_visible_rect().size / _zoom
+	var half := view * 0.5
+	var x0 := half.x if view.x < ARENA_W else ARENA_W * 0.5
+	var x1 := (ARENA_W - half.x) if view.x < ARENA_W else ARENA_W * 0.5
+	return Vector2(minf(x0, x1), maxf(x0, x1))
+
+
+func _clamp_camera(pos: Vector2) -> Vector2:
+	var view := get_viewport().get_visible_rect().size / _zoom
+	var half := view * 0.5
+	var x := ARENA_W * 0.5 if view.x >= ARENA_W else clampf(pos.x, half.x, ARENA_W - half.x)
+	var y := (MAP_TOP + MAP_H) * 0.5 if view.y >= MAP_H else clampf(
+		pos.y, MAP_TOP + half.y, MAP_TOP + MAP_H - half.y)
+	return Vector2(x, y)
+
+
+func _center_camera() -> void:
+	if _camera == null:
+		return
+	_pan_speed = 0.0
+	_camera.position = _clamp_camera(Vector2(ARENA_W * 0.5, MAP_TOP + MAP_H * 0.5))
+
+
+func _has_fighters() -> bool:
+	return not _red_team.is_empty() or not _blue_team.is_empty()
 
 
 ## 一队 N 人：以 base_x 为中心左右排开，统一站在地面线上
@@ -253,6 +330,10 @@ func _build_team(ids: Array, stats: Dictionary, base_x: float, step: float, side
 		if sid == "c001":
 			unit.set("arena_left", 0.0)
 			unit.set("arena_right", ARENA_W)
+			# 小弟的生成安全区：只允许落在正中区间，且必须贴地生成。
+			unit.set("summon_min_x", SUMMON_ZONE_MIN)
+			unit.set("summon_max_x", SUMMON_ZONE_MAX)
+			unit.set("summon_ground_y", GROUND_Y)
 			unit.call("_apply_facing")
 		list.append(unit)
 	return list
@@ -266,6 +347,24 @@ func _rematch() -> void:
 
 func _on_died() -> void:
 	_assign_targets() # 活着的重新配对 / 改追最近
+	_check_end()
+
+
+## 武车撞击边界致死：在碰撞触发的同一帧从实体管理系统注销。
+## 血条行保留为 null 占位（面板对 null 只隐藏这一行，行号不会跳动），
+## 同伴表 / 敌对表 / 其他单位的锁定目标里的引用全部同步摘掉，再重新配对与结算。
+func _forget_unit(unit) -> void:
+	for team in [_red_team, _blue_team]:
+		for i in team.size():
+			if team[i] == unit:
+				team[i] = null
+	_peers.erase(unit)
+	for u in _peers:
+		if is_instance_valid(u) and u.get("duel_target") == unit:
+			u.set("duel_target", null)
+	_red_foes.erase(unit)
+	_blue_foes.erase(unit)
+	_assign_targets()
 	_check_end()
 
 
@@ -319,6 +418,7 @@ func _clear_fighters() -> void:
 			f.queue_free()
 	_red_team = []
 	_blue_team = []
+	_peers = []
 	EnemyBase.duel_reset()
 
 
@@ -348,37 +448,257 @@ func _build_arena_bodies() -> void:
 		add_child(wall)
 
 
+## 斗蛐蛐场景美术：所有背景层都放在世界坐标里（而不是 CanvasLayer），
+## 自由视角缩放/平移时和单位保持同一比例，不会出现「背景不动、地线错位」。
+## 层次从远到近：远山 → 雾带 → 宫殿剪影 → 中央光池 → 水墨石板地面 → 地面点缀。
 func _build_backdrop() -> void:
+	_add_mountain_backdrop()
+	_add_palace_silhouettes()
+	_add_center_light()
+	_add_ground()
+	_add_ground_decor()
+	_add_screen_overlay()
+
+
+## 远山：水墨群山做天际线，山脚压在场地地面线以下，只露出山脊与云海。
+func _add_mountain_backdrop() -> void:
+	var tex := InkTex.load("res://art/environment/background/bg_mountains.jpg")
+	if tex == null:
+		return
+	var sc := ARENA_W * 1.06 / float(tex.get_width())
+	var sky := Sprite2D.new()
+	sky.texture = tex
+	sky.centered = false
+	sky.scale = Vector2(sc, sc)
+	# 源图 1320px 处是山脚雾带：让它落到地线略下方，山脊自然成为远景
+	sky.position = Vector2(-ARENA_W * 0.03, GROUND_Y + 40.0 - 1320.0 * sc)
+	sky.modulate = Color(0.50, 0.49, 0.54)
+	sky.z_index = -30
+	add_child(sky)
+
+	# 山脚往地面过渡的压暗带：让远山沉进地面，而不是像一张贴纸截断
+	_add_rect_gradient(
+		Vector2(-ARENA_W * 0.06, 250.0), Vector2(ARENA_W * 1.12, GROUND_Y - 250.0),
+		[Color(0.03, 0.03, 0.05, 0.0), Color(0.03, 0.03, 0.05, 0.58)], -29)
+
+	# 地平线附近的一条淡雾：分隔远山与战场，增加纵深
+	_add_rect_gradient(
+		Vector2(-ARENA_W * 0.06, 330.0), Vector2(ARENA_W * 1.12, 210.0),
+		[Color(0.62, 0.61, 0.66, 0.0), Color(0.62, 0.61, 0.66, 0.14), Color(0.62, 0.61, 0.66, 0.0)], -28)
+
+
+## 宫殿剪影：左右各一座，压在地面上、只留暗部轮廓，用来框住中央战场。
+func _add_palace_silhouettes() -> void:
+	var tex := InkTex.load("res://art/environment/decor/palace_cliff.png")
+	if tex == null:
+		return
+	var defs := [
+		{"x": 470.0, "scale": 1.32, "alpha": 0.72},
+		{"x": 2730.0, "scale": 1.16, "alpha": 0.64},
+	]
+	for d in defs:
+		var s := Sprite2D.new()
+		s.texture = tex
+		s.centered = false
+		var sc := float(d["scale"])
+		s.scale = Vector2(sc, sc)
+		s.position = Vector2(float(d["x"]) - tex.get_width() * sc * 0.5, GROUND_Y + 34.0 - tex.get_height() * sc)
+		s.modulate = Color(0.17, 0.17, 0.21, float(d["alpha"])) # 压成暗部剪影，避免原画的红/白亮块跳出来
+		s.z_index = -26
+		add_child(s)
+
+
+## 中央光池：柔和暖光落在场地中间，把视线引到交战区（不影响任何碰撞与判定）。
+func _add_center_light() -> void:
+	var g := Gradient.new()
+	g.colors = PackedColorArray([Color(1.0, 0.86, 0.62, 0.11), Color(1.0, 0.86, 0.62, 0.04), Color(1.0, 0.86, 0.62, 0.0)])
+	g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.width = 256
+	tex.height = 256
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	var glow := TextureRect.new()
+	glow.texture = tex
+	glow.position = Vector2(ARENA_W * 0.5 - 1150.0, GROUND_Y - 610.0)
+	glow.size = Vector2(2300.0, 620.0)
+	glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	glow.stretch_mode = TextureRect.STRETCH_SCALE
+	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
+	glow.material = mat
+	glow.z_index = -24
+	add_child(glow)
+
+
+## 地面：水墨石板带 + 下方暗部 + 金色地线，全部以世界坐标 GROUND_Y 对齐脚底。
+func _add_ground() -> void:
+	var width := ARENA_W * 1.12
+	var left := -ARENA_W * 0.06
+
+	var deep := ColorRect.new()
+	deep.color = Color(0.025, 0.025, 0.032, 0.98)
+	deep.position = Vector2(left, GROUND_Y + 96.0)
+	deep.size = Vector2(width, 2200.0)
+	deep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	deep.z_index = -22
+	add_child(deep)
+
+	# 石板下方逐渐没入暗部（不是一刀切的纯黑），远处地面仍然有纵深
+	_add_rect_gradient(
+		Vector2(left, GROUND_Y + 60.0), Vector2(width, 900.0),
+		[Color(0.10, 0.10, 0.12, 0.92), Color(0.03, 0.03, 0.04, 0.98), Color(0.012, 0.012, 0.018, 1.0)], -22)
+
+	var band := TextureRect.new()
+	band.texture = InkTex.load("res://art/environment/tilesets/ground_ink.png")
+	band.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	band.stretch_mode = TextureRect.STRETCH_TILE
+	band.position = Vector2(left, GROUND_Y - 20.0) # 与普通房间同一套对齐：带顶缘在地线上方 20px
+	band.size = Vector2(width, 110.0)
+	band.modulate = Color(0.74, 0.73, 0.72)
+	band.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	band.z_index = -21
+	add_child(band)
+
+	# 石板带下缘融进暗部，避免出现一条生硬的色块边界
+	_add_rect_gradient(
+		Vector2(left, GROUND_Y + 56.0), Vector2(width, 84.0),
+		[Color(0.03, 0.03, 0.04, 0.0), Color(0.03, 0.03, 0.04, 0.92)], -20)
+
+	# 地线：一条极细的暖金线，既提示可站立面，也不切割画面
+	var line := ColorRect.new()
+	line.color = Color(0.86, 0.71, 0.44, 0.30)
+	line.position = Vector2(left, GROUND_Y - 1.0)
+	line.size = Vector2(width, 1.5)
+	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	line.z_index = -19
+	add_child(line)
+
+
+## 地面点缀：山石、树、香炉/石碑全部排在中央安全区之外，交战区保持干净。
+func _add_ground_decor() -> void:
+	var trees := [
+		{"tex": "res://art/environment/decor/tree_pine.png", "x": 170.0, "scale": 1.06, "sink": 16.0, "mul": 0.60},
+		{"tex": "res://art/environment/decor/tree_cherry.png", "x": 640.0, "scale": 1.22, "sink": 12.0, "mul": 0.40},
+		{"tex": "res://art/environment/decor/tree_willow.png", "x": 820.0, "scale": 1.04, "sink": 14.0, "mul": 0.56},
+		{"tex": "res://art/environment/decor/tree_pine.png", "x": 2380.0, "scale": 1.10, "sink": 16.0, "mul": 0.60},
+		{"tex": "res://art/environment/decor/tree_cherry.png", "x": 2760.0, "scale": 1.24, "sink": 12.0, "mul": 0.40},
+		{"tex": "res://art/environment/decor/tree_willow.png", "x": 3070.0, "scale": 1.00, "sink": 14.0, "mul": 0.56},
+	]
+	for d in trees:
+		var tex := InkTex.load(str(d["tex"]))
+		if tex == null:
+			continue
+		var s := Sprite2D.new()
+		s.texture = tex
+		var sc := float(d["scale"])
+		s.scale = Vector2(sc, sc)
+		s.position = Vector2(float(d["x"]), GROUND_Y + float(d["sink"]) - tex.get_height() * sc * 0.5)
+		# 统一压成夜色（樱花压得更狠），原画的粉/绿不会从水墨场景里跳出来
+		var mul := float(d["mul"])
+		s.modulate = Color(mul, mul * 0.98, mul * 1.06, 0.92)
+		s.z_index = -16
+		add_child(s)
+
+	var cliffs := [
+		{"x": 90.0, "scale": 1.30}, {"x": 880.0, "scale": 0.72},
+		{"x": 2400.0, "scale": 0.95}, {"x": 3130.0, "scale": 0.96},
+	]
+	for d in cliffs:
+		var tex := InkTex.load("res://art/environment/decor/cliff_dark.png")
+		if tex == null:
+			break
+		var s := Sprite2D.new()
+		s.texture = tex
+		var sc := float(d["scale"])
+		s.scale = Vector2(sc, sc)
+		s.position = Vector2(float(d["x"]), GROUND_Y + 26.0 - tex.get_height() * sc * 0.5)
+		s.modulate = Color(0.42, 0.44, 0.50, 0.85)
+		s.z_index = -17
+		add_child(s)
+
+	var props := [
+		{"tex": "res://art/environment/props/decor_censer.png", "x": 400.0, "scale": 0.95},
+		{"tex": "res://art/environment/props/decor_stele.png", "x": 2560.0, "scale": 0.92},
+	]
+	for d in props:
+		var tex := InkTex.load(str(d["tex"]))
+		if tex == null:
+			continue
+		var s := Sprite2D.new()
+		s.texture = tex
+		var sc := float(d["scale"])
+		s.scale = Vector2(sc, sc)
+		s.position = Vector2(float(d["x"]), GROUND_Y - tex.get_height() * sc * 0.5 + 4.0)
+		s.modulate = Color(0.62, 0.60, 0.58, 0.90)
+		s.z_index = -15
+		add_child(s)
+
+
+## 屏幕层：暗角 + 顶部压暗，只压画面边缘，不遮挡中央战场与操作。
+func _add_screen_overlay() -> void:
 	var layer := CanvasLayer.new()
-	layer.layer = -2
+	layer.layer = 1 # 与对战面板同层，先加先绘：暗角在下，面板在上
 	add_child(layer)
 
-	var bg := TextureRect.new()
-	bg.texture = InkTex.load("res://art/environment/background/bg_mountains.jpg")
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	bg.modulate = Color(0.50, 0.48, 0.52)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(bg)
+	var g := Gradient.new()
+	g.colors = PackedColorArray([Color(0.0, 0.0, 0.0, 0.0), Color(0.0, 0.0, 0.0, 0.0), Color(0.01, 0.01, 0.02, 0.52)])
+	g.offsets = PackedFloat32Array([0.0, 0.52, 1.0])
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.width = 256
+	tex.height = 256
+	tex.fill = GradientTexture2D.FILL_RADIAL
+	tex.fill_from = Vector2(0.5, 0.5)
+	tex.fill_to = Vector2(1.0, 0.5)
+	var vignette := TextureRect.new()
+	vignette.texture = tex
+	vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vignette.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(vignette)
 
-	var dim := ColorRect.new()
-	dim.color = Color(0.05, 0.04, 0.05, 0.58)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(dim)
+	# 顶部压暗带：给观战血条 / 返回按钮留出稳定的深色底，避免亮山脊吃掉文字
+	var top := TextureRect.new()
+	top.texture = _make_v_gradient([Color(0.02, 0.02, 0.03, 0.62), Color(0.02, 0.02, 0.03, 0.0)])
+	top.position = Vector2(0, 0)
+	top.size = Vector2(1280.0, 132.0)
+	top.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	top.stretch_mode = TextureRect.STRETCH_SCALE
+	top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(top)
 
-	# 地面：从 GROUND_Y 往下一整条压暗，两侧多铺一倍宽，覆盖手机加宽的画布
-	var ground := ColorRect.new()
-	ground.color = Color(0.04, 0.04, 0.04, 0.86)
-	ground.position = Vector2(-640, GROUND_Y)
-	ground.size = Vector2(2560, 720)
-	ground.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(ground)
 
-	var edge := ColorRect.new()
-	edge.color = Color(0.82, 0.68, 0.42, 0.35)
-	edge.position = Vector2(-640, GROUND_Y - 2)
-	edge.size = Vector2(2560, 2)
-	edge.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(edge)
+## 横向铺满、纵向渐变的纯色矩形（世界层用）
+func _add_rect_gradient(pos: Vector2, size: Vector2, colors: Array, z: int) -> void:
+	var rect := TextureRect.new()
+	rect.texture = _make_v_gradient(colors)
+	rect.position = pos
+	rect.size = size
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.z_index = z
+	add_child(rect)
+
+
+func _make_v_gradient(colors: Array) -> GradientTexture2D:
+	var g := Gradient.new()
+	var cols := []
+	var offs := []
+	for i in colors.size():
+		cols.append(colors[i])
+		offs.append(float(i) / maxf(1.0, float(colors.size() - 1)))
+	g.colors = PackedColorArray(cols)
+	g.offsets = PackedFloat32Array(offs)
+	var tex := GradientTexture2D.new()
+	tex.gradient = g
+	tex.width = 4
+	tex.height = 128
+	tex.fill_from = Vector2(0.5, 0.0)
+	tex.fill_to = Vector2(0.5, 1.0)
+	return tex

@@ -64,6 +64,22 @@ static func spawn(parent: Node, fx_name: String, pos: Vector2, opts: Dictionary 
 	return f
 
 
+## 立即终止播放并把渲染实例摘出场景树：停掉逐帧更新、隐藏精灵、解除父节点关联、进销毁队列。
+## 用于所有者同帧清场（武车撞边致死），不等动画自然播完，避免残影卡在墙边。
+func stop_and_free() -> void:
+	set_process(false)
+	_t = 0.0
+	visible = false
+	if _sprite != null and is_instance_valid(_sprite):
+		_sprite.visible = false
+		_sprite.frame = 0
+		_sprite.texture = null # 断开贴图引用，渲染实例不再持有资源
+	var p := get_parent()
+	if p != null:
+		p.remove_child(self)
+	queue_free()
+
+
 func _process(delta: float) -> void:
 	_t += delta
 	var frame := int(_t * _fps)

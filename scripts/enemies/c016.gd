@@ -582,6 +582,12 @@ func _physics_process(delta: float) -> void:
 
 func _idle_tick(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+	if duel_mode:
+		# 斗蛐蛐：只保留待机 / 追击两种状态，没有巡逻。
+		# 名单里只要有活着的对手就立刻全图索敌，没有就原地待机等下一批。
+		if _target != null and is_instance_valid(_target) and int(_target.get("hp")) > 0:
+			_set_state(State.CHASE)
+		return
 	_idle_timer -= delta
 	if _chase_block <= 0.0 and _sees_player(detect_range):
 		_set_state(State.CHASE)
@@ -894,16 +900,17 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 
 
 ## 精英出手预警：起手瞬间整只怪泛红 + 脚下聚气，给玩家留出躲闪/弹反的读招时间
-func _telegraph() -> void:
+## 返回脚下的墨环特效节点（不需要归属追踪的调用方直接忽略返回值）
+func _telegraph() -> Node2D:
 	if sprite == null:
-		return
+		return null
 	_sfx_player.stream = SFX_TELEGRAPH
 	_sfx_player.play()
 	sprite.modulate = Color(1.9, 0.5, 0.45)
 	var tw := create_tween()
 	tw.tween_property(sprite, "modulate", Color.WHITE, 0.2) # 0.35 → 0.2：预警闪一下就退，不盖过后续命中反馈
 	# 脚下墨环（泛红）：体积跟随形态缩放，精英一小圈、Boss 一大圈
-	FX.spawn(get_tree().current_scene, "telegraph", global_position, {"scale": _scale * 1.1, "mod": Color(1.0, 0.55, 0.5, 0.9)})
+	return FX.spawn(get_tree().current_scene, "telegraph", global_position, {"scale": _scale * 1.1, "mod": Color(1.0, 0.55, 0.5, 0.9)})
 
 
 func _deal_hit(seg := 0) -> void:
@@ -2447,6 +2454,8 @@ func _sees_player(radius: float) -> bool:
 
 
 func _set_state(new_state: int) -> void:
+	if duel_mode and new_state == State.PATROL:
+		new_state = State.IDLE # 斗蛐蛐没有巡逻：掉目标/脱战一律回待机
 	if state == new_state:
 		return
 	state = new_state

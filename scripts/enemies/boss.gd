@@ -48,6 +48,7 @@ var _state_timer := 0.0
 var _invincible := false
 var _valid: Dictionary = {} # 动画名 -> 是否存在（素材没转好/名字写错时降级而不是报错）
 var _fx: Dictionary = {} # 特效配置（hit/enter/transform/charge_trail/charge_wall），boss_types 注入
+var _owned_fx: Array = [] # 本 Boss 产生的场景级特效（挂在 current_scene），死亡清场时按归属统一释放
 var _trail_timer := 0.0 # 冲锋拖尾特效的喷溅间隔
 var _fz: Dictionary = {} # 当前阶段的封锁火区配置（空 = 无此机制）
 var _fz_cd := 0.0 # 火区冷却
@@ -554,9 +555,30 @@ func die() -> void:
 func _fx_play(cfg: Dictionary, off := Vector2.ZERO) -> void:
 	if cfg.is_empty():
 		return
-	FX.spawn(get_tree().current_scene, str(cfg["name"]),
+	_track_fx(FX.spawn(get_tree().current_scene, str(cfg["name"]),
 		global_position + off + Vector2(0, float(cfg.get("off_y", 0.0))),
-		{"scale": float(cfg.get("scale", 1.0)), "flip": facing < 0})
+		{"scale": float(cfg.get("scale", 1.0)), "flip": facing < 0}))
+
+
+## 记录归属特效：播放器播完会自毁，这里顺手剔除失效引用，数组不会越积越长
+func _track_fx(f: Node2D) -> void:
+	if f == null:
+		return
+	_owned_fx = _owned_fx.filter(func(x): return is_instance_valid(x))
+	_owned_fx.append(f)
+
+
+## 归属特效同帧清场：停帧更新 → 隐藏 → 摘出父节点 → 释放，并校验没有节点还留在场景树里
+func _clear_owned_fx() -> void:
+	var pending: Array = _owned_fx
+	_owned_fx = []
+	for f in pending:
+		if not is_instance_valid(f):
+			continue
+		f.stop_and_free()
+		if f.is_inside_tree():
+			push_warning("Boss 特效清理残留：" + str(f.name))
+	pending.clear()
 
 
 ## 火区节奏：冷却一到就撒一轮（只在常规战斗状态被调用）
