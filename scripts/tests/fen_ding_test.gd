@@ -107,6 +107,7 @@ func _reset_all(player_hp := 99) -> void:
 	_p._hurt_invincible = 0.0
 	_p._hurt_cast_key = ""
 	_p._hurt_chain.clear()
+	_p._knock_cd = 0.0 # 清掉前一招留下的击倒保护，避免佛陀免倒地判定被吞掉
 	_p._invincible = false
 	_p._damage_reduce = 0
 	_p._shield_hits = 0

@@ -187,6 +187,16 @@ func _test_hud_overhaul() -> void:
 	await _shot("08_hud_status_skills")
 
 	_player.swap_skull("c023")
+	# 暂停页详情需要真实溢出才可能滚动：补齐多种状态，避免条目太少时这条断言失去意义。
+	_player._shield_hits = 3
+	_player._shield_time = 12.0
+	_player._stolen_block = 8
+	_player._stolen_bell = 4
+	_player._parry_ready = true
+	_player._bell_shell = true
+	_player._awaken_time = 6.0
+	_player._bleed_stacks = 2
+	_player._bleed_time = 4.0
 	var pm = load("res://scenes/ui/pause_menu.tscn").instantiate()
 	add_child(pm)
 	await get_tree().create_timer(0.2).timeout
@@ -208,6 +218,7 @@ func _test_hud_overhaul() -> void:
 	await _shot("09_pause_details")
 	if not scrolls.is_empty():
 		scrolls[0].scroll_vertical = 100000
+		await get_tree().process_frame
 		await get_tree().process_frame
 		_check(scrolls[0].scroll_vertical > 0, "状态详情可实际向下滚动")
 	await _press_escape()
