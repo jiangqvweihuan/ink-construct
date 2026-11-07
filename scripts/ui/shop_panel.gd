@@ -118,6 +118,18 @@ func _build_appearance() -> void:
 	var enemy_tab := _button(self, "敌 人 外 观", Vector2(230, 224), Vector2(120, 36), _set_appearance_side.bind(true))
 	enemy_tab.modulate = Color.WHITE if _appearance_enemy else Color(1, 1, 1, 0.6)
 
+	if owners.is_empty():
+		# 图鉴还没解锁任何带外观的角色时，页面不能只剩两个分页：给出可预期的空状态说明
+		if _appearance_enemy:
+			_text(self, "暂无可展示的敌人外观", Vector2(100, 344), Vector2(1040, 40), 24, PAPER)
+			_text(self, "在图鉴中收录带外观的敌人后，这里会自动更新",
+				Vector2(100, 396), Vector2(1040, 32), 18, DIM)
+		else:
+			_text(self, "暂无可展示的主角外观", Vector2(100, 344), Vector2(1040, 40), 24, PAPER)
+			_text(self, "在图鉴 / 化身谱中解锁带外观的化身之后，这里会自动更新",
+				Vector2(100, 396), Vector2(1040, 32), 18, DIM)
+		return
+
 	var y := 276.0
 	for oid in owners:
 		_owner_row(str(oid), Vector2(100, y))

@@ -1,6 +1,6 @@
 extends Control
 
-## 手势层绘制：浮动摇杆、墨环、右上角暂停键与首次提示。纯绘制，不接收输入。
+## 手势层绘制：浮动摇杆、墨环、右上角暂停键。纯绘制，不接收输入。
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -19,7 +19,6 @@ var wheel_locked: Array[bool] = []
 var wheel_sel := -1
 
 var pause_rect := Rect2()
-var hint := false
 var view_size := Vector2(1280, 720)
 
 
@@ -32,8 +31,6 @@ func _draw() -> void:
 	_draw_pause()
 	if wheel_visible:
 		_draw_wheel()
-	if hint:
-		_draw_hint()
 
 
 func _font() -> Font:
@@ -80,30 +77,3 @@ func _draw_wheel() -> void:
 		draw_arc(pos, SECTOR_RADIUS, 0.0, TAU, 32, edge, 2.0, true)
 		var col := Color(PAPER, 0.35) if locked else (PAPER if sel else DIM)
 		_text_centered(font, pos, wheel_labels[i], 18, col)
-
-
-func _draw_hint() -> void:
-	# 首次进入战斗的手势提示：深墨底卡片 + 大字，放画面中上部，不贴底边
-	var font := _font()
-	var lines := [
-		"左半屏左右拖动 · 移动",
-		"右半屏：点按攻击 · 上划跳跃 · 横划闪避 · 长按开墨环",
-	]
-	var fsize := 22
-	var line_h := font.get_height(fsize)
-	var line_gap := 10.0
-	var pad := Vector2(34, 22)
-	var text_w := 0.0
-	for t in lines:
-		text_w = maxf(text_w, font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize).x)
-	var box := Rect2(Vector2.ZERO, Vector2(text_w + pad.x * 2.0,
-		line_h * float(lines.size()) + line_gap * float(lines.size() - 1) + pad.y * 2.0))
-	box.position = Vector2(view_size.x * 0.5 - box.size.x * 0.5, view_size.y * 0.30)
-	draw_rect(box, Color(0.03, 0.03, 0.03, 0.82), true)
-	draw_rect(box, Color(PAPER, 0.45), false, 2.0)
-	var y := box.position.y + pad.y
-	for t in lines:
-		var tw := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize).x
-		draw_string(font, Vector2(box.position.x + box.size.x * 0.5 - tw * 0.5, y + font.get_ascent(fsize)),
-			t, HORIZONTAL_ALIGNMENT_LEFT, -1.0, fsize, Color(PAPER, 0.98))
-		y += line_h + line_gap

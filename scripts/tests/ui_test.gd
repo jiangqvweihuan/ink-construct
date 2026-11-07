@@ -105,6 +105,17 @@ func _ready() -> void:
 			var text := str(entry["s"])
 			has_placeholder = has_placeholder or text.contains("【") or text.contains("】")
 		p("致谢模板占位已清空=%s（期望 true）" % (not has_placeholder))
+		# 版权条款是长折行文本：后一条不能被前一条压住（曾出现「2.」被上一行盖住）
+		var legal := {}
+		for c in credits._scroll.get_children():
+			if c is Label and str(c.text).substr(0, 2) in ["1.", "2.", "3."]:
+				legal[str(c.text).substr(0, 2)] = c
+		p("条款 2 顶边=%.1f 条款 1 底边=%.1f（期望顶边>=底边）"
+			% [legal["2."].position.y, legal["1."].position.y + legal["1."].size.y])
+		assert(legal["2."].position.y >= legal["1."].position.y + legal["1."].size.y,
+			"版权条款必须逐条排开，不能与上一条重叠")
+		assert(legal["3."].position.y >= legal["2."].position.y + legal["2."].size.y,
+			"版权条款必须逐条排开，不能与上一条重叠")
 		p("致谢滚动 offset=%.1f（期望 > 0）" % credits._offset)
 		await _shot("01b_credits")
 		# 致谢独占卷终曲：普通 BGM 暂停、音效总线静音，只留这一首在播
@@ -326,6 +337,8 @@ func _ready() -> void:
 				buy_btn = c
 		p("未解锁行买断按钮=%s（期望 true）" % (buy_btn != null))
 		assert(buy_btn != null, "未解锁行必须保留墨锭买断入口")
+		p("买断价 c013=%d（期望 120，原 40 的三倍）" % int(Meta.INK_SHOP["buyout_c013"]["cost"]))
+		assert(int(Meta.INK_SHOP["buyout_c013"]["cost"]) == 120, "买断价必须翻三倍")
 		forms._form_id = "c013"
 		forms._refresh()
 		await get_tree().create_timer(0.2).timeout

@@ -578,7 +578,7 @@ func _add(kind: String, text: String, y: float) -> float:
 			font_size = 19
 			gap = 2.0
 		"legal":
-			font_size = 15
+			font_size = 14 # 15 号时第 3 条只差一个字，会把句号单独挤到下一行
 			color = DIM
 			gap = 10.0
 			align = HORIZONTAL_ALIGNMENT_LEFT
@@ -587,15 +587,20 @@ func _add(kind: String, text: String, y: float) -> float:
 			color = GOLD
 			gap = 64.0
 
-	var h := _text_height(text, font_size)
+	var body_font: Font = TITLE_FONT if kind in ["title", "section"] else BODY_FONT
+	# 条款是整段无空格中文：按词断行会把「1.」单独留在首行，正文从第二行才起。
+	# 条款改用逐字断行，数字与正文就能排在同一行；其余条目仍按词断行。
+	var legal := kind == "legal"
+	var brk := (TextServer.BREAK_MANDATORY | TextServer.BREAK_GRAPHEME_BOUND) if legal else (TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND)
+	var h := _text_height(text, font_size, body_font, brk)
 	var l := Label.new()
 	l.text = text
 	# 先定折行与对齐，最后才给 size：反过来设的话 Label 的最小尺寸会把宽度顶回去、长条款不折行
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY if legal else TextServer.AUTOWRAP_WORD_SMART
 	l.horizontal_alignment = align
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_font_size_override("font_size", font_size)
-	l.add_theme_font_override("font", TITLE_FONT if kind in ["title", "section"] else BODY_FONT)
+	l.add_theme_font_override("font", body_font)
 	l.add_theme_constant_override("line_spacing", 6) # 折行条款的行距，太挤会糊成一坨
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.position = Vector2(COL_X + _dx, y + gap)
@@ -604,8 +609,9 @@ func _add(kind: String, text: String, y: float) -> float:
 	return gap + h + 8.0
 
 
-## 按字体实测量宽估行数：正文有折行，不能用固定行高
-func _text_height(text: String, font_size: int) -> float:
-	var w := BODY_FONT.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var lines := maxi(1, int(ceil(w / COL_W)))
-	return float(lines) * float(font_size) * 1.5
+## 按字体在列宽内的真实折行量高：只按字符总宽估行数会少算，长条款会压到下一行
+func _text_height(text: String, font_size: int, font: Font, brk_flags: int) -> float:
+	var wrapped := font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, COL_W, font_size, -1, brk_flags)
+	var one := maxf(font.get_height(font_size), 1.0)
+	var lines := maxi(1, int(round(wrapped.y / one)))
+	return float(lines) * (one + 6.0) # +6 与 Label 的 line_spacing 对齐

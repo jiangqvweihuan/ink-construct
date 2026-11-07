@@ -87,11 +87,11 @@ const FORM_NODES := {
 
 ## 墨锭商栈：角色买断放在各角色修炼页顶部；独立商栈只卖通用强化、重随与补给。
 const INK_SHOP := {
-	"buyout_c013": {"label": "买断 · 镇岳", "cost": 40, "form": "c013"},
-	"buyout_c023": {"label": "买断 · 梅剑", "cost": 80, "form": "c023"},
-	"buyout_z000": {"label": "买断 · 剑仙", "cost": 120, "form": "z000"},
-	"buyout_z002": {"label": "买断 · 绛弦", "cost": 280, "form": "z002"},
-	"buyout_z003": {"label": "买断 · 银夜", "cost": 200, "form": "z003"},
+	"buyout_c013": {"label": "买断 · 镇岳", "cost": 120, "form": "c013"},
+	"buyout_c023": {"label": "买断 · 梅剑", "cost": 240, "form": "c023"},
+	"buyout_z000": {"label": "买断 · 剑仙", "cost": 360, "form": "z000"},
+	"buyout_z002": {"label": "买断 · 绛弦", "cost": 840, "form": "z002"},
+	"buyout_z003": {"label": "买断 · 银夜", "cost": 600, "form": "z003"},
 	"start_ink": {"label": "聚墨", "desc": "每局结算墨锭 +2", "costs": [30, 50, 80], "tab": "permanent"},
 	"start_hp": {"label": "固元", "desc": "每局开局生命上限 +1", "costs": [80], "tab": "permanent"},
 	"start_edge": {"label": "初锋", "desc": "每局首个普通房全部伤害 +1", "costs": [120], "tab": "permanent"},

@@ -89,8 +89,20 @@ static func loadable(owner_id: String, skin_id: String, is_enemy: bool) -> bool:
 	return ok
 
 
+## 可展示的外观分类：化身要在图鉴 / 化身谱里解锁过，敌种要被击败收录过。
+## 没解锁的角色连名字都不该出现在商栈里，也不能被买断绕过。
 static func owners(is_enemy: bool) -> Array:
-	return ENEMY.keys() if is_enemy else PLAYER.keys()
+	var all: Array = ENEMY.keys() if is_enemy else PLAYER.keys()
+	var out := []
+	for oid in all:
+		var shown: bool
+		if is_enemy:
+			shown = Meta.enemy_kills(str(oid)) > 0
+		else:
+			shown = Meta.is_unlocked(str(oid))
+		if shown:
+			out.append(oid)
+	return out
 
 
 static func group(owner_id: String, is_enemy: bool) -> Dictionary:
@@ -128,6 +140,8 @@ static func worn(owner_id: String) -> String:
 
 
 static func buy(owner_id: String, skin_id: String, is_enemy: bool) -> bool:
+	if not owners(is_enemy).has(owner_id): # 图鉴没解锁：不展示也不许买
+		return false
 	if find(owner_id, skin_id, is_enemy).is_empty():
 		return false
 	if not loadable(owner_id, skin_id, is_enemy):

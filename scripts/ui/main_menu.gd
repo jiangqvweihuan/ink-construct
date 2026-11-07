@@ -17,9 +17,9 @@ const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
 const RED := Color(0.66, 0.2, 0.16)
 
-## 菜单条几何：8 项等宽等间距，整条居中
-const ITEM_W := 148.0
-const ITEM_GAP := 10.0
+## 菜单条几何：9 项等宽等间距，整条居中（1280 宽内放得下）
+const ITEM_W := 130.0
+const ITEM_GAP := 8.0
 const ITEM_Y := 588.0
 const ITEM_H := 72.0
 
@@ -55,6 +55,7 @@ func _ready() -> void:
 		["功名录", _open_achievements], # 成就：累计战绩、技艺、百相收录与隐藏秘闻
 		["设置", _open_settings],
 		["致谢", _open_credits],
+		["斗蛐蛐", _open_duel], # 独立小模式：选两名化身自动对打，不写存档
 		["退出", func(): QuitGuard.request_quit()],
 	]
 	var total := items.size() * ITEM_W + (items.size() - 1) * ITEM_GAP
@@ -214,6 +215,11 @@ func _on_click(ev: InputEvent, idx: int) -> void:
 
 func _open_credits() -> void:
 	add_child(load("res://scenes/ui/credits_panel.tscn").instantiate())
+
+
+func _open_duel() -> void:
+	# 斗蛐蛐：独立场景，不经过 Run，也不读写存档
+	get_tree().change_scene_to_file("res://scenes/modes/duel.tscn")
 
 
 func _open_settings() -> void:

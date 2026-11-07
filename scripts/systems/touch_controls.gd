@@ -46,7 +46,6 @@ var _wheel_actions: Array[String] = []
 var _wheel_locked: Array[bool] = []
 
 var _taps: Array = []
-var _hint_time := 9.0
 
 
 func _ready() -> void:
@@ -103,9 +102,7 @@ func _process(delta: float) -> void:
 		if live and _act_mode == Hand.PENDING and _act_time >= LONG_PRESS \
 				and _act_start.distance_to(_act_pos) <= TAP_SLOP:
 			_open_wheel()
-	if live:
-		_hint_time = maxf(0.0, _hint_time - delta)
-	else:
+	if not live:
 		_cancel_gestures()
 	_sync_overlay(live)
 
@@ -122,7 +119,6 @@ func _sync_overlay(live: bool) -> void:
 	_overlay.wheel_locked = _wheel_locked
 	_overlay.wheel_sel = _wheel_sel
 	_overlay.pause_rect = _pause_rect()
-	_overlay.hint = _hint_time > 0.0
 	_overlay.view_size = _view().size
 	_overlay.queue_redraw()
 
