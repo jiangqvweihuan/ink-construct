@@ -93,7 +93,8 @@ func _stop_player(i: int) -> void:
 
 
 ## 独占曲目（致谢等）：暂停普通 BGM（保留播放进度），只播这一首；结束调 stop_solo 恢复。
-func play_solo(path: String) -> void:
+## gain_db 是这首曲目单独的增益偏移（不写入用户音量设置），用来压掉混音偏响的曲子。
+func play_solo(path: String, gain_db: float = 0.0) -> void:
 	stop_solo()
 	var stream = load(path)
 	if stream == null:
@@ -110,6 +111,7 @@ func play_solo(path: String) -> void:
 			_solo_paused.append(p)
 			p.stream_paused = true
 	_solo.stream = stream
+	_solo.volume_db = gain_db
 	_solo.play()
 
 

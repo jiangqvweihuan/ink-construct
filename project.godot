@@ -11,12 +11,12 @@ config_version=5
 [application]
 
 config/name="墨构"
-config/version="0.9.3"
+config/version="0.9.4"
 run/main_scene="res://intro/Intro.tscn"
-config/features=PackedStringArray("4.6", "GL Compatibility")
-config/icon="res://art/ui/app_icon.png"
 config/auto_accept_quit=false
 config/quit_on_go_back=false
+config/features=PackedStringArray("4.6", "GL Compatibility")
+config/icon="res://art/ui/app_icon.png"
 boot_splash/minimum_display_time=1500
 
 [autoload]

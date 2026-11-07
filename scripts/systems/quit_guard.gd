@@ -19,7 +19,11 @@ func _ready() -> void:
 
 func _notification(what: int) -> void:
 	match what:
-		NOTIFICATION_WM_GO_BACK_REQUEST, NOTIFICATION_WM_CLOSE_REQUEST:
+		NOTIFICATION_WM_GO_BACK_REQUEST:
+			# 设置等模态面板开着时，返回只关面板，不弹退出确认。
+			if get_tree().get_first_node_in_group("modal_ui") == null:
+				request_quit()
+		NOTIFICATION_WM_CLOSE_REQUEST:
 			request_quit()
 
 

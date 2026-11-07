@@ -6,6 +6,8 @@ const Settings = preload("res://scripts/ui/settings.gd")
 const MOBILE_GUIDE = preload("res://scripts/ui/mobile_guide.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
+const SFX_KNOB := preload("res://audio/sfx/click.wav") # 音量滑条试听音：短促，能听清大小
+const PREVIEW_INTERVAL_MS := 110 # 拖动时的试听最短间隔，避免密集触发叠成噪音
 
 signal closed
 
@@ -34,6 +36,8 @@ var _hint: Label
 var _hint_tw: Tween
 var _draft: Dictionary = {}
 var _closing := false
+var _preview_players := {} # bus 名 -> 试听播放器
+var _preview_ms := {} # bus 名 -> 上次试听时间戳
 
 
 class InkSlider:
@@ -149,7 +153,7 @@ func _ready() -> void:
 	add_child(_content)
 	add_child(_ink_button("恢复默认设置", Vector2(530, 592), Vector2(220, 36), _on_reset))
 	var apply_hint := Label.new()
-	apply_hint.text = "关闭设置时应用全部更改"
+	apply_hint.text = "音量拖动即刻生效；其余设置在关闭时应用"
 	apply_hint.position = Vector2(350, 566)
 	apply_hint.size = Vector2(580, 22)
 	apply_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -157,6 +161,7 @@ func _ready() -> void:
 	apply_hint.add_theme_font_size_override("font_size", 15)
 	apply_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(apply_hint)
+	add_to_group("modal_ui") # 手机返回手势优先关闭本面板，而不是弹退出确认
 	_switch_tab("音频")
 
 
@@ -187,10 +192,11 @@ func _close() -> void:
 	var s := AudioStreamPlayer.new()
 	s.bus = "SFX"
 	s.process_mode = Node.PROCESS_MODE_ALWAYS
-	get_tree().root.add_child(s)
 	s.stream = SFX_BACK
-	s.play()
 	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
+	# 返回手势触发时正处在通知传播中，入树与播放都推迟到下一拍更稳妥
+	get_tree().root.add_child.call_deferred(s)
+	s.play.call_deferred()
 	closed.emit()
 	hide()
 	await get_tree().create_timer(0.15).timeout
@@ -226,22 +232,43 @@ func _switch_tab(tab: String) -> void:
 # ---------- 音频页 ----------
 
 func _build_audio() -> void:
-	_slider_row("主音量", 215, float(_draft["master"]), func(v: float): _draft["master"] = v)
-	_slider_row("背景音乐", 290, float(_draft["music"]), func(v: float): _draft["music"] = v)
-	_slider_row("音效音量", 365, float(_draft["sfx"]), func(v: float): _draft["sfx"] = v)
+	_slider_row("主音量", 215, float(_draft["master"]), func(v: float): _draft["master"] = v, "Master")
+	_slider_row("背景音乐", 290, float(_draft["music"]), func(v: float): _draft["music"] = v, "Music")
+	_slider_row("音效音量", 365, float(_draft["sfx"]), func(v: float): _draft["sfx"] = v, "SFX")
 
 
-func _slider_row(text: String, y: float, initial: float, cb: Callable) -> void:
+func _slider_row(text: String, y: float, initial: float, cb: Callable, bus: String) -> void:
 	_row_label(text, 330, y)
 	var pct := _pct_label(Vector2(800, y))
 	var s := InkSlider.new()
 	s.position = Vector2(480, y)
 	s.value = initial
-	s.value_changed.connect(func(v: float):
+	var on_change := func(v: float) -> void:
 		cb.call(v)
-		pct.text = "%d%%" % int(round(v * 100.0)))
+		pct.text = "%d%%" % int(round(v * 100.0))
+		_preview_volume(bus, v)
+	s.value_changed.connect(on_change)
 	_content.add_child(s)
 	pct.text = "%d%%" % int(round(initial * 100.0))
+
+
+## 拖动即刻改运行中的总线（不必等关闭），并在这条总线上放一声短试听音，
+## 让玩家直接听到当前档位。写盘仍由关闭时的 apply_snapshot() 统一完成。
+func _preview_volume(bus: String, v: float) -> void:
+	Settings.preview_bus(bus, v)
+	var now := Time.get_ticks_msec()
+	if now - int(_preview_ms.get(bus, -100000)) < PREVIEW_INTERVAL_MS:
+		return
+	_preview_ms[bus] = now
+	var player: AudioStreamPlayer = _preview_players.get(bus)
+	if player == null:
+		player = AudioStreamPlayer.new()
+		player.stream = SFX_KNOB
+		player.bus = bus
+		player.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(player)
+		_preview_players[bus] = player
+	player.play()
 
 
 # ---------- 画面页 ----------
@@ -386,6 +413,12 @@ func _cancel_capture() -> void:
 	if _capturing != "" and _key_btns.has(_capturing):
 		_key_btns[_capturing].text = _draft_label(_capturing)
 	_capturing = ""
+
+
+func _notification(what: int) -> void:
+	# 手机没有 Esc：返回手势优先关闭设置，借此完成应用与落盘。
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and not _closing:
+		_close()
 
 
 func _input(event: InputEvent) -> void:

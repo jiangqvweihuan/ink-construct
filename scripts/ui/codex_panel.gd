@@ -937,7 +937,7 @@ func _build_status_detail() -> void:
 		text += "\n\n[font_size=18][color=#a8332a]挂接角色[/color][/font_size]\n"
 		var names: Array = []
 		for member_id in entry.get("member_ids", []):
-			names.append(StoryCodex.actor_name(str(member_id)))
+			names.append(_story_actor_name(str(member_id)))
 		text += "\n" + "、".join(names)
 		text += "\n\n[color=#8a857a]此页为特征摘要，逐条数值见招式与状态详情。[/color]"
 		_status_detail.text = text
@@ -1103,7 +1103,14 @@ func _story_detail_text(entry: Dictionary) -> String:
 	return text
 
 
+## 关联里的人物名：未收录的敌人与未解锁的化身只显示问号，不提前泄露身份。
 func _story_actor_name(id: String) -> String:
+	if Skulls.ids().has(id):
+		if not Meta.is_unlocked(id):
+			return "？？？"
+	else:
+		if Meta.enemy_kills(id) <= 0:
+			return "？？？"
 	return StoryCodex.actor_name(id)
 
 

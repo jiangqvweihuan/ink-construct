@@ -121,6 +121,12 @@ static func _ensure_bus(bus_name: String) -> int:
 	return idx
 
 
+## 拖动音量滑条时的实时预览：只改运行中的总线，不写静态值也不写盘。
+## 关闭设置面板时仍由 apply_snapshot() 统一落盘，两条路径互不依赖。
+static func preview_bus(bus_name: String, v: float) -> void:
+	AudioServer.set_bus_volume_db(_ensure_bus(bus_name), linear_to_db(clampf(v, 0.0, 1.0)))
+
+
 static func _root() -> Node:
 	var ml := Engine.get_main_loop()
 	return ml.root if ml is SceneTree else null

@@ -244,6 +244,22 @@ func _ready() -> void:
 	await _shot("03_codex")
 	if forms != null:
 		_assert_sfx_buses(forms)
+		# 化身曲：进入化身谱独占《破卷》，按单曲增益压低音量；开关可停可续。
+		var form_solo: AudioStreamPlayer = BGM._solo
+		var form_track := ""
+		var form_db := 0.0
+		if form_solo != null and form_solo.stream != null:
+			form_track = form_solo.stream.resource_path
+			form_db = form_solo.volume_db
+		p("化身谱独占曲=%s 音量=%.1f dB（期望 po_juan.mp3 / -3.0）" % [form_track.get_file(), form_db])
+		assert(form_solo != null and form_track.ends_with("po_juan.mp3") and form_solo.playing and absf(form_db + 3.0) < 0.01, "化身谱必须独占播放《破卷》并保持 -3 dB")
+		forms._toggle_music()
+		await get_tree().process_frame
+		p("化身曲关闭=%s（期望 true）" % (not form_solo.playing))
+		assert(not form_solo.playing and not forms._music_on, "化身曲开关必须能停止播放")
+		forms._toggle_music()
+		await get_tree().process_frame
+		assert(form_solo.playing and forms._music_on, "化身曲开关必须能重新起播")
 		forms._form_id = "c013"
 		forms._refresh()
 		await get_tree().create_timer(0.2).timeout
@@ -265,6 +281,7 @@ func _ready() -> void:
 		await _shot("04c_codex_refresh")
 		await _click(Vector2(135, 80)) # 「返回」在窗口左上角
 		p("重建后点返回 -> 面板=%s（期望 false）" % (_find_panel("forms_panel.gd") != null))
+		assert(BGM._solo == null or not BGM._solo.playing, "离开化身谱必须停掉独占曲并恢复普通 BGM")
 
 	# 独立墨锭商栈：四个页签、补给库存与外观空分类都要能正常重建。
 	_menu._open_shop()
@@ -291,6 +308,9 @@ func _ready() -> void:
 		await get_tree().process_frame
 
 	# 图鉴：先给存档造几条"已击败"记录（persist 关掉，不写进玩家存档），再看两页
+	# 临时清掉武车的击败记录，验证「未击败不收录」；故事/关联遮罩断言后再还原。
+	var saved_c001_kills := int(Meta.enemy_kills("c001"))
+	Meta.seen.erase("c001")
 	Meta.add_enemy_kill("c016")
 	Meta.add_enemy_kill("c017")
 	Meta.add_enemy_kill("c035")
@@ -325,6 +345,9 @@ func _ready() -> void:
 		await _shot("05b_codex_enemy")
 		_assert_sfx_buses(codex)
 		assert(codex._medal_fx == null, "普通刀客图鉴不得显示特殊勋章")
+		# 收录只认击败：没击杀过的首领必须保持锁定，且不得提前泄露词条与来历。
+		var locked_boss: Dictionary = codex._model("c001")
+		assert(Meta.enemy_kills("c001") == 0 and bool(locked_boss["locked"]) and (locked_boss["tags"] as Array).is_empty(), "未击败的首领不得收入图鉴或显示词条")
 		# 敌人页：默认播待机；点击「招式 1」后演示台切到该招式，右侧简介要挂击败次数与词条
 		var before := str(codex._current_anim)
 		codex._pick(0)
@@ -884,6 +907,16 @@ func _ready() -> void:
 		assert(story_unlocked_ok, "二十六章残卷正史必须全部开放")
 		assert(codex._story_list.get_v_scroll_bar().max_value > codex._story_list.get_v_scroll_bar().page, "26 章正史与卷外残页目录必须可纵向滚动")
 		p("故事集 26 章 / 17 角色 / %d 关系、正史引用与相识连通性校验通过" % story_relations.size())
+		# 未解锁化身与未收录敌人在关联里只显示问号，不提前泄露身份。
+		assert(codex._story_actor_name("c021") == StoryCodex.actor_name("c021"), "已解锁化身必须在关联里显示真名")
+		assert(codex._story_actor_name("z002") == "？？？", "未解锁化身必须在关联里隐藏姓名")
+		assert(codex._story_actor_name("c016") == StoryCodex.actor_name("c016"), "已击败敌人必须在关联里显示真名")
+		assert(codex._story_actor_name("c001") == "？？？", "未击败首领必须在关联里隐藏姓名")
+		p("关联可见性 未解锁化身/未击败首领=%s/%s（期望 ？？？/？？？）" % [
+			codex._story_actor_name("z002"), codex._story_actor_name("c001")])
+		# 还原测试前替身档案里的武车战绩；后续条目按动态可见性核对。
+		if saved_c001_kills > 0:
+			Meta.seen["c001"] = saved_c001_kills
 		await _shot("07_story_world")
 
 		# 逐项触发真实按钮 pressed；每次重建后核对全部小节、自然段、人物与本章关系。
@@ -914,7 +947,7 @@ func _ready() -> void:
 				for paragraph in section["paragraphs"]:
 					item_ok = item_ok and detail_text.contains(str(paragraph))
 			for actor in e["cast"]:
-				item_ok = item_ok and detail_text.contains(StoryCodex.actor_name(str(actor)))
+				item_ok = item_ok and detail_text.contains(codex._story_actor_name(str(actor)))
 			var expected_details: Array = story_relations if id == "relation_overview" else []
 			if id != "relation_overview":
 				for relation_id in e["relation_ids"]:
@@ -1134,6 +1167,7 @@ func _ready() -> void:
 		for hero_id in ["z000", "z002", "z003"]:
 			assert(StatusCodex.tags_for(str(hero_id)).has("觉醒"), "英雄化身必须标出觉醒：" + str(hero_id))
 		assert(StatusCodex.tags_for("z003").has("夺被动") and not StatusCodex.tags_for("z003").has("机动"), "影殇必须突出夺被动并精简次要机动标签")
+		assert(StatusCodex.tags_for("z002").has("远程"), "苏挽音为远程琴声角色，必须保留远程词条")
 
 		var status_unlocked_ok := true
 		for e in codex._entries():
@@ -1167,7 +1201,7 @@ func _ready() -> void:
 			for source in e["sources"]:
 				item_ok = item_ok and detail_text.contains(str(source))
 			for member_id in e.get("member_ids", []):
-				item_ok = item_ok and detail_text.contains(StoryCodex.actor_name(str(member_id)))
+				item_ok = item_ok and detail_text.contains(codex._story_actor_name(str(member_id)))
 			item_ok = item_ok and codex._preview == null and codex._medal_fx == null and codex._acts.is_empty()
 			if not item_ok:
 				status_ui_ok = false
@@ -1231,6 +1265,9 @@ func _ready() -> void:
 		codex._switch_tab(1)
 		await get_tree().create_timer(0.3).timeout
 		p("切到化身页 -> 选中=%s（期望 c021）" % str(codex._sel))
+		# 未解锁化身的词条必须隐藏，只留解锁条件。
+		var locked_form: Dictionary = codex._model("z002")
+		assert(bool(locked_form["locked"]) and str(locked_form["title"]) == "？？？" and (locked_form["tags"] as Array).is_empty(), "未解锁化身不得显示姓名或词条")
 		await _shot("08_codex_form")
 		# 缺原画的化身仍直接展示 Spine，不留空展示框。
 		codex._select("c013")

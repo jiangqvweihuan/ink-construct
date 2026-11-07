@@ -11,6 +11,8 @@ const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_META_UPGRADE_01 := preload("res://audio/sfx/meta_upgrade_01.wav")
 const SFX_META_UPGRADE_02 := preload("res://audio/sfx/meta_upgrade_02.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
+const PO_JUAN_MUSIC := "res://audio/music/po_juan.mp3" # 化身曲《破卷》，进入化身谱时独占播放
+const PO_JUAN_GAIN_DB := -3.0 # 这首歌混音偏响，比图鉴曲再压低 3 dB；不动用户的音乐音量设置
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -22,6 +24,8 @@ const TIER_NAMES := ["初", "续", "极"]
 var _form_id := ""
 var _sfx: AudioStreamPlayer
 var _upgrade_sfx_rng := RandomNumberGenerator.new()
+var _music_on := true # 化身曲开关：每次打开化身谱默认开启
+var _music_btn: TextureButton = null # 音乐开关按钮：切开关只重绘它，不重建面板
 
 
 func _ready() -> void:
@@ -32,6 +36,14 @@ func _ready() -> void:
 	_sfx.stream = SFX_CLICK
 	add_child(_sfx)
 	_build()
+	# 进入化身谱只留这一首：普通 BGM 由 play_solo 暂停并保留进度
+	if _music_on:
+		BGM.play_solo(PO_JUAN_MUSIC, PO_JUAN_GAIN_DB)
+
+
+func _exit_tree() -> void:
+	# 离开化身谱恢复原背景音乐（关闭音乐时这里是空操作）
+	BGM.stop_solo()
 
 
 func _build() -> void:
@@ -59,6 +71,7 @@ func _build_overview() -> void:
 	_text(self, "墨锭 %d" % Meta.ink, Vector2(250, 108), Vector2(780, 30), 23, RED)
 	_text(self, "累计击杀 %d ｜ 通关 %d" % [Meta.kills, Meta.clears], Vector2(250, 140), Vector2(780, 26), 15, DIM)
 	_button(self, "返  回", Vector2(70, 66), Vector2(140, 48), _close, SFX_BACK)
+	_music_btn = _button(self, "音 乐 · " + ("开" if _music_on else "关"), Vector2(1040, 64), Vector2(160, 46), _toggle_music, SFX_CLICK, _music_on)
 
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(80, 185)
@@ -111,6 +124,9 @@ func _build_form_detail() -> void:
 	_button(self, "返回总览", Vector2(65, 62), Vector2(155, 46), _back, SFX_BACK)
 	if Meta.form_spent(_form_id) > 0:
 		_button(self, "重置修炼", Vector2(1020, 65), Vector2(165, 46), _reset_form)
+		_music_btn = _button(self, "音 乐 · " + ("开" if _music_on else "关"), Vector2(835, 65), Vector2(165, 46), _toggle_music, SFX_CLICK, _music_on)
+	else:
+		_music_btn = _button(self, "音 乐 · " + ("开" if _music_on else "关"), Vector2(1040, 65), Vector2(160, 46), _toggle_music, SFX_CLICK, _music_on)
 
 	# 解锁永远位于修炼页最上方，未解锁时三分支只读。
 	var plate := _plate(Vector2(80, 145), Vector2(1120, 100), unlocked)
@@ -197,6 +213,23 @@ func _reset_form() -> void:
 	call_deferred("_refresh")
 
 
+## 化身曲开关：开 → 独占播放《破卷》（压掉原 BGM）；关 → 停掉，恢复原 BGM。
+func _toggle_music() -> void:
+	_music_on = not _music_on
+	if _music_on:
+		BGM.play_solo(PO_JUAN_MUSIC, PO_JUAN_GAIN_DB)
+	else:
+		BGM.stop_solo()
+	if not is_instance_valid(_music_btn):
+		return
+	# 只重绘这一个按钮：全量 _refresh 会重置滚动位置与解锁布局
+	_music_btn.texture_normal = InkTex.load("res://art/ui/menu/btn_clicked.png" if _music_on else "res://art/ui/menu/btn_normal.png")
+	var label := _music_btn.get_child(0) as Label
+	if label != null:
+		label.text = "音 乐 · " + ("开" if _music_on else "关")
+		label.add_theme_color_override("font_color", RED if _music_on else PAPER)
+
+
 func _back() -> void:
 	if _form_id != "":
 		_form_id = ""
@@ -253,16 +286,16 @@ func _plate(pos: Vector2, size: Vector2, bright := false) -> TextureRect:
 	return r
 
 
-func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callable, sfx: AudioStream = SFX_CLICK) -> TextureButton:
+func _button(parent: Node, text: String, pos: Vector2, size: Vector2, cb: Callable, sfx: AudioStream = SFX_CLICK, active := false) -> TextureButton:
 	var b := TextureButton.new()
-	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
+	b.texture_normal = InkTex.load("res://art/ui/menu/btn_clicked.png" if active else "res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.position = pos
 	b.size = size
 	parent.add_child(b)
-	_text(b, text, Vector2.ZERO, size, 18, PAPER)
+	_text(b, text, Vector2.ZERO, size, 18, RED if active else PAPER)
 	b.pressed.connect(func():
 		_play_sfx(sfx)
 		cb.call())
