@@ -60,6 +60,8 @@ func _apply_type() -> void:
 	max_hp = _durability_for_run()
 	hp = max_hp
 	boss_label = "武车"
+	# 斗蛐蛐：武车本体永远不是可攻击目标，耐久只由小弟阵亡消耗。
+	duel_untargetable = true
 
 
 func _ready() -> void:
@@ -226,7 +228,7 @@ func _charge_hit_check() -> void:
 		return
 	# 一次武撞只接触结算一次；玩家保留原有回拉，敌人目标直接结算互伤。
 	_charge_contact_done = true
-	if not _target.is_in_group("enemies"):
+	if not duel_mode and not _target.is_in_group("enemies"):
 		_target.global_position = _charge_history_position()
 	_hit_status_target(_target, 2, Vector2(_wc_charge_dir * 420.0, -120.0), {
 		"wu_che_charge": true,
@@ -261,7 +263,8 @@ func _begin_brake() -> void:
 	velocity = Vector2.ZERO
 	_set_ghost(false) # 马头碰边、开始刹车时立刻恢复实体
 	_charges_completed += 1
-	if _charges_completed > 1:
+	# 斗蛐蛐：耐久只由「小弟被击败」消耗，撞墙不再扣（正式房间保持原机制）。
+	if _charges_completed > 1 and not duel_mode:
 		hp = maxi(0, hp - 1)
 		hp_changed.emit(hp, max_hp)
 	_state_timer = float(_anim_durations.get(BRAKE_ANIM, 0.8))
@@ -321,8 +324,18 @@ func _spawn_one(elite: bool) -> void:
 		return
 	e.set("wu_che_summon", true)
 	e.set("player_ally", player_ally) # 只继承给本武车自己的子召唤，不触碰其他武车的 _summons
+	if duel_mode:
+		# 斗蛐蛐：召唤物必须继承对战名单与伤害系数。否则它会走普通分支去找 player 组
+		#（斗蛐蛐里没有），生成后无目标乱走。duel_peers 是全场共享数组，小弟也要登记进去。
+		e.set("duel_mode", true)
+		e.set("duel_side", duel_side)
+		e.set("duel_foes", duel_foes)
+		e.set("duel_peers", duel_peers)
+		e.set("duel_dmg_scale", duel_dmg_scale)
 	e.died.connect(_on_summon_died.bind(e))
 	get_parent().add_child(e)
+	if duel_mode and not duel_peers.has(e):
+		duel_peers.append(e)
 	e.global_position = _spawn_position()
 	if elite:
 		e.configure({"speed": 0.9})
@@ -361,6 +374,12 @@ func _prune_summons() -> void:
 
 func _on_summon_died(e) -> void:
 	_summons.erase(e)
+	# 斗蛐蛐：击败武车的小弟是唯一能削减其耐久的途径，耐久耗尽即死亡。
+	if duel_mode and state != State.DEAD:
+		hp = maxi(0, hp - 1)
+		hp_changed.emit(hp, max_hp)
+		if hp <= 0:
+			die()
 
 
 ## 时停直接取消整条武撞链；已生成的召唤物保留，但未结算的召唤不再补发。

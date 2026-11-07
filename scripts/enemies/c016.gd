@@ -19,6 +19,16 @@ const PLAYER_BURN_INTERVALS := [60.0, 58.0, 54.0, 48.0, 40.0, 30.0, 18.0, 10.0]
 
 @export var type_id := "c016"
 
+## 斗蛐蛐观战旁路：默认 false，正式战斗完全不受影响。
+var duel_mode := false
+var duel_side := 0 # 斗蛐蛐阵营：1=红 2=蓝；0=未分组。同阵营一律对穿
+var duel_target: Node2D = null
+var duel_foes: Array = []
+var duel_peers: Array = []
+var duel_dmg_scale := 1.0
+## 斗蛐蛐：本体不可被选为目标（武车 = 只能靠耐久耗死）。默认 false。
+var duel_untargetable := false
+
 enum State { IDLE, PATROL, CHASE, ATTACK, HURT, DEAD, FLY } # FLY=被击飞/击退的浮空状态
 
 signal died
@@ -186,6 +196,7 @@ var _chase_block := 0.0 # 收招后的收势时间：这期间不许起跑，等
 var _hurt_timer := 0.0
 var _target: Node2D
 var _ghosts: Dictionary = {} # 已互相关闭碰撞的同伴（对穿状态）
+var _duel_standing := false # 斗蛐蛐：已站进攻击距离，正在原地等冷却/令牌
 
 var sprite: Node2D # SpineSprite
 var _anim_state
@@ -205,7 +216,8 @@ var _death_burst_fx: Node2D = null # 魔爆火焰爆裂特效：与实伤同帧�
 
 
 func _ready() -> void:
-	add_to_group("player_allies" if player_ally else "enemies")
+	if not duel_mode:
+		add_to_group("player_allies" if player_ally else "enemies")
 	_apply_type()
 	hp = max_hp
 	_regen_timer = _regen_interval
@@ -596,7 +608,7 @@ func _chase_tick(delta: float) -> void:
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy: float = absf(_target.global_position.y - global_position.y)
-	var max_range := INF if _charm_time > 0.0 or _frenzy_time > 0.0 else (520.0 if _target.is_in_group("player_decoy") else lose_range)
+	var max_range := INF if duel_mode or _charm_time > 0.0 or _frenzy_time > 0.0 else (520.0 if _target.is_in_group("player_decoy") else lose_range)
 	if absf(dx) > max_range:
 		_target = null
 		_set_state(State.PATROL)
@@ -621,12 +633,26 @@ func _chase_tick(delta: float) -> void:
 	if absf(dx) <= attack_range and dy <= 60.0 and _attack_cd <= 0.0 and _can_attack():
 		_start_attack()
 		return
+	# 斗蛐蛐：已经站进「这一招挥得到」的距离，只差冷却或出手令牌时原地站定。
+	# 否则会顶着对手一直跑，看起来就是贴脸了还在加速。
+	if duel_mode and dy <= 60.0 and absf(dx) <= attack_range and _duel_in_reach(absf(dx)):
+		_duel_hold(delta)
+		return
 	# 贴太近但还在冷却 / 令牌被同伴占着：先退开保持站位，别和同伴挤在同一格。
 	# 这是围攻读招的关键：等待出手的怪会主动让出挥砍空间，而不是贴脸叠成一坨。
 	if absf(dx) < keep_dist and (_attack_cd > 0.0 or not _can_attack()):
+		if duel_mode:
+			# 斗蛐蛐里两队共用出手令牌，等待的一方如果后退会被节奏带着一路漂移，改成原地站定
+			_duel_hold(delta)
+			return
 		var retreat_speed := _chase_speed_now() if _bloodthirst_weak() else 80.0
 		velocity.x = move_toward(velocity.x, -facing * retreat_speed * _slow_scale, accel * delta)
 		return
+	if _duel_standing:
+		# 重新起跑：把站定用的待机动画切回追击循环
+		_duel_standing = false
+		var run_anim := str(_bloodthirst.get("move", _anim_map["chase"])) if _bloodthirst_weak() else str(_anim_map["chase"])
+		_play(run_anim, true, _chase_anim_speed)
 	var acc := turn_accel if signf(velocity.x) != 0.0 and signf(velocity.x) != signf(dx) else accel
 	velocity.x = move_toward(velocity.x, facing * _chase_speed_now() * _slow_scale, acc * delta)
 
@@ -848,7 +874,7 @@ func _start_attack(forced_anim := "", continue_chain := false) -> void:
 	for i in ha_list.size():
 		_attack_hits_left.append({"t": _attack_dur - _real_hit_at(anim, float(ha_list[i])), "i": i})
 	_attack_hits_left.sort_custom(func(a, b): return float(a["t"]) > float(b["t"]))
-	velocity.x = facing * attack_lunge * float(_lunge_map.get(anim, 1.0)) * _slow_scale # 出手带一段前冲
+	velocity.x = facing * _lunge_speed(anim) # 出手带一段前冲
 	var hop := float(_hop_map.get(anim, 0.0))
 	if hop > 0.0:
 		velocity.y = -hop # 跳斩腾空：配合动画的跃起视觉，重力会自然把他带回地面
@@ -894,7 +920,8 @@ func _deal_hit(seg := 0) -> void:
 	# 纯反馈与绽花不能走 Run.enemy_damage：该入口会把 0 也抬成最低 1 伤。
 	# 青笠每段可有独立基础伤害；剑意在本次命中前结算，命中后的叠层只影响后续命中。
 	var turn_bonus := int(_turn_stacks.get(_target.get_instance_id(), 0)) if bool(move.get("stacking_damage", false)) else 0
-	var dmg := 0 if no_damage else Run.enemy_damage(_damage_of(_attack_move, seg) + _sword_intent_now() + turn_bonus)
+	var base_dmg := _damage_of(_attack_move, seg) + _sword_intent_now() + turn_bonus
+	var dmg := 0 if no_damage else (_duel_damage(base_dmg) if duel_mode else Run.enemy_damage(base_dmg))
 	if dmg > 0 and wu_che_summon:
 		dmg += 1 # 墨徒信仰：直接攻击始终比当前难度高一档，最高难度也继续提升
 	if dmg > 0 and _bloodthirst_active and not _evil_buddha_pressure:
@@ -918,6 +945,10 @@ func _deal_hit(seg := 0) -> void:
 				and recorded_v is Dictionary and (recorded_v as Dictionary).has(seg):
 			dmg = int(recorded_v[seg])
 	var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
+	# 斗蛐蛐：双方身体已经互相嵌进去时，目标中心可能被挤到了背后一侧，
+	# 此时刀锋仍覆盖在身体上，不能按「背身空刀」处理（正式房间保持原判定）。
+	if duel_mode and not in_front and absf(dx) <= body_radius + _radius_of(_target):
+		in_front = true
 	var side_ok: bool = in_front or bool(_both_anims.get(_attack_move, false))
 	var rng := _range_of(_attack_move, seg) if in_front else _back_range_of(_attack_move, seg)
 	if side_ok and absf(dx) <= rng + _radius_of(_target) and dy <= attack_hit_height:
@@ -928,7 +959,7 @@ func _deal_hit(seg := 0) -> void:
 		if move.has("knockback"):
 			var custom: Vector2 = move["knockback"]
 			kb = Vector2(facing * custom.x, custom.y)
-		if _target.is_in_group("enemies") and _target.has_method("take_damage_from"):
+		if (duel_mode or _target.is_in_group("enemies")) and _target.has_method("take_damage_from"):
 			var before := int(_target.get("hp"))
 			_target.call("take_damage_from", dmg, self) # 癫狂/魅惑/魅唤：真实敌人互伤
 			var dealt := maxi(0, before - int(_target.get("hp")))
@@ -1265,6 +1296,44 @@ func _max_range_of(anim: String) -> float:
 	return longest
 
 
+## 出手前冲速度：斗蛐蛐里贴身起手不再往前顶，
+## 否则一到判定帧就已经穿过对手、站到了背后，近身反而全部空刀。
+func _lunge_speed(anim: String) -> float:
+	var lunge := attack_lunge * float(_lunge_map.get(anim, 1.0)) * _slow_scale
+	if not duel_mode or _target == null or not is_instance_valid(_target):
+		return lunge
+	var gap := absf(_target.global_position.x - global_position.x) - (body_radius + _radius_of(_target))
+	if gap >= 70.0:
+		return lunge
+	return lunge * clampf(gap / 70.0, 0.0, 1.0)
+
+
+## 斗蛐蛐：当前距离上是否有能立刻起手的招式。
+## 口径与 _start_attack 的筛招一致（随机池 / 距离触发 / 追击招），
+## 避免出现「站着够不着、又不肯靠近」的僵持。
+func _duel_in_reach(dist: float) -> bool:
+	for n in _attack_anims:
+		var anim := str(n)
+		var rule: Dictionary = _attack_rules.get(anim, {})
+		var usable := bool(rule.get("random", true)) \
+			or str(rule.get("trigger", "")) == "distance" \
+			or (not _blink_strike.is_empty() and anim == str(_blink_strike.get("anim", "")))
+		if not usable or not _rule_allows(anim, dist):
+			continue
+		if _max_range_of(anim) >= dist - 10.0:
+			return true
+	return false
+
+
+## 斗蛐蛐：站定等下一拍。速度刹停并切待机动画，别让跑动循环顶着对手空转。
+func _duel_hold(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+	if _duel_standing:
+		return
+	_duel_standing = true
+	_play(_idle_anim(), true)
+
+
 # ---------- 双镰：嗜血永久激活，虚弱外观与速度随当前血量实时切换 ----------
 func _bloodthirst_weak() -> bool:
 	return not _bloodthirst.is_empty() and hp > 0 and float(hp) / float(maxi(1, max_hp)) < float(_bloodthirst.get("below", 0.3))
@@ -1379,13 +1448,13 @@ func _hit_status_target(target: Node, damage: int, knockback: Vector2, move: Dic
 		return false
 	if player_ally and not target.is_in_group("enemies"):
 		return false
-	var dmg := 0 if damage <= 0 else Run.enemy_damage(damage)
+	var dmg := 0 if damage <= 0 else (_duel_damage(damage) if duel_mode else Run.enemy_damage(damage))
 	if dmg > 0:
 		dmg = maxi(1, dmg - int(_grudge / 3.0))
 		if _frenzy_time > 0.0 and _frenzy_empowered and not _evil_buddha_pressure:
 			dmg *= 2
 		dmg = _modify_outgoing_damage(dmg, target, move)
-	if target.is_in_group("enemies"):
+	if duel_mode or target.is_in_group("enemies"):
 		if int(target.get("hp")) <= 0:
 			return false
 		var before := int(target.get("hp"))
@@ -1946,7 +2015,7 @@ func _enter_fly(v: Vector2, impact: int) -> void:
 func _fly_tick(delta: float) -> void:
 	# 横向轰飞才结算碰撞伤害（纯击飞 _fly_impact=0 不撞）
 	if _fly_impact > 0 and absf(velocity.x) > 130.0:
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in (duel_peers if duel_mode else get_tree().get_nodes_in_group("enemies")):
 			if e == self or not is_instance_valid(e) or _fly_hit.has(e):
 				continue
 			if int(e.get("state")) == State.DEAD or int(e.get("hp")) <= 0:
@@ -2080,7 +2149,7 @@ func die() -> void:
 	var bursting := not _death_burst.is_empty()
 	if not bursting:
 		_play(str(_anim_map["dead"]), false)
-	if not player_ally:
+	if not player_ally and not duel_mode:
 		Meta.add_kill(Run.skull_id) # 局外养成：累计击杀 + 当前形态契合
 		Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
 		Score.add_kill() # 本局击杀计数（结算战绩用）
@@ -2136,7 +2205,7 @@ func _deal_death_burst() -> void:
 	var pl = get_tree().get_first_node_in_group("player")
 	if not player_ally and pl != null and pl is Node2D and _death_target_in_front(pl) and pl.has_method("hurt"):
 		pl.call("hurt", damage, Vector2(facing * 420.0, -60.0), self, move)
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in (duel_foes if duel_mode else get_tree().get_nodes_in_group("enemies")):
 		if e == self or not is_instance_valid(e) or not e is Node2D or int(e.get("hp")) <= 0:
 			continue
 		if not _death_target_in_front(e) or not e.has_method("take_damage"):
@@ -2161,6 +2230,8 @@ func _deal_death_burst() -> void:
 
 
 func _exit_tree() -> void:
+	if duel_mode:
+		_release_token()
 	_clear_status_effects()
 	if not _is_sword_clone:
 		_dismiss_sword_clone()
@@ -2168,6 +2239,8 @@ func _exit_tree() -> void:
 
 ## 尸体自清理：死亡动画播完 → 淡出 → 释放自己，场上不留空壳节点
 func _cleanup() -> void:
+	if duel_mode:
+		return # 斗蛐蛐保留尸体，等结算 / 换组合时统一清场
 	var dead_name := str(_anim_map["dead"])
 	var dead_dur: float = maxf(float(_anim_durations.get(dead_name, 1.2)), _dead_min)
 	await get_tree().create_timer(dead_dur).timeout
@@ -2182,6 +2255,9 @@ func _cleanup() -> void:
 # ---------- 工具 ----------
 
 func _find_target() -> void:
+	if duel_mode:
+		_find_duel_target()
+		return
 	if player_ally:
 		var nearest_enemy: Node2D = null
 		var nearest_enemy_dist := INF
@@ -2242,6 +2318,44 @@ func _find_target() -> void:
 	_target = get_tree().get_first_node_in_group("player") as Node2D
 
 
+## 斗蛐蛐选目标：指定对手还活着就继续打；死了就改追最近的存活敌人。
+func _find_duel_target() -> void:
+	var t := duel_target
+	if t != null and is_instance_valid(t) and int(t.get("hp")) > 0 and not _duel_untargetable(t):
+		_target = t
+		return
+	var nearest: Node2D = null
+	var best := INF
+	for n in duel_foes:
+		var p := n as Node2D
+		if p == null or not is_instance_valid(p) or int(p.get("hp")) <= 0:
+			continue
+		if _duel_untargetable(p):
+			continue
+		var d := global_position.distance_squared_to(p.global_position)
+		if d < best:
+			best = d
+			nearest = p
+	duel_target = nearest
+	_target = nearest
+
+
+## 斗蛐蛐硬规则：武车只能靠耐久耗死，任何单位都不得把它选为攻击目标。
+func _duel_untargetable(n: Node) -> bool:
+	return n != null and is_instance_valid(n) and bool(n.get("duel_untargetable"))
+
+
+## 斗蛐蛐伤害倍率：不吃难度加成，只按沙盒攻击系数缩放。
+func _duel_damage(base: int) -> int:
+	return 0 if base <= 0 else maxi(1, int(round(float(base) * duel_dmg_scale)))
+
+
+## 新一局开始 / 清场时清空全局出手令牌，避免上一局残留。
+static func duel_reset() -> void:
+	_attacker = null
+	_token_free_at = 0
+
+
 ## 出手令牌：同一时刻只放一只小怪出手；持有者被受击打断/死亡也要释放。
 ## 交棒后 0.26 秒内无人可接手，形成「一只打完、另一只再上」的围攻节奏。
 func _can_attack() -> bool:
@@ -2268,8 +2382,8 @@ func _clear_attack_chain() -> void:
 ## 同伴分离力：同向挤在一起时互相推开；迎面相遇则放行，让双方直接对穿过去
 func _separation_push() -> float:
 	var push := 0.0
-	var near := _scale * 200.0 # 体型越大，推开的距离越远
-	for e in get_tree().get_nodes_in_group("enemies"):
+	var near := maxf(_scale * 200.0, body_radius * 1.2) if duel_mode else _scale * 200.0 # 体型越大，推开的距离越远
+	for e in (duel_peers if duel_mode else get_tree().get_nodes_in_group("enemies")):
 		if e == self or not is_instance_valid(e):
 			continue
 		if int(e.get("state")) == State.DEAD:
@@ -2295,14 +2409,18 @@ func _update_peer_ghosts() -> void:
 		if not is_instance_valid(k):
 			_ghosts.erase(k)
 	var near := _scale * 175.0
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in (duel_peers if duel_mode else get_tree().get_nodes_in_group("enemies")):
 		if e == self or not is_instance_valid(e):
 			continue
 		if int(e.get("state")) == State.DEAD:
 			continue
 		var dx: float = global_position.x - e.global_position.x
 		var dy: float = absf(global_position.y - e.global_position.y)
-		var close := dy <= _scale * 156.0 and absf(dx) < near
+		# 斗蛐蛐：同阵营一律对穿，不按距离判定。双方碰撞半径之和往往大于贴身阈值，
+		# 按距离算会先被物理碰撞卡住、永远走不进阈值，密集推进时互相堵死。
+		# 阵营按 duel_side 判定：小弟继承武车的阵营，敌方武车因此仍是一块实体障碍。
+		var ally := duel_mode and duel_side != 0 and int(e.get("duel_side")) == duel_side
+		var close := ally or (dy <= _scale * 156.0 and absf(dx) < near)
 		var has := _ghosts.has(e)
 		if close and not has:
 			add_collision_exception_with(e)
@@ -2315,6 +2433,8 @@ func _update_peer_ghosts() -> void:
 
 
 func _sees_player(radius: float) -> bool:
+	if duel_mode:
+		return _target != null and is_instance_valid(_target) and int(_target.get("hp")) > 0
 	if _target == null or not is_instance_valid(_target):
 		return false
 	if _charm_time > 0.0 or _frenzy_time > 0.0:
@@ -2347,6 +2467,7 @@ func _set_state(new_state: int) -> void:
 			_play(anim, true)
 		State.CHASE:
 			_idle_queued = false # set_animation 会清掉队列里的 stand
+			_duel_standing = false # 进追击就会播跑动，站定标记随之失效
 			var anim := str(_bloodthirst.get("move", _anim_map["chase"])) if _bloodthirst_weak() else str(_anim_map["chase"])
 			_play(anim, true, _chase_anim_speed)
 

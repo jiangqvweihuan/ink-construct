@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="墨构"
-config/version="0.9.9"
+config/version="0.9.10"
 run/main_scene="res://intro/Intro.tscn"
 config/auto_accept_quit=false
 config/quit_on_go_back=false

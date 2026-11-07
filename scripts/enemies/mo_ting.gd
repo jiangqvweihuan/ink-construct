@@ -336,6 +336,7 @@ func _cast_tick(delta: float) -> void:
 			_grabbed_player = null
 		else:
 			_grabbed_player.global_position = global_position + Vector2(facing * 190.0, -180.0)
+			_grabbed_player.set("velocity", Vector2.ZERO)
 	while not _cast_events.is_empty() and _cast_elapsed >= float(_cast_events[0]["at"]):
 		var event: Dictionary = _cast_events.pop_front()
 		_run_cast_event(event)
@@ -500,6 +501,10 @@ func _try_tremor_grab() -> void:
 			var held := false
 			if _target.has_method("mo_ting_hold"):
 				held = bool(_target.call("mo_ting_hold", global_position + Vector2(facing * 190.0, -180.0)))
+			elif duel_mode:
+				# 斗蛐蛐的敌人没有玩家版的被抓接口，改由墨霆自己在 _cast_tick 里按住，
+				# 锁定流程与控场玩家完全一致（标记 → 抓取 → 刺击 → 碎岳）。
+				held = int(_target.get("hp")) > 0
 			if held:
 				_grabbed_player = _target
 	if is_instance_valid(_marker):

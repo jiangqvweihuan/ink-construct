@@ -1,6 +1,6 @@
 extends CanvasLayer
 
-## 斗蛐蛐面板：红蓝两队各挑 1~3 名单位（化身 / 杂兵 / 首领全收录），用 −/＋ 调沙盒数值，
+## 斗蛐蛐面板：红蓝两队各挑 1~3 名敌人（杂兵 / 首领），用 −/＋ 调沙盒数值，
 ## 开始后全自动对打。三种形态：config（选人与调数值）/ battle（观战）/ result（胜负）。
 
 signal start_requested(red_ids, blue_ids, red_stats, blue_stats)
@@ -17,7 +17,7 @@ const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.80, 0.77, 0.70)
 const RED_COLOR := Color(0.87, 0.38, 0.31)
 const BLUE_COLOR := Color(0.44, 0.64, 0.94)
-const MAX_TEAM := 3
+const MAX_TEAM := 4
 
 const STAT_ROWS := [
 	{"key": "hp", "label": "生命", "min": 10.0, "max": 150.0, "step": 10.0},
@@ -49,11 +49,11 @@ const HUD_BAR_X := 240.0
 
 var _mode := "config"
 var _roster: Array = []
-var _red_ids: Array = ["c021"]
-var _blue_ids: Array = ["c013"]
+var _red_ids: Array = ["c016"]
+var _blue_ids: Array = ["c035"]
 var _team_size := 1
-var _red_stats := {"hp": 40.0, "atk": 1.6, "spd": 200.0, "gap": 0.9}
-var _blue_stats := {"hp": 40.0, "atk": 1.6, "spd": 200.0, "gap": 0.9}
+var _red_stats := {"hp": 20.0, "atk": 1.0, "spd": 200.0, "gap": 1.0}
+var _blue_stats := {"hp": 20.0, "atk": 1.0, "spd": 200.0, "gap": 1.0}
 var _result_text := ""
 var _result_color := PAPER
 var _sfx: AudioStreamPlayer
@@ -95,13 +95,15 @@ func _tick_slot(rows: Array, team: Array, i: int, is_red: bool) -> void:
 		return
 	row.visible = true
 	var f = team[i]
-	var ratio := clampf(float(f.hp) / maxf(float(f.max_hp), 1.0), 0.0, 1.0)
+	var hp := float(f.get("hp"))
+	var mx := maxf(float(f.get("max_hp")), 1.0)
+	var ratio := clampf(hp / mx, 0.0, 1.0)
 	var fill: ColorRect = row.get_meta("fill")
 	var lbl: Label = row.get_meta("lbl")
 	fill.size.x = HUD_BAR_W * ratio
 	fill.position.x = (HUD_BAR_X if is_red else HUD_BAR_X + HUD_BAR_W * (1.0 - ratio) + 500.0)
-	lbl.text = "%s %d / %d" % [str(f.fighter_name), int(ceil(float(f.hp))), int(f.max_hp)]
-	lbl.modulate = Color(1, 1, 1, 1) if float(f.hp) > 0.0 else Color(1, 1, 1, 0.45)
+	lbl.text = "%s %d / %d" % [str(f.get_meta("duel_name", "?")), int(ceil(hp)), int(mx)]
+	lbl.modulate = Color(1, 1, 1, 1) if hp > 0.0 else Color(1, 1, 1, 0.45)
 
 
 func bind_fighters(red_team: Array, blue_team: Array) -> void:
@@ -143,7 +145,7 @@ func _refresh() -> void:
 
 func _build_config(root: Control) -> void:
 	UiKit.label(root, "斗 蛐 蛐", Vector2(0, 2), Vector2(1280, 50), 40, PAPER, HORIZONTAL_ALIGNMENT_CENTER, false)
-	UiKit.label(root, "化身与所有敌手同场 · 点名录可多选 · 拉数值 · 全自动观战",
+	UiKit.label(root, "全部杂兵与首领同场 · 点名录可多选 · 拉数值 · 全自动观战",
 		Vector2(0, 50), Vector2(1280, 20), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, false)
 	_btn(root, "返  回", Vector2(36, 18), Vector2(120, 44), 18, func(): back_requested.emit())
 	_build_size_stepper(root)

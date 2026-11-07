@@ -362,7 +362,10 @@ func _strike(target: Node, damage: int, extra: Dictionary = {}) -> void:
 
 func _hit_global(damage: int) -> void:
 	var targets: Array = []
-	if player_ally:
+	if duel_mode:
+		# 斗蛐蛐单位不在 player / enemies 组里，敌对名单由决斗场维护在 duel_foes
+		targets.append_array(duel_foes)
+	elif player_ally:
 		targets.append_array(get_tree().get_nodes_in_group("enemies"))
 	elif _charm_time > 0.0 or _frenzy_time > 0.0:
 		targets.append_array(get_tree().get_nodes_in_group("enemies"))
@@ -422,10 +425,15 @@ func _on_contact(player: Node, move: Dictionary, dealt: int) -> void:
 		return
 	if dealt <= 0:
 		return
-	if bool(move.get("ming_zhong_grab", false)) and player.has_method("ming_zhong_hold"):
-		_held_player = player
-		player.call("ming_zhong_hold", self)
-		_update_held_player()
+	if bool(move.get("ming_zhong_grab", false)):
+		if player.has_method("ming_zhong_hold"):
+			_held_player = player
+			player.call("ming_zhong_hold", self)
+			_update_held_player()
+		elif duel_mode:
+			# 斗蛐蛐的敌人没有玩家版的被抓接口，直接由鸣钟自己按住（结算与玩家被抓一致）
+			_held_player = player
+			_update_held_player()
 	if bool(move.get("ming_zhong_spin_heal", false)):
 		_heal(dealt)
 
