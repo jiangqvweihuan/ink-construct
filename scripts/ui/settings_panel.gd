@@ -1,7 +1,9 @@
 extends Control
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Settings = preload("res://scripts/ui/settings.gd")
+const MOBILE_GUIDE = preload("res://scripts/ui/mobile_guide.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
@@ -95,6 +97,7 @@ func _ready() -> void:
 	dim.color = Color(0, 0, 0, 0.35)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+	UiKit.fit_control(self, [dim])
 	var win := TextureRect.new()
 	win.texture = InkTex.load("res://art/ui/menu/window_large.png")
 	win.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -244,32 +247,35 @@ func _slider_row(text: String, y: float, initial: float, cb: Callable) -> void:
 # ---------- 画面页 ----------
 
 func _build_video() -> void:
+	var touch := OS.has_feature("mobile")
 	var y := 205.0
-	_row_label("显示模式", 330, y)
-	var mode := OptionButton.new()
-	for t in ["窗口化", "无边框窗口", "全屏"]:
-		mode.add_item(str(t))
-	mode.selected = int(_draft["display_mode"])
-	mode.item_selected.connect(func(i):
-		_draft["display_mode"] = i
-		_sfx.play())
-	_place(mode, Vector2(480, y - 4))
+	# 显示模式 / 窗口分辨率 / 垂直同步只对桌面窗口有意义，触屏版整组不显示
+	if not touch:
+		_row_label("显示模式", 330, y)
+		var mode := OptionButton.new()
+		for t in ["窗口化", "无边框窗口", "全屏"]:
+			mode.add_item(str(t))
+		mode.selected = int(_draft["display_mode"])
+		mode.item_selected.connect(func(i):
+			_draft["display_mode"] = i
+			_sfx.play())
+		_place(mode, Vector2(480, y - 4))
+		y += 48.0
 
-	y = 253.0
-	_row_label("窗口分辨率", 330, y)
-	var res := OptionButton.new()
-	for r in Settings.RESOLUTIONS:
-		res.add_item("%d × %d" % [r.x, r.y])
-	for i in Settings.RESOLUTIONS.size():
-		if Settings.RESOLUTIONS[i] == _draft["resolution"]:
-			res.selected = i
-			break
-	res.item_selected.connect(func(i):
-		_draft["resolution"] = Settings.RESOLUTIONS[i]
-		_sfx.play())
-	_place(res, Vector2(480, y - 4))
+		_row_label("窗口分辨率", 330, y)
+		var res := OptionButton.new()
+		for r in Settings.RESOLUTIONS:
+			res.add_item("%d × %d" % [r.x, r.y])
+		for i in Settings.RESOLUTIONS.size():
+			if Settings.RESOLUTIONS[i] == _draft["resolution"]:
+				res.selected = i
+				break
+		res.item_selected.connect(func(i):
+			_draft["resolution"] = Settings.RESOLUTIONS[i]
+			_sfx.play())
+		_place(res, Vector2(480, y - 4))
+		y += 48.0
 
-	y = 301.0
 	_row_label("帧率限制", 330, y)
 	var fps := OptionButton.new()
 	for t in FPS_TEXTS:
@@ -279,12 +285,13 @@ func _build_video() -> void:
 		_draft["fps_limit"] = FPS_VALUES[i]
 		_sfx.play())
 	_place(fps, Vector2(480, y - 4))
+	y += 48.0
 
-	y = 349.0
-	_row_label("垂直同步", 330, y)
-	_content.add_child(_seal(Vector2(480, y), bool(_draft["vsync"]), func(on): _draft["vsync"] = on))
+	if not touch:
+		_row_label("垂直同步", 330, y)
+		_content.add_child(_seal(Vector2(480, y), bool(_draft["vsync"]), func(on): _draft["vsync"] = on))
+		y += 48.0
 
-	y = 397.0
 	_row_label("画面亮度", 330, y)
 	var pct := _pct_label(Vector2(800, y))
 	pct.text = "%d%%" % int(round(float(_draft["brightness"]) * 100.0))
@@ -296,8 +303,8 @@ func _build_video() -> void:
 		_draft["brightness"] = b
 		pct.text = "%d%%" % int(round(b * 100.0)))
 	_content.add_child(s)
+	y += 48.0
 
-	y = 445.0
 	_row_label("伤害数字", 330, y)
 	var dmg := OptionButton.new()
 	for t in ["关闭", "仅重击（3 点以上）", "全部显示"]:
@@ -312,6 +319,10 @@ func _build_video() -> void:
 # ---------- 操作页 ----------
 
 func _build_keys() -> void:
+	# 触屏版没有键盘：这一页改成手势说明，与首次进入战斗的教程卡共用同一份文案
+	if OS.has_feature("mobile") or TouchControls.active:
+		_build_touch_keys()
+		return
 	for i in KEY_ORDER.size():
 		var action: String = KEY_ORDER[i]
 		var col := floori(i / 6.0)
@@ -333,6 +344,21 @@ func _build_keys() -> void:
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint.visible = false
 	_content.add_child(_hint)
+
+
+## 手机操作页：左手走位 / 右手出手，逐条列清手势
+func _build_touch_keys() -> void:
+	UiKit.label(_content, "触屏操作", Vector2(320, 186), Vector2(400, 30), 22, RED,
+		HORIZONTAL_ALIGNMENT_LEFT, false)
+	var y := 228.0
+	for row in MOBILE_GUIDE.ROWS:
+		UiKit.label(_content, str(row[0]), Vector2(320, y), Vector2(300, 28), 20, PAPER,
+			HORIZONTAL_ALIGNMENT_LEFT, false)
+		UiKit.label(_content, str(row[1]), Vector2(632, y), Vector2(340, 28), 18, DIM,
+			HORIZONTAL_ALIGNMENT_LEFT, false)
+		y += 40.0
+	_row_label("屏幕震动", 320, 512)
+	_content.add_child(_seal(Vector2(640, 510), bool(_draft["screen_shake"]), func(on): _draft["screen_shake"] = on))
 
 
 func _draft_code(action: String) -> int:

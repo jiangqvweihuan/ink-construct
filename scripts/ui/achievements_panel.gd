@@ -40,6 +40,7 @@ func _build() -> void:
 	dim.color = Color(0, 0, 0, 0.62)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+	UiKit.fit_layer(self, [dim])
 
 	var win := TextureRect.new()
 	win.texture = InkTex.load("res://art/ui/menu/window_large.png")

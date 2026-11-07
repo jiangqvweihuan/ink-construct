@@ -23,10 +23,12 @@ static func data(fx_id: String):
 	if _data_cache.has(id):
 		return _data_cache[id]
 	var base := "res://art/fx/spine/%s/%s" % [id, id]
-	var atlas = ClassDB.instantiate("SpineAtlasResource")
-	var atlas_err := int(atlas.call("load_from_atlas_file", base + ".atlas")) if atlas != null else ERR_CANT_CREATE
+	# 必须走资源导入：导出包里只有 .spatlas/.ctex，没有原始 .atlas 文件。
+	# 直接对原始文件调用 load_from_atlas_file 只在本机开发目录能跑，手机 APK 里会失败，
+	# 结果是所有 Spine 特效静默消失（人物走 .tres，所以只有特效没了）。
+	var atlas = load(base + ".atlas")
 	var skel = load(base + ".skel")
-	if atlas_err != OK or skel == null:
+	if atlas == null or skel == null:
 		push_error("SpineFX: 资源加载失败 " + base)
 		return null
 	var d = ClassDB.instantiate("SpineSkeletonDataResource")

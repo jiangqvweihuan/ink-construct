@@ -428,7 +428,11 @@ const BTN_COLS := 8
 const BTN_STEP_Y := 34.0
 const ACT_MAX := 24
 
-const HINT_TEXT := "点击招式查看演示与机制；多变式用 ↑ / ↓ 切换"
+## 解析面板顶部的操作提示：手机没有方向键，改成「再点一次」的说明
+static func _hint_text() -> String:
+	if OS.has_feature("mobile"):
+		return "点击招式查看演示与机制；多变式再点一次切换"
+	return "点击招式查看演示与机制；多变式用 ↑ / ↓ 切换"
 
 ## 人物背景故事（键 = 形态 / 敌人 id）
 const LORE := {
@@ -510,6 +514,7 @@ func _build() -> void:
 	dim.color = Color(0, 0, 0, 0.45)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+	UiKit.fit_layer(self, [dim])
 
 	var win := TextureRect.new()
 	win.texture = InkTex.load("res://art/ui/menu/window_large.png")
@@ -1159,7 +1164,7 @@ func _build_detail() -> void:
 	_desc_rt.add_theme_font_size_override("normal_font_size", 13)
 	_desc_rt.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(_desc_rt)
-	_desc_rt.text = "[color=#8a857a]%s[/color]" % HINT_TEXT
+	_desc_rt.text = "[color=#8a857a]%s[/color]" % _hint_text()
 
 	if m.is_empty():
 		return
@@ -1739,9 +1744,13 @@ func _make_action_button(a: Dictionary, i: int) -> void:
 	_act_labels.append(l)
 
 
-## 点击某条动作：演示台播它的动画，解析面板写对应资料；多变式由 ↑ / ↓ 手动切换
+## 点击某条动作：演示台播它的动画，解析面板写对应资料；多变式由 ↑ / ↓（手机再点一次）切换
 func _pick(i: int) -> void:
 	if i < 0 or i >= _acts.size():
+		return
+	if i == _pick_idx and OS.has_feature("mobile") and _pool.size() > 1:
+		_cycle_pool(1) # 手机没有方向键：同一招式再点一次就是切下一个变式
+		_click_sfx()
 		return
 	var a: Dictionary = _acts[i]
 	_pick_idx = i
@@ -1824,7 +1833,8 @@ func _desc_text(a: Dictionary, anim: String) -> String:
 	var head := "[b]%s[/b]" % str(a["label"])
 	var pool: Array = a["anims"]
 	if pool.size() > 1:
-		head += "  [color=#b07a2c]· 变式 %d/%d · ↑ / ↓ 切换[/color]" % [_pool_i + 1, pool.size()]
+		var how := "再点一次切换" if OS.has_feature("mobile") else "↑ / ↓ 切换"
+		head += "  [color=#b07a2c]· 变式 %d/%d · %s[/color]" % [_pool_i + 1, pool.size(), how]
 	lines.append(head)
 
 	var kind := str(a["kind"])

@@ -163,6 +163,8 @@ var _enso: Enso
 var _enso_word: Label # 墨圈里的极淡「留白」二字
 var _shown_kind := "" # 当前题跋形态：title / verse，避免每帧重设字体与文本
 var _shown_idx := -1 # 已渲染的词句下标
+var _dx := 0.0 # 画布比 1280 宽时整体右移的偏移（手机 20:9 用），保证整版居中
+var _closing := false
 
 
 func _ready() -> void:
@@ -198,19 +200,17 @@ func _process(delta: float) -> void:
 		_finish()
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
-		get_viewport().set_input_as_handled()
-		var s := AudioStreamPlayer.new()
-		s.bus = "SFX"
-		get_tree().root.add_child(s)
-		s.stream = SFX_BACK
-		s.play()
-		s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
-		queue_free()
-
-
 func _input(event: InputEvent) -> void:
+	# 返回：Esc（桌面）/ 轻点（手机）。手机上全屏遮罩是 MOUSE_FILTER_STOP，点击会被它吃掉，
+	# 到不了 _unhandled_input，所以必须在这里接住。
+	var back := event.is_action_pressed("ui_cancel")
+	if not back and _is_back_tap(event):
+		back = true
+	if back:
+		get_viewport().set_input_as_handled()
+		_close()
+		return
+	# 播完后滚轮上下复查（仅桌面；手机靠点按/拖动浏览，见 _gui_input 无需处理）
 	if not _done or not (event is InputEventMouseButton) or not event.pressed:
 		return
 	var wheel := event as InputEventMouseButton
@@ -227,15 +227,40 @@ func _input(event: InputEvent) -> void:
 	_scroll.position.y = -_offset
 
 
+## 手机没有 Esc：轻点屏幕任意处返回（--touch-preview 时也接受鼠标左键，方便桌面验证）
+func _is_back_tap(event: InputEvent) -> bool:
+	if event is InputEventScreenTouch:
+		return (event as InputEventScreenTouch).pressed
+	if OS.has_feature("mobile") or OS.get_cmdline_args().has("--touch-preview"):
+		if event is InputEventMouseButton:
+			var mb := event as InputEventMouseButton
+			return mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT
+	return false
+
+
+func _close() -> void:
+	if _closing:
+		return
+	_closing = true
+	var s := AudioStreamPlayer.new()
+	s.bus = "SFX"
+	get_tree().root.add_child(s)
+	s.stream = SFX_BACK
+	s.play()
+	s.finished.connect(s.queue_free, CONNECT_ONE_SHOT)
+	queue_free()
+
+
 ## 播完只停止自动滚动，保留结尾供玩家静态查看；Esc 仍可随时返回。
 func _finish() -> void:
 	_done = true
 	_offset = clampf(_offset, 0.0, _max_offset)
 	_scroll.position.y = -_offset
-	_hint.text = "滚轮上下查看 · 按 Esc 返回"
+	_hint.text = "轻点屏幕返回" if OS.has_feature("mobile") else "滚轮上下查看 · 按 Esc 返回"
 
 
 func _build() -> void:
+	_dx = maxf(0.0, (get_viewport().get_visible_rect().size.x - 1280.0) * 0.5)
 	var bg := TextureRect.new()
 	bg.texture = InkTex.load("res://art/environment/background/bg_mountains.jpg")
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -253,6 +278,8 @@ func _build() -> void:
 
 	_scroll = Control.new()
 	_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 子节点已经各自 +_dx 定位，这里不能再右移一次，否则正文列会压到右侧题跋上（错位）
+	_scroll.position = Vector2.ZERO
 	add_child(_scroll)
 
 	var y := START_Y
@@ -263,8 +290,8 @@ func _build() -> void:
 
 	# 固定提示：不随名单滚动
 	_hint = Label.new()
-	_hint.text = "按 Esc 返回"
-	_hint.position = Vector2(920, 676)
+	_hint.text = "按 Esc 返回" if not OS.has_feature("mobile") else "轻点屏幕返回"
+	_hint.position = Vector2(920 + _dx, 676)
 	_hint.size = Vector2(320, 24)
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_hint.add_theme_color_override("font_color", Color(DIM.r, DIM.g, DIM.b, 0.55))
@@ -278,14 +305,14 @@ func _build() -> void:
 func _build_lyrics() -> void:
 	_divider = ColorRect.new()
 	_divider.color = Color(PAPER.r, PAPER.g, PAPER.b, 0.12)
-	_divider.position = Vector2(LYRIC_DIVIDER_X, 112)
+	_divider.position = Vector2(LYRIC_DIVIDER_X + _dx, 112)
 	_divider.size = Vector2(1, 402)
 	_divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_divider)
 
 	# 间奏过场：一管墨在空处缓画一个不合口的圈，圈里再浮出极淡的「留白」
 	_enso = Enso.new()
-	_enso.position = Vector2(1082, 152)
+	_enso.position = Vector2(1082 + _dx, 152)
 	_enso.size = Vector2(176, 176)
 	_enso.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_enso)
@@ -303,8 +330,8 @@ func _build_lyrics() -> void:
 	_enso_word.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_enso.add_child(_enso_word)
 
-	_lyric_now = _make_lyric_column(LYRIC_NOW_X, Color(0.93, 0.90, 0.84, 0.92))
-	_lyric_next = _make_lyric_column(LYRIC_NEXT_X, Color(0.72, 0.70, 0.66, 0.78))
+	_lyric_now = _make_lyric_column(LYRIC_NOW_X + _dx, Color(0.93, 0.90, 0.84, 0.92))
+	_lyric_next = _make_lyric_column(LYRIC_NEXT_X + _dx, Color(0.72, 0.70, 0.66, 0.78))
 	_build_seal()
 	_show_title(0.0) # 人声未起时先亮歌名
 
@@ -326,7 +353,7 @@ func _make_lyric_column(x: float, color: Color) -> Label:
 ## 朱文印：只留红框与红字，透底不压纸色；整体轻转一点，像手盖上去的
 func _build_seal() -> void:
 	var stamp := Control.new()
-	stamp.position = Vector2(LYRIC_SEAL_X, LYRIC_SEAL_Y)
+	stamp.position = Vector2(LYRIC_SEAL_X + _dx, LYRIC_SEAL_Y)
 	stamp.size = Vector2(36, 36)
 	stamp.pivot_offset = Vector2(18, 18)
 	stamp.rotation = -0.06
@@ -567,7 +594,7 @@ func _add(kind: String, text: String, y: float) -> float:
 	l.add_theme_font_override("font", TITLE_FONT if kind in ["title", "section"] else BODY_FONT)
 	l.add_theme_constant_override("line_spacing", 6) # 折行条款的行距，太挤会糊成一坨
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	l.position = Vector2(COL_X, y + gap)
+	l.position = Vector2(COL_X + _dx, y + gap)
 	l.size = Vector2(COL_W, h)
 	_scroll.add_child(l)
 	return gap + h + 8.0

@@ -55,13 +55,28 @@ func _build() -> void:
 	_video.volume_db = VOLUME_DB
 	_video.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_video)
-	_video.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fit_video()
+	get_viewport().size_changed.connect(_fit_video)
 
 	_mask = ColorRect.new()
 	_mask.color = Color(PAPER, 0.0)
 	_mask.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_mask)
 	_mask.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+## 视频按 16:9 等比落在画布中央：手机 20:9 时左右以纸色留边，不把 logo 横向拉扁。
+func _fit_video() -> void:
+	if _video == null:
+		return
+	var vp := get_viewport().get_visible_rect().size
+	var w := vp.x
+	var h := w * 9.0 / 16.0
+	if h > vp.y:
+		h = vp.y
+		w = h * 16.0 / 9.0
+	_video.position = Vector2((vp.x - w) * 0.5, (vp.y - h) * 0.5)
+	_video.size = Vector2(w, h)
 
 
 ## 载入视频；失败时提示并直接进主场景，返回是否可继续播放。
@@ -96,6 +111,8 @@ func _on_video_finished() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _finished:
 		return
+	if OS.has_feature("mobile"):
+		return # 手机：任何触摸都不跳过，logo 必须完整播完（避免启动时的触摸/模拟鼠标事件把开场吃掉）
 	if (Time.get_ticks_msec() - _started_at) / 1000.0 < SKIP_DELAY:
 		return
 	var skip := false

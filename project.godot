@@ -11,10 +11,12 @@ config_version=5
 [application]
 
 config/name="墨构"
-config/version="0.9.0"
+config/version="0.9.2"
 run/main_scene="res://intro/Intro.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://art/ui/app_icon.png"
+config/auto_accept_quit=false
+config/quit_on_go_back=false
 boot_splash/minimum_display_time=1500
 
 [autoload]
@@ -27,6 +29,8 @@ Run="*res://scripts/systems/run_state.gd"
 Meta="*res://scripts/systems/meta.gd"
 Achievements="*res://scripts/systems/achievements.gd"
 LoadVeil="*res://scripts/ui/load_veil.gd"
+TouchControls="*res://scripts/systems/touch_controls.gd"
+QuitGuard="*res://scripts/systems/quit_guard.gd"
 
 [display]
 
@@ -34,6 +38,8 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/size/mode=3
 window/stretch/mode="canvas_items"
+window/stretch/aspect="keep_height"
+window/handheld/orientation=4
 
 [dotnet]
 
@@ -121,4 +127,5 @@ common/physics_interpolation=true
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
 environment/defaults/default_clear_color=Color(0.968627, 0.960784, 0.941176, 1)

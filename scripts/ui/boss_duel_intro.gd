@@ -7,6 +7,7 @@ signal finished
 const Skulls := preload("res://scripts/player/skulls.gd")
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const SpineFX := preload("res://scripts/systems/spine_fx.gd")
+const UiKit := preload("res://scripts/ui/ui_kit.gd")
 const PAPER := Color(0.949, 0.918, 0.847)
 
 var _player: Node2D
@@ -39,6 +40,7 @@ func _ready() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(bg)
+	UiKit.fit_layer(self, [bg])
 
 	_make_platform(root, Vector2(70, 558), Vector2(440, 112))
 	_make_platform(root, Vector2(748, 548), Vector2(474, 122))

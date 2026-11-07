@@ -1,6 +1,7 @@
 extends CanvasLayer
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
+const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Settings = preload("res://scripts/ui/settings.gd")
 const VitalBar = preload("res://scripts/ui/vital_bar.gd")
 const BattleStatus = preload("res://scripts/ui/battle_status.gd")
@@ -55,6 +56,8 @@ func _rect(tex_path: String, dimensions: Vector2, pos: Vector2, parent: Control)
 
 
 func _ready() -> void:
+	# 手机超宽画布下把整层右移，保持 1280 版面的视觉居中
+	UiKit.fit_layer(self)
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -75,6 +78,13 @@ func _ready() -> void:
 	_sync_status(true)
 	Score.combo_changed.connect(_on_combo_changed)
 	_on_combo_changed(Score.combo)
+	get_viewport().size_changed.connect(_on_view_resized)
+
+
+## 画布比例变化（转屏/切换窗口）时重新居中，并重排底部动作栏
+func _on_view_resized() -> void:
+	UiKit.fit_layer(self)
+	_build_action_bar(_root)
 
 
 func _build_hp_bar(root: Control) -> void:
@@ -103,9 +113,10 @@ func _build_action_bar(root: Control) -> void:
 	var gap := SLOT_GAP if slot_count <= 6 else 60.0
 	var total_w := gap * float(slot_count - 1) + SLOT
 	var splat_w := maxf(340.0, total_w + 100.0)
-	var splat := _rect("res://art/ui/hud/action_splat.png", Vector2(splat_w, 104), Vector2(640.0 - splat_w * 0.5, 624), _action_root)
+	var cx := 640.0 # 1280 基准画布中心；超宽画布由 CanvasLayer.offset 整层居中
+	var splat := _rect("res://art/ui/hud/action_splat.png", Vector2(splat_w, 104), Vector2(cx - splat_w * 0.5, 624), _action_root)
 	splat.modulate = Color(1, 1, 1, 0.94)
-	var start_x := 640.0 - total_w * 0.5
+	var start_x := cx - total_w * 0.5
 	for i in slot_count:
 		var x := start_x + i * gap
 		var y := 650.0
@@ -125,6 +136,8 @@ func _build_action_bar(root: Control) -> void:
 		_action_root.add_child(mask)
 		_cd_masks.append(mask)
 		var key := Settings.action_label("attack") if i == 0 else str(_player.get_skill_key(skill_id))
+		if TouchControls.active:
+			key = "攻" if i == 0 else "墨" # 移动端没有键盘，改成手势标识
 		var key_label := _label(key, Vector2(x, y + 3), Vector2(SLOT, SLOT - 6), 23, PAPER, _action_root)
 		key_label.add_theme_color_override("font_outline_color", INK)
 		key_label.add_theme_constant_override("outline_size", 3)

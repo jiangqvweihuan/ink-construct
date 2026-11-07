@@ -39,6 +39,7 @@ func _build() -> void:
 	dim.color = Color(0, 0, 0, 0.5)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+	UiKit.fit_layer(self, [dim])
 	var win := TextureRect.new()
 	win.texture = InkTex.load("res://art/ui/menu/window_large.png")
 	win.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -71,7 +72,8 @@ func _build_overview() -> void:
 	scroll.add_child(list)
 	for id in Skulls.ids():
 		_form_row(list, str(id))
-	_text(self, "点击角色进入专属修炼页 ｜ 鼠标滚轮浏览", Vector2(280, 615), Vector2(720, 28), 16, DIM)
+	_text(self, "点击角色进入专属修炼页 ｜ " + ("上下拖动浏览" if OS.has_feature("mobile") else "鼠标滚轮浏览"),
+		Vector2(280, 615), Vector2(720, 28), 16, DIM)
 
 
 func _form_row(parent: Control, id: String) -> void:

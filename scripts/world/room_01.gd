@@ -13,6 +13,7 @@ const WAVE_SPAWNER := preload("res://scripts/systems/wave_spawner.gd")
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const DECOR_INTERACTIVE := preload("res://scripts/world/decor_interactive.gd")
 const BOSS_DUEL_INTRO := preload("res://scripts/ui/boss_duel_intro.gd")
+const MOBILE_GUIDE := preload("res://scripts/ui/mobile_guide.gd")
 
 var _player
 var _spawner
@@ -347,16 +348,34 @@ func _show_settlement(title_text: String, cleared: bool) -> void:
 ## 每局第一层出发前弹开局赐福三选一；测试场景（auto_demo）或被别的场景嵌套实例化时不弹
 func _show_blessing() -> void:
 	if auto_demo or get_tree().current_scene != self:
+		_show_mobile_guide() # 没有赐福挡着，教程直接上
 		return
 	if Run.room_index != 0 or Run.blessing != "":
+		_show_mobile_guide()
 		return
 	var b = load("res://scenes/ui/blessing_panel.tscn").instantiate()
 	b.name = "Blessing"
 	# 铁砚护身等改上限的赐福需要重新注入玩家
 	b.chosen.connect(func(_id):
 		if is_instance_valid(_player):
-			Run.apply_to(_player))
+			Run.apply_to(_player)
+		_show_mobile_guide()) # 赐福关掉之后再上讲操作课，两张时停卡不叠在一起
 	add_child(b)
+
+
+## 触屏版首次进第一场战斗：单独弹一张大字教程卡，讲清拖动 / 点按 / 上划 / 长按
+func _show_mobile_guide() -> void:
+	if auto_demo or not TouchControls.active or MOBILE_GUIDE.seen:
+		return
+	if Run.room_index != 0 or Run.is_boss_room():
+		return
+	MOBILE_GUIDE.seen = true
+	await get_tree().create_timer(0.5).timeout # 等入场黑幕散开，别跟转场叠影
+	if not is_inside_tree() or get_tree().paused:
+		return
+	var g := MOBILE_GUIDE.new()
+	g.name = "MobileGuide"
+	add_child(g)
 
 
 ## 清空房间后的免费三选一强化：选取一项奖励，或直接前进

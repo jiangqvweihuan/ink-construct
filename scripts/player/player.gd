@@ -17,6 +17,9 @@ const Settings = preload("res://scripts/ui/settings.gd") # 改键后 HUD 键名�
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
 
+## 击倒保护：任意形态触发倒地动作后，5 秒内不再被击倒（全形态默认原则，不写进被动）
+const KNOCK_COOLDOWN := 5.0
+
 
 ## 队列动画提前接管的时长：spine 在结束前一个混合时长（default_mix=0.2）就把下一段混进来，
 ## root_motion 技能必须在此之前结算位移，否则读到的是被 stand 拉回途中的根骨值（多留一帧余量）
@@ -147,6 +150,7 @@ var _hurt_getup_dur := 0.0 # 倒地流程里起身段时长（剩余时间跨过
 var _knock_chain: Array = [] # 倒地链（形态表 knock_chain）：重受击逐段接续，最后一段起身（镇岳）
 var _hurt_chain: Array = [] # 倒地链剩余段：[{anim, dur}]
 var _hurt_seg_left := 0.0 # 当前段剩余时间
+var _knock_cd := 0.0 # 击倒保护剩余时间：> 0 时只吃伤害与普通受击，不再触发倒地
 var _shield_hits := 0 # 金钟罩剩余免伤次数（镇岳 K 第二段）
 var _shield_time := 0.0 # 金钟罩剩余秒数（到点自动消失）
 var _mastery_cd := 1.0 # 契合 Lv1：该形态技能冷却倍率
@@ -1094,6 +1098,7 @@ func _physics_process(delta: float) -> void:
 	_dash_gap = maxf(0.0, _dash_gap - delta)
 	_attack_recovery = maxf(0.0, _attack_recovery - delta)
 	_hurt_invincible = maxf(0.0, _hurt_invincible - delta)
+	_knock_cd = maxf(0.0, _knock_cd - delta)
 	_cut_tick(delta) # 割伤是延迟直扣：不吃受击无敌，也不触发受击硬直或阴影
 	_bleed_tick(delta) # 普通流血独立计时，与割伤互不合并且不重复进入 hurt
 	_jump_seal = maxf(0.0, _jump_seal - delta)
@@ -1276,7 +1281,7 @@ func _clear_saint_debuffs() -> void:
 func _consume_buddha_guard(amount: int, move: Dictionary) -> bool:
 	if skull_id != "c013" or amount != 3 or Run.c013_buddha <= 0 or not has_battle_passive("c013_demon"):
 		return false
-	var would_knock := bool(move.get("force_knockdown", false)) or (_knock_at < 999 and amount >= _knock_at)
+	var would_knock := _knock_cd <= 0.0 and (bool(move.get("force_knockdown", false)) or (_knock_at < 999 and amount >= _knock_at))
 	if not would_knock:
 		return false
 	Run.c013_buddha -= 1
@@ -3064,6 +3069,7 @@ func _hurt_tick(delta: float) -> void:
 func _start_hurt_chain(knockback: Vector2) -> void:
 	state = State.HURT
 	_hurt_phase = "chain"
+	_knock_cd = KNOCK_COOLDOWN
 	_hurt_chain.clear()
 	for n in _knock_chain:
 		var an := str(n)
@@ -4017,7 +4023,8 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	_stop_skill_loop()
 	fx.clear_skill()
 	# 墨冲明确携带倒地标记；只有当前角色确有倒地链或倒地动画时才强制触发。
-	if not buddha_guard and bool(move.get("force_knockdown", false)):
+	# 击倒保护期内只结算伤害与普通受击，不再倒地（全形态默认）。
+	if not buddha_guard and _knock_cd <= 0.0 and bool(move.get("force_knockdown", false)):
 		if not _knock_chain.is_empty():
 			_start_hurt_chain(knockback)
 			return
@@ -4026,7 +4033,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 			return
 	# 伤害过阈值直接倒地：播 fall → getup（起身段无敌），重型攻击的惩罚更直观；
 	# 形态表配了 knock_chain（镇岳：重受击→浮空重受击→倒地→起身）就走整条链
-	if not buddha_guard and _knock_at < 999 and amount >= _knock_at:
+	if not buddha_guard and _knock_cd <= 0.0 and _knock_at < 999 and amount >= _knock_at:
 		if not _knock_chain.is_empty():
 			_start_hurt_chain(knockback)
 			return
@@ -4492,6 +4499,7 @@ func _start_knockdown(knockback: Vector2) -> void:
 	_hurt_getup_dur = float(_anim_durations.get(getup_anim, 0.5))
 	state = State.HURT
 	_hurt_phase = "fall"
+	_knock_cd = KNOCK_COOLDOWN
 	_hurt_timer = fall_dur + _hurt_getup_dur
 	velocity = knockback * 0.6
 	_idle_queued = false

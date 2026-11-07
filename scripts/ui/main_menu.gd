@@ -30,7 +30,7 @@ var _items: Array = [] # 每项 {box, plate, label, line, base_y, cb}
 
 
 func _ready() -> void:
-	Settings.apply_all() # 启动时应用持久化设置（音量/全屏/分辨率）
+	Settings.apply_all()
 	BGM.play_bgm("menu") # 主菜单 BGM（御风引）
 
 	_sfx = AudioStreamPlayer.new()
@@ -55,10 +55,10 @@ func _ready() -> void:
 		["功名录", _open_achievements], # 成就：累计战绩、技艺、百相收录与隐藏秘闻
 		["设置", _open_settings],
 		["致谢", _open_credits],
-		["退出", func(): get_tree().quit()],
+		["退出", func(): QuitGuard.request_quit()],
 	]
 	var total := items.size() * ITEM_W + (items.size() - 1) * ITEM_GAP
-	var x0 := (1280.0 - total) * 0.5
+	var x0 := (get_viewport().get_visible_rect().size.x - total) * 0.5 # 画布宽度随屏幕比例变化，不能写死 1280
 	for i in items.size():
 		_make_menu_item(str(items[i][0]), x0 + i * (ITEM_W + ITEM_GAP), items[i][1])
 
@@ -101,7 +101,7 @@ func _make_gradient(top: Color, bottom: Color, y: float, h: float) -> void:
 	var r := TextureRect.new()
 	r.texture = t
 	r.position = Vector2(0, y)
-	r.size = Vector2(1280, h)
+	r.size = Vector2(get_viewport().get_visible_rect().size.x, h)
 	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	r.stretch_mode = TextureRect.STRETCH_SCALE
 	r.mouse_filter = Control.MOUSE_FILTER_IGNORE

@@ -26,6 +26,7 @@ func _ready() -> void:
 	dim.color = Color(0, 0, 0, 0.55)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+	UiKit.fit_layer(self, [dim])
 	var win := TextureRect.new()
 	win.texture = InkTex.load("res://art/ui/menu/window_large.png")
 	win.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -49,10 +50,12 @@ func _ready() -> void:
 	add_child(_close_button)
 	_text("战斗状态与被动", Vector2(500, 142), Vector2(500, 34), 23, PAPER, self)
 	_text("增益 / 减益 / 化身被动 / 夺取 / 局内强化", Vector2(500, 174), Vector2(500, 24), 14, DIM, self)
-	_make_button("继续战斗", 260, _resume, null)
-	_make_button("设    置", 342, _open_settings)
-	_make_button("回主菜单", 424, _to_menu)
-	_text("Esc 返回战斗", Vector2(240, 510), Vector2(220, 28), 15, DIM, self)
+	_make_button("继续战斗", 252, _resume, null)
+	_make_button("设    置", 330, _open_settings)
+	_make_button("回主菜单", 408, _to_menu)
+	_make_button("退出游戏", 486, func(): QuitGuard.request_quit())
+	_text("Esc 返回战斗" if not OS.has_feature("mobile") else "点「继续战斗」回到战斗",
+		Vector2(230, 566), Vector2(260, 28), 15, DIM, self)
 	_build_status_details()
 
 
@@ -132,6 +135,8 @@ func _input(event: InputEvent) -> void:
 		return
 	if is_instance_valid(_settings):
 		return # 最内层设置面板自己消费 Esc；这里不能同时恢复战斗。
+	if QuitGuard.is_dialog_open():
+		return # 退出确认框盖在最上面时，Esc 归它处理
 	get_viewport().set_input_as_handled()
 	_resume()
 
