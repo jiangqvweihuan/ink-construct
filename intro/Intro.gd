@@ -65,14 +65,15 @@ func _build() -> void:
 	_mask.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 
-## 视频按 16:9 等比落在画布中央：手机 20:9 时左右以纸色留边，不把 logo 横向拉扁。
+## 视频按 16:9 等比铺满整屏（cover）：手机 20:9 时左右也能填满，多出的上下两截被屏幕裁掉。
+## 之前是按短边等比缩放，20:9 下会留出大片左右空边，被反馈成「开场左右空白太多」。
 func _fit_video() -> void:
 	if _video == null:
 		return
 	var vp := get_viewport().get_visible_rect().size
 	var w := vp.x
 	var h := w * 9.0 / 16.0
-	if h > vp.y:
+	if h < vp.y: # 屏幕比 16:9 更窄时才改由高度撑满
 		h = vp.y
 		w = h * 16.0 / 9.0
 	_video.position = Vector2((vp.x - w) * 0.5, (vp.y - h) * 0.5)

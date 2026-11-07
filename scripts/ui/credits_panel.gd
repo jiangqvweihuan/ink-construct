@@ -165,6 +165,7 @@ var _shown_kind := "" # 当前题跋形态：title / verse，避免每帧重设�
 var _shown_idx := -1 # 已渲染的词句下标
 var _dx := 0.0 # 画布比 1280 宽时整体右移的偏移（手机 20:9 用），保证整版居中
 var _closing := false
+var _opened_ms := 0.0 # 打开时刻：放过「点开致谢」那一下的触摸，否则面板刚开就被自己关掉
 
 
 func _ready() -> void:
@@ -172,6 +173,9 @@ func _ready() -> void:
 	_build()
 	_enter_audio()
 	set_process(true)
+	# 计时放在最后：加载字体/纹理要一会儿，而安卓「点开致谢」那一手的触摸事件
+	# 是在本函数返回后才派发过来的，必须从可以交互的时刻开始算宽限。
+	_opened_ms = float(Time.get_ticks_msec())
 
 
 func _exit_tree() -> void:
@@ -228,7 +232,11 @@ func _input(event: InputEvent) -> void:
 
 
 ## 手机没有 Esc：轻点屏幕任意处返回（--touch-preview 时也接受鼠标左键，方便桌面验证）
+## 打开后的 300ms 内不认点击：安卓会把「点开致谢」这一下拆成模拟鼠标 + 触摸两个事件，
+## 触摸那份要等面板建好才派发过来，不设宽限就会刚打开就自我关闭，表现为点了没反应。
 func _is_back_tap(event: InputEvent) -> bool:
+	if float(Time.get_ticks_msec()) - _opened_ms < 300.0:
+		return false
 	if event is InputEventScreenTouch:
 		return (event as InputEventScreenTouch).pressed
 	if OS.has_feature("mobile") or OS.get_cmdline_args().has("--touch-preview"):
