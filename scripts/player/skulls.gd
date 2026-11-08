@@ -47,7 +47,8 @@ const SKULLS := {
 			{"anim": "atk01", "lock": 0.55, "hits": [0.34], "damage": 1, "range": 100.0, "lunge": 110.0, "cast_sfx": "assassin_basic_attack"},
 			{"anim": "atk02", "lock": 0.50, "hits": [0.14], "damage": 1, "range": 85.0, "lunge": 110.0, "cast_sfx": "assassin_basic_attack"},
 			# atk03 是回身横扫：匕尖甩到原点左侧 92px，判 both（前后都算命中）
-			{"anim": "atk03", "lock": 1.30, "hits": [0.26, 0.72], "damage": 1, "range": 95.0, "lunge": 120.0, "both": true, "cast_sfx": "assassin_basic_attack"},
+			# 第二段加重到 2 伤：绯刃普攻单段最低，整套由 4 伤提到 5 伤补持续输出。
+			{"anim": "atk03", "lock": 1.30, "hits": [{"at": 0.26, "damage": 1}, {"at": 0.72, "damage": 2}], "damage": 1, "range": 95.0, "lunge": 120.0, "both": true, "cast_sfx": "assassin_basic_attack"},
 		],
 		"skills": {
 			# K 穿影突刺（第 19 号 skill01，1.567s）：0.75~1.28s 隐身前冲穿过敌人，1.30s 现身一刀。
@@ -78,7 +79,7 @@ const SKULLS := {
 				"action": "skill_ult", "cooldown": 9.0, "projectile_sfx": "assassin_projectile",
 				"root_motion": true, # 动画 1.2~1.42s 把根骨后挪约 430 骨架像素（≈170 世界像素）：节点跟着挪，收招后停在那里
 				"hits": [{
-					"at": 1.43, "damage": 2, "sfx": "skill_blade",
+					"at": 1.43, "damage": 3, "sfx": "skill_blade",
 					"projectile": {"speed": 900.0, "range": 460.0, "root": 3.0, "split": 1, "style": "dagger"},
 				}],
 			},
@@ -286,7 +287,7 @@ const SKULLS := {
 					{"at": 1.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "voice_fan_hit"},
 					{"at": 3.0, "range": 260.0, "height": 130.0, "damage": 4, "sfx": "skill_blade", "bleed": 2,
 						"knockback": {"force": 900.0, "impact": 0, "ignore_armor": true}},
-					{"at": 5.2, "heal_ratio": 0.3, "self_buff": {"damage": 1, "time": 6.0}, "sfx": "voice_skill_cast"}]},
+					{"at": 5.2, "heal_ratio": 0.25, "self_buff": {"damage": 1, "time": 6.0}, "sfx": "voice_skill_cast"}]},
 			# P 翻滚踢（觉醒限定，第 77 号）：0.20~0.55s 向前约 200px 且无敌穿身。
 			# 末段踢击 5 伤 + 小击飞；实际造成伤害后追加 3 秒眩晕与目标专属受击特效，命中返还 50% 冷却。
 			"skill20_03": {"action": "skill_p", "cooldown": 8.0, "poise": true, "require_buff": true,
@@ -336,10 +337,10 @@ const SKULLS := {
 			# K 踏弦：67 / 95 随机。跟随素材根位移，只位移、无伤害，全程无敌并穿身。
 			"run-": {"action": "skill", "cooldown": 2.5, "speed": 1.4, "invincible": true, "root_motion": true, "phase": true, "cast_sfx": "pipa_string_step",
 				"pool": ["run-", "skill13_02-cankao"], "hits": []},
-			# L 黍离：73 / 74 随机，各自在曲终发穿透魔音；翻倍癫狂且至少 12 秒，释放即回 2。
+			# L 黍离：73 / 74 随机，各自在曲终发穿透魔音；翻倍癫狂且至少 12 秒，释放即回 3。
 			"skill03": {"action": "skill_sweep", "cooldown": 8.0, "pool": ["skill03", "skill04"], "cast_sfx": "pipa_taiyu",
 				"hit_at": {"skill03": 0.68, "skill04": 0.84}, "range": {"skill03": 0.0, "skill04": 0.0},
-				"height": 100.0, "damage": 3, "heal": 2, "sfx": "voice_skill_cast",
+				"height": 100.0, "damage": 3, "heal": 3, "sfx": "voice_skill_cast",
 				"projectile": {"speed": 650.0, "range": 520.0, "pierce": true, "style": "magic_sound", "frenzy_double": true}},
 			# U 摄心 / 众生同狂：同一配置、同一冷却；觉醒后只换演出与命中逻辑。
 			"skill13-": {"action": "skill_ult", "cooldown": 16.0, "cast_sfx": "pipa_mind_snare",
@@ -441,7 +442,7 @@ const SKULLS := {
 			# U 拍地时停（skill06 1.567s）：0.5s 掌落大地，定住当前场景所有敌人——
 			# 杂兵 10s / 精英 8s / Boss 5s；无视霸体，连 Boss 技能前摇都打断（规则级控制）
 			"skill06": {
-				"action": "skill_ult", "cooldown": 14.0, "poise": true, "full_cast_sfx": "jiangqu_silence",
+				"action": "skill_ult", "cooldown": 16.0, "poise": true, "full_cast_sfx": "jiangqu_silence",
 				"stop": {"at": 0.5, "mob": 10.0, "elite": 8.0, "boss": 5.0},
 				"hits": [],
 			},
@@ -471,7 +472,7 @@ const SKULLS := {
 			# 都是漂浮姿态）：全屏无差别 8 伤（无视距离/朝向/高度）；每房间首次释放额外加持
 			# 本房全伤 +3——玩家实例随房间重建，_room_buff_used 天然一房一次，再放只剩伤害
 			"sky_skill18_02": {
-				"action": "skill_p", "cooldown": 25.0, "poise": true, "require_buff": true, "full_cast_sfx": "z003_p_cast",
+				"action": "skill_p", "cooldown": 30.0, "poise": true, "require_buff": true, "full_cast_sfx": "z003_p_cast",
 				"full_cast_volume_db": 8.0, # 笑声原本太轻，单独提高这一条完整施法音
 				"pool": ["sky_skill18_02", "sky_skill24_03"],
 				"hit_at": {"sky_skill18_02": 1.20, "sky_skill24_03": 1.00},

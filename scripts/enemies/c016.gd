@@ -42,6 +42,9 @@ var state: int = State.IDLE
 var wu_che_summon := false # 武车召唤物：玩家带通缉时，其实伤由统一入口额外 +1
 var player_ally := false # 魅唤：独立友方阵营，不占敌人组、波次或击杀结算
 var facing := -1
+## 联机镜像：为 true 时整段 AI/物理跳过，只由 NetSync 用主机快照写入表现
+var net_puppet := false
+var net_anim_loop := true
 var hp: int
 
 # ---------- 形态参数（由 enemy_types.gd 注入，别在这里手改） ----------
@@ -292,6 +295,12 @@ func _apply_type() -> void:
 		elif float(rule.get("cooldown", 0.0)) <= 0.0:
 			rule["cooldown"] = 8.0
 		_attack_rules[move] = rule
+	# 人数/模式节奏缩放：技能独立冷却与普攻间隔同步收紧（未开局时倍率为 1）
+	var cd_mul := Run.enemy_cd_scale()
+	if not is_equal_approx(cd_mul, 1.0):
+		for anim in _attack_rules:
+			var rule: Dictionary = _attack_rules[anim]
+			rule["cooldown"] = float(rule.get("cooldown", 0.0)) * cd_mul
 	_attack_rule_cds.clear()
 	for anim in _attack_rules:
 		_attack_rule_cds[anim] = 0.0
@@ -308,7 +317,7 @@ func _apply_type() -> void:
 	_bloodthirst = t.get("bloodthirst", {})
 	_bloodthirst_active = false
 	_skill_cooldown_scale = 1.0
-	max_hp = int(t["hp"])
+	max_hp = maxi(1, int(round(float(t["hp"]) * Run.enemy_hp_mul())))
 	patrol_speed = float(t["patrol_speed"])
 	chase_speed = float(t["chase_speed"])
 	patrol_range = float(t["patrol_range"])
@@ -317,7 +326,7 @@ func _apply_type() -> void:
 	lose_range = float(t["lose_range"])
 	attack_range = float(t["attack_range"])
 	keep_dist = float(t["keep_dist"])
-	attack_cooldown = float(t["attack_cooldown"])
+	attack_cooldown = float(t["attack_cooldown"]) * Run.enemy_cd_scale()
 	attack_lunge = float(t["attack_lunge"])
 	attack_hit_height = float(t["hit_height"])
 	hurt_time = float(t["hurt_time"])
@@ -335,8 +344,8 @@ func _apply_type() -> void:
 ## 刷怪器在 add_child 之后调用：按波次覆盖血量 / 速度 / 节奏，形态本身不动
 func configure(cfg: Dictionary) -> void:
 	if cfg.has("hp"):
-		max_hp = int(cfg["hp"])
-	# 倍率血量：精英不填绝对血量，按形态表基础值乘倍率（无尽模式逐层变厚）
+		max_hp = maxi(1, int(round(float(cfg["hp"]) * Run.enemy_hp_mul())))
+	# 倍率血量：精英不填绝对血量，按形态表基础值乘倍率（基础值已在 _apply_type 缩放过，不再二次放大）
 	if cfg.has("hp_mul"):
 		max_hp = maxi(1, int(round(float(max_hp) * float(cfg["hp_mul"]))))
 	if cfg.has("speed"):
@@ -348,7 +357,7 @@ func configure(cfg: Dictionary) -> void:
 	if cfg.has("keep_dist"):
 		keep_dist = float(cfg["keep_dist"])
 	if cfg.has("attack_cooldown"):
-		attack_cooldown = float(cfg["attack_cooldown"])
+		attack_cooldown = float(cfg["attack_cooldown"]) * Run.enemy_cd_scale()
 	hp = max_hp
 	_update_hp_bar()
 
@@ -491,6 +500,8 @@ func _clear_status_effects() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if net_puppet:
+		return
 	if state == State.DEAD:
 		return
 	if _is_sword_clone:
@@ -929,6 +940,8 @@ func _deal_hit(seg := 0) -> void:
 	var turn_bonus := int(_turn_stacks.get(_target.get_instance_id(), 0)) if bool(move.get("stacking_damage", false)) else 0
 	var base_dmg := _damage_of(_attack_move, seg) + _sword_intent_now() + turn_bonus
 	var dmg := 0 if no_damage else (_duel_damage(base_dmg) if duel_mode else Run.enemy_damage(base_dmg))
+	if dmg > 0:
+		dmg = maxi(1, int(round(float(dmg) * attack_damage_mul())))
 	if dmg > 0 and wu_che_summon:
 		dmg += 1 # 墨徒信仰：直接攻击始终比当前难度高一档，最高难度也继续提升
 	if dmg > 0 and _bloodthirst_active and not _evil_buddha_pressure:
@@ -1449,6 +1462,11 @@ func _modify_outgoing_damage(dmg: int, _target: Node, _move: Dictionary) -> int:
 	return dmg
 
 
+## 出手伤害倍率：Boss 按阶段覆盖；普通怪保持 1.0。
+func attack_damage_mul() -> float:
+	return 1.0
+
+
 ## 特殊 Boss 自定义招式共用：怨降低每段伤害，强化癫狂翻倍；魅惑时绝不攻击玩家。
 func _hit_status_target(target: Node, damage: int, knockback: Vector2, move: Dictionary) -> bool:
 	if target == null or not is_instance_valid(target) or target == self:
@@ -1457,6 +1475,7 @@ func _hit_status_target(target: Node, damage: int, knockback: Vector2, move: Dic
 		return false
 	var dmg := 0 if damage <= 0 else (_duel_damage(damage) if duel_mode else Run.enemy_damage(damage))
 	if dmg > 0:
+		dmg = maxi(1, int(round(float(dmg) * attack_damage_mul())))
 		dmg = maxi(1, dmg - int(_grudge / 3.0))
 		if _frenzy_time > 0.0 and _frenzy_empowered and not _evil_buddha_pressure:
 			dmg *= 2
@@ -2209,9 +2228,15 @@ func _deal_death_burst() -> void:
 	_attack_cast_id += 1
 	var move := {"anim": str(_death_burst.get("anim", "transform")), "hit_at": 3.467,
 		"cast_id": _attack_cast_id, "seg": 0, "room_cd_curse": true}
-	var pl = get_tree().get_first_node_in_group("player")
-	if not player_ally and pl != null and pl is Node2D and _death_target_in_front(pl) and pl.has_method("hurt"):
-		pl.call("hurt", damage, Vector2(facing * 420.0, -60.0), self, move)
+	# 自爆前扑：多人局对所有站在面前的存活玩家生效，不再只打 P1。
+	if not player_ally:
+		for node in get_tree().get_nodes_in_group("player"):
+			var pl := node as Node2D
+			if pl == null or not is_instance_valid(pl) or int(pl.get("hp")) <= 0:
+				continue
+			if int(pl.get("state")) == 8 or not _death_target_in_front(pl) or not pl.has_method("hurt"):
+				continue
+			pl.call("hurt", damage, Vector2(facing * 420.0, -60.0), self, move)
 	for e in (duel_foes if duel_mode else get_tree().get_nodes_in_group("enemies")):
 		if e == self or not is_instance_valid(e) or not e is Node2D or int(e.get("hp")) <= 0:
 			continue
@@ -2320,9 +2345,27 @@ func _find_target() -> void:
 	if nearest != null:
 		_target = nearest # 诱饵优先于已经锁定的玩家，并始终改追最近的一只
 		return
-	if _target != null and is_instance_valid(_target) and not _target.is_in_group("player_decoy"):
-		return
-	_target = get_tree().get_first_node_in_group("player") as Node2D
+	# 多人局必须锁最近的存活玩家：每次重选，避免永远追 P1 或随机锁错人。
+	# 诱饵（player_decoy）在上面已优先处理；这里只在玩家中取最近者。
+	_target = nearest_living_player(global_position, get_tree().get_nodes_in_group("player"))
+
+
+## 从一组节点里挑距离 from 最近的存活玩家；跳过已倒地 / 死亡 / 待删除的节点。
+## 静态方法便于探针直接验证多玩家索敌，不需要实例化敌人。
+static func nearest_living_player(from: Vector2, nodes: Array) -> Node2D:
+	var best: Node2D = null
+	var best_dist := INF
+	for node in nodes:
+		var pl := node as Node2D
+		if pl == null or not is_instance_valid(pl) or pl.is_queued_for_deletion():
+			continue
+		if int(pl.get("hp")) <= 0 or int(pl.get("state")) == 8:
+			continue
+		var dist := from.distance_squared_to(pl.global_position)
+		if dist < best_dist:
+			best = pl
+			best_dist = dist
+	return best
 
 
 ## 斗蛐蛐选目标：指定对手还活着就继续打；死了就改追最近的存活敌人。
@@ -2486,9 +2529,28 @@ func _apply_facing() -> void:
 		sprite.scale.x = _scale * facing
 
 
+## 联机镜像：主机快照直接写入位置/血量/状态/动画；AI 与伤害判定全部由主机结算
+func net_apply_state(x: float, y: float, hp_value: int, max_hp_value: int, st: int, face: int, anim: String, loop: bool) -> void:
+	global_position = Vector2(x, y)
+	max_hp = maxi(1, max_hp_value)
+	var hp_changed := hp_value != hp
+	hp = clampi(hp_value, 0, max_hp)
+	var st_changed := st != state
+	state = st
+	if face != facing:
+		facing = face
+		if sprite != null:
+			sprite.scale = Vector2(_scale * facing, _scale)
+	if anim != "" and (anim != _current_anim or loop != net_anim_loop):
+		_play(anim, loop)
+	if hp_changed or st_changed:
+		_update_hp_bar()
+
+
 func _play(anim: String, loop: bool, spd := 1.0) -> void:
 	if _anim_state == null:
 		return
+	net_anim_loop = loop
 	if loop and anim == _current_anim:
 		# 巡逻与追击可共用一份动画：只改当前轨道倍率，不从头重播。
 		if not is_equal_approx(_current_anim_speed, spd):

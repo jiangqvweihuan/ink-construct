@@ -41,6 +41,9 @@ var _footstep_timer := 0.0
 
 ## 输入槽：0 = P1（沿用 project.godot 原键位），1 = 本机双人 P2（方向键 + 小键盘）
 @export var input_slot := 0
+## 联机镜像：为 true 时跳过整段物理/AI，只由 NetSync 用主机快照写入表现状态
+var net_puppet := false
+var net_anim_loop := true
 @export var run_speed := 240.0
 @export var accel := 2200.0    # 启动加速度（"踩油门"）
 @export var brake := 5200.0    # 制动减速度（"松油门 + 刹"，比启动快得多）
@@ -324,6 +327,7 @@ func _ready() -> void:
 	add_to_group("player")
 	if input_slot != 0:
 		LocalCoop.ensure_input() # P2 动作运行时注册，早于本帧任何轮询
+	max_hp = Run.form_base_hp(skull_id)
 	hp = max_hp
 	_register_pipa_passives()
 	fx = PlayerFx.new(self)
@@ -435,10 +439,20 @@ func set_sui_yue_pressure(active: bool) -> void:
 
 func effective_max_hp(raw_max: int) -> int:
 	if _passives_disabled():
-		var sealed_base := 100 if skull_id == "c021" and Run.c021_red_butterfly_used else 8
+		var sealed_base := _sealed_base_hp()
 		return maxi(1, sealed_base - (Run.max_hp_loss if Run.active else 0))
 	var stolen_hp := int(_stolen_passives.has("c013_meditation_1")) + int(_stolen_passives.has("c023_patience_2"))
 	return maxi(1, raw_max - stolen_hp)
+
+
+## 被动被邪佛压制时的基础生命：红蝶 100 与梅剑 60 都写在被动里，压制后回落到基准；
+## 其余角色的基础生命是定位分档，不属于被动，保留。
+func _sealed_base_hp() -> int:
+	if skull_id == "c021" and Run.c021_red_butterfly_used:
+		return Run.RED_BUTTERFLY_HP
+	if skull_id == "c023":
+		return Run.BASE_HP
+	return Run.form_base_hp(skull_id)
 
 
 func extra_hp_cap() -> int:
@@ -460,7 +474,7 @@ func on_room_enter() -> void:
 	var restored := maxi(0, hp - before)
 	_c023_frost_bonus = int(ceil(float(restored) / 10.0))
 	if Run.active:
-		Run.hp = hp
+		Run.set_slot_hp(input_slot, hp)
 
 
 func _refresh_mastery() -> void:
@@ -554,7 +568,7 @@ func set_upgrades(up: Dictionary) -> void:
 	run_speed = 240.0 # 上一房间石碑的"疾风"随换房清掉（原位漂移不跨房）
 	# 称号的冷却缩减不受邪佛压制（成就底子），与局内强化叠加
 	cooldown_scale = maxf(0.5, 1.0 - 0.15 * cd + Achievements.bonus("cooldown"))
-	max_hp = 8 + int(up.get("hp", 0)) if not _passives_disabled() else 8
+	max_hp = (Run.form_base_hp(skull_id) + int(up.get("hp", 0))) if not _passives_disabled() else _sealed_base_hp()
 	# 疾影：冲刺时长/距离 +20%，完美闪避判定窗口同步变长；冷却 -10%
 	var dash_lv := int(up.get("dash", 0)) if not _passives_disabled() else 0
 	_dash_time_scale = (1.0 + 0.2 * dash_lv) * (1.0 + Achievements.bonus("dash"))
@@ -1074,6 +1088,8 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if net_puppet:
+		return
 	fx.tick(delta, state == State.DEAD)
 	if _saint_immune():
 		_clear_saint_debuffs()
@@ -1598,6 +1614,11 @@ func _damage_enemy(target: Node, amount: int) -> int:
 		var taken_scale := float(target.call("damage_taken_scale"))
 		if taken_scale > 1.0:
 			amount = maxi(1, int(round(float(amount) * taken_scale))) # 易伤统一在攻击方换算，敌人内部不再重复放大
+	# 敌方防御：按人数表折算玩家直伤（未开局为 1.0，不影响单测/斗蛐蛐）
+	if target.is_in_group("enemies"):
+		var defend := Run.enemy_taken_scale()
+		if defend < 1.0:
+			amount = maxi(1, int(round(float(amount) * defend)))
 	var before := int(target.get("hp"))
 	if target.has_method("take_damage_from"):
 		target.call("take_damage_from", amount, self)
@@ -1661,7 +1682,7 @@ func _on_innate_damage(target: Node, dealt: int) -> void:
 		if Run.active:
 			Run.z003_madness_hp += 1
 			Run.max_hp = max_hp
-			Run.hp = hp
+			Run.set_slot_hp(input_slot, hp)
 		hp_changed.emit(hp, max_hp)
 	if _stolen("c012_sword_intent"):
 		var echo := _stolen_sword_intent >= 3
@@ -3139,11 +3160,32 @@ func _act(action: String) -> String:
 
 
 func _just(action: String) -> bool:
+	if LanNet.is_remote_slot(input_slot):
+		return LanNet.take_remote_just(input_slot, action)
 	return Input.is_action_just_pressed(_act(action))
 
 
 func _move_axis() -> float:
+	if LanNet.is_remote_slot(input_slot):
+		return float(LanNet.remote_axis(input_slot))
 	return Input.get_axis(_act("move_left"), _act("move_right"))
+
+
+## 联机镜像：主机快照直接写入位置/血量/状态/动画；物理与技能全部由主机结算
+func net_apply_state(x: float, y: float, hp_value: int, max_hp_value: int, st: int, face: int, anim: String, loop: bool) -> void:
+	global_position = Vector2(x, y)
+	if max_hp_value != max_hp:
+		max_hp = max_hp_value
+	if hp_value != hp:
+		hp = hp_value
+		hp_changed.emit(hp, max_hp)
+	state = st
+	if face != facing:
+		facing = face
+		if sprite != null:
+			sprite.scale = Vector2(base_scale * facing, base_scale)
+	if anim != "" and (anim != _current_anim or loop != net_anim_loop):
+		_play(anim, loop)
 
 
 func _try_jump() -> void:
@@ -3547,7 +3589,7 @@ func _try_stolen_madness_damage(amount: int, attacker: Node, move: Dictionary) -
 	if Run.active:
 		Run.z003_madness_hp -= actual
 		Run.max_hp = max_hp
-		Run.hp = hp
+		Run.set_slot_hp(input_slot, hp)
 	_record_last_hit(attacker, move, actual)
 	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
 		attacker.call("on_player_hit", actual, move, self)
@@ -3674,6 +3716,13 @@ func swap_skull(id: String) -> void:
 	_apply_profile(id)
 	_setup_spine()
 	Run.skull_id = id # 局外养成的击杀/通关记账按当前形态归属，换头后立刻同步
+	# 换形态后按新角色的定位生命重算上限；局内还要同步 Run 的真实上限。
+	set_upgrades(_upgrades)
+	if Run.active:
+		Run.max_hp = Run.calculated_max_hp()
+		max_hp = effective_max_hp(Run.max_hp)
+	hp = mini(hp, max_hp)
+	hp_changed.emit(hp, max_hp)
 	_play_sfx("voice_skill_cast")
 	# 化身光柱从脚下冲天而起，盖住拆骨换形的一瞬间（pillar 贴条底部留白已裁，bottom 锚点即脚底）
 	FX.spawn(get_tree().current_scene, "pillar", global_position, {"scale": 0.75, "z": 30})
@@ -3928,6 +3977,10 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	amount = _try_pipa_scapegoat(amount, attacker)
 	if _try_stolen_madness_damage(amount, attacker, move):
 		return
+	# 正式对局保护：敌方单次伤害不超过当前生命上限的 50%（至少两击才可能击倒），
+	# 避免联机人数缩放后小兵一次普攻直接秒杀 8~10 血角色；红蝶每秒流失不走这里。
+	if attacker != null and is_instance_valid(attacker):
+		amount = Run.cap_enemy_hit(amount, max_hp)
 	# 只记录真正扣血的一击：闪避、护盾、受伤无敌与反伤都不会污染终局对演。
 	_record_last_hit(attacker, move, amount)
 	if skull_id == "c013" and _form_node("c013_meditation_2"):
@@ -4495,7 +4548,7 @@ func _try_revive(knockback: Vector2) -> bool:
 	_shield_time = 0.0
 	hp = max_hp if red_butterfly else mini(4, max_hp)
 	if Run.active:
-		Run.hp = hp
+		Run.set_slot_hp(input_slot, hp)
 	_hurt_invincible = 1.5 # 起身喘口气，别立刻又被围殴
 	hp_changed.emit(hp, max_hp)
 	state = State.HURT
@@ -4698,6 +4751,7 @@ func _apply_facing() -> void:
 func _play(anim: String, loop: bool, spd := 1.0) -> void:
 	if _anim_state == null:
 		return
+	net_anim_loop = loop
 	if loop and anim == _current_anim:
 		return # 循环动画同名重放 = 从头再来一遍，跳跃顶点会抽搐
 	if _pose_mixer != null:

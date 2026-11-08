@@ -4,6 +4,15 @@ extends Node
 ## 局内循环：连续 3 个房间，每清一间免费选一次强化，三关全过进 Boss 房，斩杀 Boss 通关。
 
 const BASE_HP := 8
+
+## 角色基础生命：按定位分档。c023 的 60 是「血牛资源池」（每房回满 + 回复转尾击），
+## c021 的红蝶 100 是「每秒流失 1 点」的限时第二条命，两者都属于机制血量，不按普通档位削。
+const FORM_BASE_HP := {
+	"c021": 8, "c013": 12, "c023": 60,
+	"z000": 10, "z002": 8, "z003": 10,
+}
+const RED_BUTTERFLY_HP := 100
+
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 
 ## 两种模式：冒险 = 三关 + Boss 通关；无尽 = 每层都是「三小关 + 一个 Boss」，Boss 倒下进下一层
@@ -18,6 +27,28 @@ const DIFFICULTIES := [
 	{"label": "狂澜", "seal": "肆", "desc": "墨浪倾天，险中求胜", "count": 1.45, "attack": 2},
 	{"label": "无归", "seal": "伍", "desc": "此去无归，双雄连战", "count": 1.75, "attack": 3},
 ]
+
+## 敌人数值缩放：按玩家数独立取值（1P~4P 互不派生），仅在本局 Run.active 时生效。
+## hp=生命倍率，damage=出手伤害倍率，cd=出手间隔倍率（<1 更快），defense=玩家直伤承伤倍率，
+## count=普通怪波次数量倍率，concurrent=同屏上限，spawn=补怪间隔（秒），stage_damage=Boss 每阶段伤害加成。
+## 4 人局人数翻倍，仇恨分散且可救人，因此伤害倍率随人数递减，靠血量/数量/出手频率抬难度，
+## 避免「小兵一击秒杀」；玩家侧另有 50% 上限的单次伤害硬保护（player.hurt）。
+const ENEMY_BALANCE := {
+	1: {"hp": 1.30, "damage": 1.20, "cd": 0.90, "defense": 0.94,
+		"count": 0.75, "concurrent": 4, "spawn": 1.10, "stage_damage": 0.10},
+	2: {"hp": 1.95, "damage": 1.20, "cd": 0.80, "defense": 0.88,
+		"count": 0.95, "concurrent": 6, "spawn": 0.85, "stage_damage": 0.12},
+	3: {"hp": 2.40, "damage": 1.18, "cd": 0.76, "defense": 0.85,
+		"count": 1.05, "concurrent": 7, "spawn": 0.78, "stage_damage": 0.14},
+	4: {"hp": 2.85, "damage": 1.16, "cd": 0.72, "defense": 0.82,
+		"count": 1.15, "concurrent": 8, "spawn": 0.72, "stage_damage": 0.16},
+}
+
+## 未开局（测试 / 斗蛐蛐）统一回落的中性行，保证与旧数值完全一致
+const ENEMY_BALANCE_NEUTRAL := {
+	"hp": 1.0, "damage": 1.0, "cd": 1.0, "defense": 1.0,
+	"count": 1.0, "concurrent": 6, "spawn": 0.9, "stage_damage": 0.0,
+}
 
 ## 每个房间的波次配置；index 越大越难
 const ROOMS := [
@@ -136,9 +167,14 @@ const BLESSINGS := {
 }
 
 var active := false
+## 测试开关：机制用例需要固定血量/伤害断言时关闭人数缩放（正式对局保持 true）
+var balance_scaling := true
 var mode := MODE_ADVENTURE # adventure / endless
 ## 本机双人：true 时房间会额外生成 P2（方向键 + 小键盘），单人局保持 false
 var local_coop := false
+## 局域网联机："" = 离线；"host" = 主机；"client" = 客户端镜像
+var net_role := ""
+var net_slot := 0 # 联机时本机控制的输入槽（主机 0 / 客户端 1）
 var difficulty := 1 # 五档问境索引，默认落笔
 var depth := 1 # 无尽模式层数（冒险模式恒为 1）
 var room_index := 0
@@ -157,6 +193,8 @@ var supply_upgrade_rerolls := 0 # 重随券：整局共享的额外强化重随�
 var guard_available := false # 护砚：每局第一次实际受伤减免
 var c021_dance_kills := 0 # 血舞·极：跨房间保留的每三杀回血计数
 var c021_red_butterfly_used := false # 红蝶：每局首次死亡满血复活，之后持续失去生命
+## 联机复活后红蝶的上限封顶（0 = 未触发）：复活起身只给 50 点，仍按每秒 1 点流失。
+var c021_revive_cap := 0
 var c013_damage_hits := 0 # 降魔：实际造成伤害的累计次数，每四次凝一层佛陀
 var c013_buddha := 0 # 佛陀：跨房间保留，最多 3 层
 var c023_ink_bonus := 0 # 墨梅：每次实际伤害积累的额外结算墨锭
@@ -169,6 +207,12 @@ var boss_defeated: Array = [] # 本次 Boss 房已讨伐名录，结算落款用
 var boss_phase := 0 # 无归连战当前场次（0/1）
 var last_hit := {} # 玩家最后一次实际扣血的攻击者/招式/伤害，结算终局对演用
 var meta_snapshot := {} # 开局时的 Meta 快照，结算面板 diff 出本局收获
+## 联机实际人数（含主机）。LanNet 在加入/离开时维护，用于选 ENEMY_BALANCE 行。
+var net_players := 1
+## 联机多人：每个输入槽独立生命；形态、强化、赐福整局共享。
+var slot_hp: Dictionary = {} # slot -> int
+var slot_dead: Dictionary = {} # slot -> true（本房间已阵亡，等待下一房间复活）
+var slot_revive: Dictionary = {} # slot -> true（下一房间以 50% 上限自动复活）
 
 
 ## 开新一局（开始流程面板选完模式、难度与角色后调用；测试无参 = 冒险 + 落笔 + 绯刃）
@@ -193,6 +237,7 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1,
 	guard_available = Meta.shop_level("start_guard") > 0
 	c021_dance_kills = 0
 	c021_red_butterfly_used = false
+	c021_revive_cap = 0
 	c013_damage_hits = 0
 	c013_buddha = 0
 	c023_ink_bonus = 0
@@ -202,6 +247,10 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1,
 	last_hit = {}
 	boss_defeated = []
 	boss_phase = 0
+	net_players = 1
+	slot_hp.clear()
+	slot_dead.clear()
+	slot_revive.clear()
 	_roll_bosses()
 	meta_snapshot = Meta.snapshot() # 结算面板据此展示本局契合/解锁收获
 	Score.reset()
@@ -212,16 +261,26 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1,
 		supply_upgrade_rerolls = 2
 	max_hp = calculated_max_hp()
 	hp = max_hp
+	slot_hp[0] = hp
 
 
 ## 化身固有生命与所有局内外上限修正统一走这里；红蝶触发后固定为 100（仍会被削上限）。
 func calculated_max_hp() -> int:
 	if skull_id == "c021" and c021_red_butterfly_used:
-		return maxi(1, 100 - max_hp_loss)
-	var form_base := 60 if skull_id == "c023" else BASE_HP
+		# 联机复活会把上限封到 50（c021_revive_cap）；未复活时仍是完整 100。
+		var butterfly := RED_BUTTERFLY_HP
+		if c021_revive_cap > 0:
+			butterfly = mini(butterfly, c021_revive_cap)
+		return maxi(1, butterfly - max_hp_loss)
+	var form_base := form_base_hp(skull_id)
 	return maxi(1, form_base + level("hp") + (2 if blessing == "hp" else 0) \
 		+ Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + Achievements.bonus_int("hp") \
 		+ supply_hp - max_hp_loss + z003_madness_hp)
+
+
+## 某化身的基础生命；未登记的形态（测试假人 / 未来新增）回落到全局基础值。
+static func form_base_hp(form_id: String) -> int:
+	return int(FORM_BASE_HP.get(form_id, BASE_HP))
 
 
 ## 血色切割统一入口：敌人死亡提交 export_passives()；化身与未来 PvP 直接提交同构被动包。
@@ -273,9 +332,10 @@ func room_config() -> Dictionary:
 
 
 ## 数量倍率只作用于普通怪：先从波次总数扣除精英，再把精英原数加回。
+## 难度「问境」与人数缩放各乘一次，精英数量不参与缩放，避免高难/联机下精英被稀释。
 func scale_waves(source: Array) -> Array:
 	var result := source.duplicate(true)
-	var mul := float(DIFFICULTIES[difficulty]["count"])
+	var mul := float(DIFFICULTIES[difficulty]["count"]) * wave_count_mul()
 	for cfg in result:
 		var elite := int(cfg.get("elite", 0))
 		var normal := maxi(0, int(cfg.get("count", 0)) - elite)
@@ -285,7 +345,69 @@ func scale_waves(source: Array) -> Array:
 
 ## 敌方攻击统一入口：普通怪、精英、Boss 近战/冲锋/火区及后续敌投射物均走这里。
 func enemy_damage(base: int) -> int:
-	return maxi(1, base + int(DIFFICULTIES[difficulty]["attack"]))
+	var scaled := int(round(float(base) * float(enemy_balance()["damage"])))
+	return maxi(1, scaled + int(DIFFICULTIES[difficulty]["attack"]))
+
+
+## 敌方单击伤害硬上限：正式对局里不超过目标生命上限的 50%（至少两击才可能倒地）。
+## 联机人数缩放只改血量 / 数量 / 出手频率，不允许小兵一次普攻秒杀 8~10 血角色。
+const MAX_ENEMY_HIT_RATIO := 0.5
+
+
+func cap_enemy_hit(amount: int, target_max_hp: int) -> int:
+	if not active or not balance_scaling:
+		return amount
+	return mini(amount, maxi(1, int(ceil(float(target_max_hp) * MAX_ENEMY_HIT_RATIO))))
+
+
+## 本局玩家数：联机按实际人数（1 主机 + 已加入客机），本机双人固定 2，单人 1。
+func player_count() -> int:
+	if not active:
+		return 1
+	if net_role != "":
+		return clampi(net_players, 1, 4)
+	return 2 if local_coop else 1
+
+
+## 联机人数变化时由 LanNet 写入；开局中变更会立即影响后续波次的难度行。
+func set_net_players(count: int) -> void:
+	net_players = clampi(count, 1, 4)
+
+
+## 当前玩家数对应的数值行；未开局或测试关闭缩放时返回中性行，机制断言与旧数值保持一致。
+func enemy_balance() -> Dictionary:
+	if not active or not balance_scaling:
+		return ENEMY_BALANCE_NEUTRAL
+	return ENEMY_BALANCE.get(player_count(), ENEMY_BALANCE[1])
+
+
+func enemy_hp_mul() -> float:
+	return float(enemy_balance()["hp"])
+
+
+func enemy_cd_scale() -> float:
+	return float(enemy_balance()["cd"])
+
+
+## 玩家直伤承伤倍率：<1 = 敌人防御，取整后最低仍为 1。
+func enemy_taken_scale() -> float:
+	return float(enemy_balance()["defense"])
+
+
+func enemy_stage_damage_step() -> float:
+	return float(enemy_balance()["stage_damage"])
+
+
+func wave_count_mul() -> float:
+	return float(enemy_balance()["count"])
+
+
+func max_concurrent() -> int:
+	return int(enemy_balance()["concurrent"])
+
+
+func spawn_interval() -> float:
+	return float(enemy_balance()["spawn"])
 
 
 func difficulty_label() -> String:
@@ -320,13 +442,16 @@ func endless_waves(i: int) -> Array:
 	]
 
 
-## 无尽模式 Boss 缩放：血量每层 +40%，出手冷却每层 -6%（最低 0.6 倍 = 出手快 40%）
+## 无尽模式 Boss 缩放：血量每层 +40%，再乘当前人数生命倍率
 func boss_hp_scale() -> float:
-	return 1.0 + 0.4 * float(depth - 1) if mode == MODE_ENDLESS else 1.0
+	var growth := 1.0 + 0.4 * float(depth - 1) if mode == MODE_ENDLESS else 1.0
+	return growth * enemy_hp_mul()
 
 
+## 无尽成长与人数节奏叠加；下限 0.45 防止极端层数下出手完全失控
 func boss_cd_scale() -> float:
-	return maxf(0.6, 1.0 - 0.06 * float(depth - 1)) if mode == MODE_ENDLESS else 1.0
+	var growth := maxf(0.6, 1.0 - 0.06 * float(depth - 1)) if mode == MODE_ENDLESS else 1.0
+	return maxf(0.45, growth * enemy_cd_scale())
 
 
 func room_label() -> String:
@@ -352,6 +477,14 @@ func is_boss_room() -> bool:
 
 func advance() -> void:
 	room_index += 1
+	# 联机复活：上一房间阵亡的槽位在换房时结算，按 50% 上限写入，随房间 payload 一起下发。
+	# 红蝶封顶 50 且继续每秒流失；梅剑先拿 50%，进房后再由自身「每房回满」补到 60。
+	for slot in slot_revive.keys():
+		if not bool(slot_revive[slot]):
+			continue
+		slot_revive.erase(slot)
+		slot_dead.erase(slot)
+		slot_hp[int(slot)] = revive_hp_for(skull_id, calculated_max_hp())
 	# 无尽：打完 Boss 进下一层（三小关重来，Boss 换一只，数值更高）
 	if mode == MODE_ENDLESS and room_index > ROOMS.size():
 		depth += 1
@@ -446,29 +579,80 @@ func consume_supply_reroll() -> bool:
 	return true
 
 
-## 离开房间前：把玩家当前状态写进 run
-func snapshot(player) -> void:
+## 离开房间前：把玩家当前状态写进 run（联机按 input_slot 分槽保存）
+func snapshot(player, slot := -1) -> void:
+	var s := _slot_of(player, slot)
+	if net_role != "":
+		slot_hp[s] = int(player.hp)
 	hp = int(player.hp)
 	max_hp = int(player.max_hp)
 	skull_id = str(player.skull_id)
 
 
 ## 进入房间后：把 run 状态装回玩家（强化 / 血量 / 形态）
-func apply_to(player) -> void:
+func apply_to(player, slot := -1) -> void:
 	# 玩家脚本没编译过时实例是裸 CharacterBody2D，直接跳过避免 Invalid access
 	if not player.has_method("set_upgrades"):
 		push_error("Run.apply_to: 玩家缺少 set_upgrades（脚本未加载？），状态未装回")
 		return
+	var s := _slot_of(player, slot)
 	player.set_upgrades(upgrades)
 	if player.skull_id != skull_id:
 		player.swap_skull(skull_id)
 	max_hp = calculated_max_hp()
 	player.max_hp = player.effective_max_hp(max_hp) if player.has_method("effective_max_hp") else max_hp
 	var extra_cap: int = player.extra_hp_cap() if player.has_method("extra_hp_cap") else 0
-	player.hp = clampi(hp, 1, player.max_hp + extra_cap)
+	var want_hp := int(slot_hp.get(s, hp)) if net_role != "" else hp
+	player.hp = clampi(want_hp, 1, player.max_hp + extra_cap)
 	player.hp_changed.emit(player.hp, player.max_hp)
 	if player.has_method("on_room_enter"):
 		player.on_room_enter()
+
+
+## 联机槽位解析：显式 slot 优先；否则联机按玩家 input_slot，单人/本机双人按 0。
+func _slot_of(player, slot: int) -> int:
+	if slot >= 0:
+		return slot
+	if net_role != "" and player != null and is_instance_valid(player):
+		return int(player.input_slot)
+	return 0
+
+
+## 某槽当前血量；未登记时回落到整局血量。
+func slot_hp_of(slot: int) -> int:
+	return int(slot_hp.get(slot, hp))
+
+
+## 玩家在自己的房间内更新血量（梅剑每房回满 / 治疗等），同步到对应槽位。
+func set_slot_hp(slot: int, value: int) -> void:
+	if net_role != "":
+		slot_hp[slot] = maxi(0, value)
+	hp = maxi(0, value)
+
+
+## 联机阵亡：本房保持倒地，下一房间自动复活；单人/本机双人仍走原有全灭结算。
+func mark_slot_dead(slot: int) -> void:
+	slot_dead[slot] = true
+	slot_revive[slot] = true
+	slot_hp[slot] = 0
+
+
+## 下一房间是否要复活该槽；取用即清除待复活标记。
+func take_revive(slot: int) -> bool:
+	if not bool(slot_revive.get(slot, false)):
+		return false
+	slot_revive.erase(slot)
+	slot_dead.erase(slot)
+	return true
+
+
+## 复活血量：普通角色按上限 50%；红蝶把上限封到 50 并保持每秒流失；梅剑按 50% 起身后
+## 仍由自身的「每房回满」机制回满 60（用户确认保留该机制）。
+func revive_hp_for(form_id: String, full_max: int) -> int:
+	if form_id == "c021" and c021_red_butterfly_used:
+		c021_revive_cap = maxi(1, int(ceil(float(RED_BUTTERFLY_HP) * 0.5)))
+		return maxi(1, c021_revive_cap - max_hp_loss)
+	return maxi(1, int(ceil(float(full_max) * 0.5)))
 
 
 ## 镰意绽花：只扣本局上限，不造成普通直伤；实际损失写入 Run，换房与后续强化都不会洗掉。

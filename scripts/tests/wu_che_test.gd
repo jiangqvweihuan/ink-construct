@@ -25,6 +25,7 @@ func _check(ok: bool, label: String) -> void:
 
 
 func _ready() -> void:
+	Run.balance_scaling = false # 机制用例固定原始耐久数值，人数缩放由 enemy_balance_probe 覆盖
 	_log = FileAccess.open("res://tests/wu_che_test.log", FileAccess.WRITE)
 	get_tree().create_timer(45.0).timeout.connect(func():
 		p("TIMEOUT")

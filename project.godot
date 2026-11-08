@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="墨构"
-config/version="0.9.11"
+config/version="0.10.0"
 run/main_scene="res://intro/Intro.tscn"
 config/auto_accept_quit=false
 config/quit_on_go_back=false
@@ -31,6 +31,7 @@ Achievements="*res://scripts/systems/achievements.gd"
 LoadVeil="*res://scripts/ui/load_veil.gd"
 TouchControls="*res://scripts/systems/touch_controls.gd"
 QuitGuard="*res://scripts/systems/quit_guard.gd"
+LanNet="*res://scripts/net/lan_net.gd"
 
 [display]
 

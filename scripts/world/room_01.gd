@@ -14,6 +14,7 @@ const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const DECOR_INTERACTIVE := preload("res://scripts/world/decor_interactive.gd")
 const BOSS_DUEL_INTRO := preload("res://scripts/ui/boss_duel_intro.gd")
 const MOBILE_GUIDE := preload("res://scripts/ui/mobile_guide.gd")
+const NET_SYNC := preload("res://scripts/net/net_sync.gd")
 
 var _player
 var _players: Array = [] # 本机双人时含 P1/P2，单人时只有 P1
@@ -43,14 +44,23 @@ func _ready() -> void:
 	Achievements.room_begin() # 本房受伤清零，用于无伤房判定
 	_build_background()
 	_build_ground()
-	_build_actors()
-	_show_blessing() # 每局第一层出发前的赐福三选一（测试/嵌套实例化时不弹）
+	if Run.net_role == "client":
+		# 客户端镜像：敌人/Boss/波次全部由主机权威生成，本地只建背景、两名玩家与 HUD
+		_build_actors_client()
+	else:
+		_build_actors()
+		_show_blessing() # 每局第一层出发前的赐福三选一（测试/嵌套实例化时不弹）
+		if Run.net_role == "host":
+			_attach_net_sync()
 	if auto_demo:
 		_run_demo()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
+		return
+	# 客户端是主机世界的镜像，暂停会与主机脱节：联机客机不弹暂停菜单
+	if Run.net_role == "client":
 		return
 	# 已分出胜负（通关/阵亡）或其他面板开着时，Esc 不再弹暂停菜单
 	if _ended:
@@ -183,12 +193,18 @@ func _build_ground() -> void:
 
 
 func _build_actors() -> void:
-	_player = _spawn_player(0, Vector2(460.0 if Run.is_boss_room() else 220.0, 560))
+	var base_x := 460.0 if Run.is_boss_room() else 220.0
+	_player = _spawn_player(0, Vector2(base_x, 560))
 	if _player == null:
 		return
-	# 本机双人：P2 并肩进门，同一套房间/敌潮，输入走方向键 + 小键盘
-	if Run.local_coop:
-		_spawn_player(1, _player.position + Vector2(140.0, 0.0))
+	# 联机主机：按实际人数生成 1 主机 + 最多 3 客机的角色；本机双人固定 2 人。
+	var total := 1
+	if Run.net_role == "host":
+		total = maxi(1, Run.player_count())
+	elif Run.local_coop:
+		total = 2
+	for slot in range(1, total):
+		_spawn_player(slot, _spawn_offset_pos(base_x, slot))
 
 	_camera = Camera2D.new()
 	_camera.position = Vector2(0, -80)
@@ -199,8 +215,8 @@ func _build_actors() -> void:
 	_camera.position_smoothing_enabled = true
 	_camera.position_smoothing_speed = 8.0
 	_player.add_child(_camera)
-	if Run.local_coop:
-		_camera.zoom = Vector2(0.86, 0.86) # 双人同屏稍微拉远，免得队友出画
+	if total > 1:
+		_camera.zoom = Vector2(0.86, 0.86) # 多人同屏稍微拉远，免得队友出画
 	_camera.make_current()
 	Feel.register_camera(_camera) # 打击感系统靠这台相机做屏幕震动
 
@@ -212,8 +228,9 @@ func _build_actors() -> void:
 		_spawner = WAVE_SPAWNER.new()
 		_spawner.waves = Run.room_config()["waves"]
 		_spawner.spawn_y = 560.0
-		_spawner.spawn_xs = [820.0, 1120.0, 1440.0, 1720.0]
+		_spawner.spawn_xs = [760.0, 880.0, 1000.0, 1120.0, 1240.0, 1360.0, 1480.0, 1600.0, 1720.0, 1840.0]
 		_spawner.player_ref = _player
+		_spawner.player_refs = _players # 4 人局按所有玩家算安全距离
 		_spawner.all_cleared.connect(_on_all_cleared)
 		add_child(_spawner)
 
@@ -221,6 +238,58 @@ func _build_actors() -> void:
 	add_child(_hud)
 	if _boss != null:
 		_hud.show_boss(_boss)
+
+
+## 多人站位：P1 原地，其余按固定偏移错开，避免 4 人叠在同一格。
+func _spawn_offset_pos(base_x: float, slot: int) -> Vector2:
+	var offsets := [0.0, 130.0, -130.0, 260.0]
+	var x := base_x + float(offsets[clampi(slot, 0, offsets.size() - 1)])
+	return Vector2(clampf(x, 80.0, ROOM_W - 80.0), 560.0)
+
+
+## 客户端镜像房间：按主机下发的人数生成受控镜像玩家与 HUD
+func _build_actors_client() -> void:
+	var spawn_x := 460.0 if Run.is_boss_room() else 220.0
+	var total := maxi(1, Run.player_count())
+	_player = _spawn_player(0, Vector2(spawn_x, 560))
+	if _player == null:
+		return
+	for slot in range(1, total):
+		_spawn_player(slot, _spawn_offset_pos(spawn_x, slot))
+	for p in _players:
+		if is_instance_valid(p):
+			p.net_puppet = true
+
+	_camera = Camera2D.new()
+	_camera.position = Vector2(0, -80)
+	_camera.limit_left = 0
+	_camera.limit_right = int(ROOM_W)
+	_camera.limit_top = 0
+	_camera.limit_bottom = 720
+	_camera.position_smoothing_enabled = true
+	_camera.position_smoothing_speed = 8.0
+	if total > 1:
+		_camera.zoom = Vector2(0.86, 0.86)
+	# 客机看自己槽位的角色（Run.net_slot），主机看 P1
+	var follow = _player
+	for p in _players:
+		if is_instance_valid(p) and int(p.input_slot) == Run.net_slot:
+			follow = p
+			break
+	follow.add_child(_camera)
+	_camera.make_current()
+	Feel.register_camera(_camera)
+
+	_hud = load("res://scenes/ui/hud.tscn").instantiate()
+	add_child(_hud)
+	_attach_net_sync()
+
+
+func _attach_net_sync() -> void:
+	var ns = NET_SYNC.new()
+	ns.name = "NetSync"
+	ns.room = self
+	add_child(ns)
 
 
 ## 生成一名玩家：slot 0 = P1 原键位，slot 1 = 本机双人 P2（方向键 + 小键盘）
@@ -238,7 +307,9 @@ func _spawn_player(slot: int, spawn_pos: Vector2):
 	_players.append(p)
 	if Run.is_boss_room() and Run.boss_id == "c008":
 		p.set_sui_yue_pressure(true) # 邪佛压场先于状态注入，避免生命与增益被重新写回
-	Run.apply_to(p) # 继承上一层带过来的血量 / 形态 / 强化
+	# 联机：复活血量已在 Run.advance() 按 50% 上限写入对应槽位（红蝶封顶 50 仍持续流失，
+	# 梅剑进房后由自身「每房回满」补满 60），这里只负责把槽位状态装回角色。
+	Run.apply_to(p, slot) # 继承上一层带过来的血量 / 形态 / 强化
 	return p
 
 
@@ -276,13 +347,13 @@ func _focus_camera(target) -> void:
 ## 强化 / 赐福对场上每个活着的玩家生效
 func _apply_to_all() -> void:
 	for p in _alive_players():
-		Run.apply_to(p)
+		Run.apply_to(p, int(p.input_slot))
 
 
 func _snapshot_run() -> void:
-	var p = _survivor()
-	if p != null:
-		Run.snapshot(p)
+	# 联机按槽位逐个保存血量；单人局只有 P1，行为与原来一致
+	for p in _alive_players():
+		Run.snapshot(p, int(p.input_slot))
 
 
 ## Boss 登场：墨堂深处只有它一个对手，出场先震屏立威
@@ -388,9 +459,12 @@ func _on_player_died(dead = null) -> void:
 		return
 	if dead == null:
 		dead = _player
-	# 本机双人：只要还有队友站着，就把镜头交给他继续打，不结算
+	# 本机双人 / 联机：只要还有队友站着，就把镜头交给他继续打，不结算
 	var alive := _alive_players()
 	if not alive.is_empty():
+		# 联机阵亡：本房间保持倒地，标记该槽位在下一房间以 50% 上限自动复活
+		if Run.net_role != "" and is_instance_valid(dead):
+			Run.mark_slot_dead(int(dead.input_slot))
 		if dead == _player:
 			_focus_camera(alive[0])
 		return
@@ -410,6 +484,13 @@ func _on_player_died(dead = null) -> void:
 func _show_settlement(title_text: String, cleared: bool) -> void:
 	if get_node_or_null("Settlement") != null:
 		return
+	# 客户端不跑结算流程，由主机发 session_end 回大厅
+	if Run.net_role == "client":
+		return
+	if Run.net_role == "host":
+		LanNet.host_end_session("对局结束")
+		Run.net_role = ""
+		Run.local_coop = false
 	Achievements.finish_run(cleared) # 单局条件（无伤 / 残血 / 速通 / 空手）在结算前结清
 	var s = load("res://scenes/ui/settlement_panel.tscn").instantiate()
 	s.name = "Settlement"
@@ -470,6 +551,10 @@ func _on_proceed() -> void:
 	_proceeding = true
 	Run.advance()
 	get_tree().paused = false # 强化面板是时停的，进下一层前必须恢复
+	# 联机主机：由 LanNet 统一切场景并先把新 Run 状态发给客机
+	if Run.net_role == "host":
+		LanNet.host_change_room()
+		return
 	await LoadVeil.transition_to("res://scenes/world/room_01.tscn", "正在入卷")
 
 

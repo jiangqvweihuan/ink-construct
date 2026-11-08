@@ -103,8 +103,10 @@ func _all_anim_names() -> Array:
 
 func _durability_for_run() -> int:
 	if Run.mode == Run.MODE_ENDLESS:
-		return mini(ENDLESS_MAX_DURABILITY, 5 + int((Run.depth - 1) / 2))
-	return int(ADVENTURE_DURABILITY[clampi(Run.difficulty, 0, ADVENTURE_DURABILITY.size() - 1)])
+		var depth_value := mini(ENDLESS_MAX_DURABILITY, 5 + int((Run.depth - 1) / 2))
+		return maxi(2, int(round(float(depth_value) * Run.enemy_hp_mul())))
+	var base := int(ADVENTURE_DURABILITY[clampi(Run.difficulty, 0, ADVENTURE_DURABILITY.size() - 1)])
+	return maxi(2, int(round(float(base) * Run.boss_hp_scale())))
 
 
 func _idle_anim() -> String:
@@ -112,6 +114,8 @@ func _idle_anim() -> String:
 
 
 func _physics_process(delta: float) -> void:
+	if net_puppet:
+		return
 	if state == State.DEAD:
 		return
 	if _stop_timer > 0.0:

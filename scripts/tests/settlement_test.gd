@@ -79,6 +79,11 @@ func _ready() -> void:
 		var red_attacker = room._spawner._alive[0] if not room._spawner._alive.is_empty() else null
 		room._player.hurt(20, Vector2.ZERO, red_attacker, {"anim": "skill01", "hit_at": 0.25})
 		room._player.state = room._player.State.IDLE
+		# 单击伤害有 50% 上限，hurt 已无法直接打死玩家：显式标记红蝶已消耗，
+		# 模拟「首次死亡复活后，纯流失烧尽」，才能走到阵亡结算。
+		Run.c021_red_butterfly_used = true
+		Run.max_hp = Run.calculated_max_hp()
+		room._player.max_hp = Run.max_hp
 		room._player.hp = 1
 		room._player._hurt_invincible = 0.0
 		room._player._innate_passive_tick(1.0)

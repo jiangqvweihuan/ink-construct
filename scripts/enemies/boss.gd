@@ -93,12 +93,15 @@ func _apply_type() -> void:
 	boss_label = str(t["label"])
 	_stage_at = t["stage_at"]
 	_stages = t["stages"]
-	_charge = t.get("charge", {})
+	_charge = (t.get("charge", {}) as Dictionary).duplicate(true)
+	# 冲锋冷却同样吃人数/无尽节奏缩放，避免联机下只有常规招式变快
+	if not _charge.is_empty():
+		_charge["cooldown"] = float(_charge.get("cooldown", 0.0)) * cd_scale
 	_fx = t.get("fx", {})
 	_turn_anim = str(t.get("turn", ""))
 	_turn_cd_max = float(t.get("turn_cooldown", 4.0))
 	_attack_anims = _stages[0]["attacks"] # 阶段 1 招式池
-	attack_cooldown = float(_stages[0].get("attack_cooldown", attack_cooldown))
+	attack_cooldown = float(_stages[0].get("attack_cooldown", attack_cooldown)) * cd_scale
 	chase_speed = float(_stages[0].get("chase_speed", chase_speed))
 
 
@@ -193,6 +196,8 @@ func finish_entrance() -> void:
 # ---------- 主循环 ----------
 
 func _physics_process(delta: float) -> void:
+	if net_puppet:
+		return
 	if state == State.DEAD:
 		return
 	# 时间暂停（银夜 U）：Boss 也照定——规则级控制，连变身/冲锋计时都冻结
@@ -309,11 +314,16 @@ func _finish_transform() -> void:
 
 func _apply_stage(st: Dictionary) -> void:
 	_attack_anims = st["attacks"]
-	attack_cooldown = float(st.get("attack_cooldown", attack_cooldown))
+	attack_cooldown = float(st.get("attack_cooldown", attack_cooldown)) * cd_scale
 	chase_speed = float(st.get("chase_speed", chase_speed))
 	# 阶段可能带来封锁火区（焚鼎 P3）；换个没有的阶段就关掉
 	_fz = st.get("fire_zones", {})
 	_fz_cd = 1.5 if not _fz.is_empty() else 0.0 # 进阶段喘口气再开始封锁
+
+
+## 阶段伤害加成：每进一阶段，后续所有直接招式伤害按当前人数表递增。
+func attack_damage_mul() -> float:
+	return 1.0 + float(stage) * Run.enemy_stage_damage_step()
 
 
 # ---------- 冲锋技 ----------

@@ -114,6 +114,7 @@ func _check(ok: bool, label: String) -> void:
 
 
 func _ready() -> void:
+	Run.balance_scaling = false # 机制用例固定原始血量/伤害数值，人数缩放由 enemy_balance_probe 覆盖
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_log = FileAccess.open("res://tests/player_test.log", FileAccess.WRITE)
 	get_window().size = Vector2i(1280, 720)
@@ -1188,7 +1189,7 @@ func _minimal_player_fix_regression() -> void:
 	# 失心疯上限归零且有复活资源：先恢复有效上限，再按原规则以 1 血起身。
 	_prepare_innate("z003")
 	Run.z003_stolen = {"test:mob": {"passives": ["c009_madness"]}}
-	Run.max_hp_loss = 7
+	Run.max_hp_loss = Run.form_base_hp("z003") - 1
 	Run.max_hp = 1
 	Run.hp = 1
 	Run.supply_revive = true
@@ -1202,7 +1203,7 @@ func _minimal_player_fix_regression() -> void:
 	# 没有复活资源时维持原死亡路径，不提前恢复上限或消耗资源。
 	_prepare_innate("z003")
 	Run.z003_stolen = {"test:mob": {"passives": ["c009_madness"]}}
-	Run.max_hp_loss = 7
+	Run.max_hp_loss = Run.form_base_hp("z003") - 1
 	Run.max_hp = 1
 	Run.hp = 1
 	_player.max_hp = 1

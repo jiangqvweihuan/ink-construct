@@ -32,6 +32,7 @@ func _check(ok: bool, label: String) -> void:
 
 
 func _ready() -> void:
+	Run.balance_scaling = false # 机制用例固定原始伤害数值，人数缩放由 enemy_balance_probe 覆盖
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_log = FileAccess.open("res://tests/sui_yue_test.log", FileAccess.WRITE)
 	Meta.persist = false

@@ -19,9 +19,9 @@ const ELITE_SCENES := [
 	"res://scenes/enemies/c018_elite.tscn", # 双镰
 	"res://scenes/enemies/c012_elite.tscn", # 青笠剑客（前玩家形态，两连击 + 跳斩）
 ]
-const SPAWN_INTERVAL := 0.9 # 同一波内两只之间的补怪间隔（秒）
+const SPAWN_INTERVAL := 0.9 # 未开局时的补怪间隔兜底（正式局走 Run.spawn_interval()）
 const WAVE_GAP := 1.6 # 波次之间的喘息时间（秒）
-const MAX_CONCURRENT := 6 # 屏上同时存活上限
+const MAX_CONCURRENT := 6 # 未开局时的同屏上限兜底（正式局走 Run.max_concurrent()）
 
 ## 每波一项：{count=本波总数, hp=每只血量, speed=速度倍率, elite=其中的精英数量}
 var waves: Array = [
@@ -32,6 +32,10 @@ var waves: Array = [
 var spawn_xs: Array = [820.0, 1120.0, 1440.0, 1720.0] # 候选出生点 x（会随机挑，避开玩家附近）
 var spawn_y := 560.0
 var player_ref: Node2D
+## 全部玩家（联机 4 人时由房间写入）；为空时回落到 player_ref。
+var player_refs: Array = []
+## 出生点与任意存活玩家的最小 2D 距离：既防贴脸，也防从头顶/面前刷出。
+var spawn_safe_dist := 320.0
 
 var _wave := -1
 var _to_spawn := 0 # 本波还没刷出来的数量
@@ -56,9 +60,12 @@ func _process(delta: float) -> void:
 		return
 	_cd -= delta
 	# 还有没刷的怪：按间隔补刷，且不超过同时存活上限
-	if _to_spawn > 0 and _cd <= 0.0 and _alive.size() < MAX_CONCURRENT:
-		_spawn_one()
-		_cd = SPAWN_INTERVAL
+	if _to_spawn > 0 and _cd <= 0.0 and _alive.size() < Run.max_concurrent():
+		if not _spawn_one():
+			# 没有安全出生点：不消耗名额，稍后重试，绝不贴脸硬刷
+			_cd = 0.2
+			return
+		_cd = Run.spawn_interval()
 		return
 	# 本波刷完且场上都清干净 -> 进下一波
 	if _to_spawn <= 0 and _alive.is_empty() and _cd <= 0.0:
@@ -80,7 +87,10 @@ func _next_wave() -> void:
 	wave_started.emit(_wave, waves.size())
 
 
-func _spawn_one() -> void:
+func _spawn_one() -> bool:
+	var x := _pick_x()
+	if is_nan(x):
+		return false # 所有候选点都离玩家太近：本次不刷
 	var cfg: Dictionary = waves[_wave]
 	var is_elite := _elites_left > 0
 	var list: Array = ELITE_SCENES if is_elite else NORMAL_SCENES
@@ -89,8 +99,8 @@ func _spawn_one() -> void:
 	if e == null:
 		# 配置/资源异常时也消耗一个名额，避免波次永远清不完、房间卡死
 		_to_spawn -= 1
-		return
-	e.position = Vector2(_pick_x() + randf_range(-25.0, 25.0), spawn_y)
+		return true
+	e.position = Vector2(x + randf_range(-25.0, 25.0), spawn_y)
 	e.died.connect(_on_enemy_died.bind(e))
 	add_child(e)
 	if is_elite:
@@ -108,27 +118,44 @@ func _spawn_one() -> void:
 		})
 	_alive.append(e)
 	_to_spawn -= 1
+	return true
 
 
-## 挑一个离玩家不太近、也不压着其他存活怪的出生点，避免贴脸刷出 / 叠罗汉
+## 挑一个离所有存活玩家都超过 spawn_safe_dist、也不压着其他存活怪的出生点。
+## 找不到安全点时返回 NAN（调用方跳过这次刷新），绝不回落到"离怪最远"的贴脸点。
 func _pick_x() -> float:
 	if spawn_xs.is_empty():
 		return 640.0
-	var px: float = player_ref.global_position.x if is_instance_valid(player_ref) else 640.0
-	var ok: Array = spawn_xs.filter(func(x: float): return absf(x - px) > 260.0 and _peer_gap(x) > 110.0)
+	var ok: Array = spawn_xs.filter(func(x: float):
+		return _safe_from_players(float(x)) and _peer_gap(float(x)) > 110.0)
 	if ok.is_empty():
-		ok = spawn_xs.filter(func(x: float): return _peer_gap(x) > 110.0)
+		# 4 人局站位分散时固定点可能全被占住：在场地内再按 100px 采样一圈。
+		for i in range(6, 19):
+			var x := float(i) * 100.0
+			if _safe_from_players(x) and _peer_gap(x) > 110.0:
+				ok.append(x)
 	if ok.is_empty():
-		# 所有点上都站着怪：选离最近怪最远的那个点，至少错开最多
-		var best_x := float(spawn_xs[0])
-		var best_gap := -1.0
-		for x in spawn_xs:
-			var gap := _peer_gap(float(x))
-			if gap > best_gap:
-				best_gap = gap
-				best_x = float(x)
-		return best_x
+		return NAN
 	return float(ok[randi() % ok.size()])
+
+
+## 出生点是否与所有存活玩家保持安全距离（含跳跃中的头顶位置，按 2D 距离算）
+func _safe_from_players(x: float) -> bool:
+	var point := Vector2(x, spawn_y)
+	for p in _player_nodes():
+		if p == null or not is_instance_valid(p):
+			continue
+		if int(p.get("hp")) <= 0 or int(p.get("state")) == 8:
+			continue
+		if point.distance_to(p.global_position) < spawn_safe_dist:
+			return false
+	return true
+
+
+func _player_nodes() -> Array:
+	if not player_refs.is_empty():
+		return player_refs
+	return [player_ref] if player_ref != null else []
 
 
 ## 出生点到最近一只存活怪的水平距离

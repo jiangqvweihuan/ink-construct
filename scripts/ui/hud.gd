@@ -33,9 +33,12 @@ var _cd_labels: Array = []
 var _lock_labels: Array = []
 var _player: Node2D
 var _player_extra := 0
-var _partner: Node2D # 本机双人：P2，主 HUD 仍只显示 P1
+var _partner: Node2D # 第一位队友（slot 1），保留兼容；主 HUD 只显示本机角色
 var _partner_bar: Control
 var _partner_extra := 0
+## 联机 4 人：slot 2/3 的队友血条与额外生命缓存
+var _extra_partner_bars: Dictionary = {} # slot -> Control
+var _extra_partner_extra: Dictionary = {} # slot -> int
 var _boss_bar: Control
 var _boss_vital: Control
 var _boss_name: Label
@@ -71,7 +74,13 @@ func _ready() -> void:
 	_build_status(_root)
 	var players = get_tree().get_nodes_in_group("player")
 	if players.size() > 0:
+		# 客机 HUD 绑定自己槽位的角色；主机/单人绑定 P1
 		_player = players[0]
+		if Run.net_role == "client":
+			for p in players:
+				if is_instance_valid(p) and int(p.get("input_slot")) == Run.net_slot:
+					_player = p
+					break
 		_player.hp_changed.connect(_on_hp_changed)
 		_player.skull_changed.connect(_on_skull_changed)
 		_player_extra = int(_player.call("hud_extra_hp"))
@@ -102,35 +111,47 @@ func _build_hp_bar(root: Control) -> void:
 	bar.add_child(_hp_bar)
 
 
-## 本机双人：右上角补一条 P2 生命条（不抢 P1 的技能栏与状态区）
+## 多人：右上角按槽位给每位队友补一条生命条（最多 3 条纵向排列）
 func _build_partner_bar(root: Control, players: Array) -> void:
+	var others: Array = []
 	for p in players:
-		if is_instance_valid(p) and p != _player and int(p.get("input_slot")) == 1:
+		if is_instance_valid(p) and p != _player and int(p.get("input_slot")) > 0:
+			others.append(p)
+	others.sort_custom(func(a, b): return int(a.get("input_slot")) < int(b.get("input_slot")))
+	for i in others.size():
+		var p = others[i]
+		var slot := int(p.get("input_slot"))
+		var box := Control.new()
+		box.position = Vector2(998, 14 + i * 38)
+		box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(box)
+		var tag := _label("P%d" % (slot + 1), Vector2(0, 4), Vector2(34, 24), 17, PAPER, box)
+		tag.add_theme_color_override("font_outline_color", INK)
+		tag.add_theme_constant_override("outline_size", 4)
+		var bar := VitalBar.new()
+		bar.bar_width = 226.0
+		bar.bar_height = 22.0
+		bar.position = Vector2(42, 6)
+		box.add_child(bar)
+		if i == 0:
 			_partner = p
-			break
-	if _partner == null:
-		return
-	var box := Control.new()
-	box.position = Vector2(998, 14)
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(box)
-	var tag := _label("P2", Vector2(0, 4), Vector2(34, 24), 17, PAPER, box)
-	tag.add_theme_color_override("font_outline_color", INK)
-	tag.add_theme_constant_override("outline_size", 4)
-	_partner_bar = VitalBar.new()
-	_partner_bar.bar_width = 226.0
-	_partner_bar.bar_height = 22.0
-	_partner_bar.position = Vector2(42, 6)
-	box.add_child(_partner_bar)
-	_partner.hp_changed.connect(_on_partner_hp_changed)
-	_partner_extra = int(_partner.call("hud_extra_hp"))
-	_on_partner_hp_changed(_partner.hp, _partner.max_hp)
+			_partner_bar = bar
+			_partner_extra = int(p.call("hud_extra_hp"))
+			p.hp_changed.connect(_on_partner_hp_changed.bind(slot))
+			_on_partner_hp_changed(p.hp, p.max_hp, slot)
+		else:
+			_extra_partner_bars[slot] = bar
+			_extra_partner_extra[slot] = int(p.call("hud_extra_hp"))
+			p.hp_changed.connect(_on_partner_hp_changed.bind(slot))
 
 
-func _on_partner_hp_changed(hp: int, max_hp: int) -> void:
-	if _partner_bar == null:
+func _on_partner_hp_changed(hp: int, max_hp: int, slot := 1) -> void:
+	if slot == 1:
+		if _partner_bar != null:
+			_partner_bar.set_vital(hp, max_hp, _partner_extra)
 		return
-	_partner_bar.set_vital(hp, max_hp, _partner_extra)
+	if _extra_partner_bars.has(slot):
+		_extra_partner_bars[slot].set_vital(hp, max_hp, int(_extra_partner_extra.get(slot, 0)))
 
 
 # ---------- 底部动作栏 ----------

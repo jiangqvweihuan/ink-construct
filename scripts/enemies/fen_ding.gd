@@ -78,6 +78,8 @@ func finish_entrance() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if net_puppet:
+		return
 	if state == State.DEAD:
 		return
 	if _stop_timer > 0.0:

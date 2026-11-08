@@ -264,7 +264,7 @@ func _test_l() -> void:
 		_p._skill_tick(at - 0.01)
 		_check(_shots().is_empty() and _p.hp == 8, "L %s 曲终前不发音也不回血" % anim)
 		_p._skill_tick(0.0101)
-		_check(_p.hp == 10 and _shots().size() == 1, "L %s 曲终无需命中即回 2 血并发一道魔音" % anim)
+		_check(_p.hp == 11 and _shots().size() == 1, "L %s 曲终无需命中即回 3 血并发一道魔音" % anim)
 		if _shots().is_empty():
 			continue
 		var pr = _shots()[0]
@@ -644,7 +644,7 @@ func _test_permanent_nodes() -> void:
 	_p._start_skill("skill03")
 	_p._skill_tick(0.6801)
 	var shots := _shots()
-	_check(is_equal_approx(float(_p._skill_cds["skill03"]), 7.0) and _p.hp == 11 and shots.size() == 1, "余音续极分别使 L 冷却 -1 秒并额外回 1 血")
+	_check(is_equal_approx(float(_p._skill_cds["skill03"]), 7.0) and _p.hp == 12 and shots.size() == 1, "余音续极分别使 L 冷却 -1 秒并额外回 1 血")
 	if not shots.is_empty():
 		shots[0]._physics_process(0.1)
 		_check(is_equal_approx(echo_target._frenzy_time, 14.0), "余音初阶使魔音癫狂基础与最小时长 +2 秒")

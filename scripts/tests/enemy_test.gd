@@ -48,6 +48,7 @@ func _free_attack_token() -> void:
 
 
 func _ready() -> void:
+	Run.balance_scaling = false # 机制用例固定原始血量/伤害数值，人数缩放由 enemy_balance_probe 覆盖
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 	_log = FileAccess.open("res://tests/enemy_test.log", FileAccess.WRITE)
 	get_window().size = Vector2i(1280, 720)
