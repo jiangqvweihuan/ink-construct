@@ -20,7 +20,7 @@ const PAPER := Color(0.949, 0.918, 0.847)
 const RED := Color(0.66, 0.2, 0.16)
 const DIM := Color(0.62, 0.60, 0.56)
 const WIN_POS := Vector2(250, 60)
-const WIN_SIZE := Vector2(780, 580)
+const WIN_SIZE := Vector2(780, 620)
 const FPS_VALUES := [0, 30, 60, 120]
 const FPS_TEXTS := ["不限制", "30 帧", "60 帧", "120 帧"]
 const KEY_ORDER := [
@@ -35,6 +35,7 @@ var _cur_tab := ""
 var _capturing := ""
 var _key_btns := {}
 var _hint: Label
+var _apply_hint: Label
 var _hint_tw: Tween
 var _draft: Dictionary = {}
 var _closing := false
@@ -154,16 +155,16 @@ func _ready() -> void:
 	_content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_content.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_content)
-	add_child(_ink_button("恢复默认设置", Vector2(530, 592), Vector2(220, 36), _on_reset))
-	var apply_hint := Label.new()
-	apply_hint.text = "音量拖动即刻生效；其余设置在关闭时应用"
-	apply_hint.position = Vector2(350, 566)
-	apply_hint.size = Vector2(580, 22)
-	apply_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	apply_hint.add_theme_color_override("font_color", DIM)
-	apply_hint.add_theme_font_size_override("font_size", 15)
-	apply_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(apply_hint)
+	add_child(_ink_button("恢复默认设置", Vector2(530, 632), Vector2(220, 36), _on_reset))
+	_apply_hint = Label.new()
+	_apply_hint.text = "音量拖动即刻生效；其余设置在关闭时应用"
+	_apply_hint.position = Vector2(350, 600)
+	_apply_hint.size = Vector2(580, 22)
+	_apply_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_apply_hint.add_theme_color_override("font_color", DIM)
+	_apply_hint.add_theme_font_size_override("font_size", 15)
+	_apply_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_apply_hint)
 	add_to_group("modal_ui") # 手机返回手势优先关闭本面板，而不是弹退出确认
 	_switch_tab("音频")
 
@@ -221,6 +222,8 @@ func _switch_tab(tab: String) -> void:
 	_cancel_capture()
 	_cancel_editor()
 	_cur_tab = tab
+	if is_instance_valid(_apply_hint):
+		_apply_hint.visible = tab != "操作" # 操作页已有自己的说明，不再重复这条
 	for t in _tabs:
 		_tabs[t]["btn"].add_theme_color_override("font_color", PAPER if t == tab else DIM)
 		_tabs[t]["line"].visible = t == tab
@@ -365,14 +368,26 @@ func _build_keys() -> void:
 		b.add_theme_font_size_override("font_size", 20)
 		_content.add_child(b)
 		_key_btns[action] = b
-	_row_label("屏幕震动", 330, 500)
-	_content.add_child(_seal(Vector2(480, 500), bool(_draft["screen_shake"]), func(on): _draft["screen_shake"] = on))
+	_row_label("屏幕震动", 330, 502)
+	_content.add_child(_seal(Vector2(480, 502), bool(_draft["screen_shake"]), func(on): _draft["screen_shake"] = on))
+
+	# 本机双人固定键位：与上方 P1 可改键区分开，单独成块，避免混读
+	UiKit.rule(_content, Vector2(330, 534), Vector2(620, 1), Color(1, 1, 1, 0.12))
+	UiKit.label(_content, "玩家 2 · 本机双人", Vector2(330, 540), Vector2(300, 24), 17, Color(0.85, 0.3, 0.24),
+		HORIZONTAL_ALIGNMENT_LEFT, false)
+	UiKit.label(_content, "固定键位", Vector2(850, 541), Vector2(100, 22), 13, DIM,
+		HORIZONTAL_ALIGNMENT_RIGHT, false)
+	UiKit.label(_content, "← → 移动　·　↑ 跳跃（小键盘 0）　·　↓ 闪避（小键盘 5）",
+		Vector2(330, 568), Vector2(620, 22), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT, false)
+	UiKit.label(_content, "小键盘 1 普攻　·　2 / 3 / 4 / 6 / 7 / 8 技能一 ~ 六",
+		Vector2(330, 590), Vector2(620, 22), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT, false)
+
 	_hint = Label.new()
-	_hint.position = Vector2(WIN_POS.x, 546)
+	_hint.position = Vector2(WIN_POS.x, 610)
 	_hint.size = Vector2(WIN_SIZE.x, 24)
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.add_theme_color_override("font_color", Color(0.9, 0.35, 0.28))
-	_hint.add_theme_font_size_override("font_size", 18)
+	_hint.add_theme_font_size_override("font_size", 17)
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hint.visible = false
 	_content.add_child(_hint)

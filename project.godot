@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="墨构"
-config/version="0.10.0"
+config/version="0.10.1"
 run/main_scene="res://intro/Intro.tscn"
 config/auto_accept_quit=false
 config/quit_on_go_back=false
@@ -114,7 +114,7 @@ skill_p={
 
 [intro]
 
-return_scene="res://scenes/ui/mode_select.tscn"
+return_scene="res://scenes/ui/main_menu.tscn"
 
 [physics]
 

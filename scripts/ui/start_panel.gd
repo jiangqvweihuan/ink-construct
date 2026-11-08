@@ -16,13 +16,15 @@ const RED := Color(0.66, 0.2, 0.16)
 const GOLD := Color(0.9, 0.75, 0.3)
 
 const MODES := {
-	"adventure": {"label": "冒 险 模 式", "desc": "三关问道 · 讨伐守关者", "foot": "一卷有终，胜负有款"},
-	"endless": {"label": "无 尽 模 式", "desc": "层层深入 · 问道无止", "foot": "以所选问境为初始，逐层成长"},
+	"adventure": {"label": "冒 险 模 式", "desc": "三关问道 · 讨伐守关者"},
+	"endless": {"label": "无 尽 模 式", "desc": "层层深入 · 问道无止"},
 }
 
 var _mode := ""
 var _difficulty := 1 # 默认落笔，保持此前的战斗体验
 var _char := ""
+var _char2 := "" # 本机双人：P2 单独选择的化身
+var _pick_slot := 0 # 化身页当前正在为谁选人（0 = P1 / 1 = P2）
 var _step := 0 # 0 择路 / 1 问境 / 2 化身
 var _supply := ""
 ## 本机双人：由启动的模式选择界面置 true，启程时把双人标记写进 Run
@@ -72,10 +74,10 @@ func _build() -> void:
 	add_child(win)
 
 	var titles := ["择  路", "问  境", "化  身"]
-	var subtitles := ["此行向何处去", "五重墨境，只改敌众与敌锋", "先见其人，再赴其局"]
+	var subtitles := ["", "只改敌众与敌锋", "选化身与开局补给"]
 	_label("行 旅 卷 · 本 机 双 人" if local_coop else "行 旅 卷", 72, 16, RED)
 	if local_coop:
-		_text("P2 方向键 + 小键盘 1~8", Vector2(760, 16), Vector2(460, 26), 13, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
+		_text("P2：方向键 + 小键盘 1~8", Vector2(760, 72), Vector2(460, 26), 13, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 	_label(titles[_step], 98, 38, PAPER)
 	_label(subtitles[_step], 146, 16, DIM)
 	var steps := ["壹 · 择路", "贰 · 问境", "叁 · 化身"]
@@ -94,10 +96,11 @@ func _build() -> void:
 				_difficulty_card(i)
 			_button("上 一 步", 100, 585, _back, SFX_BACK)
 		2:
+			if local_coop:
+				_slot_tabs()
 			_character_step()
 			_button("上 一 步", 100, 590, _back, SFX_BACK)
 			_start_button = _button("启  程", 930, 590, _start_run, null)
-	_label("墨 构 · 一 卷 一 行", 624, 12, DIM)
 
 
 func _refresh() -> void:
@@ -136,21 +139,61 @@ func _pick_difficulty(index: int) -> void:
 
 
 func _pick_char(id: String) -> void:
+	_set_char(0, id)
+
+
+## 为指定槽位选人：P1/P2 各存一份，互不覆盖
+func _set_char(slot: int, id: String) -> void:
 	if not Meta.is_unlocked(id):
 		return
 	_click_sfx()
-	_char = id
+	if slot == 0:
+		_char = id
+	else:
+		_char2 = id
 	_refresh()
 
 
-func _ensure_char() -> void:
-	if _char != "" and Meta.is_unlocked(_char):
+## 化身页的 P1/P2 切换
+func _switch_pick(slot: int) -> void:
+	if slot == _pick_slot:
 		return
-	_char = ""
+	_click_sfx()
+	_pick_slot = 1 if slot == 1 else 0
+	_ensure_char_for(_pick_slot)
+	_refresh()
+
+
+func _slot_char(slot: int) -> String:
+	return _char if slot == 0 else _char2
+
+
+func _ensure_char() -> void:
+	_ensure_char_for(0)
+
+
+## 某槽位没有可用化身时补一个默认值；P2 优先选与 P1 不同的角色，便于一眼看出双人差异。
+func _ensure_char_for(slot: int) -> void:
+	var cur := _slot_char(slot)
+	if cur != "" and Meta.is_unlocked(cur):
+		return
+	var pick := ""
+	var fallback := ""
 	for id in Skulls.ids():
-		if Meta.is_unlocked(str(id)):
-			_char = str(id)
-			return
+		if not Meta.is_unlocked(str(id)):
+			continue
+		if fallback == "":
+			fallback = str(id)
+		if slot == 1 and str(id) == _char:
+			continue
+		pick = str(id)
+		break
+	if pick == "":
+		pick = fallback
+	if slot == 0:
+		_char = pick
+	else:
+		_char2 = pick
 
 
 func _start_run() -> void:
@@ -158,12 +201,16 @@ func _start_run() -> void:
 		return
 	if _mode == "" or _char == "" or not Meta.is_unlocked(_char):
 		return
+	if local_coop:
+		_ensure_char_for(1)
+		if _char2 == "" or not Meta.is_unlocked(_char2):
+			return
 	_starting = true
 	if is_instance_valid(_start_button):
 		_start_button.disabled = true
 	_play_sfx(SFX_RUN_EMBARK)
 	Meta.select_supply(_supply)
-	Run.start(_mode, _char, _difficulty, local_coop)
+	Run.start(_mode, _char, _difficulty, local_coop, _char2 if local_coop else "")
 	await LoadVeil.transition_to("res://scenes/world/room_01.tscn", "正在入卷")
 
 
@@ -215,9 +262,8 @@ func _texture_card(pos: Vector2, size: Vector2, selected := false, parent: Node 
 func _mode_card(id: String, i: int) -> void:
 	var info: Dictionary = MODES[id]
 	var b := _texture_card(Vector2(260 + i * 400, 252), Vector2(360, 270))
-	_card_text(b, str(info["label"]), Vector2(0, 42), Vector2(360, 48), 30, PAPER)
-	_card_text(b, str(info["desc"]), Vector2(20, 116), Vector2(320, 34), 17, DIM)
-	_card_text(b, str(info["foot"]), Vector2(20, 190), Vector2(320, 42), 15, RED)
+	_card_text(b, str(info["label"]), Vector2(0, 74), Vector2(360, 48), 30, PAPER)
+	_card_text(b, str(info["desc"]), Vector2(20, 146), Vector2(320, 34), 17, DIM)
 	b.pressed.connect(_pick_mode.bind(id))
 
 
@@ -236,8 +282,28 @@ func _difficulty_card(index: int) -> void:
 	b.pressed.connect(_pick_difficulty.bind(index))
 
 
+## 本机双人：化身页顶部的 P1 / P2 切换，两个槽位各选各的
+func _slot_tabs() -> void:
+	_ensure_char_for(0)
+	_ensure_char_for(1)
+	for slot in 2:
+		var active := slot == _pick_slot
+		var b := _texture_card(Vector2(82 + slot * 148, 172), Vector2(138, 34), active)
+		var who := "P1" if slot == 0 else "P2"
+		var pick := _slot_char(slot)
+		var name := ""
+		if pick != "":
+			name = str(Skulls.get_profile(pick).get("label", ""))
+		_card_text(b, "%s · %s" % [who, name] if name != "" else "%s · 化身" % who,
+			Vector2.ZERO, b.size, 14, PAPER if active else DIM)
+		b.pressed.connect(_switch_pick.bind(slot))
+
+
 func _character_step() -> void:
-	_ensure_char()
+	_ensure_char_for(_pick_slot)
+	if local_coop:
+		_ensure_char_for(0)
+		_ensure_char_for(1)
 	var ids := Skulls.ids()
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(90, 242)
@@ -266,10 +332,14 @@ func _character_step() -> void:
 	for i in ids.size():
 		_char_card(str(ids[i]), i, cards)
 	_rule(Vector2(782, 246), Vector2(1, 270))
-	if _char != "":
-		var profile: Dictionary = Skulls.get_profile(_char)
-		_text(str(profile["label"]), Vector2(812, 240), Vector2(220, 38), 26, GOLD if bool(profile.get("hero", false)) else PAPER, HORIZONTAL_ALIGNMENT_LEFT)
-		_text(str(profile.get("name", "")), Vector2(812, 278), Vector2(220, 26), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT)
+	var cur := _slot_char(_pick_slot)
+	if cur != "":
+		var profile: Dictionary = Skulls.get_profile(cur)
+		var head := str(profile["label"])
+		if local_coop:
+			head = "%s · %s" % ["P1" if _pick_slot == 0 else "P2", head]
+		_text(head, Vector2(812, 240), Vector2(300, 38), 26, GOLD if bool(profile.get("hero", false)) else PAPER, HORIZONTAL_ALIGNMENT_LEFT)
+		_text(str(profile.get("name", "")), Vector2(812, 278), Vector2(300, 26), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT)
 		var portrait_path := str(profile.get("portrait", ""))
 		if portrait_path != "" and ResourceLoader.exists(portrait_path):
 			_make_portrait(portrait_path)
@@ -286,8 +356,8 @@ func _char_card(id: String, i: int, parent: Control) -> void:
 	var profile: Dictionary = Skulls.get_profile(id)
 	var card: Control
 	if unlocked:
-		var b := _texture_card(Vector2(i * 134, 0), Vector2(122, 240), id == _char, parent)
-		b.pressed.connect(_pick_char.bind(id))
+		var b := _texture_card(Vector2(i * 134, 0), Vector2(122, 240), id == _slot_char(_pick_slot), parent)
+		b.pressed.connect(_set_char.bind(_pick_slot, id))
 		card = b
 	else:
 		var t := TextureRect.new()
@@ -307,7 +377,22 @@ func _char_card(id: String, i: int, parent: Control) -> void:
 		_card_text(card, str(profile.get("name", "")), Vector2(4, 76), Vector2(114, 42), 13, DIM)
 		_card_text(card, "契合", Vector2(0, 136), Vector2(122, 22), 12, DIM)
 		_card_text(card, Meta.mastery_text(id), Vector2(2, 160), Vector2(118, 24), 13, RED)
-		_card_text(card, "已 选" if id == _char else "选 择", Vector2(0, 202), Vector2(122, 24), 13, RED if id == _char else DIM)
+		var mark := "选 择"
+		var mark_color := DIM
+		if local_coop:
+			# 双人：卡片上直接标出被 P1 / P2 选中的情况，切页也不会看漏
+			var tags: Array = []
+			if id == _char:
+				tags.append("P1")
+			if id == _char2:
+				tags.append("P2")
+			if not tags.is_empty():
+				mark = "已 选 " + "/".join(tags)
+				mark_color = RED
+		elif id == _char:
+			mark = "已 选"
+			mark_color = RED
+		_card_text(card, mark, Vector2(0, 202), Vector2(122, 24), 12 if local_coop else 13, mark_color)
 	else:
 		_card_text(card, "？？？", Vector2(0, 34), Vector2(122, 38), 22, PAPER)
 		_card_text(card, Meta.unlock_hint(id), Vector2(4, 94), Vector2(114, 76), 12, DIM)
@@ -326,7 +411,7 @@ func _make_portrait(path: String) -> void:
 
 
 func _make_preview() -> void:
-	var profile: Dictionary = Skulls.get_profile(_char)
+	var profile: Dictionary = Skulls.get_profile(_slot_char(_pick_slot))
 	var data = load(str(profile["data"]))
 	if data == null or not data.call("is_skeleton_data_loaded"):
 		return

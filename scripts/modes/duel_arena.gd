@@ -302,6 +302,9 @@ func _build_team(ids: Array, stats: Dictionary, base_x: float, step: float, side
 	var n := ids.size()
 	for i in n:
 		var e: Dictionary = Roster.find(str(ids[i]))
+		# 图鉴里不存在的角色只占位显示，绝不出战：没有可用场景直接跳过。
+		if not bool(e.get("available", false)) or str(e.get("scene", "")).is_empty():
+			continue
 		var sid := str(e["id"])
 		var unit = load(str(e["scene"])).instantiate()
 		var script_path := str(BossTypes.SCRIPT_OVERRIDES.get(sid, ""))

@@ -48,7 +48,7 @@ const SKULLS := {
 			{"anim": "atk02", "lock": 0.50, "hits": [0.14], "damage": 1, "range": 85.0, "lunge": 110.0, "cast_sfx": "assassin_basic_attack"},
 			# atk03 是回身横扫：匕尖甩到原点左侧 92px，判 both（前后都算命中）
 			# 第二段加重到 2 伤：绯刃普攻单段最低，整套由 4 伤提到 5 伤补持续输出。
-			{"anim": "atk03", "lock": 1.30, "hits": [{"at": 0.26, "damage": 1}, {"at": 0.72, "damage": 2}], "damage": 1, "range": 95.0, "lunge": 120.0, "both": true, "cast_sfx": "assassin_basic_attack"},
+			{"anim": "atk03", "lock": 1.30, "hits": [{"at": 0.26, "damage": 1}, {"at": 0.72, "damage": 2, "range": 75.0}], "damage": 1, "range": 95.0, "lunge": 120.0, "both": true, "cast_sfx": "assassin_basic_attack"},
 		],
 		"skills": {
 			# K 穿影突刺（第 19 号 skill01，1.567s）：0.75~1.28s 隐身前冲穿过敌人，1.30s 现身一刀。
@@ -282,9 +282,9 @@ const SKULLS := {
 			# O 剑域三段（觉醒限定，第 55 号）：多段眩晕 → 横斩超远击退 + 流血 → 祈祷回血 + 加伤
 			"skill09": {"action": "skill_o", "cooldown": 14.0, "poise": true, "require_buff": true,
 				"hits": [
-					{"at": 0.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "voice_fan_hit"},
-					{"at": 1.3, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "voice_fan_hit"},
-					{"at": 1.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "sfx": "voice_fan_hit"},
+					{"at": 0.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "both": true, "sfx": "voice_fan_hit"},
+					{"at": 1.3, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "both": true, "sfx": "voice_fan_hit"},
+					{"at": 1.8, "range": 110.0, "height": 120.0, "damage": 1, "stun": 0.8, "both": true, "sfx": "voice_fan_hit"},
 					{"at": 3.0, "range": 260.0, "height": 130.0, "damage": 4, "sfx": "skill_blade", "bleed": 2,
 						"knockback": {"force": 900.0, "impact": 0, "ignore_armor": true}},
 					{"at": 5.2, "heal_ratio": 0.25, "self_buff": {"damage": 1, "time": 6.0}, "sfx": "voice_skill_cast"}]},
@@ -404,7 +404,7 @@ const SKULLS := {
 			{
 				"pool": ["skill03", "skill09"], "damage": 1, "lunge": 130.0,
 				"hit_at": {"skill03": 0.16, "skill09": 0.50},
-				"range": {"skill03": 125.0, "skill09": 135.0},
+				"range": {"skill03": 150.0, "skill09": 135.0},
 			},
 			{
 				"pool": ["skill04", "skill08"], "damage": 2, "lunge": 120.0,

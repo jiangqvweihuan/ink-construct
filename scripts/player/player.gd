@@ -88,7 +88,7 @@ var _dash_gap := 0.0 # 闪避结束后的最小间隔；冷却返还也不能绕
 var _attack_idx := -1
 var _attack_timer := 0.0
 var _attack_queued := false
-var _attack_recovery := 0.0 # 全体化身：连段结束或中断后，1 秒内不能重新起手普攻
+var _attack_recovery := 0.0 # 全体化身：连段结束或中断后，0.7 秒内不能重新起手普攻
 var _attack_hits: Array = [] # 本段普攻剩余待结算的命中时刻（动画秒），按升序弹出
 var _hurt_timer := 0.0
 var _hurt_invincible := 0.0 # 受伤后的短暂无敌：被围殴时不会一帧连掉好几血
@@ -325,6 +325,7 @@ var fx: PlayerFx
 
 func _ready() -> void:
 	add_to_group("player")
+	_ignore_player_volume()
 	if input_slot != 0:
 		LocalCoop.ensure_input() # P2 动作运行时注册，早于本帧任何轮询
 	max_hp = Run.form_base_hp(skull_id)
@@ -334,6 +335,15 @@ func _ready() -> void:
 	_apply_profile(skull_id)
 	_setup_spine()
 	audio = PlayerAudio.new(self)
+
+
+## 多人同屏：玩家之间不做实体碰撞，避免互相挤开/卡位；地面、敌人与投射物不受影响
+func _ignore_player_volume() -> void:
+	for other in get_tree().get_nodes_in_group("player"):
+		if other == self or not (other is PhysicsBody2D):
+			continue
+		add_collision_exception_with(other)
+		other.add_collision_exception_with(self)
 
 
 func _register_pipa_passives() -> void:
@@ -1535,9 +1545,11 @@ func _deal_hit(h = null) -> void:
 		var dx: float = p.global_position.x - global_position.x
 		var dy: float = absf(p.global_position.y - global_position.y)
 		var in_front := dx == 0.0 or (dx > 0.0) == (facing > 0)
+		# 纵向容差默认 70（普攻几乎贴地判定），个别招式可用 height 单独放宽/收紧
+		var reach_h := float(spec.get("height", atk.get("height", 70.0)))
 		# both = 回身横扫：动画把武器甩到身后，前后两侧都算命中，否则"动画打到却没判上"
 		# 射程 + 目标受击半径：体型大的 Boss 在身体边缘就能被够到，不用贴到原点
-		if not (in_front or side_any) or absf(dx) > reach + _radius_of(p) or dy > 70.0:
+		if not (in_front or side_any) or absf(dx) > reach + _radius_of(p) or dy > reach_h:
 			continue
 		_damage_enemy(p, dmg + _target_damage_bonus(p))
 		hit_scored() # 命中一只算一次连击
@@ -3477,6 +3489,9 @@ func _start_skill(n: String) -> void:
 	if _awaken_pending > 0.0:
 		_awaken_stacks = 0
 	_invincible = false
+	# 无敌型技能（红蝶 L「罗刹旋舞」等）起手即无敌：不等 _skill_tick 下一帧，避免起手同帧被命中打断
+	if bool(cfg.get("invincible", false)):
+		_invincible = true
 	# 自带位移动画（银夜 O 抽到 #87 skill11-cankao）：原地播放，收招瞬间瞬移整段冲刺距离（闪现窗口×速度）
 	_skill_teleport = 0.0
 	if _skill_anim in cfg.get("teleport_anims", []):
@@ -4202,6 +4217,9 @@ func mo_ting_release() -> void:
 func ming_zhong_hold(boss: Node2D) -> void:
 	if state == State.DEAD or boss == null or _saint_immune():
 		return
+	# 无敌型技能全程不可被打断：锁头也不能清掉无敌、强转 HURT
+	if _invincible:
+		return
 	_begin_attack_recovery_if_needed()
 	_set_blink(false)
 	_reset_root_follow()
@@ -4512,8 +4530,12 @@ func _try_revive(knockback: Vector2) -> bool:
 	elif skull_id == "c021" and not Run.c021_red_butterfly_used and has_battle_passive("c021_red_butterfly"):
 		red_butterfly = true
 		Run.c021_red_butterfly_used = true
-		Run.max_hp = Run.calculated_max_hp()
-		max_hp = Run.max_hp
+		# 上限按「自己槽位的化身」算：本机双人时 Run.max_hp 是 P1 的全局值，
+		# 直接拿它给 P2 复活会把红蝶的 100 点压成 P1 的 8 点，起身七八秒就烧没了。
+		var butterfly_max := Run.calculated_max_hp(skull_id)
+		if int(input_slot) == 0:
+			Run.max_hp = butterfly_max
+		max_hp = butterfly_max
 		_red_butterfly_left = 1.0
 		can_revive = true
 	if not can_revive:
@@ -4562,6 +4584,9 @@ func _try_revive(knockback: Vector2) -> bool:
 	if red_butterfly:
 		fx.attach("E54015", Vector2(0.0, -64.0), "action", false,
 			{"scale": 0.5 * _body_fx_scale(), "fx_role": "revive"})
+		# 红蝶专属复活音：走完整播放通道，收招/受击短音不会把它截断。
+		# 只在本分支触发，赐福复活与复活墨符不会误响。
+		_play_full_sfx("assassin_revive", 0.0)
 	return true
 
 
@@ -4678,7 +4703,9 @@ func _begin_attack_recovery_if_needed() -> void:
 	if state != State.ATTACK:
 		return
 	if not (skull_id == "c023" and has_battle_passive("c023_frost_plum")):
-		_attack_recovery = maxf(_attack_recovery, 1.0)
+		# 收招硬直 0.7s：只锁“再次起手普攻”，不锁技能/移动/闪避，
+		# 比原来的 1.0s 更贴合连续作战节奏，又不会快到能无限连。
+		_attack_recovery = maxf(_attack_recovery, 0.7)
 	_attack_queued = false
 	_attack_hits.clear()
 

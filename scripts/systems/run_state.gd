@@ -209,14 +209,18 @@ var last_hit := {} # 玩家最后一次实际扣血的攻击者/招式/伤害，
 var meta_snapshot := {} # 开局时的 Meta 快照，结算面板 diff 出本局收获
 ## 联机实际人数（含主机）。LanNet 在加入/离开时维护，用于选 ENEMY_BALANCE 行。
 var net_players := 1
-## 联机多人：每个输入槽独立生命；形态、强化、赐福整局共享。
+## 多人：每个输入槽独立生命与化身；强化、赐福整局共享。
 var slot_hp: Dictionary = {} # slot -> int
+var slot_skull: Dictionary = {} # slot -> 化身 id（P1/P2 可各选不同角色）
 var slot_dead: Dictionary = {} # slot -> true（本房间已阵亡，等待下一房间复活）
 var slot_revive: Dictionary = {} # slot -> true（下一房间以 50% 上限自动复活）
+var last_death_slot := -1 # 最后阵亡的槽位；失败结算据此选立绘与「殁于」对应角色
 
 
 ## 开新一局（开始流程面板选完模式、难度与角色后调用；测试无参 = 冒险 + 落笔 + 绯刃）
-func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1, coop := false) -> void:
+## coop_skull：本机双人时 P2 单独选择的化身；留空则 P2 与 P1 同角色。
+func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1, coop := false, coop_skull := "") -> void:
+	BGM.stop_voice() # 入局即掐掉开场旁白：本局从头到尾都不再响（单人 / 双人 / 联机主机共用）
 	Achievements.begin_run() # 本局统计清零：无伤 / 速通 / 空手这些单局条件靠它
 	active = true
 	local_coop = coop
@@ -245,12 +249,17 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1,
 	z003_stolen.clear()
 	z003_madness_hp = 0
 	last_hit = {}
+	last_death_slot = -1
 	boss_defeated = []
 	boss_phase = 0
 	net_players = 1
 	slot_hp.clear()
 	slot_dead.clear()
 	slot_revive.clear()
+	slot_skull.clear()
+	slot_skull[0] = skull_id
+	if coop_skull != "":
+		slot_skull[1] = coop_skull
 	_roll_bosses()
 	meta_snapshot = Meta.snapshot() # 结算面板据此展示本局契合/解锁收获
 	Score.reset()
@@ -265,16 +274,18 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1,
 
 
 ## 化身固有生命与所有局内外上限修正统一走这里；红蝶触发后固定为 100（仍会被削上限）。
-func calculated_max_hp() -> int:
-	if skull_id == "c021" and c021_red_butterfly_used:
+## form_id 留空 = 本局主角（P1）；本机双人的 P2 传自己槽位的化身，生命按各自角色计算。
+func calculated_max_hp(form_id := "") -> int:
+	var id := form_id if form_id != "" else skull_id
+	if id == "c021" and c021_red_butterfly_used:
 		# 联机复活会把上限封到 50（c021_revive_cap）；未复活时仍是完整 100。
 		var butterfly := RED_BUTTERFLY_HP
 		if c021_revive_cap > 0:
 			butterfly = mini(butterfly, c021_revive_cap)
 		return maxi(1, butterfly - max_hp_loss)
-	var form_base := form_base_hp(skull_id)
+	var form_base := form_base_hp(id)
 	return maxi(1, form_base + level("hp") + (2 if blessing == "hp" else 0) \
-		+ Meta.start_hp_bonus() + Meta.form_hp_bonus(skull_id) + Achievements.bonus_int("hp") \
+		+ Meta.start_hp_bonus() + Meta.form_hp_bonus(id) + Achievements.bonus_int("hp") \
 		+ supply_hp - max_hp_loss + z003_madness_hp)
 
 
@@ -484,7 +495,8 @@ func advance() -> void:
 			continue
 		slot_revive.erase(slot)
 		slot_dead.erase(slot)
-		slot_hp[int(slot)] = revive_hp_for(skull_id, calculated_max_hp())
+		var form := slot_skull_of(int(slot))
+		slot_hp[int(slot)] = revive_hp_for(form, calculated_max_hp(form))
 	# 无尽：打完 Boss 进下一层（三小关重来，Boss 换一只，数值更高）
 	if mode == MODE_ENDLESS and room_index > ROOMS.size():
 		depth += 1
@@ -582,8 +594,11 @@ func consume_supply_reroll() -> bool:
 ## 离开房间前：把玩家当前状态写进 run（联机按 input_slot 分槽保存）
 func snapshot(player, slot := -1) -> void:
 	var s := _slot_of(player, slot)
-	if net_role != "":
-		slot_hp[s] = int(player.hp)
+	# 每个槽位各存各的血量与化身：P1/P2 选不同角色时不会互相覆盖
+	slot_hp[s] = int(player.hp)
+	slot_skull[s] = str(player.skull_id)
+	if s != 0:
+		return
 	hp = int(player.hp)
 	max_hp = int(player.max_hp)
 	skull_id = str(player.skull_id)
@@ -596,24 +611,27 @@ func apply_to(player, slot := -1) -> void:
 		push_error("Run.apply_to: 玩家缺少 set_upgrades（脚本未加载？），状态未装回")
 		return
 	var s := _slot_of(player, slot)
+	var form := slot_skull_of(s)
 	player.set_upgrades(upgrades)
-	if player.skull_id != skull_id:
-		player.swap_skull(skull_id)
-	max_hp = calculated_max_hp()
-	player.max_hp = player.effective_max_hp(max_hp) if player.has_method("effective_max_hp") else max_hp
+	if player.skull_id != form:
+		player.swap_skull(form)
+	var cap := calculated_max_hp(form)
+	if s == 0:
+		max_hp = cap # 结算 / HUD 仍以 P1 为准
+	player.max_hp = player.effective_max_hp(cap) if player.has_method("effective_max_hp") else cap
 	var extra_cap: int = player.extra_hp_cap() if player.has_method("extra_hp_cap") else 0
-	var want_hp := int(slot_hp.get(s, hp)) if net_role != "" else hp
+	var want_hp := int(slot_hp.get(s, hp))
 	player.hp = clampi(want_hp, 1, player.max_hp + extra_cap)
 	player.hp_changed.emit(player.hp, player.max_hp)
 	if player.has_method("on_room_enter"):
 		player.on_room_enter()
 
 
-## 联机槽位解析：显式 slot 优先；否则联机按玩家 input_slot，单人/本机双人按 0。
+## 槽位解析：显式 slot 优先；否则按玩家 input_slot（P1=0，本机双人 P2=1）。
 func _slot_of(player, slot: int) -> int:
 	if slot >= 0:
 		return slot
-	if net_role != "" and player != null and is_instance_valid(player):
+	if player != null and is_instance_valid(player):
 		return int(player.input_slot)
 	return 0
 
@@ -623,11 +641,22 @@ func slot_hp_of(slot: int) -> int:
 	return int(slot_hp.get(slot, hp))
 
 
+## 某槽的化身；未登记时回落到本局主角（P1）。
+func slot_skull_of(slot: int) -> String:
+	return str(slot_skull.get(slot, skull_id))
+
+
+## 写入某个槽位的化身（联机开局按成员各自选择分配）。
+func set_slot_skull(slot: int, id: String) -> void:
+	if id != "":
+		slot_skull[slot] = id
+
+
 ## 玩家在自己的房间内更新血量（梅剑每房回满 / 治疗等），同步到对应槽位。
 func set_slot_hp(slot: int, value: int) -> void:
-	if net_role != "":
-		slot_hp[slot] = maxi(0, value)
-	hp = maxi(0, value)
+	slot_hp[slot] = maxi(0, value)
+	if slot == 0:
+		hp = maxi(0, value)
 
 
 ## 联机阵亡：本房保持倒地，下一房间自动复活；单人/本机双人仍走原有全灭结算。

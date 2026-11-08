@@ -1315,8 +1315,11 @@ func _player_spine_regression() -> void:
 	_prepare_innate("c021")
 	_player._start_skill("skill5-")
 	skill_fx = _player.fx.skill_spine
+	var l_hp := _player.hp
 	_player.hurt(1)
-	_check(_player.fx.skill_spine == null and skill_fx.is_queued_for_deletion(), "绯刃 L 受击打断同样释放持续特效")
+	_check(_player._invincible and _player.state == _player.State.SKILL and _player.hp == l_hp \
+		and _player.fx.skill_spine == skill_fx and not skill_fx.is_queued_for_deletion(),
+		"绯刃 L 释放即无敌，受击不打断且持续特效保留")
 
 	# 定山 K/L 以运行时 bounds 匹配实际范围，不再直接放大原始巨型骨架。
 	_clear_spine_regression_world()

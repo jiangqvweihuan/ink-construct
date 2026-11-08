@@ -16,10 +16,13 @@ const GOLD := Color(0.9, 0.75, 0.3)
 
 signal closed
 
-const WIN_POS := Vector2(90, 50)
+## 窗口按设计尺寸排版，实际位置在 _reflow 里按视口宽度动态居中，不再写死偏移。
 const WIN_SIZE := Vector2(1100, 620)
+const MARGIN := 56.0 # 内容左右安全边距
+const FOOTER_Y := 566.0 # 底部状态栏
 
 var _sfx: AudioStreamPlayer
+var _root: Control
 var _body: Control
 var _status: Label
 var _room_list: VBoxContainer
@@ -46,11 +49,20 @@ func _ready() -> void:
 	_connect_net()
 	LanNet.begin_scan()
 	_render()
+	get_viewport().size_changed.connect(_reflow)
 
 
 func _exit_tree() -> void:
 	if LanNet.role == "":
 		LanNet.end_scan()
+
+
+## Esc：与右上角叉号走同一条关闭路径（离开房间 / 停止扫描后回择途层）。
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("ui_cancel"):
+		return
+	get_viewport().set_input_as_handled()
+	_close()
 
 
 func _process(delta: float) -> void:
@@ -79,43 +91,65 @@ func _build_chrome() -> void:
 	add_child(dim)
 	UiKit.fit_layer(self, [dim])
 
+	# 窗口与全部内容统一挂在 _root 下，坐标一律相对窗口左上角；
+	# 分辨率变化时只挪 _root，内部不再逐项修正，避免错位。
+	_root = Control.new()
+	_root.size = WIN_SIZE
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_root)
+
 	var win := TextureRect.new()
 	win.texture = InkTex.load("res://art/ui/menu/window_large.png")
 	win.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	win.stretch_mode = TextureRect.STRETCH_SCALE
 	win.size = WIN_SIZE
-	win.position = WIN_POS
 	win.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(win)
+	_root.add_child(win)
 
 	var backing := ColorRect.new()
 	backing.color = Color(0.05, 0.045, 0.04, 0.45)
-	backing.position = WIN_POS + Vector2(16, 16)
+	backing.position = Vector2(16, 16)
 	backing.size = WIN_SIZE - Vector2(32, 32)
 	backing.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(backing)
+	_root.add_child(backing)
 
-	_static_label("局 域 网 联 机", Vector2(WIN_POS.x, 70), Vector2(WIN_SIZE.x, 42), 34, PAPER)
-	_static_label("同处一网，落笔共卷", Vector2(WIN_POS.x, 112), Vector2(WIN_SIZE.x, 24), 15, DIM)
+	_static_label("局 域 网 联 机", Vector2(0, 20), Vector2(WIN_SIZE.x, 44), 32, PAPER, HORIZONTAL_ALIGNMENT_CENTER)
+	_static_label("同处一网，落笔共卷", Vector2(0, 64), Vector2(WIN_SIZE.x, 22), 15, DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	UiKit.rule(_root, Vector2(MARGIN, 98), Vector2(WIN_SIZE.x - MARGIN * 2.0, 1), Color(PAPER, 0.12))
 
 	var close := TextureButton.new()
 	close.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	close.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 	close.ignore_texture_size = true
 	close.stretch_mode = TextureButton.STRETCH_SCALE
-	close.position = Vector2(WIN_POS.x + WIN_SIZE.x - 84, 66)
+	close.position = Vector2(WIN_SIZE.x - 84, 22)
 	close.size = Vector2(52, 44)
 	close.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	close.pressed.connect(_close)
-	add_child(close)
-	_static_label("×", close.position, Vector2(52, 44), 28, PAPER)
+	_root.add_child(close)
+	_static_label("×", close.position, Vector2(52, 44), 28, PAPER, HORIZONTAL_ALIGNMENT_CENTER)
 
 	_body = Control.new()
+	_body.size = WIN_SIZE
 	_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_body.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(_body)
+	_root.add_child(_body)
 
-	_status = _static_label("", Vector2(WIN_POS.x, WIN_POS.y + WIN_SIZE.y - 52), Vector2(WIN_SIZE.x, 24), 15, GOLD)
+	_status = _static_label("", Vector2(0, FOOTER_Y), Vector2(WIN_SIZE.x, 24), 14, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_reflow()
+
+
+## 按当前视口宽度把整窗放到视觉正中；窄画布时等比缩小，避免右侧被裁掉。
+func _reflow() -> void:
+	if not is_instance_valid(_root):
+		return
+	var vp_rect := get_viewport().get_visible_rect().size
+	var s := clampf(minf(1.0, (vp_rect.x - 32.0) / WIN_SIZE.x), 0.7, 1.0)
+	_root.scale = Vector2(s, s)
+	# 宽画布沿用 1280 设计空间（上层已做整体偏移），窄画布直接按视口宽度重算
+	_root.position = Vector2(
+		minf((1280.0 - WIN_SIZE.x) * 0.5, (vp_rect.x - WIN_SIZE.x * s) * 0.5),
+		(vp_rect.y - WIN_SIZE.y * s) * 0.5
+	)
 
 
 func _connect_net() -> void:
@@ -152,80 +186,132 @@ func _render() -> void:
 
 
 func _build_menu() -> void:
-	var left := 130.0
-	var right := 660.0
-	_text("创 建 房 间", Vector2(left, 156), Vector2(400, 30), 22, PAPER)
-	_text("房 间 名", Vector2(left, 200), Vector2(110, 26), 15, DIM)
-	_name_edit = _line_edit(Vector2(left, 226), Vector2(400, 40), "墨构 · 房主")
-	_text("玩 法", Vector2(left, 280), Vector2(110, 26), 15, DIM)
-	_mode_opt = _option(Vector2(left, 306), Vector2(400, 40), ["冒 险 模 式", "无 尽 模 式"], 0)
-	_text("问 境", Vector2(left, 360), Vector2(110, 26), 15, DIM)
+	var left := MARGIN
+	var left_w := 440.0
+	var right := 584.0
+	var right_w := 460.0
+
+	_section("创 建 房 间", left, left_w, 116)
+	_text("房 间 名", Vector2(left, 170), Vector2(110, 26), 15, DIM)
+	_name_edit = _line_edit(Vector2(left, 196), Vector2(left_w, 40), "墨构 · 房主")
+	_text("玩 法", Vector2(left, 252), Vector2(110, 26), 15, DIM)
+	_mode_opt = _option(Vector2(left, 278), Vector2(left_w, 40), ["冒 险 模 式", "无 尽 模 式"], 0)
+	_text("问 境", Vector2(left, 334), Vector2(110, 26), 15, DIM)
 	var diffs: Array = []
 	for d in Run.DIFFICULTIES:
 		diffs.append(str(d.get("label", "问境")))
-	_diff_opt = _option(Vector2(left, 386), Vector2(400, 40), diffs, 1)
-	_text("化 身", Vector2(left, 440), Vector2(110, 26), 15, DIM)
+	_diff_opt = _option(Vector2(left, 360), Vector2(left_w, 40), diffs, 1)
+	_text("化 身", Vector2(left, 416), Vector2(110, 26), 15, DIM)
 	_chars = _unlocked_chars()
 	var char_labels: Array = []
 	for id in _chars:
 		char_labels.append(_char_name(str(id)))
-	_char_opt = _option(Vector2(left, 466), Vector2(400, 40), char_labels, 0)
-	_button("创 建 房 间", Vector2(left, 528), Vector2(400, 48), _on_host)
+	_char_opt = _option(Vector2(left, 442), Vector2(left_w, 40), char_labels, 0)
+	_button("创 建 房 间", Vector2(left, 508), Vector2(left_w, 50), _on_host, true)
 
-	_text("加 入 房 间", Vector2(right, 156), Vector2(440, 30), 22, PAPER)
+	# 两栏之间补一条竖向分隔线，创建 / 加入的分区边界一眼可辨
+	UiKit.rule(_body, Vector2(548, 116), Vector2(1, 442), Color(PAPER, 0.10))
+
+	_section("加 入 房 间", right, right_w, 116)
+	_room_panel(right, 168, right_w, 250)
 	_room_list = VBoxContainer.new()
-	_room_list.position = Vector2(right, 200)
-	_room_list.size = Vector2(440, 216)
+	_room_list.position = Vector2(right + 14, 180)
+	_room_list.size = Vector2(right_w - 28, 226)
 	_room_list.add_theme_constant_override("separation", 8)
 	_body.add_child(_room_list)
-	_button("刷 新 列 表", Vector2(right, 428), Vector2(210, 40), _refresh_rooms)
-	_button("自 动 加 入", Vector2(right + 230, 428), Vector2(210, 40), _on_auto_join)
-	_text("或 手 动 输 入 主 机 IP", Vector2(right, 482), Vector2(440, 24), 14, DIM)
-	_ip_edit = _line_edit(Vector2(right, 508), Vector2(280, 40), "192.168.1.10")
-	_button("直 接 加 入", Vector2(right + 300, 508), Vector2(140, 40), _on_manual_join)
+	_button("刷 新 列 表", Vector2(right, 434), Vector2(220, 40), _refresh_rooms)
+	_button("自 动 加 入", Vector2(right + 240, 434), Vector2(220, 40), _on_auto_join, true)
+	_text("或 手 动 输 入 主 机 IP", Vector2(right, 482), Vector2(right_w, 20), 14, DIM)
+	_ip_edit = _line_edit(Vector2(right, 506), Vector2(300, 40), "192.168.1.10")
+	_button("直 接 加 入", Vector2(right + 312, 506), Vector2(148, 40), _on_manual_join)
 	_refresh_rooms()
 
 
 func _build_room() -> void:
-	var left := 150.0
+	var left := MARGIN
 	var title := str(LanNet.room.get("name", "局域网房间"))
-	_text(title, Vector2(left, 156), Vector2(980, 34), 26, PAPER)
+	_text(title, Vector2(left, 112), Vector2(700, 34), 26, PAPER)
 	var mode_text := "无尽" if str(LanNet.room.get("mode", "adventure")) == Run.MODE_ENDLESS else "冒险"
 	var diff_label := _diff_name(int(LanNet.room.get("difficulty", 1)))
-	_text("%s · %s · 房间号 %d" % [mode_text, diff_label, 1], Vector2(left, 196), Vector2(980, 24), 15, DIM)
+	_text("%s · %s · 房间号 %d" % [mode_text, diff_label, 1], Vector2(left, 148), Vector2(700, 24), 15, DIM)
+	UiKit.rule(_body, Vector2(left, 186), Vector2(WIN_SIZE.x - MARGIN * 2.0, 1), Color(PAPER, 0.12))
 
-	_text("队 伍", Vector2(left, 238), Vector2(980, 26), 18, PAPER)
-	var y := 276.0
+	_section("队 伍", left, 620, 200)
+	var y := 246.0
 	if _lobby.is_empty():
 		# 还没收到 lobby_changed 时先用本地 members 兜底
 		var rows: Array = []
 		for id in LanNet.members:
 			rows.append(LanNet.members[id])
 		for m in rows:
-			_member_row(left, y, str(m.get("name", "墨客")), bool(m.get("ready", false)), int(m.get("slot", 0)) == 0)
-			y += 44.0
+			_member_row(left, y, str(m.get("name", "墨客")), bool(m.get("ready", false)),
+				int(m.get("slot", 0)) == 0, _char_name(str(m.get("skull", ""))))
+			y += 46.0
 	else:
 		for m in _lobby.get("members", []):
 			if m is Dictionary:
-				_member_row(left, y, str(m.get("name", "墨客")), bool(m.get("ready", false)), bool(m.get("host", false)))
-				y += 44.0
+				_member_row(left, y, str(m.get("name", "墨客")), bool(m.get("ready", false)),
+					bool(m.get("host", false)), _char_name(str(m.get("skull", ""))))
+				y += 46.0
+
+	# 右侧独立信息栏：竖线把「队伍」与「房间信息」分开，避免整页信息全挤在左半边
+	UiKit.rule(_body, Vector2(700, 200), Vector2(1, 320), Color(PAPER, 0.10))
+	_section("房 间 信 息", 740, 310, 200)
+	var info_x := 740.0
+	var info_y := 250.0
+	_info_row(info_x, info_y, "玩 法", mode_text)
+	_info_row(info_x, info_y + 40.0, "问 境", diff_label)
+	_info_row(info_x, info_y + 80.0, "人 数", "%d / 4" % maxi(1, LanNet.members.size()))
+	_info_row(info_x, info_y + 120.0, "房 主", _host_name())
 
 	var is_host := LanNet.role == "host"
+	# 客机在房间里自选化身：上报主机后按槽位分配，两边可以用不同角色
+	if is_host:
+		_info_row(info_x, info_y + 160.0, "我 的 化 身",
+			_char_name(str(LanNet.room.get("skull", ""))))
+	else:
+		_text("我 的 化 身", Vector2(info_x, info_y + 160.0), Vector2(110, 26), 15, DIM)
+		var chars := _unlocked_chars()
+		var labels: Array = []
+		for id in chars:
+			labels.append(_char_name(str(id)))
+		var sel := chars.find(LanNet.my_skull())
+		var opt := _option(Vector2(info_x, info_y + 188.0), Vector2(280, 40), labels, maxi(0, sel))
+		opt.item_selected.connect(_on_client_skull.bind(chars))
 	var ready := _local_ready()
 	if is_host:
-		_button("开 始 对 局", Vector2(left, 486), Vector2(300, 48), _on_start)
-		_button("离 开 房 间", Vector2(left + 330, 486), Vector2(240, 48), _on_leave)
+		_button("开 始 对 局", Vector2(left, 486), Vector2(300, 50), _on_start, true)
 	else:
-		_button("取 消 准 备" if ready else "我 准 备 好 了", Vector2(left, 486), Vector2(300, 48), _on_toggle_ready)
-		_button("离 开 房 间", Vector2(left + 330, 486), Vector2(240, 48), _on_leave)
-	_text("等待房主开始…" if not is_host else "队友加入后即可开始（1~4 人，人数越多敌人越强）", Vector2(left, 546), Vector2(620, 24), 14, DIM)
-	_text("人数 %d / %d" % [maxi(1, LanNet.members.size()), 4], Vector2(left + 640, 546), Vector2(200, 24), 14, DIM)
+		_button("取 消 准 备" if ready else "我 准 备 好 了", Vector2(left, 486), Vector2(300, 50), _on_toggle_ready, true)
+	_button("离 开 房 间", Vector2(left + 320, 486), Vector2(220, 50), _on_leave)
+	_text("队友就绪后即可开始" if is_host else "等待房主开始…", Vector2(left, 540), Vector2(620, 22), 14, DIM)
 
 
-func _member_row(x: float, y: float, who: String, ready: bool, host: bool) -> void:
+func _member_row(x: float, y: float, who: String, ready: bool, host: bool, char_name := "") -> void:
 	var tag := "房主" if host else "客机"
-	_text("%s · %s" % [tag, who], Vector2(x, y), Vector2(360, 30), 18, PAPER)
-	_text("已就绪" if ready else "未就绪", Vector2(x + 380, y + 2), Vector2(140, 26), 15, GOLD if ready else DIM)
+	var line := "%s · %s" % [tag, who]
+	if char_name != "":
+		line += " · " + char_name
+	_text(line, Vector2(x, y), Vector2(500, 30), 18, PAPER)
+	_text("已就绪" if ready else "未就绪", Vector2(x + 500, y + 2), Vector2(120, 26), 15, GOLD if ready else DIM)
+
+
+## 客机在房间里换化身
+func _on_client_skull(index: int, chars: Array) -> void:
+	if index >= 0 and index < chars.size():
+		LanNet.set_my_skull(str(chars[index]))
+
+
+func _host_name() -> String:
+	var rows: Array = _lobby.get("members", []) if not _lobby.is_empty() else []
+	for m in rows:
+		if m is Dictionary and bool(m.get("host", false)):
+			return str(m.get("name", "墨客"))
+	for id in LanNet.members:
+		var m: Dictionary = LanNet.members[id]
+		if int(m.get("slot", 0)) == 0:
+			return str(m.get("name", "墨客"))
+	return "墨客"
 
 
 # ---------------------------------------------------------------- 操作
@@ -352,7 +438,7 @@ func _refresh_rooms() -> void:
 	var rooms := LanNet.discovered_rooms()
 	if rooms.is_empty():
 		var hint := Label.new()
-		hint.text = "正在扫描同一局域网内的房间…"
+		hint.text = "正在扫描局域网…"
 		hint.add_theme_color_override("font_color", DIM)
 		hint.add_theme_font_size_override("font_size", 14)
 		hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -366,7 +452,7 @@ func _refresh_rooms() -> void:
 		]
 		var ip := str(r.get("ip", ""))
 		var port := int(r.get("port", 42422))
-		var b := _plain_button(label, Vector2(0, 0), Vector2(440, 40), _join.bind(ip, port))
+		var b := _plain_button(label, Vector2(0, 0), Vector2(_room_list.size.x - 8.0, 40), _join.bind(ip, port))
 		_room_list.add_child(b)
 
 
@@ -402,6 +488,8 @@ func _unlocked_chars() -> Array:
 
 
 func _char_name(id: String) -> String:
+	if id == "":
+		return ""
 	var prof := Skulls.get_profile(id)
 	return str(prof.get("name", prof.get("label", id)))
 
@@ -416,18 +504,46 @@ func _set_status(text: String) -> void:
 		_status.text = text
 
 
-## 常驻于 CanvasLayer 的静态文字（标题 / 关闭 / 状态栏），不会被 _render 清理
+## 常驻于窗口层的静态文字（标题 / 关闭 / 状态栏），不会被 _render 清理
 func _static_label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.position = pos
 	l.size = size
 	l.horizontal_alignment = align
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_font_size_override("font_size", font_size)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(l)
+	_root.add_child(l)
 	return l
+
+
+## 分区标题：大字 + 朱红短线，给每个功能块一个明确的视觉起点
+func _section(text: String, x: float, w: float, y: float) -> void:
+	_text(text, Vector2(x, y), Vector2(w, 32), 22, PAPER)
+	UiKit.rule(_body, Vector2(x, y + 38), Vector2(72, 2), Color(RED, 0.85))
+
+
+## 房间列表的暗底描边，和左侧表单拉开层次
+func _room_panel(x: float, y: float, w: float, h: float) -> void:
+	var p := Panel.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0.22)
+	sb.border_color = Color(PAPER, 0.10)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(4)
+	p.add_theme_stylebox_override("panel", sb)
+	p.position = Vector2(x, y)
+	p.size = Vector2(w, h)
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_body.add_child(p)
+
+
+## 房间信息一行：浅色名目 + 亮色取值
+func _info_row(x: float, y: float, key: String, value: String) -> void:
+	_text(key, Vector2(x, y), Vector2(90, 26), 15, DIM)
+	_text(value, Vector2(x + 96, y - 1), Vector2(214, 28), 17, PAPER)
 
 
 func _text(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
@@ -443,7 +559,7 @@ func _text(text: String, pos: Vector2, size: Vector2, font_size: int, color: Col
 	return l
 
 
-func _button(text: String, pos: Vector2, size: Vector2, cb: Callable) -> TextureButton:
+func _button(text: String, pos: Vector2, size: Vector2, cb: Callable, primary := false) -> TextureButton:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
@@ -451,6 +567,8 @@ func _button(text: String, pos: Vector2, size: Vector2, cb: Callable) -> Texture
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.position = pos
 	b.size = size
+	# 主操作按钮提亮一档，和次要按钮形成层级
+	b.modulate = Color(1.14, 1.08, 0.9) if primary else Color.WHITE
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	b.pressed.connect(func():
 		_sfx.play()

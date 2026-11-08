@@ -7,7 +7,7 @@ extends Control
 
 const Settings = preload("res://scripts/ui/settings.gd")
 const VIDEO_PATH := "res://intro/yeturn_intro.ogv"
-const FALLBACK_SCENE := "res://scenes/ui/mode_select.tscn"
+const FALLBACK_SCENE := "res://scenes/ui/main_menu.tscn"
 const PAPER := Color(0.968627, 0.960784, 0.941176) # #F7F5F0，与 boot splash 和清屏色一致
 const SKIP_DELAY := 0.25 # 启动瞬间的按键（例如连点进入）不允许跳过
 const FADE_TIME := 0.26 # 收尾淡出时长

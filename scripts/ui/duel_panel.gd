@@ -15,6 +15,7 @@ const SFX_DECIDE := preload("res://audio/sfx/shop_purchase.wav")
 
 const PAPER := Color(0.949, 0.918, 0.847)
 const DIM := Color(0.80, 0.77, 0.70)
+const UNKNOWN_COLOR := Color(0.52, 0.50, 0.47)
 const RED_COLOR := Color(0.87, 0.38, 0.31)
 const BLUE_COLOR := Color(0.44, 0.64, 0.94)
 const MAX_TEAM := 4
@@ -66,6 +67,8 @@ var _rows_blue: Array = []
 func _ready() -> void:
 	layer = 8
 	_roster = Roster.entries()
+	_red_ids = _sanitize(_red_ids)
+	_blue_ids = _sanitize(_blue_ids)
 	_sfx = AudioStreamPlayer.new()
 	_sfx.bus = "SFX"
 	add_child(_sfx)
@@ -204,15 +207,23 @@ func _build_card(root: Control, x: float, is_red: bool) -> void:
 			STAT_ROWS[i], float(stats.get(str(STAT_ROWS[i]["key"]), 0.0)), is_red, color)
 
 
-## 名录格：选中 = 按下的墨牌 + 队伍色字 + 底部队色线 + 左上角出场序号，未选 = 常态墨牌压暗
+## 名录格：选中 = 按下的墨牌 + 队伍色字 + 底部队色线 + 左上角出场序号，未选 = 常态墨牌压暗。
+## 图鉴里不存在的解锁角色只占位显示「不可用·未知」，按钮禁用，不能选中。
 func _chip(root: Control, e: Dictionary, pos: Vector2, order: int, color: Color, is_red: bool) -> void:
 	var id := str(e["id"])
-	var selected := order >= 0
-	var b := UiKit.texture_button(root, str(e["name"]), pos, Vector2(CHIP_W, CHIP_H), 15,
-		color if selected else DIM,
+	var available := bool(e.get("available", true))
+	var selected := available and order >= 0
+	var b := UiKit.texture_button(root, str(e["name"]), pos, Vector2(CHIP_W, CHIP_H),
+		15 if available else 12,
+		color if selected else (DIM if available else UNKNOWN_COLOR),
 		func(): _toggle(is_red, id),
 		UiKit.BTN_PRESSED if selected else UiKit.BTN_NORMAL)
+	if not available:
+		b.disabled = true
+		b.mouse_default_cursor_shape = Control.CURSOR_ARROW
 	b.modulate = Color(1, 1, 1, 1) if selected else Color(0.95, 0.95, 0.95, 0.55)
+	if not available:
+		b.modulate = Color(0.72, 0.72, 0.72, 0.38)
 	if selected:
 		UiKit.rule(root, Vector2(pos.x + 8, pos.y + CHIP_H - 3), Vector2(CHIP_W - 16, 2), color)
 		UiKit.label(root, str(order + 1), pos + Vector2(5, 2), Vector2(16, 16), 12, color,
@@ -327,8 +338,11 @@ func stat_text(key: String, v: float) -> String:
 			return "%.1fs" % v
 
 
-## 点名录：已选 → 取消（至少留一个）；未选 → 加入，满员就顶掉最后一位
+## 点名录：已选 → 取消（至少留一个）；未选 → 加入，满员就顶掉最后一位。
+## 图鉴里不存在的角色不允许进入队伍。
 func _toggle(is_red: bool, id: String) -> void:
+	if not Roster.in_codex(id):
+		return
 	var ids: Array = _red_ids if is_red else _blue_ids
 	if ids.has(id):
 		if ids.size() <= 1:
@@ -366,9 +380,23 @@ func _adjust(is_red: bool, key: String, delta: float) -> void:
 	_refresh()
 
 
+## 出战前过滤：只留下图鉴内存在的角色；整队都被过滤空时回落为名录第一个可用角色。
+func _sanitize(ids: Array) -> Array:
+	var out: Array = Roster.available_ids(ids)
+	if not out.is_empty():
+		return out
+	for e in _roster:
+		if bool(e.get("available", false)):
+			out.append(str(e["id"]))
+			break
+	return out
+
+
 func _start_battle() -> void:
 	_sfx.stream = SFX_DECIDE
 	_sfx.play()
+	_red_ids = _sanitize(_red_ids)
+	_blue_ids = _sanitize(_blue_ids)
 	_mode = "battle"
 	start_requested.emit(_red_ids.duplicate(), _blue_ids.duplicate(),
 		_red_stats.duplicate(), _blue_stats.duplicate())

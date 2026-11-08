@@ -19,6 +19,7 @@ const SFX_PRECACHE := [
 	"weapon_blade",
 	"assassin_basic_attack",
 	"assassin_projectile",
+	"assassin_revive", # 红蝶复活专属：独立完整播放，不与其他短音抢通道
 	"monk_basic_attack",
 	"monk_bell_quake",
 	"monk_vajra_wrath",

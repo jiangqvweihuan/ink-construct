@@ -32,11 +32,15 @@ var _hit_shown := false
 var _result_fx: Node2D
 var _result_anim := ""
 var _last_hit_fx: Node2D
+var _roster: Array = [] # 本次对局全部参与者：{slot, skull, alive, hp, max_hp}
+var _last_death_slot := -1 # 最后阵亡槽位，失败时用它选立绘
 
 
-func setup(title_text: String, cleared := false) -> void:
+func setup(title_text: String, cleared := false, roster: Array = [], last_slot := -1) -> void:
 	_title = title_text
 	_cleared = cleared
+	_roster = roster
+	_last_death_slot = last_slot
 
 
 func _ready() -> void:
@@ -91,14 +95,29 @@ func _build(diff: Dictionary, ink_gain: int) -> void:
 	_text("行 旅 记", Vector2(680, 198), Vector2(500, 32), 20, PAPER)
 	_make_line("%s · %s ｜ 历程 %s" % [Run.mode_label(), Run.difficulty_label(), _progress_text()], DIM, 17, 232)
 	_make_line("最高连击 %d ｜ 击杀 %d ｜ 已清房间 %d" % [Score.max_combo, Score.kills, Run.cleared_room_count()], PAPER, 18, 266)
-	var cy := 306.0
+	# 多人局：逐位列出参与者的化身与生死，结算不再只呈现 P1
+	var roster_lines := 0
+	if _roster.size() > 1:
+		roster_lines = int(ceil(float(_roster.size()) / 2.0))
+		for i in range(roster_lines):
+			var parts: Array = []
+			for j in range(2):
+				var idx := i * 2 + j
+				if idx >= _roster.size():
+					break
+				var r: Dictionary = _roster[idx]
+				var label := str(Skulls.get_profile(str(r.get("skull", ""))).get("label", "无名"))
+				parts.append("%s %s %s" % [_slot_label(int(r.get("slot", idx))), label, "生还" if bool(r.get("alive", false)) else "阵亡"])
+			_make_line(" ｜ ".join(parts), PAPER, 16, 292.0 + float(i) * 22.0)
+	var cy := 306.0 + float(roster_lines) * 22.0
 	if _cleared and not _defeated_ids().is_empty():
 		_make_line("讨伐落款 · %s" % _defeated_names(), RED, 19, cy)
 		cy += 36.0
 
 	var rows := 0
+	var max_rows := 2 if _roster.size() > 1 else 3
 	for id in diff["mastery"]:
-		if rows >= 3 or cy > 430.0:
+		if rows >= max_rows or cy > 430.0:
 			break
 		var old_exp := int(Run.meta_snapshot.get("mastery", {}).get(id, 0))
 		_make_mastery_row(str(id), int(diff["mastery"][id]), old_exp, cy, rows)
@@ -151,8 +170,40 @@ func _progress_text() -> String:
 	return "墨堂深处" if Run.room_index >= Run.ROOMS.size() else "第 %d / %d 关" % [Run.room_index + 1, Run.ROOMS.size()]
 
 
+## 结算立绘化身：胜利优先第一个生还者，失败优先最后阵亡者
+func _settlement_skull() -> String:
+	if not _roster.is_empty():
+		var pick := -1
+		if _cleared:
+			for i in _roster.size():
+				if bool(_roster[i].get("alive", false)):
+					pick = i
+					break
+			if pick < 0:
+				pick = 0
+		else:
+			for i in _roster.size():
+				if int(_roster[i].get("slot", -1)) == _last_death_slot:
+					pick = i
+					break
+			if pick < 0:
+				pick = _roster.size() - 1
+		var id := str(_roster[pick].get("skull", ""))
+		if id != "":
+			return id
+	if _last_death_slot >= 0:
+		var slot_id := Run.slot_skull_of(_last_death_slot)
+		if slot_id != "":
+			return slot_id
+	return Run.skull_id
+
+
+func _slot_label(slot: int) -> String:
+	return "P%d" % (slot + 1)
+
+
 func _make_avatar() -> void:
-	var profile: Dictionary = Skulls.get_profile(Run.skull_id)
+	var profile: Dictionary = Skulls.get_profile(_settlement_skull())
 	_avatar_data = load(str(profile["data"]))
 	if _avatar_data == null or not _avatar_data.call("is_skeleton_data_loaded"):
 		return
@@ -235,7 +286,7 @@ func _play_duel() -> void:
 	if _duel_done or not is_inside_tree():
 		return
 	_show_last_hit()
-	var profile: Dictionary = Skulls.get_profile(Run.skull_id)
+	var profile: Dictionary = Skulls.get_profile(_settlement_skull())
 	var hurt_anim := str(profile["anim"]["hurt"])
 	_avatar_state.call("set_animation", hurt_anim, false, 0)
 	await get_tree().create_timer(minf(0.42, _animation_duration(_avatar_data, hurt_anim, 0.3)), true).timeout
@@ -269,7 +320,7 @@ func _finish_duel() -> void:
 func _avatar_dead() -> void:
 	if _avatar_state == null:
 		return
-	var anim_map: Dictionary = Skulls.get_profile(Run.skull_id)["anim"]
+	var anim_map: Dictionary = Skulls.get_profile(_settlement_skull())["anim"]
 	_avatar_state.call("set_animation", str(anim_map["dead"]), false, 0)
 	var hold := str(anim_map.get("dead_hold", ""))
 	if hold != "":
@@ -403,7 +454,9 @@ func _frac_of(exp: int) -> float:
 
 func _restart() -> void:
 	get_tree().paused = false
-	Run.start(Run.mode, Run.skull_id, Run.difficulty, Run.local_coop)
+	# 再来一局保留本机双人的 P2 化身，不要退回成两人同一角色
+	var p2 := str(Run.slot_skull.get(1, "")) if Run.local_coop and Run.net_role == "" else ""
+	Run.start(Run.mode, Run.skull_id, Run.difficulty, Run.local_coop, p2)
 	await LoadVeil.transition_reload("正在重入此卷")
 
 

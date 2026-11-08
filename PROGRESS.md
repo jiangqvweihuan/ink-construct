@@ -142,4 +142,45 @@
 - 界面：墨锭商栈「外观收藏」页改为**试衣台**——主角 / 敌人两个子页，左侧角色列，中间大图实时播放该皮肤的 Spine 站姿（`SpineSprite`，按导出高度等比缩放到 214px），右侧条目只负责切换试穿，底部按钮确认购买 / 穿戴 / 恢复原装；素材缺失的皮肤显示「素材待补」且禁止购买。图鉴详情顶部在「原画 / 动作」左侧新增 `‹ 外观 ›` 切换，只列已购皮肤。主界面不再显示佩戴称号（只在功名录内查看与切换）。
 - 验证：全量解析无错误；逐套核对皮肤资源可加载、动画名全覆盖；图鉴演示台截图确认定山、将去未还·叁、苏挽音、蛮兵、焚鼎、青笠剑客的贴图与体型正常；商店试衣台截图确认玩家 / 敌人皮肤大图预览正常；玩家全部化身逐技能冒烟通过。
 
+---
+
+## 追加：多人对局结算与机制专项修复（2026-11-08）
+
+问题来源：本地双人 / 局域网联机下，结算只呈现 P1；玩家角色互相顶开卡位；红蝶 L 起手会被受击或锁头打断；双人模式焚鼎被击杀后角色向下穿出地图。
+
+### 一、多人结算适配全部参与者
+
+- `Run` 新增 `last_death_slot`：失败结算按「最后阵亡槽位」选立绘与「殁于」对应角色，不再固定 P1。
+- `room_01` 全灭时按槽位逐个 `Run.snapshot`，并新增 `_participant_skulls()`（按槽位去重）与 `_build_roster()`（槽位 / 化身 / 生死 / 血量）。
+- 结算面板改为 `setup(title, cleared, roster, last_slot)`：行旅记中按「P1 绯刃 生还 ｜ P2 梅剑 生还」逐人列出（每行 2 人）；胜利取首个生还者的立绘，失败取最后阵亡者。
+- 通关记账每位参与者各记一次契合，全局通关数只累计一次；击杀记账同理——每位玩家各得契合，图鉴收录 / 连击 / 成就只记一次。原「只给 P1 记账」的单人假设全部移除。
+
+### 二、玩家之间取消体积碰撞
+
+- 玩家进组后对所有 `player` 组成员双向 `add_collision_exception_with`，后生成的玩家补齐全对。
+- 覆盖本地双人、联机主机 1–4 人、客机镜像玩家；地形、敌人与投射物碰撞不受影响。
+
+### 三、红蝶 L「罗刹旋舞」全程无敌
+
+- 技能按配置 `invincible` 起手当帧即进入无敌，不再等下一帧，避免起手同帧被命中打断。
+- `ming_zhong_hold` 在无敌期间直接返回，锁头无法清掉无敌或强转受击；`mo_ting_hold` 原有同类判断保留。受伤、锁头、抓取三条打断入口全部覆盖，技能全程不被打断。
+
+### 四、焚鼎击杀后穿地
+
+- `fen_ding.die()` 与 `sui_yue` / `ming_zhong` / `wu_che` 的死亡清理，从「只清 P1」改为遍历所有玩家，消除多人局的灼烧与锁定残留。
+- `room_01._physics_process` 增加地板兜底：任一玩家低于 `GROUND_Y + 120` 时，先解除锁头与抓取状态，再复位到站立位并清零速度，任何机制冲突都不会把角色带出地图。
+
+### 五、验证
+
+- 专项探针（本地双人 / 联机主机 4 人）：11/11 通过——玩家两两无体积碰撞、红蝶 L 起手无敌且受击与锁头均不打断、焚鼎击杀后两人 `y=640` 落地且灼烧清空、结算名单 2 人、失败立绘对应最后阵亡槽位、通关立绘对应生还者。
+- 既有回归：`player_test` 105/105、`coop_balance_probe` 21/21、`fen_ding_test` 87/87、`settlement_dead_test` 18/18、`boss_test` 与 `start_flow_test` 通过；`net_unit_probe` fail=0；`net_integration_probe` 双进程主机 7/7、客机 5/5。
+- `settlement_clear_test` 非无头 9/9；无头（`--headless`）下「战斗房间隐藏鼠标」一项失败，是 headless DisplayServer 不支持鼠标模式所致，非代码回归。
+- 双人焚鼎击杀 + 结算截图目检：「P1 绯刃 生还 ｜ P2 梅剑 生还」完整显示、无重叠遮挡，角色稳定落地。
+- 临时探针、截图与日志已在验证后删除，不进入提交。
+
+### 说明
+
+- 局域网客机仍沿用既有流程：收到主机 `session_end` 后回大厅，结算面板在主机侧展示（名单已包含全部参与者）。若需要客机同步看到同一份结算，需要额外下发一次结算快照。
+- 涉及文件：`scripts/systems/run_state.gd`、`scripts/systems/meta.gd`、`scripts/world/room_01.gd`、`scripts/ui/settlement_panel.gd`、`scripts/player/player.gd`、`scripts/player/skulls.gd`、`scripts/enemies/fen_ding.gd`、`scripts/enemies/sui_yue.gd`、`scripts/enemies/ming_zhong.gd`、`scripts/enemies/wu_che.gd`、`scripts/enemies/c016.gd`、`scripts/tests/player_test.gd`
+
 

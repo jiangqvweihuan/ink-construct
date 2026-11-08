@@ -108,7 +108,8 @@ func _physics_process(delta: float) -> void:
 			if _state_timer <= 0.0:
 				_set_state(State.CHASE)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
-		move_and_slide()
+		_duel_clamp_back()
+		_duel_move_and_slide()
 		return
 	super(delta)
 
@@ -137,7 +138,7 @@ func _chase_tick(delta: float) -> void:
 	_attack_desire = minf(ATTACK_DESIRE_TIME, _attack_desire + delta * desire_scale)
 	if _attack_desire < ATTACK_DESIRE_TIME:
 		if approaching and dist < HOLD_DISTANCE:
-			if _approach_yield < YIELD_DISTANCE:
+			if _approach_yield < YIELD_DISTANCE and not duel_mode:
 				var yield_step := minf(speed * delta, YIELD_DISTANCE - _approach_yield)
 				_approach_yield += yield_step
 				velocity.x = move_toward(velocity.x, -facing * speed, accel * delta)
@@ -149,6 +150,11 @@ func _chase_tick(delta: float) -> void:
 			_play(str(_anim_map["chase"]), true)
 			return
 		elif dist < HOLD_DISTANCE - HOLD_TOLERANCE:
+			# 斗蛐蛐：Boss 不后退，贴身时原地站桩等出手，不再向后拉距。
+			if duel_mode:
+				velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+				_play(str(_anim_map["idle"]), true)
+				return
 			velocity.x = move_toward(velocity.x, -facing * speed, accel * delta)
 			_play(str(_anim_map["chase"]), true)
 			return
@@ -161,7 +167,7 @@ func _chase_tick(delta: float) -> void:
 	if _planned_move == RISE:
 		_start_fen_move(RISE)
 		return
-	var release_reach := float(HIT_RANGES[_planned_move]) * 0.5
+	var release_reach := float(HIT_RANGES[_planned_move]) * (1.0 if duel_mode else 0.5)
 	if dy <= 190.0 and dist <= release_reach + _radius_of(_target):
 		_start_fen_move(_planned_move)
 		return
@@ -256,7 +262,9 @@ func _hit_front(damage: int, reach: float, height: float, extra: Dictionary = {}
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy := absf(_target.global_position.y - global_position.y)
-	if (dx == 0.0 or (dx > 0.0) == (facing > 0)) and absf(dx) <= reach + _radius_of(_target) and dy <= height:
+	# 斗蛐蛐：Boss 不许后退，贴脸的小怪会穿到背后；此时仍应命中当前锁定的目标。
+	var front_ok := duel_mode or dx == 0.0 or (dx > 0.0) == (facing > 0)
+	if front_ok and absf(dx) <= reach + _radius_of(_target) and dy <= height:
 		_hit_status_target(_target, damage, knockback, _move_data(extra))
 
 
@@ -280,8 +288,9 @@ func _warn_rise() -> void:
 		_rise_positions.append(randf_range(ARENA_L + 120.0, ARENA_R - 120.0))
 	for x in _rise_positions:
 		var pos := Vector2(clampf(float(x), ARENA_L + 60.0, ARENA_R - 60.0), global_position.y)
+		# 预警圈可见宽 239px@scale1：0.92 时约 220px = RISE_RADIUS 110 × 2
 		var warning := FX.spawn(get_tree().current_scene, "telegraph", pos,
-			{"scale": 0.55, "mod": Color(1.0, 0.5, 0.45, 0.95)})
+			{"scale": 0.92, "mod": Color(1.0, 0.5, 0.45, 0.95)})
 		if warning != null:
 			_rise_warnings.append(warning)
 
@@ -397,7 +406,7 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 
 ## 炽热之心：每次共享怒焰真实扣血，只回血并刷新冷却一次，不改公共攻击欲望。
 func on_fen_ding_burn_hit(amount: int, _player: Node) -> void:
-	if state == State.DEAD or amount <= 0:
+	if state == State.DEAD or amount <= 0 or is_passive_sealed():
 		return
 	_heal(10)
 	for move in _move_cds:
@@ -424,8 +433,9 @@ func time_stop(dur: float) -> void:
 
 func die() -> void:
 	_cleanup_cast()
-	var pl := get_tree().get_first_node_in_group("player")
-	if pl != null and pl.has_method("clear_fen_ding_burn"):
-		pl.call("clear_fen_ding_burn", self)
+	# 多人局：灼烧要清到每一位玩家，不能只清 P1
+	for pl in get_tree().get_nodes_in_group("player"):
+		if is_instance_valid(pl) and pl.has_method("clear_fen_ding_burn"):
+			pl.call("clear_fen_ding_burn", self)
 	hp = 0
 	super()

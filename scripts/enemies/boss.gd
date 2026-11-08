@@ -62,6 +62,7 @@ var _turn_dir := 1 # 本次转身目标朝向
 # ---------- 形态注入 ----------
 
 func _apply_type() -> void:
+	duel_boss = true # 斗蛐蛐：Boss 绝不后退
 	var t: Dictionary = BossTypes.get_boss(type_id)
 	type_id = type_id if BossTypes.BOSSES.has(type_id) else BossTypes.DEFAULT_ID
 	_base_scale = float(t["scale"])
@@ -219,8 +220,9 @@ func _physics_process(delta: float) -> void:
 		_poison_tick(delta)
 		_pipa_status_tick(delta)
 		_custom_tick(delta)
+		_duel_clamp_back()
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
-		move_and_slide()
+		_duel_move_and_slide()
 		return
 	_fz_tick(delta) # 封锁火区只在常规战斗状态跑（变身/硬直/冲锋途中不喷）
 	super(delta)
@@ -539,7 +541,7 @@ func launch(_dir: int, _vx: float, vy: float, ignore_armor := false) -> void:
 
 
 func knock_back(dir: int, force: float, _impact: int, ignore_armor := false) -> void:
-	if not ignore_armor or state == State.DEAD or _invincible or _stop_timer > 0.0 or _is_uninterruptible():
+	if duel_mode or not ignore_armor or state == State.DEAD or _invincible or _stop_timer > 0.0 or _is_uninterruptible():
 		return
 	# 规则级推开：直接挪一段身位（0.12 系数把 900 力度换算成约 108px），不做抛物线
 	var push := clampf(force * 0.12, 0.0, 140.0)
@@ -611,7 +613,8 @@ func _spawn_fire_zones() -> void:
 		xs.append(randf_range(ARENA_L + 120.0, ARENA_R - 120.0))
 	for x in xs:
 		var pos := Vector2(clampf(x, ARENA_L + 60.0, ARENA_R - 60.0), global_position.y)
-		FX.spawn(get_tree().current_scene, "telegraph", pos, {"scale": 0.55, "mod": Color(1.0, 0.5, 0.45, 0.95)})
+		# 预警圈可见宽 239px@scale1：0.92 时约 220px = 伤害直径（radius 110 ×2）
+		FX.spawn(get_tree().current_scene, "telegraph", pos, {"scale": 0.92, "mod": Color(1.0, 0.5, 0.45, 0.95)})
 		_fire_zone_burst(pos)
 
 
@@ -620,7 +623,8 @@ func _fire_zone_burst(pos: Vector2) -> void:
 	await get_tree().create_timer(float(_fz.get("warn", 0.7))).timeout
 	if state == State.DEAD or not is_inside_tree():
 		return
-	FX.spawn(get_tree().current_scene, "fire_pillar", pos, {"scale": 0.6})
+	# 火柱可见宽 301px@scale1：0.73 时约 220px，与伤害直径对齐，避免"火柱没烧到却掉血"
+	FX.spawn(get_tree().current_scene, "fire_pillar", pos, {"scale": 0.73})
 	# 多团火柱几乎同帧喷发，共用单个播放器：后一个打断前一个，听感上就是一声爆炸
 	_sfx_player.stream = SFX_FIRE_BURST
 	_sfx_player.play()

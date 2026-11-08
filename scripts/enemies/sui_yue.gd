@@ -90,7 +90,8 @@ func _physics_process(delta: float) -> void:
 		_pipa_status_tick(delta)
 		_cast_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
-		move_and_slide()
+		_duel_clamp_back()
+		_duel_move_and_slide()
 		return
 	if state == S_RETREAT:
 		if _slow_timer > 0.0:
@@ -103,7 +104,8 @@ func _physics_process(delta: float) -> void:
 		_pipa_status_tick(delta)
 		_retreat_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
-		move_and_slide()
+		_duel_clamp_back()
+		_duel_move_and_slide()
 		return
 	super(delta)
 
@@ -123,7 +125,7 @@ func _chase_tick(delta: float) -> void:
 	if _planned_move.is_empty() and _attack_desire >= ATTACK_DESIRE_TIME:
 		_planned_move = _choose_move(dist)
 	if not _planned_move.is_empty():
-		var release_reach := float(HIT_RANGES[_planned_move]) * 0.5
+		var release_reach := float(HIT_RANGES[_planned_move]) * (1.0 if duel_mode else 0.5)
 		if _planned_move != EYE:
 			release_reach *= 1.0 + _eye_effect("reach")
 		if dy <= 190.0 and dist <= release_reach + _radius_of(_target):
@@ -144,7 +146,7 @@ func _chase_tick(delta: float) -> void:
 	_attack_desire = minf(ATTACK_DESIRE_TIME, _attack_desire + delta * desire_scale)
 	if _attack_desire < ATTACK_DESIRE_TIME:
 		if approaching and dist < HOLD_DISTANCE:
-			if _approach_yield < YIELD_DISTANCE:
+			if _approach_yield < YIELD_DISTANCE and not duel_mode:
 				var yield_step := minf(speed * delta, YIELD_DISTANCE - _approach_yield)
 				_approach_yield += yield_step
 				velocity.x = move_toward(velocity.x, -facing * speed, accel * delta)
@@ -156,6 +158,11 @@ func _chase_tick(delta: float) -> void:
 			_play(str(_anim_map["chase"]), true, MOVE_ANIM_SPEED)
 			return
 		elif dist < HOLD_DISTANCE - HOLD_TOLERANCE:
+			# 斗蛐蛐：Boss 不后退，贴身时原地站桩等出手，不再向后拉距。
+			if duel_mode:
+				velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+				_play(str(_anim_map["idle"]), true)
+				return
 			velocity.x = move_toward(velocity.x, -facing * speed, accel * delta)
 			_play(str(_anim_map["chase"]), true, MOVE_ANIM_SPEED)
 			return
@@ -176,6 +183,11 @@ func _choose_move(dist: float) -> String:
 
 
 func _retreat_tick(delta: float) -> void:
+	if duel_mode:
+		# 斗蛐蛐：收招后不后撤，直接回到追击。
+		_retreat_left = 0.0
+		_set_state(State.CHASE)
+		return
 	if _target == null or not is_instance_valid(_target):
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 		_set_state(State.IDLE)
@@ -273,7 +285,9 @@ func _hit_front(damage: int, reach: float, extra: Dictionary = {}) -> void:
 	var dx: float = _target.global_position.x - global_position.x
 	var dy := absf(_target.global_position.y - global_position.y)
 	reach *= 1.0 + _eye_effect("reach")
-	if (dx == 0.0 or (dx > 0.0) == (facing > 0)) and absf(dx) <= reach + _radius_of(_target) and dy <= 190.0:
+	# 斗蛐蛐：Boss 不许后退，贴脸的小怪会穿到背后；此时仍应命中当前锁定的目标。
+	var front_ok := duel_mode or dx == 0.0 or (dx > 0.0) == (facing > 0)
+	if front_ok and absf(dx) <= reach + _radius_of(_target) and dy <= 190.0:
 		# 影饵是裸 Node2D，没有状态计时字段；取不到就按未受控处理。
 		var stun_v = _target.get("_stun_time")
 		var cripple_v = _target.get("_cripple_time")
@@ -338,6 +352,8 @@ func _return_eye() -> void:
 
 
 func _eye_effect(key: String) -> float:
+	if is_passive_sealed():
+		return 0.0 # 剥离期间佛眼被动失效
 	return float((_eye_info.get("boss_effect", {}) as Dictionary).get(key, 0.0))
 
 
@@ -356,6 +372,9 @@ func on_player_hit(dealt: int, _move: Dictionary, _player: Node) -> void:
 
 func _finish_cast() -> void:
 	_cleanup_cast()
+	if duel_mode:
+		_set_state(State.CHASE)
+		return
 	_retreat_left = RETREAT_TIME
 	_set_state(S_RETREAT)
 
@@ -378,6 +397,8 @@ func _clear_mind_statuses() -> void:
 
 ## 每次任意伤害只消耗当前层的一次抵挡；直接伤害与普通打击走同一入口。
 func _consume_bell() -> bool:
+	if is_passive_sealed():
+		return false # 剥离期间金钟罩被动失效
 	if _bell_layers.is_empty():
 		return false
 	var left := int(_bell_layers[0]) - 1
@@ -452,8 +473,9 @@ func _text(text: String, color: Color) -> void:
 func die() -> void:
 	_cleanup_cast()
 	_return_eye()
-	var pl := get_tree().get_first_node_in_group("player")
-	if not player_ally and pl != null and pl.has_method("clear_sui_yue_effects"):
-		pl.call("clear_sui_yue_effects")
+	# 多人局：碎岳压力与附着的状态要清到每一位玩家
+	for pl in get_tree().get_nodes_in_group("player"):
+		if not player_ally and is_instance_valid(pl) and pl.has_method("clear_sui_yue_effects"):
+			pl.call("clear_sui_yue_effects")
 	hp = 0
 	super()

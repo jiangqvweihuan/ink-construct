@@ -22,6 +22,7 @@ var _current := "" # 当前曲目名，防同名重播
 var _menu_rng := RandomNumberGenerator.new()
 var _solo: AudioStreamPlayer # 独占曲目（致谢等）：普通 BGM 让位时使用
 var _solo_paused: Array[AudioStreamPlayer] = [] # 被暂停的普通 BGM，退出独占时恢复
+var _voice: AudioStreamPlayer # 旁白 / 剧情音轨：独立通道，可整体掐断，不碰点击与战斗音效
 
 
 func _ready() -> void:
@@ -33,6 +34,9 @@ func _ready() -> void:
 		p.volume_db = SILENT_DB
 		add_child(p)
 		_players.append(p)
+	_voice = AudioStreamPlayer.new()
+	_voice.bus = "SFX" # 旁白走音效总线，跟随玩家的音效音量
+	add_child(_voice)
 
 
 ## 播放指定曲目（带交叉淡化）。同名曲目已在播则直接返回，不重头播。
@@ -128,3 +132,29 @@ func stop_solo() -> void:
 		if is_instance_valid(p):
 			p.stream_paused = false
 	_solo_paused.clear()
+
+
+## 播放一段旁白（剧情音轨）：独立播放器，同一时间只留一段，重复调用先停旧的再从头播。
+func play_voice(path: String, volume_db: float = 0.0) -> void:
+	stop_voice()
+	var stream = load(path)
+	if stream == null:
+		push_error("BGM: 旁白加载失败 " + path)
+		return
+	_voice.stream = stream
+	_voice.volume_db = volume_db
+	_voice.play()
+
+
+## 立刻掐掉旁白（选定模式 / 进对局时调用）。只动旁白通道，BGM 与任何音效都不受影响。
+func stop_voice() -> void:
+	if _voice == null:
+		return
+	if _voice.playing:
+		_voice.stop()
+	_voice.stream = null
+
+
+## 旁白是否正在播放（测试与流程判断用）。
+func voice_playing() -> bool:
+	return _voice != null and _voice.playing

@@ -3,6 +3,7 @@ extends CanvasLayer
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Settings = preload("res://scripts/ui/settings.gd")
+const LocalCoop = preload("res://scripts/systems/local_coop.gd")
 const VitalBar = preload("res://scripts/ui/vital_bar.gd")
 const BattleStatus = preload("res://scripts/ui/battle_status.gd")
 
@@ -28,10 +29,11 @@ var _hp_bar: Control
 var _combo_label: Label
 var _mode_label: Label
 var _hud_skills: Array = []
-var _cd_masks: Array = []
-var _cd_labels: Array = []
-var _lock_labels: Array = []
 var _player: Node2D
+## 本机可控角色（本机双人时 P1/P2 都在本机；联机时只有自己那一位）
+var _local_players: Array = []
+## 每位本机角色的技能栏：player / skills / masks / cd_labels / lock_labels / y
+var _bars: Array = []
 var _player_extra := 0
 var _partner: Node2D # 第一位队友（slot 1），保留兼容；主 HUD 只显示本机角色
 var _partner_bar: Control
@@ -73,16 +75,11 @@ func _ready() -> void:
 	_build_mode_label(_root)
 	_build_status(_root)
 	var players = get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		# 客机 HUD 绑定自己槽位的角色；主机/单人绑定 P1
-		_player = players[0]
-		if Run.net_role == "client":
-			for p in players:
-				if is_instance_valid(p) and int(p.get("input_slot")) == Run.net_slot:
-					_player = p
-					break
+	_local_players = _collect_local_players(players)
+	if not _local_players.is_empty():
+		# 本机双人两位都归本机；联机客机只认自己槽位，主机只认 P1
+		_player = _local_players[0]
 		_player.hp_changed.connect(_on_hp_changed)
-		_player.skull_changed.connect(_on_skull_changed)
 		_player_extra = int(_player.call("hud_extra_hp"))
 		_on_hp_changed(_player.hp, _player.max_hp)
 		_hud_skills = _player.hud_skills
@@ -156,28 +153,76 @@ func _on_partner_hp_changed(hp: int, max_hp: int, slot := 1) -> void:
 
 # ---------- 底部动作栏 ----------
 
+## 本机可控角色：本机双人 = 两位；联机客机 = 自己槽位；联机主机/单人 = P1。
+func _collect_local_players(players: Array) -> Array:
+	var out: Array = []
+	for p in players:
+		if not is_instance_valid(p):
+			continue
+		var slot := int(p.get("input_slot"))
+		var local := true
+		if Run.net_role == "client":
+			local = slot == Run.net_slot
+		elif Run.net_role == "host":
+			local = slot == 0
+		if local:
+			out.append(p)
+	out.sort_custom(func(a, b): return int(a.get("input_slot")) < int(b.get("input_slot")))
+	if out.is_empty() and not players.is_empty():
+		out.append(players[0])
+	return out
+
+
+## 底部技能栏：每位本机角色一条，左半 P1、右半 P2，图标 / 冷却 / 招式名完全独立。
 func _build_action_bar(root: Control) -> void:
 	if _action_root != null and is_instance_valid(_action_root):
 		_action_root.queue_free()
 	_action_root = Control.new()
 	_action_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_action_root)
-	_cd_masks.clear()
-	_cd_labels.clear()
-	_lock_labels.clear()
-	var slot_count: int = 1 + _hud_skills.size()
+	_bars.clear()
+	if _local_players.is_empty():
+		return
+	# 窄画布（4:3）逻辑宽度不足 1280，按实际宽度分配左右半区，避免 P2 栏被裁掉
+	var usable := minf(1280.0, get_viewport().get_visible_rect().size.x)
+	var count := _local_players.size()
+	for i in count:
+		var p = _local_players[i]
+		if not is_instance_valid(p):
+			continue
+		var half := usable / float(count)
+		var cx := usable * 0.5 if count <= 1 else half * (i + 0.5)
+		_build_one_bar(p, cx, half)
+		if not p.skull_changed.is_connected(_on_skull_changed):
+			p.skull_changed.connect(_on_skull_changed)
+
+
+func _build_one_bar(p: Node2D, cx: float, half: float) -> void:
+	var skills: Array = p.hud_skills
+	var slot_count: int = 1 + skills.size()
 	var gap := SLOT_GAP if slot_count <= 6 else 60.0
+	# 半区放不下时压缩间距，保证 FHD / 4:3 下都不会越过中线和屏幕边缘
+	var max_w := half - 24.0
+	if slot_count > 1 and gap * float(slot_count - 1) + SLOT > max_w:
+		gap = maxf(44.0, (max_w - SLOT) / float(slot_count - 1))
 	var total_w := gap * float(slot_count - 1) + SLOT
-	var splat_w := maxf(340.0, total_w + 100.0)
-	var cx := 640.0 # 1280 基准画布中心；超宽画布由 CanvasLayer.offset 整层居中
+	var splat_w := clampf(total_w + 100.0, 300.0, half - 8.0)
 	var splat := _rect("res://art/ui/hud/action_splat.png", Vector2(splat_w, 104), Vector2(cx - splat_w * 0.5, 624), _action_root)
 	splat.modulate = Color(1, 1, 1, 0.94)
 	var start_x := cx - total_w * 0.5
+	var y := 650.0
+	# P1 / P2 标识：双人时一眼分清左右两条技能栏归谁
+	if _local_players.size() > 1:
+		var tag := _label("P%d" % (int(p.get("input_slot")) + 1), Vector2(cx - 30, y - 50), Vector2(60, 22), 14, GOLD, _action_root)
+		tag.add_theme_color_override("font_outline_color", INK)
+		tag.add_theme_constant_override("outline_size", 4)
+	var masks: Array = []
+	var cds: Array = []
+	var locks: Array = []
 	for i in slot_count:
 		var x := start_x + i * gap
-		var y := 650.0
-		var skill_id := "" if i == 0 else str(_hud_skills[i - 1])
-		var title := "普攻" if i == 0 else BattleStatus.skill_name(_player, i - 1)
+		var skill_id := "" if i == 0 else str(skills[i - 1])
+		var title := "普攻" if i == 0 else BattleStatus.skill_name(p, i - 1)
 		var name_label := _label(title, Vector2(x - 16, y - 25), Vector2(SLOT + 32, 22), 13, PAPER, _action_root)
 		name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		name_label.add_theme_color_override("font_outline_color", INK)
@@ -190,8 +235,13 @@ func _build_action_bar(root: Control) -> void:
 		mask.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		mask.visible = false
 		_action_root.add_child(mask)
-		_cd_masks.append(mask)
-		var key := Settings.action_label("attack") if i == 0 else str(_player.get_skill_key(skill_id))
+		masks.append(mask)
+		var key := ""
+		if i == 0:
+			# P2（及联机客机）的普攻键是 1，不是 P1 的设置键
+			key = LocalCoop.key_label("attack") if int(p.get("input_slot")) != 0 else Settings.action_label("attack")
+		else:
+			key = str(p.get_skill_key(skill_id))
 		if TouchControls.active:
 			key = "攻" if i == 0 else "墨" # 移动端没有键盘，改成手势标识
 		var key_label := _label(key, Vector2(x, y + 3), Vector2(SLOT, SLOT - 6), 23, PAPER, _action_root)
@@ -201,12 +251,13 @@ func _build_action_bar(root: Control) -> void:
 		cd_label.add_theme_color_override("font_outline_color", INK)
 		cd_label.add_theme_constant_override("outline_size", 5)
 		cd_label.visible = false
-		_cd_labels.append(cd_label)
+		cds.append(cd_label)
 		var lock := _label("", Vector2(x - 4, y + SLOT - 17), Vector2(SLOT + 8, 18), 11, Color(1.0, 0.55, 0.42), _action_root)
 		lock.add_theme_color_override("font_outline_color", INK)
 		lock.add_theme_constant_override("outline_size", 3)
 		lock.visible = false
-		_lock_labels.append(lock)
+		locks.append(lock)
+	_bars.append({"player": p, "skills": skills, "masks": masks, "cds": cds, "locks": locks, "y": y})
 
 
 func _label(text: String, pos: Vector2, dimensions: Vector2, font_size: int, color: Color, parent: Control) -> Label:
@@ -224,26 +275,36 @@ func _label(text: String, pos: Vector2, dimensions: Vector2, font_size: int, col
 
 
 func _update_action_bar() -> void:
-	for i in _hud_skills.size():
-		if i + 1 >= _cd_masks.size():
-			break
-		var skill_id := str(_hud_skills[i])
-		var ratio: float = _player.get_skill_cd_ratio(skill_id)
-		var left := BattleStatus.skill_cooldown(_player, skill_id)
-		var mask: ColorRect = _cd_masks[i + 1]
-		var cd_label: Label = _cd_labels[i + 1]
-		mask.visible = ratio > 0.001
-		cd_label.visible = left > 0.05
-		if mask.visible:
-			var h := (SLOT - 6) * ratio
-			mask.size.y = h
-			mask.position.y = 653.0 + (SLOT - 6 - h)
-		if cd_label.visible:
-			cd_label.text = "%.1f" % left if left < 3.0 else str(int(ceil(left)))
-		var lock_text := BattleStatus.skill_lock(_player, skill_id) if ratio <= 0.001 else ""
-		var lock_label: Label = _lock_labels[i + 1]
-		lock_label.visible = lock_text != ""
-		lock_label.text = lock_text
+	# 每位本机角色各读各的技能冷却，P1/P2 互不影响
+	for bar in _bars:
+		var p = bar["player"]
+		if p == null or not is_instance_valid(p):
+			continue
+		var skills: Array = bar["skills"]
+		var y := float(bar["y"])
+		var masks: Array = bar["masks"]
+		var cds: Array = bar["cds"]
+		var locks: Array = bar["locks"]
+		for i in skills.size():
+			if i + 1 >= masks.size():
+				break
+			var skill_id := str(skills[i])
+			var ratio: float = p.get_skill_cd_ratio(skill_id)
+			var left := BattleStatus.skill_cooldown(p, skill_id)
+			var mask: ColorRect = masks[i + 1]
+			var cd_label: Label = cds[i + 1]
+			mask.visible = ratio > 0.001
+			cd_label.visible = left > 0.05
+			if mask.visible:
+				var h := (SLOT - 6) * ratio
+				mask.size.y = h
+				mask.position.y = y + 3.0 + (SLOT - 6 - h)
+			if cd_label.visible:
+				cd_label.text = "%.1f" % left if left < 3.0 else str(int(ceil(left)))
+			var lock_text := BattleStatus.skill_lock(p, skill_id) if ratio <= 0.001 else ""
+			var lock_label: Label = locks[i + 1]
+			lock_label.visible = lock_text != ""
+			lock_label.text = lock_text
 
 
 # ---------- 生命条下方状态印记 ----------
@@ -439,8 +500,10 @@ func _process(delta: float) -> void:
 
 
 func _on_skull_changed(_id: String) -> void:
-	_hud_skills = _player.hud_skills
-	_player_extra = int(_player.call("hud_extra_hp"))
+	# 任意一位本机角色换化身都要重排双栏，避免 P2 的招式还停留在旧角色
+	if _player != null and is_instance_valid(_player):
+		_hud_skills = _player.hud_skills
+		_player_extra = int(_player.call("hud_extra_hp"))
 	_build_action_bar(_root)
 	_sync_status(true)
 

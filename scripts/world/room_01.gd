@@ -38,6 +38,7 @@ func p(msg) -> void:
 func _ready() -> void:
 	# 不再强制窗口大小：用户在设置里选的分辨率会被这里覆盖打回 1280x720
 	BGM.play_bgm("battle") # 进房间切战斗 BGM（破阵）
+	BGM.stop_voice() # 联机客机不调 Run.start，这里兜底：进局就停旁白，整局不再触发
 	# 直接跑场景 = 开新一局；从上一层过来时 Run.active 已为 true，状态（血量/形态/强化）沿用
 	if not Run.active:
 		Run.start()
@@ -206,19 +207,7 @@ func _build_actors() -> void:
 	for slot in range(1, total):
 		_spawn_player(slot, _spawn_offset_pos(base_x, slot))
 
-	_camera = Camera2D.new()
-	_camera.position = Vector2(0, -80)
-	_camera.limit_left = 0
-	_camera.limit_right = int(ROOM_W)
-	_camera.limit_top = 0
-	_camera.limit_bottom = 720
-	_camera.position_smoothing_enabled = true
-	_camera.position_smoothing_speed = 8.0
-	_player.add_child(_camera)
-	if total > 1:
-		_camera.zoom = Vector2(0.86, 0.86) # 多人同屏稍微拉远，免得队友出画
-	_camera.make_current()
-	Feel.register_camera(_camera) # 打击感系统靠这台相机做屏幕震动
+	_setup_camera(_player)
 
 	# Boss 房：不刷波次，直接请 Boss 登场；普通房间走波次刷怪
 	if Run.is_boss_room():
@@ -260,25 +249,13 @@ func _build_actors_client() -> void:
 		if is_instance_valid(p):
 			p.net_puppet = true
 
-	_camera = Camera2D.new()
-	_camera.position = Vector2(0, -80)
-	_camera.limit_left = 0
-	_camera.limit_right = int(ROOM_W)
-	_camera.limit_top = 0
-	_camera.limit_bottom = 720
-	_camera.position_smoothing_enabled = true
-	_camera.position_smoothing_speed = 8.0
-	if total > 1:
-		_camera.zoom = Vector2(0.86, 0.86)
 	# 客机看自己槽位的角色（Run.net_slot），主机看 P1
 	var follow = _player
 	for p in _players:
 		if is_instance_valid(p) and int(p.input_slot) == Run.net_slot:
 			follow = p
 			break
-	follow.add_child(_camera)
-	_camera.make_current()
-	Feel.register_camera(_camera)
+	_setup_camera(follow)
 
 	_hud = load("res://scenes/ui/hud.tscn").instantiate()
 	add_child(_hud)
@@ -330,6 +307,26 @@ func _survivor():
 	return _player if is_instance_valid(_player) else null
 
 
+## 建立主镜头。世界高度固定 720（背景 1920×720），所以镜头不缩放：
+## 之前多人把 zoom 拉到 0.86，可视高度变成 837 > 720，limit 夹不住，
+## 上下就会露出 clear color（近白），表现为地图发白、显示不完整。
+## 本机双人与联机都走这里，避免两边规则不一致。
+func _setup_camera(follow) -> void:
+	_camera = Camera2D.new()
+	_camera.position = Vector2(0, -80)
+	_camera.limit_left = 0
+	_camera.limit_right = int(ROOM_W)
+	_camera.limit_top = 0
+	_camera.limit_bottom = 720
+	_camera.position_smoothing_enabled = true
+	_camera.position_smoothing_speed = 8.0
+	if follow == null:
+		follow = _player
+	follow.add_child(_camera)
+	_camera.make_current()
+	Feel.register_camera(_camera) # 打击感系统靠这台相机做屏幕震动
+
+
 ## 镜头交给指定玩家（P1 阵亡、P2 还在时用）
 func _focus_camera(target) -> void:
 	if _camera == null or not is_instance_valid(_camera) or not is_instance_valid(target):
@@ -374,7 +371,11 @@ func _spawn_boss() -> void:
 	if BossTypes.ROSTER.has(Run.boss_id):
 		var intro := BOSS_DUEL_INTRO.new()
 		intro.name = "BossDuelIntro"
-		intro.setup(_player, _boss)
+		# 在场玩家一起进对峙：本机双人 2 人、联机主机按实际人数最多 4 人
+		var duel_players: Array = _alive_players()
+		if duel_players.is_empty():
+			duel_players = [_player]
+		intro.setup_many(duel_players, _boss)
 		intro.finished.connect(func(): BGM.play_bgm("boss"))
 		add_child(intro)
 
@@ -436,12 +437,14 @@ func _on_boss_died() -> void:
 	if Run.mode == Run.MODE_ADVENTURE and Run.difficulty == Run.DIFFICULTIES.size() - 1 and Run.boss_phase == 0:
 		Run.boss_phase = 1
 		Run.boss_id = str(Run.boss_queue[1])
-		var survivor = _survivor()
-		if survivor != null:
-			survivor.set_sui_yue_pressure(Run.boss_id == "c008")
-			survivor._restore_hp(2)
-			Run.snapshot(survivor)
-			_apply_to_all()
+		# 多人：压力与回血按所有存活玩家结算，不能只补镜头跟随的那一个
+		for p in _alive_players():
+			if not is_instance_valid(p):
+				continue
+			p.set_sui_yue_pressure(Run.boss_id == "c008")
+			p._restore_hp(2)
+			Run.snapshot(p, int(p.input_slot))
+		_apply_to_all()
 		_spawn_boss()
 		_hud.show_boss(_boss)
 		_ended = false
@@ -450,11 +453,17 @@ func _on_boss_died() -> void:
 		_show_upgrade() # 这边的「前进」= advance() -> 层数 +1，重开三小关
 		return
 	Run.active = false # 通关收尾，再来一局开新档
-	Meta.add_clear(Run.skull_id) # 局外养成：通关计数 + 当前形态契合 +20
+	# 局外养成：每位参与者按各自形态记一次通关契合；全局通关数只累计一次
+	var participant_skulls := _participant_skulls()
+	for i in participant_skulls.size():
+		Meta.add_clear(str(participant_skulls[i]), i == 0)
 	_show_settlement("通  关", true)
 
 
 func _on_player_died(dead = null) -> void:
+	# 先记最后阵亡槽位：等待期内被飞行物带走的玩家也走这里，结算据此选对应化身
+	if is_instance_valid(dead):
+		Run.last_death_slot = int(dead.input_slot)
 	if _ended:
 		return
 	if dead == null:
@@ -469,9 +478,10 @@ func _on_player_died(dead = null) -> void:
 			_focus_camera(alive[0])
 		return
 	_ended = true
-	# 先把玩家当前形态记进 Run：结算面板「再来一局」要沿用同一化身重开
-	if is_instance_valid(dead):
-		Run.snapshot(dead)
+	# 全灭：把所有参与槽位的化身与血量写进 Run，结算面板据此列出完整名单
+	for p in _players:
+		if is_instance_valid(p):
+			Run.snapshot(p, int(p.input_slot))
 	Run.active = false # 这一局到此为止，再来一局从第一层重开
 	await get_tree().create_timer(1.2).timeout # 等阵亡动画
 	# 无尽模式：结算标题直接写死在第几层，方便对照自己的最好成绩
@@ -479,6 +489,50 @@ func _on_player_died(dead = null) -> void:
 		_show_settlement("无尽 · 第 %d 层" % Run.depth, false)
 		return
 	_show_settlement("阵  亡", false)
+
+
+## 本局参与玩家的化身（按槽位顺序去重）：多人结算与通关记账都按这份名单
+func _participant_skulls() -> Array:
+	var out: Array = []
+	for p in _players:
+		if not is_instance_valid(p):
+			continue
+		var id := str(p.skull_id)
+		if id != "" and not out.has(id):
+			out.append(id)
+	if out.is_empty():
+		out.append(Run.skull_id)
+	return out
+
+
+## 结算名单：每位参与者的槽位、化身、存活状态与血量
+func _build_roster() -> Array:
+	var out: Array = []
+	for p in _players:
+		if not is_instance_valid(p):
+			continue
+		out.append({
+			"slot": int(p.input_slot),
+			"skull": str(p.skull_id),
+			"alive": p.state != p.State.DEAD,
+			"hp": int(p.hp),
+			"max_hp": int(p.max_hp),
+		})
+	out.sort_custom(func(a, b): return int(a["slot"]) < int(b["slot"]))
+	return out
+
+
+## 兜底：任何玩家被机制冲突带到地板以下时，拉回站立位，避免穿出地图。
+func _physics_process(_delta: float) -> void:
+	for p in _players:
+		if not is_instance_valid(p) or p.global_position.y <= GROUND_Y + 120.0:
+			continue
+		if p.has_method("clear_ming_zhong_effects"):
+			p.call("clear_ming_zhong_effects")
+		if p.has_method("mo_ting_release"):
+			p.call("mo_ting_release")
+		p.global_position = Vector2(clampf(p.global_position.x, 80.0, ROOM_W - 80.0), GROUND_Y - 80.0)
+		p.velocity = Vector2.ZERO
 
 
 func _show_settlement(title_text: String, cleared: bool) -> void:
@@ -494,7 +548,7 @@ func _show_settlement(title_text: String, cleared: bool) -> void:
 	Achievements.finish_run(cleared) # 单局条件（无伤 / 残血 / 速通 / 空手）在结算前结清
 	var s = load("res://scenes/ui/settlement_panel.tscn").instantiate()
 	s.name = "Settlement"
-	s.setup(title_text, cleared)
+	s.setup(title_text, cleared, _build_roster(), Run.last_death_slot)
 	add_child(s)
 
 

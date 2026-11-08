@@ -490,9 +490,10 @@ func _direct_damage(_amount: int, _color: Color = DMG_COLOR) -> void:
 
 
 func die() -> void:
-	var pl := get_tree().get_first_node_in_group("player")
-	if not player_ally and pl != null:
-		pl.set("wu_che_wanted", false)
+	# 多人局：通缉标记要解除到每一位玩家
+	for pl in get_tree().get_nodes_in_group("player"):
+		if not player_ally and is_instance_valid(pl):
+			pl.set("wu_che_wanted", false)
 	# 正常循环本就会等召唤物清空；异常时序若仍有存活个体，死亡与后续先导期间不再行动。
 	for e in _summons:
 		if is_instance_valid(e) and int(e.get("hp")) > 0:

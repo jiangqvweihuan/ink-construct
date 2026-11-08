@@ -3,6 +3,7 @@ extends CanvasLayer
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const BattleStatus = preload("res://scripts/ui/battle_status.gd")
+const Skulls = preload("res://scripts/player/skulls.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 
@@ -78,56 +79,134 @@ func _build_status_details() -> void:
 	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	scroll.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(scroll)
-	var content := Control.new()
-	content.custom_minimum_size = Vector2(510, 0)
+	# 用容器排版代替手算高度：文字按可用宽度自动换行、面板随内容撑高，
+	# 不会再出现长描述被下一张卡片盖住半行的情况。
+	var content := VBoxContainer.new()
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 8)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scroll.add_child(content)
-	var player = get_tree().get_first_node_in_group("player")
-	var list: Array = BattleStatus.entries(player)
-	var y := 0.0
-	if list.is_empty():
-		_text("当前没有战斗状态", Vector2(10, 10), Vector2(480, 50), 18, DIM, content)
-		content.custom_minimum_size.y = 70
+	var players := _status_players()
+	if players.is_empty():
+		content.add_child(_empty_row())
 		return
-	for entry in list:
-		var desc := str(entry.get("desc", ""))
-		var panel := Panel.new()
-		panel.position = Vector2(0, y)
-		panel.size = Vector2(510, 0)
-		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.055, 0.05, 0.044, 0.52)
-		sb.set_border_width_all(1)
-		sb.border_color = Color(PAPER, 0.12)
-		sb.set_corner_radius_all(5)
-		panel.add_theme_stylebox_override("panel", sb)
-		content.add_child(panel)
-		var kind_names := {"buff": "增益", "debuff": "减益", "passive": "被动", "stolen": "夺取", "upgrade": "强化"}
-		var kind := str(entry.get("kind", "passive"))
-		var accent := GOLD if kind == "buff" else (RED if kind == "debuff" or not bool(entry.get("active", true)) else Color(0.46, 0.62, 0.66))
-		var accent_bar := ColorRect.new()
-		accent_bar.color = Color(accent, 0.85)
-		accent_bar.position = Vector2(0, 10)
-		accent_bar.size = Vector2(3, 16)
-		accent_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		panel.add_child(accent_bar)
-		var heading := "%s  ·  %s" % [kind_names.get(kind, "状态"), str(entry.get("name", ""))]
-		var value := str(entry.get("value", ""))
-		if value != "":
-			heading += "    " + value
-		var heading_color := GOLD if kind == "buff" else (RED if kind == "debuff" or not bool(entry.get("active", true)) else PAPER)
-		_text(heading, Vector2(12, 8), Vector2(486, 26), 17, heading_color, panel).horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		var desc_label := _text(desc, Vector2(12, 38), Vector2(486, 21), 15, DIM, panel)
-		desc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-		desc_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		desc_label.autowrap_mode = TextServer.AUTOWRAP_ARBITRARY
-		desc_label.get_minimum_size() # 先刷新单行文本留下的最小宽度缓存
-		desc_label.size = Vector2(486, 21)
-		var desc_height := maxf(21.0, desc_label.get_minimum_size().y)
-		desc_label.size.y = desc_height
-		panel.size.y = 56.0 + desc_height
-		y += panel.size.y + 8.0
-	content.custom_minimum_size.y = y
+	for i in players.size():
+		var p = players[i]
+		var list: Array = BattleStatus.entries(p)
+		# 本机双人时每名玩家各一段；强化 / 夺取是全队共用的，只在第一段列一次
+		if players.size() > 1:
+			content.add_child(_section_row(p, i))
+			list = list.filter(func(e): return i == 0 or str(e.get("kind", "")) not in ["upgrade", "stolen"])
+		if list.is_empty():
+			content.add_child(_empty_row())
+			continue
+		for entry in list:
+			if entry is Dictionary:
+				content.add_child(_entry_row(entry))
+
+
+## 暂停时能看到谁的状态：客机只看自己，主机只看 P1，其余（单人 / 本机双人）全看。
+func _status_players() -> Array:
+	var out: Array = []
+	for n in get_tree().get_nodes_in_group("player"):
+		if not is_instance_valid(n) or not n.has_method("has_battle_passive"):
+			continue
+		out.append(n)
+	if Run.net_role == "client":
+		out = out.filter(func(p): return int(p.get("input_slot")) == Run.net_slot)
+	elif Run.net_role == "host":
+		out = out.filter(func(p): return int(p.get("input_slot")) == 0)
+	out.sort_custom(func(a, b): return int(a.get("input_slot")) < int(b.get("input_slot")))
+	if out.is_empty():
+		var one = get_tree().get_first_node_in_group("player")
+		if one != null:
+			out.append(one)
+	return out
+
+
+func _section_row(player, index: int) -> Control:
+	var profile: Dictionary = Skulls.get_profile(str(player.get("skull_id")))
+	var who := "P%d" % (int(player.get("input_slot")) + 1)
+	var label := Label.new()
+	label.text = "%s  ·  %s" % [who, str(profile.get("name", profile.get("label", "无名者")))]
+	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_color_override("font_color", GOLD)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
+
+func _empty_row() -> Control:
+	var label := Label.new()
+	label.text = "当前没有战斗状态"
+	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_color_override("font_color", DIM)
+	label.custom_minimum_size = Vector2(0, 50)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
+
+
+## 一条状态：左侧色条 + 标题（名称 / 数值）+ 自动换行的描述，高度随文字撑开。
+func _entry_row(entry: Dictionary) -> Control:
+	var kind_names := {"buff": "增益", "debuff": "减益", "passive": "被动", "stolen": "夺取", "upgrade": "强化"}
+	var kind := str(entry.get("kind", "passive"))
+	var accent := GOLD if kind == "buff" else (RED if kind == "debuff" or not bool(entry.get("active", true)) else Color(0.46, 0.62, 0.66))
+
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.055, 0.05, 0.044, 0.52)
+	sb.set_border_width_all(1)
+	sb.border_color = Color(PAPER, 0.12)
+	sb.set_corner_radius_all(5)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 9
+	panel.add_theme_stylebox_override("panel", sb)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(row)
+
+	var bar := ColorRect.new()
+	bar.color = Color(accent, 0.85)
+	bar.custom_minimum_size = Vector2(3, 0)
+	bar.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(bar)
+
+	var col := VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_theme_constant_override("separation", 4)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(col)
+
+	var heading := "%s  ·  %s" % [kind_names.get(kind, "状态"), str(entry.get("name", ""))]
+	var value := str(entry.get("value", ""))
+	if value != "":
+		heading += "    " + value
+	var head := Label.new()
+	head.text = heading
+	head.add_theme_font_size_override("font_size", 17)
+	head.add_theme_color_override("font_color",
+		GOLD if kind == "buff" else (RED if kind == "debuff" or not bool(entry.get("active", true)) else PAPER))
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	col.add_child(head)
+
+	var desc := str(entry.get("desc", ""))
+	if desc != "":
+		var body := Label.new()
+		body.text = desc
+		body.add_theme_font_size_override("font_size", 15)
+		body.add_theme_color_override("font_color", DIM)
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		col.add_child(body)
+	return panel
 
 
 func _input(event: InputEvent) -> void:

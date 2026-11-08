@@ -176,7 +176,9 @@ const TYPES := {
 			"skill05": [128.0, 96.0, 176.0], "skill06": [131.0, 162.0, 164.0],
 			"skill01-cankao": [130.0, 164.0, 161.0], "jijian": 0.0,
 		},
-		"both": {"skill01": true, "skill03": true},
+		# 藏剑三段（skill05 / skill06 / skill01-cankao）剑锋甩到原点左侧，
+		# 探针实测峰值在左（与 ranges 吻合），判 both 才能"画面扫到哪边就判哪边"。
+		"both": {"skill01": true, "skill03": true, "cangjian": true},
 		"damage": {"skill01": [1, 1, 2], "skill03": 2, "cangjian": [1, 2, 3], "jijian": 0},
 		"hit_effects": {
 			"skill01": {"pierce_hurt_invincible": true},

@@ -87,16 +87,16 @@ const FORM_NODES := {
 
 ## 墨锭商栈：角色买断放在各角色修炼页顶部；独立商栈只卖通用强化、重随与补给。
 const INK_SHOP := {
-	"buyout_c013": {"label": "买断 · 镇岳", "cost": 120, "form": "c013"},
-	"buyout_c023": {"label": "买断 · 梅剑", "cost": 240, "form": "c023"},
-	"buyout_z000": {"label": "买断 · 剑仙", "cost": 360, "form": "z000"},
-	"buyout_z002": {"label": "买断 · 绛弦", "cost": 840, "form": "z002"},
-	"buyout_z003": {"label": "买断 · 银夜", "cost": 600, "form": "z003"},
-	"start_ink": {"label": "聚墨", "desc": "每局结算墨锭 +2", "costs": [30, 50, 80], "tab": "permanent"},
+	"buyout_c013": {"label": "买断 · 镇岳", "desc": "直接解锁化身「镇岳」，无需击杀条件", "cost": 120, "form": "c013"},
+	"buyout_c023": {"label": "买断 · 梅剑", "desc": "直接解锁化身「梅剑」，无需击杀条件", "cost": 240, "form": "c023"},
+	"buyout_z000": {"label": "买断 · 剑仙", "desc": "直接解锁化身「剑仙」，无需击杀条件", "cost": 360, "form": "z000"},
+	"buyout_z002": {"label": "买断 · 绛弦", "desc": "直接解锁化身「绛弦」，无需击杀条件", "cost": 840, "form": "z002"},
+	"buyout_z003": {"label": "买断 · 银夜", "desc": "直接解锁化身「银夜」，无需击杀条件", "cost": 600, "form": "z003"},
+	"start_ink": {"label": "聚墨", "desc": "每级：每局结算墨锭 +2", "costs": [30, 50, 80], "tab": "permanent"},
 	"start_hp": {"label": "固元", "desc": "每局开局生命上限 +1", "costs": [80], "tab": "permanent"},
 	"start_edge": {"label": "初锋", "desc": "每局首个普通房全部伤害 +1", "costs": [120], "tab": "permanent"},
 	"start_guard": {"label": "护砚", "desc": "每局第一次受到的伤害 -1", "costs": [100], "tab": "permanent"},
-	"blessing_reroll": {"label": "赐福重随", "desc": "每局可重随开局赐福", "costs": [120, 220], "tab": "reroll"},
+	"blessing_reroll": {"label": "赐福重随", "desc": "每级：每局开局赐福重随次数 +1", "costs": [120, 220], "tab": "reroll"},
 	"upgrade_reroll": {"label": "强化重随", "desc": "每次强化三选一可重随 1 次", "costs": [180], "tab": "reroll"},
 	"supply_hp": {"label": "生肌散", "desc": "选用后本局生命上限 +2", "cost": 12, "supply": true, "stock": 3, "tab": "supply"},
 	"supply_revive": {"label": "复活墨符", "desc": "本局可复活一次并回复 4 生命", "cost": 35, "supply": true, "stock": 1, "tab": "supply"},
@@ -496,10 +496,12 @@ func deposit_ink(run_kills: int, cleared_rooms: int, cleared: bool, bonus := 0) 
 # ---------- 记账（战斗中调用） ----------
 
 ## 击杀一只怪：全形态累计 +1 解锁进度，当前形态契合 +1
-func add_kill(form_id: String) -> void:
-	kills += 1
+## count：多人局只让首个形态累计全局击杀数，其余参与者只加各自契合，避免一只怪记多次
+func add_kill(form_id: String, count := true) -> void:
+	if count:
+		kills += 1
+		Achievements.event("kills")
 	mastery[form_id] = mastery_exp(form_id) + 1
-	Achievements.event("kills")
 	Achievements.event("form_kill_" + form_id)
 	Achievements.max_event("mastery_" + form_id, mastery_level(form_id))
 	_save()
@@ -519,8 +521,10 @@ func enemy_kills(id: String) -> int:
 
 
 ## 通关整局：通关计数 +1，当前形态契合 +20
-func add_clear(form_id: String) -> void:
-	clears += 1
+## count：多人局只让首个形态累计全局通关数，其余参与者只加各自契合
+func add_clear(form_id: String, count := true) -> void:
+	if count:
+		clears += 1
 	mastery[form_id] = mastery_exp(form_id) + 20
 	_save()
 

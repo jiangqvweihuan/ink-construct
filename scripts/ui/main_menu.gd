@@ -3,8 +3,8 @@ extends Control
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const Settings = preload("res://scripts/ui/settings.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
-const SFX_START_OPEN := preload("res://audio/sfx/ui_start_open.wav")
 const SFX_SHOP_OPEN := preload("res://audio/sfx/shop_open.wav")
+const START_VOICE := "res://audio/sfx/ui_start_open.wav" # 「开始游戏」旁白，走 BGM 的全局旁白通道
 const BG_VIDEO := preload("res://art/ui/menu/bg_swordsman.ogv")
 const TITLE_FONT := preload("res://art/ui/fonts/slidefu_regular.ttf") # 演示佛系体：主标题书法
 
@@ -23,7 +23,7 @@ const ITEM_GAP := 8.0
 const ITEM_Y := 588.0
 const ITEM_H := 72.0
 
-var _start_panel: Node # 开始面板引用：连点「开始游戏」不叠加
+var _mode_layer: Node # 择途层引用：连点「开始游戏」不叠加
 var _sfx: AudioStreamPlayer # 点击音（常驻一个，不再每次新建）
 var _hover_sfx: AudioStreamPlayer # 悬停轻响
 var _items: Array = [] # 每项 {box, plate, label, line, base_y, cb}
@@ -207,7 +207,13 @@ func _on_hover(idx: int, on: bool) -> void:
 
 func _on_click(ev: InputEvent, idx: int) -> void:
 	if ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
-		_sfx.stream = SFX_START_OPEN if idx == 0 else (SFX_SHOP_OPEN if idx == 2 else SFX_CLICK)
+		if idx == 0:
+			# 旁白交给全局旁白通道：选完单人 / 本机双人 / 局域网任意一条路就能整体掐断，
+			# 不会因为面板各自持有播放器而残留到对局里。
+			BGM.play_voice(START_VOICE)
+			_sfx.stream = SFX_CLICK
+		else:
+			_sfx.stream = SFX_SHOP_OPEN if idx == 2 else SFX_CLICK
 		_sfx.play()
 		var cb: Callable = _items[idx]["cb"]
 		cb.call()
@@ -226,13 +232,18 @@ func _open_settings() -> void:
 	add_child(load("res://scenes/ui/settings_panel.tscn").instantiate())
 
 
-## 开始游戏：先弹「模式 → 选角」两步面板，由面板负责 Run.start 与切场景。
-## 面板已经开着就忽略，避免连点叠出两块
+## 开始游戏：先铺「择途」层（单人 / 本机双人 / 局域网），由该层决定后续开局面板。
+## 层已经开着就忽略，避免连点叠出两块
 func _open_start() -> void:
-	if is_instance_valid(_start_panel):
+	if is_instance_valid(_mode_layer):
 		return
-	_start_panel = load("res://scenes/ui/start_panel.tscn").instantiate()
-	add_child(_start_panel)
+	_mode_layer = load("res://scenes/ui/mode_select.tscn").instantiate()
+	_mode_layer.tree_exited.connect(_on_mode_layer_exited)
+	add_child(_mode_layer)
+
+
+func _on_mode_layer_exited() -> void:
+	_mode_layer = null
 
 
 func _open_forms() -> void:

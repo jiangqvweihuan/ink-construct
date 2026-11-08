@@ -131,7 +131,8 @@ func _physics_process(delta: float) -> void:
 		_pipa_status_tick(delta)
 		_cast_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
-		move_and_slide()
+		_duel_clamp_back()
+		_duel_move_and_slide()
 		return
 	if state == S_RETREAT:
 		if _slow_timer > 0.0:
@@ -144,7 +145,8 @@ func _physics_process(delta: float) -> void:
 		_pipa_status_tick(delta)
 		_retreat_tick(delta)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
-		move_and_slide()
+		_duel_clamp_back()
+		_duel_move_and_slide()
 		return
 	super(delta)
 
@@ -171,7 +173,7 @@ func _chase_tick(delta: float) -> void:
 		if _planned_move == AWAKEN:
 			_start_ming_move(AWAKEN)
 			return
-		var release_reach := float(HIT_RANGES[_planned_move]) * 0.5
+		var release_reach := float(HIT_RANGES[_planned_move]) * (1.0 if duel_mode else 0.5)
 		if dy <= 190.0 and dist <= release_reach + _radius_of(_target):
 			_start_ming_move(_planned_move)
 			return
@@ -188,7 +190,7 @@ func _chase_tick(delta: float) -> void:
 	if not approaching:
 		_approach_yield = 0.0
 	_attack_desire = minf(ATTACK_DESIRE_TIME, _attack_desire + delta * (1.7 if retreating and dist > HOLD_DISTANCE else 1.0))
-	if approaching and dist < HOLD_DISTANCE and _approach_yield < 90.0:
+	if approaching and dist < HOLD_DISTANCE and _approach_yield < 90.0 and not duel_mode:
 		var step := minf(chase_speed * _slow_scale * delta, 90.0 - _approach_yield)
 		_approach_yield += step
 		velocity.x = move_toward(velocity.x, -facing * chase_speed * _slow_scale, accel * delta)
@@ -197,8 +199,13 @@ func _chase_tick(delta: float) -> void:
 		velocity.x = move_toward(velocity.x, facing * chase_speed * _slow_scale, accel * delta)
 		_play("run", true, 1.2)
 	elif dist < HOLD_DISTANCE - HOLD_TOLERANCE:
-		velocity.x = move_toward(velocity.x, -facing * chase_speed * _slow_scale, accel * delta)
-		_play("run", true, 1.2)
+		# 斗蛐蛐：Boss 不后退，贴身时原地站桩等出手。
+		if duel_mode:
+			velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+			_play(str(_anim_map["idle"]), true)
+		else:
+			velocity.x = move_toward(velocity.x, -facing * chase_speed * _slow_scale, accel * delta)
+			_play("run", true, 1.2)
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 		_play(str(_anim_map["idle"]), true)
@@ -215,6 +222,11 @@ func _choose_move(dist: float) -> String:
 
 
 func _retreat_tick(delta: float) -> void:
+	if duel_mode:
+		# 斗蛐蛐：收招后不后撤，直接回到追击。
+		_retreat_left = 0.0
+		_set_state(State.CHASE)
+		return
 	if _target == null or not is_instance_valid(_target):
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 		_set_state(State.IDLE)
@@ -353,7 +365,9 @@ func _hit_front(damage: int, reach: float, extra: Dictionary = {}) -> void:
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy := absf(_target.global_position.y - global_position.y)
-	if (dx == 0.0 or (dx > 0.0) == (facing > 0)) and absf(dx) <= reach + _radius_of(_target) and dy <= 190.0:
+	# 斗蛐蛐：Boss 不许后退，贴脸的小怪会穿到背后；此时仍应命中当前锁定的目标。
+	var front_ok := duel_mode or dx == 0.0 or (dx > 0.0) == (facing > 0)
+	if front_ok and absf(dx) <= reach + _radius_of(_target) and dy <= 190.0:
 		_strike(_target, damage, extra)
 
 
@@ -470,6 +484,9 @@ func _release_held() -> void:
 
 func _finish_cast() -> void:
 	_cleanup_cast()
+	if duel_mode:
+		_set_state(State.CHASE)
+		return
 	_retreat_left = RETREAT_TIME
 	_set_state(S_RETREAT)
 
@@ -601,8 +618,9 @@ func _text(text: String, color: Color) -> void:
 
 func die() -> void:
 	_cleanup_cast()
-	var player := get_tree().get_first_node_in_group("player")
-	if not player_ally and player != null and player.has_method("clear_ming_zhong_effects"):
-		player.call("clear_ming_zhong_effects")
+	# 多人局：锁头/易伤等状态要释放每一位被它锁定的玩家
+	for player in get_tree().get_nodes_in_group("player"):
+		if not player_ally and is_instance_valid(player) and player.has_method("clear_ming_zhong_effects"):
+			player.call("clear_ming_zhong_effects")
 	hp = 0
 	super()

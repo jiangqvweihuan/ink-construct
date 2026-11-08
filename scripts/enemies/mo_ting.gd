@@ -175,7 +175,8 @@ func _physics_process(delta: float) -> void:
 			if _state_timer <= 0.0:
 				_set_state(State.CHASE)
 		velocity.y = minf(velocity.y + gravity * delta, 900.0)
-		move_and_slide()
+		_duel_clamp_back() # 斗蛐蛐：跃击落点的反向微调一律清零，Boss 不后退
+		_duel_move_and_slide() # 斗蛐蛐：物理碰撞滑动也不许把 Boss 顶退
 		return
 	super(delta)
 
@@ -203,7 +204,7 @@ func _chase_tick(delta: float) -> void:
 	_attack_desire = minf(ATTACK_DESIRE_TIME, _attack_desire + delta * desire_scale)
 	if _attack_desire < ATTACK_DESIRE_TIME:
 		if approaching and dist < HOLD_DISTANCE:
-			if _approach_yield < YIELD_DISTANCE:
+			if _approach_yield < YIELD_DISTANCE and not duel_mode:
 				var yield_step := minf(chase_speed * delta, YIELD_DISTANCE - _approach_yield)
 				_approach_yield += yield_step
 				velocity.x = move_toward(velocity.x, -facing * chase_speed, accel * delta)
@@ -215,6 +216,11 @@ func _chase_tick(delta: float) -> void:
 			_play(str(_anim_map["chase"]), true)
 			return
 		elif dist < HOLD_DISTANCE - HOLD_TOLERANCE:
+			# 斗蛐蛐：Boss 不后退，贴身时原地站桩等出手。
+			if duel_mode:
+				velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+				_play(str(_anim_map["idle"]), true)
+				return
 			velocity.x = move_toward(velocity.x, -facing * chase_speed, accel * delta)
 			_play(str(_anim_map["chase"]), true)
 			return
@@ -427,7 +433,9 @@ func _continuous_hit() -> void:
 	if _cast_move == RUSH:
 		var dx: float = _target.global_position.x - global_position.x
 		var dy := absf(_target.global_position.y - global_position.y)
-		if (dx == 0.0 or (dx > 0.0) == (facing > 0)) and absf(dx) <= 210.0 + _radius_of(_target) and dy <= 190.0:
+		# 斗蛐蛐：Boss 不许后退，贴脸的小怪会穿到背后；此时仍应命中当前锁定的目标。
+		var front_ok := duel_mode or dx == 0.0 or (dx > 0.0) == (facing > 0)
+		if front_ok and absf(dx) <= 210.0 + _radius_of(_target) and dy <= 190.0:
 			_hit_target(2, {"force_knockdown": true}, Vector2(facing * 360.0, -180.0))
 	# 贯昼实战伤害走 laser_segment 事件；这一支供测试直接调用 _continuous_hit 校验光束起点。
 	elif _cast_move == LASER:
@@ -441,7 +449,10 @@ func _laser_hit() -> void:
 	var forward: float = (_target.global_position.x - global_position.x) * facing
 	var beam_y := global_position.y + LASER_OFFSET.y
 	var target_y: float = _target.global_position.y - 70.0
-	if forward < LASER_OFFSET.x or absf(target_y - beam_y) > 90.0:
+	# 斗蛐蛐：Boss 不能后撤拉距，贴脸目标同样要吃满光束（否则灼烧永远挂不上）。
+	if not duel_mode and forward < LASER_OFFSET.x:
+		return
+	if absf(target_y - beam_y) > 90.0:
 		return
 	var damage := LASER_SEGMENT_DAMAGE
 	if _target.has_method("mo_ting_laser_damage"):
@@ -454,7 +465,9 @@ func _hit_front(damage: int, reach: float, height: float, extra: Dictionary = {}
 		return
 	var dx: float = _target.global_position.x - global_position.x
 	var dy := absf(_target.global_position.y - global_position.y)
-	if (dx == 0.0 or (dx > 0.0) == (facing > 0)) and absf(dx) <= reach + _radius_of(_target) and dy <= height:
+	# 斗蛐蛐：Boss 不许后退，贴脸的小怪会穿到背后；此时仍应命中当前锁定的目标。
+	var front_ok := duel_mode or dx == 0.0 or (dx > 0.0) == (facing > 0)
+	if front_ok and absf(dx) <= reach + _radius_of(_target) and dy <= height:
 		_hit_target(damage, extra, knockback)
 
 

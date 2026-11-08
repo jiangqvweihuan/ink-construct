@@ -152,6 +152,8 @@ const BOSSES := {
 		"intro": {"anim": "stand", "loop": true},
 		"ranges": {"skill01": 300.0, "skill02": 340.0, "skill3": 466.0, "skill05": 110.0},
 		"hit_at": {"skill01": 0.72, "skill02": [1.17, 1.89, 2.61], "skill3": 0.9, "skill05": 0.9},
+		# 焚鼎甩臂（skill02）落点在原点左侧：探针峰值 L≈334~354 与 340 吻合，判 both。
+		"both": {"skill02": true},
 		"damage": {"skill01": 2, "skill02": [1, 1, 2], "skill3": 3, "skill05": 3},
 		"attack_rules": {
 			"skill01": {"cooldown": 0.0, "max": 330.0},

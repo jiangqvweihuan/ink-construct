@@ -13,8 +13,7 @@ const DIM := Color(0.72, 0.69, 0.62)
 const RED := Color(0.78, 0.30, 0.24)
 const GOLD := Color(0.91, 0.75, 0.34)
 
-const WIN_POS := Vector2(240, 52)
-const WIN_SIZE := Vector2(800, 616)
+const WIN_SIZE := Vector2(800, 616) # 实际位置按视口宽度动态居中
 
 ## 同一次启动只看一次：换房间重载场景也不会反复弹
 static var seen := false
@@ -28,6 +27,7 @@ const ROWS := [
 	["右半屏 · 长按", "打开墨环，拖动选招式，松手释放"],
 	["右上角墨牌", "暂停 / 设置 / 退出"],
 	["从屏幕边缘内滑", "弹出退出确认，不会直接退出"],
+	["设置 · 操作", "可切换为「摇杆 + 按键」方案"],
 ]
 
 ## 摇杆 + 按键方案的说明（设置里切到该方案时展示）
@@ -61,47 +61,34 @@ func _ready() -> void:
 	add_child(dim)
 	UiKit.fit_layer(self, [dim])
 
+	# 按实际视口宽度居中：宽画布沿用 1280 设计空间，窄屏按视口重算
+	var vw := get_viewport().get_visible_rect().size.x
+	var wp := Vector2(minf((1280.0 - WIN_SIZE.x) * 0.5, (vw - WIN_SIZE.x) * 0.5), 52.0)
+
 	var win := TextureRect.new()
 	win.texture = InkTex.load("res://art/ui/menu/window_large.png")
 	win.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	win.stretch_mode = TextureRect.STRETCH_SCALE
-	win.position = WIN_POS
+	win.position = wp
 	win.size = WIN_SIZE
 	win.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(win)
 
-	UiKit.label(self, "手机操作", WIN_POS + Vector2(0, 26), Vector2(WIN_SIZE.x, 46), 30, PAPER,
+	UiKit.label(self, "手机操作", wp + Vector2(0, 26), Vector2(WIN_SIZE.x, 46), 30, PAPER,
 		HORIZONTAL_ALIGNMENT_CENTER, false)
-	UiKit.rule(self, WIN_POS + Vector2(120, 84), Vector2(WIN_SIZE.x - 240.0, 2), Color(RED, 0.55))
+	UiKit.rule(self, wp + Vector2(120, 84), Vector2(WIN_SIZE.x - 240.0, 2), Color(RED, 0.55))
 	UiKit.label(self, "战斗只需两只手：左手管走位，右手管出手" if not stick else "左手摇杆走位，右手按键出手；所有控件位置都能在设置里拖动调整",
-		WIN_POS + Vector2(0, 96), Vector2(WIN_SIZE.x, 28), 16, DIM, HORIZONTAL_ALIGNMENT_CENTER, false)
+		wp + Vector2(0, 96), Vector2(WIN_SIZE.x, 28), 16, DIM, HORIZONTAL_ALIGNMENT_CENTER, false)
 
-	var y := 146.0
+	var y := 142.0
 	for row in rows:
-		UiKit.label(self, str(row[0]), WIN_POS + Vector2(48, y), Vector2(300, 40), 21, GOLD,
+		UiKit.label(self, str(row[0]), wp + Vector2(48, y), Vector2(300, 40), 21, GOLD,
 			HORIZONTAL_ALIGNMENT_RIGHT, false)
-		UiKit.label(self, str(row[1]), WIN_POS + Vector2(372, y), Vector2(392, 40), 19, PAPER,
+		UiKit.label(self, str(row[1]), wp + Vector2(372, y), Vector2(392, 40), 19, PAPER,
 			HORIZONTAL_ALIGNMENT_LEFT, false)
-		y += 52.0
+		y += 46.0
 
-	UiKit.label(self, "暂停键在右上角，随时可以看状态、改设置或回主菜单。",
-		WIN_POS + Vector2(0, 512), Vector2(WIN_SIZE.x, 26), 15, Color(DIM, 0.9),
-		HORIZONTAL_ALIGNMENT_CENTER, false)
-
-	UiKit.texture_button(self, "知道了", WIN_POS + Vector2(290, 544), Vector2(220, 56), 22, PAPER, _close)
-
-
-func _input(event: InputEvent) -> void:
-	if _closed:
-		return
-	if event.is_action_pressed("ui_cancel"):
-		get_viewport().set_input_as_handled()
-		_close()
-		return
-	# 轻点任意处也关掉；只在按下时处理，避免划动手势误触
-	if event is InputEventScreenTouch and (event as InputEventScreenTouch).pressed:
-		get_viewport().set_input_as_handled()
-		_close()
+	UiKit.texture_button(self, "知道了", wp + Vector2(290, 544), Vector2(220, 56), 22, PAPER, _close)
 
 
 func _close() -> void:

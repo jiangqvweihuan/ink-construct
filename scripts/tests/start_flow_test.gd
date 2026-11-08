@@ -1,9 +1,10 @@
 extends Node2D
 
-## 开始流程真实鼠标回归：择路 → 问境 → 化身 → 启程，并断言五档数量/攻击数值。
+## 开始流程真实鼠标回归：择途 → 择路 → 问境 → 化身 → 启程，并断言五档数量/攻击数值。
 
 const MENU := preload("res://scenes/ui/main_menu.tscn")
 const OUT := "res://tests/start_flow.log"
+const SINGLE_CARD := Vector2(296, 422) # 择途层首卡中心（1280 宽三卡布局）
 
 var _log: FileAccess
 var _menu: Node
@@ -26,7 +27,10 @@ func _ready() -> void:
 	await _shot("run_00_menu")
 
 	await _click(Vector2(110, 624))
-	p("点开始游戏 -> 面板=%s step=%d（期望 true / 0）" % [_panel() != null, _step(_panel())])
+	p("点开始游戏 -> 择途层=%s（期望 true）" % (_mode_layer() != null))
+	assert(_mode_layer() != null, "开始游戏必须先铺择途层")
+	await _click(SINGLE_CARD)
+	p("点单人 -> 面板=%s step=%d（期望 true / 0）" % [_panel() != null, _step(_panel())])
 	var initial_panel := _panel()
 	assert(initial_panel != null, "开始面板必须打开")
 	initial_panel._start_run()
@@ -74,8 +78,11 @@ func _ready() -> void:
 	p("连续上一步 -> step=%d（期望 0）" % _step(_panel()))
 	await _click(Vector2(640, 610))
 	p("点「返回」-> 面板=%s（期望 false）" % (_panel() != null))
+	await _esc()
+	p("Esc 择途层 -> 层=%s（期望 false）" % (_mode_layer() != null))
 
 	await _click(Vector2(110, 624))
+	await _click(SINGLE_CARD)
 	await _click(Vector2(440, 365)) # 冒险
 	await _click(Vector2(850, 365)) # 狂澜
 	p("冒险狂澜 -> step=%d difficulty=%d（期望 2 / 3）" % [_step(_panel()), _difficulty(_panel())])
@@ -98,10 +105,14 @@ func _ready() -> void:
 	p("Esc 问境 -> step=%d（期望 0）" % _step(_panel()))
 	await _esc()
 	p("Esc 择路 -> 面板=%s（期望 false）" % (_panel() != null))
+	await _esc()
+	p("Esc 择途层 -> 层=%s（期望 false）" % (_mode_layer() != null))
 
 	await _click(Vector2(110, 624))
 	await _click(Vector2(110, 624))
-	p("连点两次开始游戏 -> 面板数=%d（期望 1）" % _panel_count())
+	p("连点两次开始游戏 -> 择途层数=%d（期望 1）" % _mode_count())
+	assert(_mode_count() == 1, "连点开始游戏不得叠出多层择途")
+	await _click(SINGLE_CARD)
 
 	Run.start(Run.MODE_ADVENTURE, "c021", 0)
 	p("濡墨首波=%d（期望 4）" % int(Run.room_config()["waves"][0]["count"]))
@@ -140,13 +151,26 @@ func _ready() -> void:
 	await _click(Vector2(1040, 616), true)
 
 
+func _find(node: Node, script_name: String) -> Node:
+	if node.get_script() != null and str(node.get_script().resource_path).ends_with(script_name):
+		return node
+	for c in node.get_children():
+		var hit := _find(c, script_name)
+		if hit != null:
+			return hit
+	return null
+
+
 func _panel() -> Node:
 	if not is_instance_valid(_menu):
 		return null
-	for c in _menu.get_children():
-		if c.get_script() != null and str(c.get_script().resource_path).ends_with("start_panel.gd"):
-			return c
-	return null
+	return _find(_menu, "start_panel.gd")
+
+
+func _mode_layer() -> Node:
+	if not is_instance_valid(_menu):
+		return null
+	return _find(_menu, "mode_select.gd")
 
 
 func _step(panel: Node) -> int:
@@ -161,12 +185,23 @@ func _mode(panel: Node) -> String:
 	return str(panel.get("_mode")) if panel != null else ""
 
 
-func _panel_count() -> int:
-	var n := 0
-	for c in _menu.get_children():
-		if c.get_script() != null and str(c.get_script().resource_path).ends_with("start_panel.gd"):
-			n += 1
+func _count(node: Node, script_name: String) -> int:
+	var n := 1 if node.get_script() != null and str(node.get_script().resource_path).ends_with(script_name) else 0
+	for c in node.get_children():
+		n += _count(c, script_name)
 	return n
+
+
+func _panel_count() -> int:
+	if not is_instance_valid(_menu):
+		return 0
+	return _count(_menu, "start_panel.gd")
+
+
+func _mode_count() -> int:
+	if not is_instance_valid(_menu):
+		return 0
+	return _count(_menu, "mode_select.gd")
 
 
 func _esc() -> void:

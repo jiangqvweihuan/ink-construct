@@ -18,8 +18,9 @@ const Cfg = preload("res://scripts/net/net_config.gd")
 const Proto = preload("res://scripts/net/net_protocol.gd")
 const Discovery = preload("res://scripts/net/lan_discovery.gd")
 const LocalCoop = preload("res://scripts/systems/local_coop.gd")
+const Skulls = preload("res://scripts/player/skulls.gd")
 
-const MENU_SCENE := "res://scenes/ui/mode_select.tscn"
+const MENU_SCENE := "res://scenes/ui/main_menu.tscn"
 const ROOM_SCENE := "res://scenes/world/room_01.tscn"
 
 var role := "" # "" / "host" / "client"
@@ -153,12 +154,33 @@ func start_game(mode: String, difficulty: int, skull: String) -> String:
 	Run.net_role = "host"
 	Run.net_slot = 0
 	Run.start(mode, skull, int(room["difficulty"]), true)
+	# 每个成员在自己的大厅里选的化身分别落到各自槽位，联机也能一人一角色
+	for id in members:
+		var m: Dictionary = members[id]
+		var pick := str(m.get("skull", ""))
+		if pick != "":
+			Run.set_slot_skull(int(m.get("slot", 0)), pick)
 	Run.set_net_players(members.size()) # start() 会重置人数，必须在开局后写入
 	_rpc_game_start.rpc({"config": _host_game_config, "run": run_payload()})
 	_emit_lobby()
 	session_started.emit(_host_game_config)
 	_go(ROOM_SCENE, "正在联机入卷")
 	return ""
+
+
+## 自己在大厅里选中的化身（主机取房间设置，客机取自己成员条目）
+func my_skull() -> String:
+	if role == "client":
+		var m: Dictionary = members.get(multiplayer.get_unique_id(), {})
+		return str(m.get("skull", ""))
+	return str(room.get("skull", ""))
+
+
+## 客机把选中的化身报给主机；开局时按槽位分配，互不覆盖
+func set_my_skull(skull: String) -> void:
+	if role != "client" or skull == "":
+		return
+	rpc_id(1, "_rpc_skull", skull)
 
 
 ## 客户端就绪状态
@@ -247,9 +269,10 @@ func run_payload() -> Dictionary:
 		"supply_revive": Run.supply_revive,
 		"supply_revive_used": Run.supply_revive_used,
 		"guard": Run.guard_available,
-		# 联机：人数决定敌方难度行；每槽血量随房间切换一起下发
+		# 联机：人数决定敌方难度行；每槽血量与化身随房间切换一起下发
 		"players": Run.player_count(),
 		"net_slots": Run.slot_hp.duplicate(),
+		"net_skulls": Run.slot_skull.duplicate(),
 	}
 
 
@@ -354,7 +377,7 @@ func _rpc_join(d: Dictionary) -> void:
 	if token == "" or not resumed:
 		token = _make_token()
 	var name := str(d.get("name", "墨客")).substr(0, 16)
-	members[sender] = {"name": name, "slot": slot, "ready": false, "token": token}
+	members[sender] = {"name": name, "slot": slot, "ready": false, "token": token, "skull": ""}
 	# 开局后中途加入/重连：人数立即影响后续波次的难度行
 	if state == "playing":
 		Run.set_net_players(members.size())
@@ -429,6 +452,17 @@ func _rpc_ready(value: bool) -> void:
 	var sender := multiplayer.get_remote_sender_id()
 	if members.has(sender):
 		members[sender]["ready"] = value
+		_emit_lobby()
+
+
+## 客机上报自己选的化身；主机记账并在开局时按槽位分配
+@rpc("any_peer", "call_remote", "reliable", Cfg.CH_CONTROL)
+func _rpc_skull(skull: String) -> void:
+	if role != "host" or not Skulls.ids().has(skull):
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if members.has(sender):
+		members[sender]["skull"] = skull
 		_emit_lobby()
 
 
@@ -734,6 +768,7 @@ func _emit_lobby() -> void:
 		rows.append({
 			"id": id, "name": m.get("name", "墨客"), "slot": int(m.get("slot", 0)),
 			"ready": bool(m.get("ready", false)), "host": int(id) == 1,
+			"skull": str(m.get("skull", "")),
 		})
 	var data := {"room": room.duplicate(true), "members": rows, "state": state}
 	lobby_changed.emit(data)
@@ -819,6 +854,9 @@ func _apply_run_sync(d: Dictionary) -> void:
 	Run.set_net_players(int(d.get("players", 2)))
 	var slots = d.get("net_slots", {})
 	Run.slot_hp = (slots as Dictionary).duplicate() if slots is Dictionary else {}
+	var skulls = d.get("net_skulls", {})
+	if skulls is Dictionary and not (skulls as Dictionary).is_empty():
+		Run.slot_skull = (skulls as Dictionary).duplicate()
 	Run.slot_dead.clear()
 	Run.slot_revive.clear()
 
