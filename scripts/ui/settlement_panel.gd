@@ -403,7 +403,7 @@ func _frac_of(exp: int) -> float:
 
 func _restart() -> void:
 	get_tree().paused = false
-	Run.start(Run.mode, Run.skull_id, Run.difficulty)
+	Run.start(Run.mode, Run.skull_id, Run.difficulty, Run.local_coop)
 	await LoadVeil.transition_reload("正在重入此卷")
 
 

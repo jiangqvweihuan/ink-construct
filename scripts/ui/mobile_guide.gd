@@ -5,6 +5,7 @@ extends CanvasLayer
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const UiKit = preload("res://scripts/ui/ui_kit.gd")
+const Settings = preload("res://scripts/ui/settings.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -29,6 +30,17 @@ const ROWS := [
 	["从屏幕边缘内滑", "弹出退出确认，不会直接退出"],
 ]
 
+## 摇杆 + 按键方案的说明（设置里切到该方案时展示）
+const STICK_ROWS := [
+	["左下 · 摇杆", "移动"],
+	["右下 · 攻", "攻击"],
+	["右下 · 跳", "跳跃"],
+	["右下 · 闪", "闪避"],
+	["右下 · 技", "长按打开墨环，拖动选招式，松手释放"],
+	["右上角墨牌", "暂停 / 设置 / 退出"],
+	["设置 · 操作", "可切换方案并拖动调整控件位置"],
+]
+
 var _was_paused := false
 var _closed := false
 
@@ -38,6 +50,9 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_was_paused = get_tree().paused
 	get_tree().paused = true
+	Settings.ensure_loaded()
+	var stick := int(Settings.touch_scheme) == 1
+	var rows: Array = STICK_ROWS if stick else ROWS
 
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0.72)
@@ -58,11 +73,11 @@ func _ready() -> void:
 	UiKit.label(self, "手机操作", WIN_POS + Vector2(0, 26), Vector2(WIN_SIZE.x, 46), 30, PAPER,
 		HORIZONTAL_ALIGNMENT_CENTER, false)
 	UiKit.rule(self, WIN_POS + Vector2(120, 84), Vector2(WIN_SIZE.x - 240.0, 2), Color(RED, 0.55))
-	UiKit.label(self, "战斗只需两只手：左手管走位，右手管出手", WIN_POS + Vector2(0, 96),
-		Vector2(WIN_SIZE.x, 28), 16, DIM, HORIZONTAL_ALIGNMENT_CENTER, false)
+	UiKit.label(self, "战斗只需两只手：左手管走位，右手管出手" if not stick else "左手摇杆走位，右手按键出手；所有控件位置都能在设置里拖动调整",
+		WIN_POS + Vector2(0, 96), Vector2(WIN_SIZE.x, 28), 16, DIM, HORIZONTAL_ALIGNMENT_CENTER, false)
 
 	var y := 146.0
-	for row in ROWS:
+	for row in rows:
 		UiKit.label(self, str(row[0]), WIN_POS + Vector2(48, y), Vector2(300, 40), 21, GOLD,
 			HORIZONTAL_ALIGNMENT_RIGHT, false)
 		UiKit.label(self, str(row[1]), WIN_POS + Vector2(372, y), Vector2(392, 40), 19, PAPER,

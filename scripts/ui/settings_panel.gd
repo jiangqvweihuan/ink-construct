@@ -4,6 +4,8 @@ const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Settings = preload("res://scripts/ui/settings.gd")
 const MOBILE_GUIDE = preload("res://scripts/ui/mobile_guide.gd")
+const TouchLayout = preload("res://scripts/ui/touch_layout.gd")
+const TouchLayoutEditor = preload("res://scripts/ui/touch_layout_editor.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
 const SFX_KNOB := preload("res://audio/sfx/click.wav") # 音量滑条试听音：短促，能听清大小
@@ -38,6 +40,7 @@ var _draft: Dictionary = {}
 var _closing := false
 var _preview_players := {} # bus 名 -> 试听播放器
 var _preview_ms := {} # bus 名 -> 上次试听时间戳
+var _editor # 触屏布局编辑层（CanvasLayer，仅在编辑时存在）
 
 
 class InkSlider:
@@ -188,6 +191,7 @@ func _close() -> void:
 		return
 	_closing = true
 	_capturing = ""
+	_cancel_editor()
 	Settings.apply_snapshot(_draft)
 	var s := AudioStreamPlayer.new()
 	s.bus = "SFX"
@@ -215,6 +219,7 @@ func _switch_tab(tab: String) -> void:
 	if not _tabs.has(tab):
 		return
 	_cancel_capture()
+	_cancel_editor()
 	_cur_tab = tab
 	for t in _tabs:
 		_tabs[t]["btn"].add_theme_color_override("font_color", PAPER if t == tab else DIM)
@@ -373,19 +378,108 @@ func _build_keys() -> void:
 	_content.add_child(_hint)
 
 
-## 手机操作页：左手走位 / 右手出手，逐条列清手势
+## 手机操作页：方案二选一 + 布局调整入口 + 当前方案的操作说明
 func _build_touch_keys() -> void:
-	UiKit.label(_content, "触屏操作", Vector2(320, 186), Vector2(400, 30), 22, RED,
+	UiKit.label(_content, "触屏操作", Vector2(320, 186), Vector2(360, 30), 22, RED,
 		HORIZONTAL_ALIGNMENT_LEFT, false)
-	var y := 228.0
-	for row in MOBILE_GUIDE.ROWS:
-		UiKit.label(_content, str(row[0]), Vector2(320, y), Vector2(300, 28), 20, PAPER,
+	UiKit.label(_content, "屏幕震动", Vector2(770, 188), Vector2(100, 28), 17, DIM,
+		HORIZONTAL_ALIGNMENT_RIGHT, false)
+	_content.add_child(_seal(Vector2(882, 184), bool(_draft["screen_shake"]),
+		func(on): _draft["screen_shake"] = on))
+
+	_row_label("操作方案", 320, 228)
+	_scheme_btn("手势（默认）", Vector2(450, 224), 0)
+	_scheme_btn("摇杆 + 按键", Vector2(620, 224), 1)
+
+	var stick := int(_draft.get("touch_scheme", 0)) == 1
+	UiKit.label(_content,
+		"左半屏拖动走位；右半屏点按攻击、上划跳跃、横划闪避、长按开墨环。" if not stick
+		else "左下摇杆走位；右侧攻 / 跳 / 闪 / 技四键，长按技能键开墨环选招。",
+		Vector2(320, 272), Vector2(680, 40), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT, false)
+
+	if stick:
+		var b := _ink_button("调整位置", Vector2(320, 318), Vector2(150, 38), _open_layout_editor)
+		b.add_theme_font_size_override("font_size", 18)
+		_content.add_child(b)
+		var rb := _ink_button("恢复默认位置", Vector2(482, 318), Vector2(160, 38), _reset_touch_layout)
+		rb.add_theme_font_size_override("font_size", 18)
+		_content.add_child(rb)
+		UiKit.label(_content, "拖动控件摆放，保存后立即生效", Vector2(654, 324),
+			Vector2(320, 26), 14, DIM, HORIZONTAL_ALIGNMENT_LEFT, false)
+
+	var rows: Array = MOBILE_GUIDE.STICK_ROWS if stick else MOBILE_GUIDE.ROWS
+	var y := 376.0
+	for i in mini(rows.size(), 5):
+		var row: Array = rows[i]
+		UiKit.label(_content, str(row[0]), Vector2(320, y), Vector2(300, 28), 19, PAPER,
 			HORIZONTAL_ALIGNMENT_LEFT, false)
-		UiKit.label(_content, str(row[1]), Vector2(632, y), Vector2(340, 28), 18, DIM,
+		UiKit.label(_content, str(row[1]), Vector2(632, y), Vector2(360, 28), 17, DIM,
 			HORIZONTAL_ALIGNMENT_LEFT, false)
-		y += 40.0
-	_row_label("屏幕震动", 320, 512)
-	_content.add_child(_seal(Vector2(640, 510), bool(_draft["screen_shake"]), func(on): _draft["screen_shake"] = on))
+		y += 34.0
+
+
+## 方案单选按钮：选中项朱红描边，点击写入草稿并整页刷新
+func _scheme_btn(text: String, pos: Vector2, value: int) -> void:
+	var on := int(_draft.get("touch_scheme", 0)) == value
+	var b := _ink_button(text, pos, Vector2(154, 38), func(): _pick_scheme(value))
+	b.add_theme_font_size_override("font_size", 18)
+	b.add_theme_color_override("font_color", RED if on else DIM)
+	if on:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(RED.r, RED.g, RED.b, 0.16)
+		sb.border_color = Color(RED.r, RED.g, RED.b, 0.9)
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(4)
+		b.add_theme_stylebox_override("normal", sb)
+	_content.add_child(b)
+
+
+func _pick_scheme(value: int) -> void:
+	_draft["touch_scheme"] = value
+	_sfx.play()
+	_switch_tab("操作")
+
+
+func _reset_touch_layout() -> void:
+	_draft["touch_layout"] = TouchLayout.default_layout()
+	Settings.set_touch_layout(_draft["touch_layout"])
+	_sfx.play()
+	_switch_tab("操作")
+
+
+func _open_layout_editor() -> void:
+	if is_instance_valid(_editor):
+		return
+	_sfx.play()
+	_editor = TouchLayoutEditor.new()
+	_editor.setup(_draft.get("touch_layout", Settings.touch_layout))
+	_editor.saved.connect(_on_layout_saved)
+	_editor.cancelled.connect(_on_layout_cancelled)
+	add_child(_editor)
+
+
+func _on_layout_saved(layout: Dictionary) -> void:
+	# 拖拽保存 = 明确要用摇杆方案：草稿与磁盘一起更新，关闭设置后立即生效
+	_draft["touch_layout"] = layout
+	_draft["touch_scheme"] = 1
+	Settings.set_touch_scheme(1)
+	Settings.set_touch_layout(layout)
+	_editor = null
+	_switch_tab("操作")
+
+
+func _on_layout_cancelled() -> void:
+	_editor = null
+
+
+## 关闭布局编辑层（不改草稿，也不落盘）。返回 true 表示确实关掉了一层。
+func _cancel_editor() -> bool:
+	if not is_instance_valid(_editor):
+		_editor = null
+		return false
+	_editor.queue_free()
+	_editor = null
+	return true
 
 
 func _draft_code(action: String) -> int:
@@ -417,7 +511,10 @@ func _cancel_capture() -> void:
 
 func _notification(what: int) -> void:
 	# 手机没有 Esc：返回手势优先关闭设置，借此完成应用与落盘。
+	# 布局编辑器打开时，返回手势只关编辑器，设置面板保持不动。
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST and not _closing:
+		if _cancel_editor():
+			return
 		_close()
 
 
@@ -430,6 +527,8 @@ func _input(event: InputEvent) -> void:
 	var code: int = key.physical_keycode if key.physical_keycode != KEY_NONE else key.keycode
 	if code == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
+		if _cancel_editor():
+			return
 		if _capturing != "":
 			_cancel_capture()
 		else:

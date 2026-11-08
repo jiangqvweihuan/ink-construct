@@ -3,6 +3,9 @@ extends RefCounted
 ## 设置管理器（静态）：音频 3 总线 / 显示模式 / 分辨率 / 帧率 / 垂直同步 / 亮度 / 屏幕震动 / 键位绑定。
 ## 所有改动经 set_xxx() 立即生效并写盘（user://settings.cfg）；启动时由主菜单调 apply_all()。
 ## 键位只允许绑键盘（InputEventKey，物理键码），Esc 永远保留给「返回/取消」不参与改键。
+## 触屏另有两项：操作方案（手势 / 摇杆按键）与控件位置，同样落在 settings.cfg。
+
+const TouchLayout = preload("res://scripts/ui/touch_layout.gd")
 
 const PATH := "user://settings.cfg"
 const RESOLUTIONS: Array[Vector2i] = [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080)]
@@ -39,6 +42,9 @@ static var brightness := 1.0 # 0.5 ~ 1.5
 static var screen_shake := true
 static var damage_numbers := 1 # 伤害飘字：0 关闭 / 1 仅重击（≥3）/ 2 全部显示
 static var intro_skip := false # 关闭启动开场视频（user://settings.cfg 的 ui/intro_skip）
+static var touch_scheme := 0 # 触屏操作方案：0 = 默认手势 / 1 = 摇杆 + 右侧按键
+static var touch_layout := {} # 触屏控件位置：id -> 相对安全区的归一化坐标
+static var touch_rev := 0 # 方案/布局变更计数，触控层轮询后刷新
 static var binds := {} # action -> 物理键码（只记用户改过的键）
 static var persist := true # 测试置 false：不写玩家配置
 static var _loaded := false
@@ -49,6 +55,7 @@ static func _ensure_loaded() -> void:
 	if _loaded:
 		return
 	_loaded = true
+	touch_layout = TouchLayout.default_layout()
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) != OK:
 		return
@@ -71,6 +78,8 @@ static func _ensure_loaded() -> void:
 	screen_shake = cfg.get_value("video", "screen_shake", true)
 	damage_numbers = clampi(int(cfg.get_value("video", "damage_numbers", 1)), 0, 2)
 	intro_skip = bool(cfg.get_value("ui", "intro_skip", false))
+	touch_scheme = clampi(int(cfg.get_value("input", "touch_scheme", 0)), 0, 1)
+	touch_layout = TouchLayout.sanitize(cfg.get_value("input", "touch_layout", touch_layout))
 	var saved: Dictionary = cfg.get_value("input", "binds", {})
 	for action in saved:
 		if DEFAULT_BINDS.has(action):
@@ -83,6 +92,11 @@ static func _ensure_loaded() -> void:
 static func apply_display() -> void:
 	_ensure_loaded()
 	_apply_display()
+
+
+## 确保配置已从磁盘读入（触控层启动时用，不改任何运行时状态）
+static func ensure_loaded() -> void:
+	_ensure_loaded()
 
 
 ## 启动开场是否播放（false = 正常播放；true = 直接进主场景）
@@ -107,6 +121,8 @@ static func _save() -> void:
 	cfg.set_value("video", "screen_shake", screen_shake)
 	cfg.set_value("video", "damage_numbers", damage_numbers)
 	cfg.set_value("ui", "intro_skip", intro_skip)
+	cfg.set_value("input", "touch_scheme", touch_scheme)
+	cfg.set_value("input", "touch_layout", touch_layout)
 	cfg.set_value("input", "binds", binds)
 	cfg.save(PATH)
 
@@ -159,6 +175,7 @@ static func snapshot() -> Dictionary:
 		"display_mode": display_mode, "resolution": resolution, "fps_limit": fps_limit,
 		"vsync": vsync, "brightness": brightness, "screen_shake": screen_shake,
 		"damage_numbers": damage_numbers,
+		"touch_scheme": touch_scheme, "touch_layout": touch_layout.duplicate(true),
 		"binds": binds.duplicate(true),
 	}
 
@@ -168,6 +185,7 @@ static func default_snapshot() -> Dictionary:
 		"master": 1.0, "music": 1.0, "sfx": 1.0,
 		"display_mode": 2, "resolution": RESOLUTIONS[0], "fps_limit": 0,
 		"vsync": true, "brightness": 1.0, "screen_shake": true, "damage_numbers": 1, "binds": {},
+		"touch_scheme": 0, "touch_layout": TouchLayout.default_layout(),
 	}
 
 
@@ -182,6 +200,9 @@ static func apply_snapshot(data: Dictionary) -> void:
 	brightness = clampf(float(data.get("brightness", 1.0)), 0.5, 1.5)
 	screen_shake = bool(data.get("screen_shake", true))
 	damage_numbers = clampi(int(data.get("damage_numbers", 1)), 0, 2)
+	touch_scheme = clampi(int(data.get("touch_scheme", 0)), 0, 1)
+	touch_layout = TouchLayout.sanitize(data.get("touch_layout", TouchLayout.default_layout()))
+	touch_rev += 1
 	binds = (data.get("binds", {}) as Dictionary).duplicate(true)
 	for action in DEFAULT_BINDS:
 		_apply_bind(action, DEFAULT_BINDS[action])
@@ -340,5 +361,24 @@ static func reset_all() -> void:
 	brightness = 1.0
 	screen_shake = true
 	damage_numbers = 1
+	touch_scheme = 0
+	touch_layout = TouchLayout.default_layout()
+	touch_rev += 1
 	reset_binds()
 	apply_all()
+
+
+# ---------- 触屏操作方案 / 布局 ----------
+
+static func set_touch_scheme(scheme: int) -> void:
+	_ensure_loaded()
+	touch_scheme = clampi(scheme, 0, 1)
+	touch_rev += 1
+	_save()
+
+
+static func set_touch_layout(layout: Dictionary) -> void:
+	_ensure_loaded()
+	touch_layout = TouchLayout.sanitize(layout)
+	touch_rev += 1
+	_save()

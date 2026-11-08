@@ -25,6 +25,8 @@ var _difficulty := 1 # 默认落笔，保持此前的战斗体验
 var _char := ""
 var _step := 0 # 0 择路 / 1 问境 / 2 化身
 var _supply := ""
+## 本机双人：由启动的模式选择界面置 true，启程时把双人标记写进 Run
+var local_coop := false
 var _sfx: AudioStreamPlayer
 var _start_button: TextureButton
 var _starting := false
@@ -71,7 +73,9 @@ func _build() -> void:
 
 	var titles := ["择  路", "问  境", "化  身"]
 	var subtitles := ["此行向何处去", "五重墨境，只改敌众与敌锋", "先见其人，再赴其局"]
-	_label("行 旅 卷", 72, 16, RED)
+	_label("行 旅 卷 · 本 机 双 人" if local_coop else "行 旅 卷", 72, 16, RED)
+	if local_coop:
+		_text("P2 方向键 + 小键盘 1~8", Vector2(760, 16), Vector2(460, 26), 13, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 	_label(titles[_step], 98, 38, PAPER)
 	_label(subtitles[_step], 146, 16, DIM)
 	var steps := ["壹 · 择路", "贰 · 问境", "叁 · 化身"]
@@ -159,7 +163,7 @@ func _start_run() -> void:
 		_start_button.disabled = true
 	_play_sfx(SFX_RUN_EMBARK)
 	Meta.select_supply(_supply)
-	Run.start(_mode, _char, _difficulty)
+	Run.start(_mode, _char, _difficulty, local_coop)
 	await LoadVeil.transition_to("res://scenes/world/room_01.tscn", "正在入卷")
 
 

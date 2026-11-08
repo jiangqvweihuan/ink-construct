@@ -1,6 +1,8 @@
 extends Control
 
-## 手势层绘制：浮动摇杆、墨环、右上角暂停键。纯绘制，不接收输入。
+## 手势层绘制：浮动摇杆、墨环、右上角暂停键；摇杆方案下再画左摇杆与右侧四键。纯绘制，不接收输入。
+
+const TouchLayout = preload("res://scripts/ui/touch_layout.gd")
 
 const INK := Color(0.05, 0.05, 0.05)
 const PAPER := Color(0.949, 0.918, 0.847)
@@ -21,6 +23,14 @@ var wheel_sel := -1
 var pause_rect := Rect2()
 var view_size := Vector2(1280, 720)
 
+# 摇杆方案（scheme = 1）的控件状态，由 touch_controls 在变脏时写入
+var scheme := 0
+var layout: Dictionary = {}
+var space := Rect2()
+var stick_base := Vector2.ZERO
+var stick_offset := Vector2.ZERO
+var buttons_down: Array = []
+
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -29,8 +39,38 @@ func _ready() -> void:
 
 func _draw() -> void:
 	_draw_pause()
+	if scheme == 1:
+		_draw_stick()
+		_draw_buttons()
 	if wheel_visible:
 		_draw_wheel()
+
+
+## 左摇杆：底盘 + 头（偏移量由触控层传入，不在这里读输入）
+func _draw_stick() -> void:
+	if space.size.x <= 0.0:
+		return
+	var r := TouchLayout.radius("stick")
+	draw_circle(stick_base, r, Color(0.03, 0.03, 0.03, 0.30))
+	draw_arc(stick_base, r, 0.0, TAU, 48, Color(PAPER, 0.34), 2.0, true)
+	draw_arc(stick_base, r - 10.0, 0.0, TAU, 48, Color(VERMILION, 0.30), 1.5, true)
+	var knob := stick_base + stick_offset.limit_length(r - 18.0)
+	draw_circle(knob, 30.0, Color(PAPER, 0.42))
+	draw_arc(knob, 30.0, 0.0, TAU, 32, Color(PAPER, 0.78), 2.0, true)
+
+
+## 右侧四键：攻 / 跳 / 闪 / 技，按下时朱红填充
+func _draw_buttons() -> void:
+	if space.size.x <= 0.0:
+		return
+	var font := _font()
+	for id in ["attack", "jump", "dash", "skill"]:
+		var c := TouchLayout.center(layout, id, space)
+		var r := TouchLayout.radius(id)
+		var down := buttons_down.has(id)
+		draw_circle(c, r, Color(VERMILION, 0.62) if down else Color(0.03, 0.03, 0.03, 0.38))
+		draw_arc(c, r, 0.0, TAU, 40, Color(GOLD if down else PAPER, 0.78), 2.0, true)
+		_text_centered(font, c, str(TouchLayout.BUTTON_TEXT.get(id, "")), 22, PAPER if down else DIM)
 
 
 func _font() -> Font:

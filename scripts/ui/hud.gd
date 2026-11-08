@@ -33,6 +33,9 @@ var _cd_labels: Array = []
 var _lock_labels: Array = []
 var _player: Node2D
 var _player_extra := 0
+var _partner: Node2D # 本机双人：P2，主 HUD 仍只显示 P1
+var _partner_bar: Control
+var _partner_extra := 0
 var _boss_bar: Control
 var _boss_vital: Control
 var _boss_name: Label
@@ -75,6 +78,7 @@ func _ready() -> void:
 		_on_hp_changed(_player.hp, _player.max_hp)
 		_hud_skills = _player.hud_skills
 	_build_action_bar(_root)
+	_build_partner_bar(_root, players)
 	_sync_status(true)
 	Score.combo_changed.connect(_on_combo_changed)
 	_on_combo_changed(Score.combo)
@@ -96,6 +100,37 @@ func _build_hp_bar(root: Control) -> void:
 	_hp_bar.bar_width = BAR_W
 	_hp_bar.bar_height = BAR_H
 	bar.add_child(_hp_bar)
+
+
+## 本机双人：右上角补一条 P2 生命条（不抢 P1 的技能栏与状态区）
+func _build_partner_bar(root: Control, players: Array) -> void:
+	for p in players:
+		if is_instance_valid(p) and p != _player and int(p.get("input_slot")) == 1:
+			_partner = p
+			break
+	if _partner == null:
+		return
+	var box := Control.new()
+	box.position = Vector2(998, 14)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(box)
+	var tag := _label("P2", Vector2(0, 4), Vector2(34, 24), 17, PAPER, box)
+	tag.add_theme_color_override("font_outline_color", INK)
+	tag.add_theme_constant_override("outline_size", 4)
+	_partner_bar = VitalBar.new()
+	_partner_bar.bar_width = 226.0
+	_partner_bar.bar_height = 22.0
+	_partner_bar.position = Vector2(42, 6)
+	box.add_child(_partner_bar)
+	_partner.hp_changed.connect(_on_partner_hp_changed)
+	_partner_extra = int(_partner.call("hud_extra_hp"))
+	_on_partner_hp_changed(_partner.hp, _partner.max_hp)
+
+
+func _on_partner_hp_changed(hp: int, max_hp: int) -> void:
+	if _partner_bar == null:
+		return
+	_partner_bar.set_vital(hp, max_hp, _partner_extra)
 
 
 # ---------- 底部动作栏 ----------
@@ -371,6 +406,11 @@ func _process(delta: float) -> void:
 		if boss_extra != _boss_extra:
 			_boss_extra = boss_extra
 			_boss_vital.set_extra(boss_extra)
+	if is_instance_valid(_partner) and _partner_bar != null:
+		var partner_extra := int(_partner.call("hud_extra_hp"))
+		if partner_extra != _partner_extra:
+			_partner_extra = partner_extra
+			_partner_bar.set_extra(partner_extra)
 	_status_clock -= delta
 	if _status_clock <= 0.0:
 		_status_clock = 0.20

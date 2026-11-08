@@ -137,6 +137,8 @@ const BLESSINGS := {
 
 var active := false
 var mode := MODE_ADVENTURE # adventure / endless
+## 本机双人：true 时房间会额外生成 P2（方向键 + 小键盘），单人局保持 false
+var local_coop := false
 var difficulty := 1 # 五档问境索引，默认落笔
 var depth := 1 # 无尽模式层数（冒险模式恒为 1）
 var room_index := 0
@@ -170,9 +172,10 @@ var meta_snapshot := {} # 开局时的 Meta 快照，结算面板 diff 出本局
 
 
 ## 开新一局（开始流程面板选完模式、难度与角色后调用；测试无参 = 冒险 + 落笔 + 绯刃）
-func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1) -> void:
+func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1, coop := false) -> void:
 	Achievements.begin_run() # 本局统计清零：无伤 / 速通 / 空手这些单局条件靠它
 	active = true
+	local_coop = coop
 	mode = MODE_ENDLESS if new_mode == MODE_ENDLESS else MODE_ADVENTURE
 	difficulty = clampi(new_difficulty, 0, DIFFICULTIES.size() - 1)
 	depth = 1

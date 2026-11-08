@@ -14,6 +14,7 @@ const FX := preload("res://scripts/systems/fx.gd") # 精灵条特效：斩击/�
 const SPINE_FX := preload("res://scripts/systems/spine_fx.gd")
 const SpinePoseMixer := preload("res://scripts/systems/spine_pose_mixer.gd")
 const Settings = preload("res://scripts/ui/settings.gd") # 改键后 HUD 键名要读 InputMap
+const LocalCoop = preload("res://scripts/systems/local_coop.gd") # 本机双人：P2 走 p2_ 前缀动作
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
 
@@ -38,6 +39,8 @@ const KEY_LABELS := {"skill": "K", "skill_sweep": "L", "skill_ult": "U", "skill_
 var _skill_audio_events: Array = []
 var _footstep_timer := 0.0
 
+## 输入槽：0 = P1（沿用 project.godot 原键位），1 = 本机双人 P2（方向键 + 小键盘）
+@export var input_slot := 0
 @export var run_speed := 240.0
 @export var accel := 2200.0    # 启动加速度（"踩油门"）
 @export var brake := 5200.0    # 制动减速度（"松油门 + 刹"，比启动快得多）
@@ -319,6 +322,8 @@ var fx: PlayerFx
 
 func _ready() -> void:
 	add_to_group("player")
+	if input_slot != 0:
+		LocalCoop.ensure_input() # P2 动作运行时注册，早于本帧任何轮询
 	hp = max_hp
 	_register_pipa_passives()
 	fx = PlayerFx.new(self)
@@ -1132,7 +1137,7 @@ func _physics_process(delta: float) -> void:
 		_skill_cds[n] = maxf(0.0, float(_skill_cds[n]) - cd_recovery)
 	if is_on_floor():
 		_coyote = coyote_time
-	if Input.is_action_just_pressed("jump"):
+	if _just("jump"):
 		_jump_buf = jump_buffer
 
 	if _stun_time > 0.0 and state != State.HURT and state != State.DEAD:
@@ -1295,7 +1300,7 @@ func _consume_buddha_guard(amount: int, move: Dictionary) -> bool:
 # ---------- 各状态逻辑 ----------
 
 func _ground_move(delta: float) -> void:
-	var dir := Input.get_axis("move_left", "move_right")
+	var dir := _move_axis()
 	if dir != 0.0:
 		var target := dir * _move_speed()
 		var acc := accel if signf(velocity.x) == dir else turn_accel # 反向转弯给更大加速度，避免"踩住刹车"的粘滞
@@ -1316,14 +1321,14 @@ func _ground_move(delta: float) -> void:
 		_footstep_timer = 0.0
 	_try_jump()
 	_try_dash()
-	if Input.is_action_just_pressed("attack") and not _attack_recovery_active():
+	if _just("attack") and not _attack_recovery_active():
 		_start_attack(0)
 	else:
 		_try_skill()
 
 
 func _air_move(delta: float) -> void:
-	var dir := Input.get_axis("move_left", "move_right")
+	var dir := _move_axis()
 	if dir != 0.0:
 		facing = 1 if dir > 0.0 else -1
 		_apply_facing()
@@ -1331,7 +1336,7 @@ func _air_move(delta: float) -> void:
 	else:
 		# 空中松油门轻微制动，比地面刹得慢（不锁死空中控制）
 		velocity.x = move_toward(velocity.x, 0.0, brake * 0.4 * delta)
-	if Input.is_action_just_pressed("attack") and not _attack_recovery_active() and _cripple_time <= 0.0:
+	if _just("attack") and not _attack_recovery_active() and _cripple_time <= 0.0:
 		if _air_follow > 0.0:
 			if skull_id == "z000" and (_own("z000_moon_1") or _form_node("z000_volley_2")):
 				_chase_air_target()
@@ -1443,7 +1448,7 @@ func _attack_tick(delta: float) -> void:
 	# 原来用 accel=2200 秒刹，位移只有 2-3px，等于没冲；现在用 brake*0.5，
 	# 刹得慢一半，lunge 110px 至少能飘 10px 出去再停
 	velocity.x = move_toward(velocity.x, 0.0, brake * 0.5 * delta)
-	if Input.is_action_just_pressed("attack"):
+	if _just("attack"):
 		_attack_queued = true
 	# 到点结算命中（支持一段动画多次命中，如 atk03 绯刃）
 	var lock: float = _attack_lock # 随机池段没有配置 lock，用起手时解析好的时长
@@ -1457,7 +1462,7 @@ func _attack_tick(delta: float) -> void:
 		if _attack_queued and _attack_idx < attacks.size() - 1:
 			_start_attack(_attack_idx + 1)
 			return
-		if Input.get_axis("move_left", "move_right") != 0.0:
+		if _move_axis() != 0.0:
 			_set_state(State.IDLE if is_on_floor() else State.FALL)
 			return
 		_try_dash()
@@ -2022,7 +2027,7 @@ func _skill_tick(delta: float) -> void:
 		_mix_restore = false
 		sprite.get("skeleton_data_res").call("set_default_mix", 0.0 if _pose_mixer != null else 0.2)
 	var cfg: Dictionary = _skill_runtime if not _skill_runtime.is_empty() else skill_config[_skill_name]
-	if _skill_cancel_ready and _dash_cd <= 0.0 and _dash_gap <= 0.0 and Input.is_action_just_pressed("dash"):
+	if _skill_cancel_ready and _dash_cd <= 0.0 and _dash_gap <= 0.0 and _just("dash"):
 		_skill_cancel_ready = false
 		_skill_hits.clear()
 		_skill_poise = false
@@ -3120,11 +3125,26 @@ func get_skill_key(n: String) -> String:
 	if action == "":
 		return "-"
 	# 优先读 InputMap（设置里改键后 HUD 跟着变），读不到再退回写死表
+	if input_slot != 0:
+		return LocalCoop.key_label(action)
 	var s := Settings.action_label(action)
 	return s if s != "-" else str(KEY_LABELS.get(action, "-"))
 
 
 # ---------- 动作入口 ----------
+
+## 输入槽相关：P1 读原动作，P2 读 local_coop 注册的 p2_ 动作，互不干扰
+func _act(action: String) -> String:
+	return LocalCoop.action(input_slot, action)
+
+
+func _just(action: String) -> bool:
+	return Input.is_action_just_pressed(_act(action))
+
+
+func _move_axis() -> float:
+	return Input.get_axis(_act("move_left"), _act("move_right"))
+
 
 func _try_jump() -> void:
 	if _jump_seal <= 0.0 and _cripple_time <= 0.0 and _jump_buf > 0.0 and _coyote > 0.0:
@@ -3137,7 +3157,7 @@ func _try_jump() -> void:
 
 func _try_dash() -> void:
 	var flash_gap := skull_id == "c021" and has_battle_passive("c021_flash")
-	if not Input.is_action_just_pressed("dash") or _dash_cd > 0.0 or (_dash_gap > 0.0 and not flash_gap) or _dash_seal > 0.0 or _cripple_time > 0.0:
+	if not _just("dash") or _dash_cd > 0.0 or (_dash_gap > 0.0 and not flash_gap) or _dash_seal > 0.0 or _cripple_time > 0.0:
 		return
 	if skull_id == "z003" and _own("z003_returning_2") and _return_time > 0.0:
 		_return_dash()
@@ -3149,7 +3169,7 @@ func _try_dash() -> void:
 	# 双闪避池（剑仙）：站着不动就是原地闪（零位移），移动中就随机抽一段带位移的闪避
 	if not _dash_pool.is_empty():
 		var entry: Dictionary = {}
-		if Input.get_axis("move_left", "move_right") != 0.0:
+		if _move_axis() != 0.0:
 			var pool: Array = _dash_pool.get("move", [])
 			if not pool.is_empty():
 				entry = pool[randi() % pool.size()]
@@ -3253,12 +3273,12 @@ func _start_attack(idx: int) -> void:
 
 
 func _try_skill() -> void:
-	if skull_id == "c013" and _own("c013_bell_2") and _shield_hits > 0 and Input.is_action_just_pressed("skill"):
+	if skull_id == "c013" and _own("c013_bell_2") and _shield_hits > 0 and _just("skill"):
 		_shatter_bell()
 		return
 	for n in skill_config:
 		var cfg: Dictionary = skill_config[n]
-		if not Input.is_action_just_pressed(cfg["action"]) or _skill_cds.get(n, 0.0) > 0.0:
+		if not _just(str(cfg["action"])) or _skill_cds.get(n, 0.0) > 0.0:
 			continue
 		# 觉醒限定技（O/P）只认真正觉醒窗口；完美闪避等普通加伤不能解锁。
 		if bool(cfg.get("require_buff", false)) and _awaken_time <= 0.0:

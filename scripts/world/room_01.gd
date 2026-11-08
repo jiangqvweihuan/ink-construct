@@ -16,6 +16,8 @@ const BOSS_DUEL_INTRO := preload("res://scripts/ui/boss_duel_intro.gd")
 const MOBILE_GUIDE := preload("res://scripts/ui/mobile_guide.gd")
 
 var _player
+var _players: Array = [] # 本机双人时含 P1/P2，单人时只有 P1
+var _camera: Camera2D
 var _spawner
 var _boss
 var _hud
@@ -181,31 +183,26 @@ func _build_ground() -> void:
 
 
 func _build_actors() -> void:
-	_player = load("res://scenes/player/player.tscn").instantiate()
-	# 脚本编译失败时实例化出来的是裸 CharacterBody2D（没 died/set_upgrades），
-	# 宁可在这里报一条清晰错误，也不要等 connect 时刷 Invalid access
-	if not _player.has_signal("died"):
-		push_error("room_01: 玩家脚本未加载（检查 player.gd 编译错误），本局无法继续")
+	_player = _spawn_player(0, Vector2(460.0 if Run.is_boss_room() else 220.0, 560))
+	if _player == null:
 		return
-	# Boss 房玩家进门往场中站：给 Boss 登场留出镜头，也让开场距离够触发它的冲锋
-	_player.position = Vector2(460.0 if Run.is_boss_room() else 220.0, 560)
-	_player.died.connect(_on_player_died)
-	add_child(_player)
-	if Run.is_boss_room() and Run.boss_id == "c008":
-		_player.set_sui_yue_pressure(true) # 邪佛压场先于状态注入，避免生命与增益被重新写回
-	Run.apply_to(_player) # 继承上一层带过来的血量 / 形态 / 强化
+	# 本机双人：P2 并肩进门，同一套房间/敌潮，输入走方向键 + 小键盘
+	if Run.local_coop:
+		_spawn_player(1, _player.position + Vector2(140.0, 0.0))
 
-	var cam := Camera2D.new()
-	cam.position = Vector2(0, -80)
-	cam.limit_left = 0
-	cam.limit_right = int(ROOM_W)
-	cam.limit_top = 0
-	cam.limit_bottom = 720
-	cam.position_smoothing_enabled = true
-	cam.position_smoothing_speed = 8.0
-	_player.add_child(cam)
-	cam.make_current()
-	Feel.register_camera(cam) # 打击感系统靠这台相机做屏幕震动
+	_camera = Camera2D.new()
+	_camera.position = Vector2(0, -80)
+	_camera.limit_left = 0
+	_camera.limit_right = int(ROOM_W)
+	_camera.limit_top = 0
+	_camera.limit_bottom = 720
+	_camera.position_smoothing_enabled = true
+	_camera.position_smoothing_speed = 8.0
+	_player.add_child(_camera)
+	if Run.local_coop:
+		_camera.zoom = Vector2(0.86, 0.86) # 双人同屏稍微拉远，免得队友出画
+	_camera.make_current()
+	Feel.register_camera(_camera) # 打击感系统靠这台相机做屏幕震动
 
 	# Boss 房：不刷波次，直接请 Boss 登场；普通房间走波次刷怪
 	if Run.is_boss_room():
@@ -224,6 +221,68 @@ func _build_actors() -> void:
 	add_child(_hud)
 	if _boss != null:
 		_hud.show_boss(_boss)
+
+
+## 生成一名玩家：slot 0 = P1 原键位，slot 1 = 本机双人 P2（方向键 + 小键盘）
+func _spawn_player(slot: int, spawn_pos: Vector2):
+	var p = load("res://scenes/player/player.tscn").instantiate()
+	# 脚本编译失败时实例化出来的是裸 CharacterBody2D（没 died/set_upgrades），
+	# 宁可在这里报一条清晰错误，也不要等 connect 时刷 Invalid access
+	if not p.has_signal("died"):
+		push_error("room_01: 玩家脚本未加载（检查 player.gd 编译错误），本局无法继续")
+		return null
+	p.input_slot = slot
+	p.position = spawn_pos
+	p.died.connect(_on_player_died.bind(p))
+	add_child(p)
+	_players.append(p)
+	if Run.is_boss_room() and Run.boss_id == "c008":
+		p.set_sui_yue_pressure(true) # 邪佛压场先于状态注入，避免生命与增益被重新写回
+	Run.apply_to(p) # 继承上一层带过来的血量 / 形态 / 强化
+	return p
+
+
+## 还活着的玩家（本机双人时用于判断全灭与镜头接力）
+func _alive_players() -> Array:
+	var out: Array = []
+	for p in _players:
+		if is_instance_valid(p) and p.state != p.State.DEAD:
+			out.append(p)
+	return out
+
+
+## 结算取状态时优先用幸存者，单人局即 P1
+func _survivor():
+	var alive := _alive_players()
+	if not alive.is_empty():
+		return alive[0]
+	return _player if is_instance_valid(_player) else null
+
+
+## 镜头交给指定玩家（P1 阵亡、P2 还在时用）
+func _focus_camera(target) -> void:
+	if _camera == null or not is_instance_valid(_camera) or not is_instance_valid(target):
+		return
+	if _camera.get_parent() == target:
+		return
+	var old := _camera.get_parent()
+	if is_instance_valid(old):
+		old.remove_child(_camera)
+	target.add_child(_camera)
+	_camera.position = Vector2(0, -80)
+	_camera.make_current()
+
+
+## 强化 / 赐福对场上每个活着的玩家生效
+func _apply_to_all() -> void:
+	for p in _alive_players():
+		Run.apply_to(p)
+
+
+func _snapshot_run() -> void:
+	var p = _survivor()
+	if p != null:
+		Run.snapshot(p)
 
 
 ## Boss 登场：墨堂深处只有它一个对手，出场先震屏立威
@@ -269,15 +328,17 @@ func _on_all_cleared() -> void:
 		return
 	_ended = true
 	Achievements.room_cleared() # 记一个房间；本房未受伤则同时记无伤房
-	# 把玩家现在的血量/形态写进 run，下一层继承
-	if is_instance_valid(_player):
-		Run.snapshot(_player)
+	# 把玩家现在的血量/形态写进 run，下一层继承（双人时取幸存者）
+	_snapshot_run()
 	await get_tree().create_timer(0.8).timeout # 等最后一只倒地动画
 	# 这 0.8 秒内仍可能被飞行中的投射物 / 毒素带走，不能让 _ended 吞掉死亡信号
-	if is_instance_valid(_player) and _player.state == _player.State.DEAD:
+	if _alive_players().is_empty():
 		_ended = false
 		_on_player_died()
 		return
+	# 清场等待期内 P1 可能已倒下，镜头需要补交给 P2
+	if is_instance_valid(_player) and _player.state == _player.State.DEAD:
+		_focus_camera(_survivor())
 	# 三间普通房清空都出强化三选一；第三间的前进方向就是 Boss 房
 	_show_upgrade()
 
@@ -288,25 +349,28 @@ func _on_boss_died() -> void:
 		return
 	_ended = true
 	Achievements.room_cleared() # 首领房同样算一个房间
-	if is_instance_valid(_player):
-		Run.snapshot(_player)
+	_snapshot_run()
 	if not Run.boss_defeated.has(Run.boss_id):
 		Run.boss_defeated.append(Run.boss_id)
 	await get_tree().create_timer(1.6).timeout
 	# 首 Boss 倒地等待期也可能阵亡；不能让 _ended 吞掉死亡信号后直接开第二战。
-	if is_instance_valid(_player) and _player.state == _player.State.DEAD:
+	if _alive_players().is_empty():
 		_ended = false
 		_on_player_died()
 		return
+	# 倒地等待期内 P1 可能已倒下，镜头补交给 P2
+	if is_instance_valid(_player) and _player.state == _player.State.DEAD:
+		_focus_camera(_survivor())
 	# 无归二连战：只回 2 血，不回满、不弹强化；第二只仍在当前房间直接登场。
 	if Run.mode == Run.MODE_ADVENTURE and Run.difficulty == Run.DIFFICULTIES.size() - 1 and Run.boss_phase == 0:
 		Run.boss_phase = 1
 		Run.boss_id = str(Run.boss_queue[1])
-		if is_instance_valid(_player):
-			_player.set_sui_yue_pressure(Run.boss_id == "c008")
-			_player._restore_hp(2)
-			Run.snapshot(_player)
-			Run.apply_to(_player)
+		var survivor = _survivor()
+		if survivor != null:
+			survivor.set_sui_yue_pressure(Run.boss_id == "c008")
+			survivor._restore_hp(2)
+			Run.snapshot(survivor)
+			_apply_to_all()
 		_spawn_boss()
 		_hud.show_boss(_boss)
 		_ended = false
@@ -319,13 +383,21 @@ func _on_boss_died() -> void:
 	_show_settlement("通  关", true)
 
 
-func _on_player_died() -> void:
+func _on_player_died(dead = null) -> void:
 	if _ended:
+		return
+	if dead == null:
+		dead = _player
+	# 本机双人：只要还有队友站着，就把镜头交给他继续打，不结算
+	var alive := _alive_players()
+	if not alive.is_empty():
+		if dead == _player:
+			_focus_camera(alive[0])
 		return
 	_ended = true
 	# 先把玩家当前形态记进 Run：结算面板「再来一局」要沿用同一化身重开
-	if is_instance_valid(_player):
-		Run.snapshot(_player)
+	if is_instance_valid(dead):
+		Run.snapshot(dead)
 	Run.active = false # 这一局到此为止，再来一局从第一层重开
 	await get_tree().create_timer(1.2).timeout # 等阵亡动画
 	# 无尽模式：结算标题直接写死在第几层，方便对照自己的最好成绩
@@ -357,8 +429,7 @@ func _show_blessing() -> void:
 	b.name = "Blessing"
 	# 铁砚护身等改上限的赐福需要重新注入玩家
 	b.chosen.connect(func(_id):
-		if is_instance_valid(_player):
-			Run.apply_to(_player)
+		_apply_to_all()
 		_show_mobile_guide()) # 赐福关掉之后再上讲操作课，两张时停卡不叠在一起
 	add_child(b)
 
@@ -390,8 +461,7 @@ func _show_upgrade() -> void:
 
 
 func _on_upgrade_bought() -> void:
-	if is_instance_valid(_player):
-		Run.apply_to(_player)
+	_apply_to_all()
 
 
 func _on_proceed() -> void:
