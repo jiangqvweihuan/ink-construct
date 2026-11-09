@@ -13,7 +13,8 @@ const Skins := preload("res://scripts/systems/skins.gd")
 const DEFAULT_ID := "c021"
 
 ## 形态强度顺序（由弱到强）：选角界面 / 化身谱按此排列，解锁条件也按同一梯度递增
-const ORDER := ["c021", "c013", "c023", "z000", "z002", "z003"]
+## 解锁门槛：c013 击杀 20 → c023 击杀 60 → z000 通关 1 次 → z003 通关 3 次 + 击杀 150 → z002 通关 5 次 + 击杀 300
+const ORDER := ["c021", "c013", "c023", "z000", "z003", "z002"]
 
 const SKULLS := {
 	"c021": {

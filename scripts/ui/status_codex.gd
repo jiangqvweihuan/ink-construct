@@ -14,7 +14,7 @@ static func _e(id: String, kind: String, target: String, group: String, title: S
 
 ## 人物词条只概括主要特征，不穷举每个技能；精确结算仍以招式与战斗状态详情为准。
 const TAG_ACTOR_ORDER := [
-	"c021", "c013", "c023", "z000", "z002", "z003",
+	"c021", "c013", "c023", "z000", "z003", "z002",
 	"c016", "c017", "c035", "c018", "c012", "c037",
 	"c009", "c015a1", "c001", "c008", "c032",
 ]
