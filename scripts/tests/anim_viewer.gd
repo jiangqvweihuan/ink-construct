@@ -31,6 +31,17 @@ func _ready() -> void:
 		_sets.append({"path": f, "data": data, "anims": anims})
 	print("[AV] 骨架 %d 个" % _sets.size())
 
+	# 可选：命令行 `-- --skeleton c033` 只预览指定骨架，方便单角色资源验收
+	var only := _cli_value("--skeleton")
+	if only != "":
+		var keep: Array = []
+		for s in _sets:
+			if str(s["path"]).contains(only):
+				keep.append(s)
+		if not keep.is_empty():
+			_sets = keep
+			print("[AV] 过滤后骨架 %d 个" % _sets.size())
+
 	var bg := ColorRect.new()
 	bg.color = Color(0.949, 0.918, 0.847)
 	bg.size = Vector2(1280, 720)
@@ -48,13 +59,34 @@ func _ready() -> void:
 	_hint.text = "← → 切骨架    ↑ ↓ 切动画    空格 重播    L 循环"
 	add_child(_hint)
 
-	_show(0, 0)
+	# 可选：命令行 `-- --anim stand` 直接定位到指定动画
+	var start_ai := 0
+	var want_anim := _cli_value("--anim")
+	if want_anim != "" and not _sets.is_empty():
+		var anims: Array = _sets[0]["anims"]
+		for i in anims.size():
+			if str(anims[i]["name"]) == want_anim:
+				start_ai = i
+				break
+
+	_show(0, start_ai)
 	# 命令行加 `-- --shot` 时自动截一张图并退出，方便回归验证本工具能正常渲染
 	if "--shot" in OS.get_cmdline_user_args():
-		await get_tree().create_timer(1.0).timeout
+		var delay := float(_cli_value("--shot-delay")) if _cli_value("--shot-delay") != "" else 1.0
+		await get_tree().create_timer(delay).timeout
 		await RenderingServer.frame_post_draw
+		# 打印播放位置：track_time 应约等于 delay（按 1x 速度走），用来验证动画确实在播且时序正常
+		if _state != null and _state.has_method("get_current"):
+			var entry = _state.call("get_current", 0)
+			if entry != null:
+				var a = entry.call("get_animation")
+				print("[AV] play anim=%s track=%.3f delay=%.3f" % [
+					str(a.call("get_name")) if a != null else "?", float(entry.call("get_track_time")), delay])
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://tests/out"))
-		var err := get_viewport().get_texture().get_image().save_png("res://tests/out/anim_viewer.png")
+		var out_path := _cli_value("--shot-out")
+		if out_path == "":
+			out_path = "res://tests/out/anim_viewer.png"
+		var err := get_viewport().get_texture().get_image().save_png(out_path)
 		print("[AV] shot err=", err)
 		get_tree().quit()
 
@@ -123,6 +155,14 @@ func _update_info() -> void:
 		lines.append("动画 %d/%d   %s   %.3fs   %s" % [
 			_ai + 1, anims.size(), str(a["name"]), float(a["dur"]), "循环" if _loop else "单次"])
 	_info.text = "\n".join(lines)
+
+
+func _cli_value(key: String) -> String:
+	var args := OS.get_cmdline_user_args()
+	for i in args.size():
+		if args[i] == key and i + 1 < args.size():
+			return str(args[i + 1])
+	return ""
 
 
 func _find_data_files(dir: String) -> Array[String]:
