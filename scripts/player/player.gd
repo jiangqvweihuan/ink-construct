@@ -299,6 +299,11 @@ var _pipa_awaken_count := 0
 var _pipa_o_used := false
 var _pipa_wave_hits: Dictionary = {} # 本次 O：目标实例 id -> 已命中段数
 var _pipa_sorrow_timer := 30.0
+# ---------- 烬生·赤烬专属：燃尽 / 战意 ----------
+var _z001_burnout := false # 生命归零后进入燃尽：后续伤害改为扣生命上限
+var _z001_fury := 0 # 战意层数：每层使全部伤害 +N，不设上限
+var _z001_kill_acc := 0 # 本房累计击杀（每 5 次 +1 层战意）
+var _z001_hit_acc := 0 # 本房累计受击（每 5 次 +1 层战意）
 # ---------- 银夜·将去未还专属机制（形态表注入，其他形态全为默认值=关闭） ----------
 var _qg_jump_mul := 1.0 # 轻功：跳跃初速倍率（明显跳得更高）
 var _qg_hover := 0.0 # 轻功：跃过顶点后空中滞留时长
@@ -413,6 +418,10 @@ func _register_pipa_passives() -> void:
 		"desc": "本局击败同类型杂兵 6 次、精英 3 次或 Boss 1 次后，夺取其全部被动；接口同样支持化身与未来联机对手。", "boss_effect": {}})
 	Meta.register_battle_passive("z003_charm_call", {"form": "z003", "owned": true, "name": "魅唤",
 		"desc": "使用 P 时随机召唤一名已夺取被动的实体协助作战；召唤物数值不变，只攻击敌人。", "boss_effect": {}})
+	Meta.register_battle_passive("z001_burnout", {"form": "z001", "owned": true, "name": "燃尽一切吧",
+		"desc": "生命归零时不死亡，后续受到的伤害改为扣除生命上限，直至上限清零才判定死亡；期间获得任意回血即恢复正常的生命扣除逻辑。", "boss_effect": {}})
+	Meta.register_battle_passive("z001_war_fury", {"form": "z001", "owned": true, "name": "战狂",
+		"desc": "当前房间每累计击杀 5 名敌人或累计受到 5 次伤害，获得 1 层无上限的战意；每层使全部伤害附加等量焚烧伤害。切换房间清空层数。", "boss_effect": {}})
 
 
 ## 把形态表里的动画映射 / 普攻段 / 技能表 / HUD 顺序装到实例上
@@ -436,7 +445,7 @@ func _apply_profile(id: String) -> void:
 	_dash_anim_speed = float(profile.get("dash_anim_speed", 1.0)) # 短冲刺动画可慢放（银夜 autorush 只有 0.083s）
 	# 双闪避池（剑仙）：站定/移动各一套，不配就走下方通用的单段闪避
 	_dash_pool = profile.get("dash_pool", {})
-	_jump_seg = anim_map.has("jump_start") # 分段跳跃：起跳/上升/下降/落地四段动画
+	_jump_seg = anim_map.has("jump_start") or bool(profile.get("jump_no_start", false))
 	_awaken_time = 0.0
 	_awaken_pending = 0.0
 	_awaken_stacks = 0
@@ -447,6 +456,10 @@ func _apply_profile(id: String) -> void:
 	_pipa_o_used = false
 	_pipa_wave_hits.clear()
 	_pipa_sorrow_timer = 27.0 if skull_id == "z002" and Meta.has_form_node("z002_grudge_1") else 30.0
+	_z001_burnout = false
+	_z001_fury = 0
+	_z001_kill_acc = 0
+	_z001_hit_acc = 0
 	# 通用动作接口：闪避时长/速度、受击分档、倒地、残血待机（形态表不配就走默认值）
 	_dash_time_base = float(profile.get("dash_time", dash_time))
 	_dash_speed_base = float(profile.get("dash_speed", dash_speed))
@@ -512,6 +525,12 @@ func hud_extra_hp() -> int:
 
 ## 每次正式进房调用：霜梅先复原，再把本房实际恢复量转换为 K 尾鞭加伤。
 func on_room_enter() -> void:
+	# 战狂只认当前房间：换房即清空战意与两条累计线；燃尽状态随新房间重建一起复原
+	if skull_id == "z001":
+		_z001_fury = 0
+		_z001_kill_acc = 0
+		_z001_hit_acc = 0
+		_z001_burnout = false
 	_c023_frost_bonus = 0
 	if skull_id != "c023" or not has_battle_passive("c023_frost_plum"):
 		return
@@ -1657,6 +1676,10 @@ func _deal_hit(h = null) -> void:
 		_damage_enemy(p, dmg + _target_damage_bonus(p))
 		hit_scored() # 命中一只算一次连击
 		_on_build_hit(p, "attack%d" % _attack_idx)
+		# 普攻末段易伤（烬生 J 第三段）：只对仍存活的目标生效
+		if spec.has("vulnerable") and int(e.get("hp")) > 0 and p.has_method("apply_vulnerable"):
+			var vuln: Dictionary = spec["vulnerable"]
+			p.call("apply_vulnerable", float(vuln.get("time", 5.0)), float(vuln.get("ratio", 0.25)))
 		if skull_id == "z003" and _attack_idx == 1 and _own("z003_sky_1"):
 			_air_follow = 4.0
 		# 击飞（银夜段2）：敌人往空中挑起，落地硬直；打死的尸体不再挑
@@ -1741,6 +1764,8 @@ func _damage_enemy(target: Node, amount: int) -> int:
 		var defend := Run.enemy_taken_scale()
 		if defend < 1.0:
 			amount = maxi(1, int(round(float(amount) * defend)))
+	if skull_id == "z001" and _z001_fury > 0:
+		amount += _z001_fury # 战意：每层追加等量焚烧伤害，不参与敌方减伤倍率
 	var before := int(target.get("hp"))
 	if target.has_method("take_damage_from"):
 		target.call("take_damage_from", amount, self)
@@ -1776,6 +1801,8 @@ func _stolen_holy_hit(target: Node) -> int:
 
 ## 固有与夺取被动只响应真实扣血：被格挡、无敌或零伤命中不会累计。
 func _on_innate_damage(target: Node, dealt: int) -> void:
+	if skull_id == "z001" and dealt > 0 and int(target.get("hp")) <= 0:
+		_z001_on_kill()
 	if skull_id == "c013" and has_battle_passive("c013_demon"):
 		Run.c013_damage_hits += 1
 		if Run.c013_damage_hits % 4 == 0:
@@ -1825,6 +1852,81 @@ func _on_innate_damage(target: Node, dealt: int) -> void:
 			target.call("knock_back", int(dir if dir != 0.0 else facing), 110.0, 0)
 		if _stolen("c015a1_burning_heart") and target.has_method("apply_player_burn"):
 			target.call("apply_player_burn", self)
+
+
+# ---------- 烬生·赤烬：战狂 / 燃尽 ----------
+
+func _z001_add_fury() -> void:
+	if skull_id != "z001" or not has_battle_passive("z001_war_fury"):
+		return
+	_z001_fury += 1
+	_spawn_passive_text("战意 ×%d" % _z001_fury, Color(0.95, 0.55, 0.25))
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -120),
+		{"scale": 0.4, "mod": Color(1.0, 0.55, 0.25, 0.85)})
+
+
+func _z001_on_kill() -> void:
+	if skull_id != "z001" or not has_battle_passive("z001_war_fury"):
+		return
+	_z001_kill_acc += 1
+	if _z001_kill_acc >= 5:
+		_z001_kill_acc -= 5
+		_z001_add_fury()
+
+
+func _z001_on_hit_taken() -> void:
+	if skull_id != "z001" or not has_battle_passive("z001_war_fury"):
+		return
+	_z001_hit_acc += 1
+	if _z001_hit_acc >= 5:
+		_z001_hit_acc -= 5
+		_z001_add_fury()
+
+
+## 致命伤：生命归零但不死亡，进入燃尽。返回 true 表示这次致命伤已被燃尽接管。
+func _z001_enter_burnout() -> bool:
+	if skull_id != "z001" or pvp_mode or _z001_burnout or not has_battle_passive("z001_burnout"):
+		return false
+	_z001_burnout = true
+	hp = 0
+	hp_changed.emit(hp, max_hp)
+	_spawn_passive_text("燃尽", Color(1.0, 0.55, 0.25))
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70),
+		{"scale": 0.7, "mod": Color(1.0, 0.5, 0.2, 0.9)})
+	_play_sfx("voice_skill_cast")
+	return true
+
+
+## 燃尽期间受到的伤害改为扣除生命上限；上限清零才真正死亡。
+func _z001_burnout_take_damage(amount: int) -> void:
+	if amount <= 0 or state == State.DEAD:
+		return
+	max_hp = maxi(0, max_hp - amount)
+	hp = 0
+	if Run.active:
+		Run.set_slot_hp(input_slot, hp)
+		if input_slot == 0:
+			Run.max_hp = max_hp
+	hp_changed.emit(hp, max_hp)
+	_z001_on_hit_taken()
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("上限 -%d" % amount, Color(1.0, 0.6, 0.25))
+	dn.global_position = global_position + Vector2(0, -160)
+	_world_add(dn)
+	_spawn_number(amount, Color(1.0, 0.5, 0.2), 130.0)
+	_play_sfx("hit_fist")
+	Feel.hitstop(0.04)
+	Feel.shake(5.0, 0.16)
+	if max_hp <= 0:
+		die()
+
+
+## 燃尽期间获得回血：立即退出燃尽，后续伤害重新扣生命。
+func _z001_exit_burnout() -> void:
+	if not _z001_burnout:
+		return
+	_z001_burnout = false
+	_spawn_passive_text("余烬复燃", Color(1.0, 0.72, 0.35))
 
 
 func _spawn_stolen_sword_clone() -> void:
@@ -2493,7 +2595,34 @@ func _deal_skill_hit(h: Dictionary) -> void:
 					{"scale": 0.35, "flip": facing < 0, "fx_role": "skill_hit"})
 			if skull_id == "z003" and _skill_name == "skill11" and _form_node("z003_return_3") and _buff_timer > 0.0:
 				_o_kill_window = 0.3 # 必须在扣血前开窗口，直接击杀也会归给本次 O
+			# 烬生 O：路径上的普通小怪直接秒杀，精英 / Boss 固定 8 伤
+			if h.has("dash_kill") and not (pvp_mode and ("pvp_mode" in p) and bool(p.get("pvp_mode"))):
+				var tier := str(p.call("stop_tier")) if p.has_method("stop_tier") else "mob"
+				var dash_before := int(p.get("hp"))
+				var fixed := maxi(1, dash_before) if tier != "boss" and tier != "elite" \
+					else int((h["dash_kill"] as Dictionary).get("elite_damage", 8)) + _z001_fury
+				if p.has_method("take_damage_from"):
+					p.call("take_damage_from", fixed, self)
+				else:
+					p.call("take_damage", fixed, global_position.x)
+				var dealt_dash := maxi(0, dash_before - int(p.get("hp")))
+				_skill_damage_total += dealt_dash
+				if dealt_dash > 0 and int(p.get("hp")) <= 0:
+					_z001_on_kill()
+				hit_scored()
+				FX.spawn(get_tree().current_scene, "speedline", p.global_position + Vector2(0, -60),
+					{"scale": 0.6, "flip": facing < 0})
+				did_hit = true
+				continue
 			var hit_damage := dmg
+			# 烬生 L：斩杀——按目标已损生命追加 20%（Boss 10%）
+			if h.has("execute"):
+				var ex: Dictionary = h["execute"]
+				var is_boss := p.has_method("stop_tier") and str(p.call("stop_tier")) == "boss" \
+					and not (pvp_mode and ("pvp_mode" in p) and bool(p.get("pvp_mode")))
+				var ratio := float(ex.get("boss", 0.1)) if is_boss else float(ex.get("normal", 0.2))
+				var lost_hp := maxi(0, int(p.get("max_hp")) - int(p.get("hp")))
+				hit_damage += int(floor(float(lost_hp) * ratio))
 			hit_damage += _target_damage_bonus(p)
 			var dealt_now := _damage_enemy(p, hit_damage)
 			_skill_damage_total += dealt_now
@@ -2781,6 +2910,8 @@ func _restore_hp(amount: int) -> void:
 		return
 	var received := amount * (2 if skull_id == "z000" and has_battle_passive("z000_immortal") else 1)
 	var heal := mini(received, cap - hp)
+	if heal > 0 and _z001_burnout:
+		_z001_exit_burnout() # 燃尽期间获得回血：立即恢复正常扣血逻辑
 	hp += heal
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(heal, Color(0.45, 0.75, 0.5), 130.0, false)
@@ -3133,6 +3264,8 @@ func _apply_skill_heal(h: Dictionary) -> void:
 		var missing := maxi(0, max_hp + extra_hp_cap() - hp)
 		var heal := mini(received, missing)
 		if heal > 0:
+			if _z001_burnout:
+				_z001_exit_burnout() # 燃尽期间获得回血：立即恢复正常扣血逻辑
 			hp += heal
 			hp_changed.emit(hp, max_hp)
 			var dn := DAMAGE_NUMBER.new()
@@ -3408,7 +3541,8 @@ func _try_dash() -> void:
 	# 双闪避池（剑仙）：站着不动就是原地闪（零位移），移动中就随机抽一段带位移的闪避
 	if not _dash_pool.is_empty():
 		var entry: Dictionary = {}
-		if _move_axis() != 0.0:
+		# 没有 still 项的形态（烬生）：站定与移动都从 move 池随机抽，保证 28/47 两段都出现
+		if _move_axis() != 0.0 or not _dash_pool.has("still"):
 			var pool: Array = _dash_pool.get("move", [])
 			if not pool.is_empty():
 				entry = pool[randi() % pool.size()]
@@ -3610,6 +3744,11 @@ func _start_skill(n: String) -> void:
 		_skill_speed *= base_dur / max_dur
 	_skill_dur = base_dur / _skill_speed
 	_skill_timer = _skill_dur
+	# 连播类技能（烬生 K）：同一段动画循环 repeat 次，总时长按次数累加
+	var repeat := maxi(1, int(cfg.get("repeat", 1)))
+	if repeat > 1:
+		_skill_dur = base_dur * float(repeat) / _skill_speed
+		_skill_timer = _skill_dur
 	# per-anim 命中标定（hit_at/range 按抽中动画查表）：池技能各动画挥出时刻/范围不同。
 	# 附加效果（projectile/bleed/stun/击飞/回血等）也一并带进这一段命中
 	if cfg.has("hit_at"):
@@ -3631,6 +3770,20 @@ func _start_skill(n: String) -> void:
 		_skill_hits = [h]
 	else:
 		_skill_hits = cfg.get("hits", []).duplicate(true)
+	# 连播类技能：把每轮命中按动画周期展开到整段循环上
+	if repeat > 1:
+		var expanded: Array = []
+		var cycle_hits: Array = cfg.get("repeat_hits", [])
+		for c in repeat:
+			for rh in cycle_hits:
+				var hh: Dictionary = (rh as Dictionary).duplicate(true)
+				hh["at"] = float(hh.get("at", 0.2)) + base_dur * float(c)
+				hh["range"] = float(cfg.get("range", hh.get("range", 120.0)))
+				hh["height"] = float(cfg.get("height", hh.get("height", 110.0)))
+				hh["both"] = bool(cfg.get("both", hh.get("both", false)))
+				hh["sfx"] = str(cfg.get("sfx", hh.get("sfx", "")))
+				expanded.append(hh)
+		_skill_hits = expanded
 	if skull_id == "z000" and n == "skill04":
 		_skill_hits = [{"at": 0.48, "damage": 5, "sfx": "hit_heavy", "projectile": {
 			"speed": 900.0, "range": 620.0, "pierce": true, "style": "qi",
@@ -3685,6 +3838,9 @@ func _start_skill(n: String) -> void:
 	# 觉醒（银夜 I）：起手即回血 + 限时加伤；绛弦 L 改在曲终魔音出手时统一回血。
 	if cfg.has("heal") and not (skull_id == "z002" and n == "skill03"):
 		_apply_skill_heal({"heal": cfg["heal"]})
+	# 烬生 I：立刻把生命恢复至满值（燃尽中则先退出燃尽）
+	if bool(cfg.get("heal_full", false)):
+		_restore_hp(maxi(0, max_hp - hp))
 	if cfg.has("buff_damage"):
 		_buff_damage = int(cfg["buff_damage"])
 		_awaken_buff_damage = int(cfg["buff_damage"])
@@ -3694,7 +3850,7 @@ func _start_skill(n: String) -> void:
 		if skull_id == "z003" and n == "skill10":
 			_awaken_time = _buff_timer # 影殇 I 与加伤同时建立等长的真正觉醒窗口
 	velocity.x = facing * float(attacks[0]["lunge"]) * 0.6 # 起手小前冲
-	_play(_skill_anim, false, _skill_speed)
+	_play(_skill_anim, repeat > 1, _skill_speed)
 	_sync_stolen_sword_clone()
 	var loop_sfx := str(cfg.get("loop_sfx", ""))
 	if loop_sfx != "":
@@ -4195,18 +4351,27 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		amount = Run.cap_enemy_hit(amount, max_hp)
 	# 只记录真正扣血的一击：闪避、护盾、受伤无敌与反伤都不会污染终局对演。
 	_record_last_hit(attacker, move, amount)
+	# 燃尽：生命已归零，后续伤害改为扣除生命上限
+	if _z001_burnout and amount > 0:
+		_z001_burnout_take_damage(amount)
+		return
 	if skull_id == "c013" and _form_node("c013_meditation_2"):
 		_hurt_guard_timer = 2.0
 	if skull_id == "c023" and _form_node("c023_patience_3") and _hurt_cd_refund_cd <= 0.0:
 		_hurt_cd_refund_cd = 5.0
 		_skill_cds["skill02"] = maxf(0.0, float(_skill_cds.get("skill02", 0.0)) - 2.0)
+	# 烬生：≤4 伤既不进硬直也不打断技能，连收招/闪现/根骨结算都不动
+	var z001_soft := skull_id == "z001" and amount <= 4
 	_hurt_invincible = 0.8
 	_hurt_cast_key = cast_key
-	_begin_attack_recovery_if_needed()
-	_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
-	_reset_root_follow() # 技能被受击打断：把根骨位移结算进节点，别把骨架留在偏移位置
+	if not z001_soft:
+		_begin_attack_recovery_if_needed()
+		_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
+		_reset_root_follow() # 技能被受击打断：把根骨位移结算进节点，别把骨架留在偏移位置
 	var dealt := mini(amount, hp) # 过量伤害不计入镰碎回血；反伤/护盾/闪避在上方已直接返回
 	hp -= amount
+	if dealt > 0:
+		_z001_on_hit_taken() # 战狂：每次实际受击累计，满 5 次叠 1 层战意
 	Achievements.hurt_event(dealt)
 	if attacker != null and is_instance_valid(attacker) and attacker.has_method("on_player_hit"):
 		attacker.call("on_player_hit", dealt, move, self)
@@ -4243,7 +4408,16 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45, "flip": knockback.x > 0.0})
 	Feel.hitstop(0.05) # 挨打也要"一僵"：受击反馈和打人一样重要
 	Feel.shake(8.0, 0.24)
+	# 烬生：4 点及以下伤害不进入硬直、不打断技能，也不吃受击无敌帧（伤害照常结算）
+	if skull_id == "z001" and amount <= 4 and hp > 0:
+		_hurt_invincible = 0.0
+		return
 	if hp <= 0:
+		if _z001_enter_burnout():
+			# 致命伤不判死，但 ≥5 的受击仍按阈值走 27 → 26 → 50 的倒地链
+			if amount >= _knock_at and _knock_cd <= 0.0 and not _knock_chain.is_empty():
+				_start_hurt_chain(knockback)
+			return
 		if _try_revive(knockback):
 			return
 		die()
@@ -4631,6 +4805,9 @@ func _bleed_damage() -> void:
 	var attacker = _bleed_source.get("attacker") as Node
 	_on_pipa_damaged(attacker)
 	amount = _try_pipa_scapegoat(amount, attacker)
+	if _z001_burnout:
+		_z001_burnout_take_damage(amount) # 燃尽期间流血同样只扣生命上限
+		return
 	var dealt := mini(amount, hp)
 	hp -= amount
 	hp_changed.emit(hp, max_hp)
@@ -4639,6 +4816,8 @@ func _bleed_damage() -> void:
 	if hp > 0:
 		return
 	_record_last_hit(attacker, _bleed_source.get("move", {}), dealt)
+	if _z001_enter_burnout():
+		return
 	if _try_revive(Vector2.ZERO):
 		return
 	die()
@@ -4863,6 +5042,7 @@ func _perfect_dodge(attacker: Node = null, incoming_damage: int = 0) -> void:
 
 
 func die() -> void:
+	_z001_burnout = false
 	_stop_skill_loop()
 	fx.clear_all()
 	_mo_ting_grabbed = false
@@ -4958,6 +5138,7 @@ func pvp_apply_damage(amount: int, knockback: Vector2 = Vector2.ZERO, attacker: 
 	hp = maxi(0, hp - amount)
 	hp_changed.emit(hp, max_hp)
 	_on_pipa_damaged(attacker) # 红尘：实际受伤后给攻击方叠怨
+	_z001_on_hit_taken() # 战狂：PvP 受击同样累计
 	_hurt_invincible = maxf(_hurt_invincible, PvpTuning.HURT_INVINCIBLE)
 	_spawn_number(amount, DMG_COLOR, 130.0, false)
 	if hp <= 0:
@@ -5318,6 +5499,8 @@ func pvp_damage_scale() -> float:
 ## 攻击方固定加伤（局外称号 + 目标特化），由 pvp_rules 在倍率结算后追加。
 func pvp_flat_damage_bonus(target: Node) -> int:
 	var bonus := Achievements.bonus_int("damage")
+	if skull_id == "z001":
+		bonus += _z001_fury # 战意：全部伤害追加等量焚烧
 	if target == null or not is_instance_valid(target):
 		return bonus
 	if skull_id == "c023" and _form_node("c023_venom_2") and float(target.get("_pvp_poison_time")) > 0.0:
@@ -5478,9 +5661,9 @@ func _post_move() -> void:
 		State.FALL:
 			if is_on_floor():
 				_hover_left = 0.0 # 落地收掉残余悬停
-				# 分段跳跃：落地瞬间补一帧落地动画（只在不移动时播，跑动着地直接接 run 更顺）
+				# 分段跳跃：落地瞬间补一帧落地动画（烬生要求落地必播 57；其他形态跑动着地直接接 run 更顺）
 				var land := str(anim_map.get("jump_land", ""))
-				if _jump_seg and land != "" and absf(velocity.x) <= 10.0:
+				if _jump_seg and land != "" and (absf(velocity.x) <= 10.0 or skull_id == "z001"):
 					_play(land, false)
 					_queue(anim_map["idle"], true)
 					_idle_queued = true
@@ -5513,10 +5696,13 @@ func _set_state(new_state: int) -> void:
 		State.JUMP, State.FALL:
 			_idle_queued = false # set_animation 会清掉队列里的 stand
 			if _jump_seg:
-				# 分段跳跃（剑仙）：起跳跳一帧起跳动画，空中换上升/下降姿态，落地另有落地帧
+				# 分段跳跃：起跳跳一帧起跳动画，空中换上升/下降姿态，落地另有落地帧
 				if state == State.JUMP:
-					_play(anim_map["jump_start"], false)
-					_queue(anim_map.get("jump_mid", anim_map["air"]), true)
+					if anim_map.has("jump_start"):
+						_play(anim_map["jump_start"], false)
+						_queue(anim_map.get("jump_mid", anim_map["air"]), true)
+					else:
+						_play(anim_map.get("jump_mid", anim_map["air"]), true) # 无起跳过渡：直接上升姿态
 				else:
 					_play(anim_map.get("jump_down", anim_map["air"]), true)
 			else:

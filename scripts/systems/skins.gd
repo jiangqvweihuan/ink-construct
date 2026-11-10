@@ -28,9 +28,11 @@ const PLAYER := {
 	]},
 	"z002": {"label": "绛弦", "skins": [
 		{"id": "syy1", "name": "低眉", "scale": 0.406,
+			"portrait": "res://art/characters/portraits/skins/z002/syy1.png",
 			"anim": {"run4": "run", "run-": "dash02_front", "skill13_02-cankao": "skill13_02", "skill16_02-": "skill16_02", "atked_fall_end-": "atked_fall_end"},
 			"skill_anims": {"skill13-": "skill13_02"}},
 		{"id": "syy2", "name": "拨云", "scale": 0.420,
+			"portrait": "res://art/characters/portraits/skins/z002/syy2.png",
 			"anim": {"skill16_02-": "skill16_02"}},
 		{"id": "syy3", "name": "余音", "scale": 0.401,
 			"anim": {"run4": "run", "run-": "dash02_front", "skill13_02-cankao": "skill13_02", "skill16_02-": "skill16_02", "atked_fall_end-": "atked_fall_end"},
@@ -40,6 +42,30 @@ const PLAYER := {
 		{"id": "jqwh1", "name": "无归", "scale": 0.431, "anim": {"skill17_02-": "skill17_02-cankao"}},
 		{"id": "jqwh2", "name": "断魂", "scale": 0.431},
 		{"id": "jqwh3", "name": "夜行", "scale": 0.431, "anim": {"skill17_02-": "skill17_02-cankao"}},
+	]},
+	# 烬生：五套同骨骼换装，动画名与基础形态完全一致，只换图集与展示参数。
+	# 缩放按骨架高度反推（基础 428.59 → 0.48），保证换装后体型一致。
+	"z001": {"label": "烬生", "skins": [
+		{"id": "zj1", "name": "烬白", "tag": "墨羽", "price": 100,
+			"desc": "银发披墨氅，赤刃挑余烬；焦土尽头独行的无名剑客。",
+			"portrait": "res://art/characters/portraits/skins/z001/zj1.png",
+			"preview": "stand", "scale": 0.447},
+		{"id": "zj2", "name": "赤翎", "tag": "赤焰", "price": 100,
+			"desc": "赤发如火，黑甲缠红；出鞘时，风里都是燎原的焦味。",
+			"portrait": "res://art/characters/portraits/skins/z001/zj2.png",
+			"preview": "stand", "scale": 0.442},
+		{"id": "zj3", "name": "霜烬", "tag": "霜刃", "price": 100,
+			"desc": "白裘落墨斑，寒锋映霜天；烬火熄处，唯余此身未冷。",
+			"portrait": "res://art/characters/portraits/skins/z001/zj3.png",
+			"preview": "stand", "scale": 0.480},
+		{"id": "zj4", "name": "雪狩", "tag": "霜刃", "price": 100,
+			"desc": "雪裘覆肩，墨斑如夜；在灰烬里狩猎最后一点余温。",
+			"portrait": "res://art/characters/portraits/skins/z001/zj4.png",
+			"preview": "stand", "scale": 0.480},
+		{"id": "zj5", "name": "玄鸦", "tag": "玄羽", "price": 100,
+			"desc": "玄金甲胄缀紫焰，鸦羽垂落如夜幕；刃锋过处只余灰烬。",
+			"portrait": "res://art/characters/portraits/skins/z001/zj5.png",
+			"preview": "stand", "scale": 0.422},
 	]},
 }
 
@@ -126,6 +152,17 @@ static func key(owner_id: String, skin_id: String) -> String:
 	return "%s/%s" % [owner_id, skin_id]
 
 
+## 单套外观定价：皮肤可自带 price，未配置沿用统一价。
+static func price_of(d: Dictionary) -> int:
+	var p := int(d.get("price", PRICE))
+	return p if p > 0 else PRICE
+
+
+static func price(owner_id: String, skin_id: String, is_enemy: bool) -> int:
+	var d := find(owner_id, skin_id, is_enemy)
+	return price_of(d) if not d.is_empty() else PRICE
+
+
 static func data_path(owner_id: String, skin_id: String, is_enemy: bool) -> String:
 	var dir := "enemies" if is_enemy else "player"
 	return "res://art/characters/%s/skins/%s/%s/%s_data.tres" % [dir, owner_id, skin_id, skin_id]
@@ -142,11 +179,12 @@ static func worn(owner_id: String) -> String:
 static func buy(owner_id: String, skin_id: String, is_enemy: bool) -> bool:
 	if not owners(is_enemy).has(owner_id): # 图鉴没解锁：不展示也不许买
 		return false
-	if find(owner_id, skin_id, is_enemy).is_empty():
+	var d := find(owner_id, skin_id, is_enemy)
+	if d.is_empty():
 		return false
 	if not loadable(owner_id, skin_id, is_enemy):
 		return false
-	return Meta.buy_skin(key(owner_id, skin_id), PRICE)
+	return Meta.buy_skin(key(owner_id, skin_id), price_of(d))
 
 
 static func wear(owner_id: String, skin_id: String) -> void:
@@ -164,6 +202,9 @@ static func player_profile(owner_id: String, base: Dictionary) -> Dictionary:
 	var p: Dictionary = base.duplicate(true)
 	p["data"] = data_path(owner_id, sid, false)
 	p["scale"] = float(d.get("scale", base["scale"]))
+	var pic := str(d.get("portrait", ""))
+	if pic != "" and ResourceLoader.exists(pic):
+		p["portrait"] = pic
 	var amap: Dictionary = d.get("anim", {})
 	if not amap.is_empty():
 		_remap_profile(p, amap)

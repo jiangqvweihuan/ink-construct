@@ -14,7 +14,7 @@ const DEFAULT_ID := "c021"
 
 ## 形态强度顺序（由弱到强）：选角界面 / 化身谱按此排列，解锁条件也按同一梯度递增
 ## 解锁门槛：c013 击杀 20 → c023 击杀 60 → z000 通关 1 次 → z003 通关 3 次 + 击杀 150 → z002 通关 5 次 + 击杀 300
-const ORDER := ["c021", "c013", "c023", "z000", "z003", "z002"]
+const ORDER := ["c021", "c013", "c023", "z000", "z003", "z002", "z001"]
 
 const SKULLS := {
 	"c021": {
@@ -141,6 +141,103 @@ const SKULLS := {
 			},
 		},
 		"hud_skills": ["skill02"],
+	},
+	# ---------- 烬生：Z001，以命换火的狂战士。J 三段斩 / K 焚骨三叩 / L 烬灭 / I 余烬 / O 焚影 / P 燎原 ----------
+	"z001": {
+		"label": "烬生",
+		"name": "赤烬",
+		"hero": true,
+		"data": "res://art/characters/player/skulls/z001/z001_data.tres",
+		"portrait": "res://art/characters/portraits/z001.png",
+		"scale": 0.48, # 骨架约 267px -> 128px，与镇岳同档
+		"body_radius": 30.0,
+		"anim": {
+			"idle": "stand", # 123
+			"run": "run", # 69
+			"dash": "autorush", # 28（兜底；实际走下面的随机双闪）
+			"air": "jump02_mid", # 53
+			"hurt": "atked", # 22（≤4 伤不播，仅作兜底）
+			"hurt_heavy": "atked_heavy", # 27
+			"fall": "atked_fall_end", # 26
+			"getup": "getup", # 50
+			"low_idle": "weak", # 126
+			"dead": "dead", # 48
+			"dead_hold": "dead",
+			"jump_mid": "jump02_mid", # 53
+			"jump_down": "jump03_down", # 56
+			"jump_land": "jump03_end", # 57
+		},
+		# 跳跃无起跳过渡：离地直接进上升姿态（53），下落 56，落地 57
+		"jump_no_start": true,
+		# 闪避：28 autorush（0.167s × 760）与 47 dash_front（0.5s × 260）随机，
+		# 两者位移都在 127~130px，随机只换演出不换机动性
+		"dash_pool": {
+			"move": [
+				{"anim": "autorush", "time": 0.167, "speed": 760.0},
+				{"anim": "dash_front", "time": 0.5, "speed": 260.0},
+			],
+			"move_cd": 0.5,
+		},
+		# 受击阈值：≤4 伤无硬直（player.gd 专用分支），≥5 伤走 27 → 26 → 50 整条链
+		"hurt_tiers": {"heavy": 999, "knockdown": 5},
+		"knock_chain": ["atked_heavy", "atked_fall_end", "getup"],
+		"low_hp_ratio": 0.2,
+		# J 普攻：动画 2（"3"，2.233s）三段 2 / 2 / 3，末段挂 10 秒易伤
+		"attacks": [
+			{
+				"anim": "3", "lock": 2.233, "lunge": 90.0, "cast_sfx": "weapon_sword",
+				"hits": [
+					{"at": 0.55, "damage": 2, "range": 110.0, "height": 110.0, "sfx": "hit_heavy"},
+					{"at": 1.15, "damage": 2, "range": 115.0, "height": 110.0, "sfx": "hit_heavy"},
+					{"at": 1.85, "damage": 3, "range": 125.0, "height": 110.0, "sfx": "hit_heavy",
+						"vulnerable": {"ratio": 0.25, "time": 10.0}},
+				],
+			},
+		],
+		"skills": {
+			# K 焚骨三叩：动画 6（atk03）连播 3 次，每轮中段快速两记 1 伤，合计 6 伤
+			"burn_k": {
+				"action": "skill", "cooldown": 6.0, "anim": "atk03", "repeat": 3,
+				"repeat_hits": [
+					{"at": 0.18, "damage": 1},
+					{"at": 0.27, "damage": 1},
+				],
+				"range": 125.0, "height": 110.0, "both": true,
+				"sfx": "hit_heavy", "cast_sfx": "weapon_sword",
+			},
+			# L 烬灭斩：动画 86（skill23）蓄力猛击，5 伤 + 已损生命 20%（Boss 10%）额外伤害
+			"burn_l": {
+				"action": "skill_sweep", "cooldown": 8.0, "anim": "skill23", "poise": true,
+				"hits": [{
+					"at": 0.95, "range": 160.0, "height": 120.0, "damage": 5,
+					"execute": {"normal": 0.2, "boss": 0.1}, "sfx": "skill_blade",
+				}],
+			},
+			# I 余烬重燃：动画 68 / 92 随机，整段播完前把生命恢复至满值
+			"burn_i": {
+				"action": "skill_i", "cooldown": 25.0, "poise": true,
+				"pool": ["mie_03", "skill12_02"], "align_max": true,
+				"heal_full": true, "hits": [],
+			},
+			# O 焚影掠：动画 73（skill03）向前闪身约 240px；路径小怪秒杀，精英 / Boss 固定 8 伤
+			"burn_o": {
+				"action": "skill_o", "cooldown": 9.0, "anim": "skill03",
+				"blink_from": 0.15, "blink_to": 0.75, "blink_speed": 400.0, "phase": true,
+				"hits": [{
+					"at": 0.75, "range": 160.0, "height": 140.0, "path": true, "damage": 8,
+					"dash_kill": {"elite_damage": 8}, "sfx": "skill_blade",
+				}],
+			},
+			# P 烬火燎原：动画 95（skill14_02）正前方大范围 12 伤 + 5 秒眩晕
+			"burn_p": {
+				"action": "skill_p", "cooldown": 18.0, "anim": "skill14_02", "poise": true,
+				"hits": [{
+					"at": 0.55, "range": 280.0, "height": 150.0, "damage": 12,
+					"stun": 5.0, "sfx": "skill_boom",
+				}],
+			},
+		},
+		"hud_skills": ["burn_k", "burn_l", "burn_i", "burn_o", "burn_p"],
 	},
 	# ---------- 镇岳：C013，长柄狼牙棒，动作全是挥砸，出手重、收招慢 ----------
 	"c013": {

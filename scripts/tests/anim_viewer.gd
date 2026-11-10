@@ -6,6 +6,14 @@ extends Node2D
 const ROOT := "res://art/characters"
 const ORIGIN := Vector2(640.0, 630.0)
 const VIEW_SCALE := 0.42
+## 个别骨架的原生骨骼尺寸与统一比例不同，单独校准显示大小；键为路径片段
+const SCALE_OVERRIDES := {
+	"player/skulls/z001/": 0.48,
+}
+## 个别骨架的首个动画是极短的过渡帧，进入时直接定位到待机动作
+const DEFAULT_ANIM_OVERRIDES := {
+	"player/skulls/z001/": "stand",
+}
 
 var _sets: Array = [] # [{path, data, anims:[{name, dur}]}]
 var _si := 0
@@ -62,6 +70,8 @@ func _ready() -> void:
 	# 可选：命令行 `-- --anim stand` 直接定位到指定动画
 	var start_ai := 0
 	var want_anim := _cli_value("--anim")
+	if want_anim == "" and not _sets.is_empty():
+		want_anim = _default_anim_for(str(_sets[0]["path"]))
 	if want_anim != "" and not _sets.is_empty():
 		var anims: Array = _sets[0]["anims"]
 		for i in anims.size():
@@ -124,7 +134,12 @@ func _show(si: int, ai: int) -> void:
 	add_child(_sprite)
 	_sprite.set("skeleton_data_res", set["data"])
 	_sprite.position = ORIGIN
-	_sprite.scale = Vector2(VIEW_SCALE, VIEW_SCALE)
+	var view_scale := VIEW_SCALE
+	for key in SCALE_OVERRIDES:
+		if str(set["path"]).contains(str(key)):
+			view_scale = float(SCALE_OVERRIDES[key])
+			break
+	_sprite.scale = Vector2(view_scale, view_scale)
 	_state = _sprite.call("get_animation_state")
 	_play_current()
 	_update_info()
@@ -162,6 +177,13 @@ func _cli_value(key: String) -> String:
 	for i in args.size():
 		if args[i] == key and i + 1 < args.size():
 			return str(args[i + 1])
+	return ""
+
+
+func _default_anim_for(path: String) -> String:
+	for key in DEFAULT_ANIM_OVERRIDES:
+		if path.contains(str(key)):
+			return str(DEFAULT_ANIM_OVERRIDES[key])
 	return ""
 
 

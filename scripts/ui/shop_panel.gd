@@ -133,9 +133,9 @@ func _build_appearance() -> void:
 	var y := 276.0
 	for oid in owners:
 		_owner_row(str(oid), Vector2(100, y))
-		y += 52.0
+		y += 46.0
 	if Skins.worn(_appearance_owner) != "":
-		_button(self, "恢复原装", Vector2(100, y + 6), Vector2(250, 40), _reset_skin)
+		_button(self, "恢复原装", Vector2(100, y + 4), Vector2(250, 36), _reset_skin)
 
 	if _appearance_owner == "":
 		return
@@ -144,7 +144,7 @@ func _build_appearance() -> void:
 	_build_stage(Skins.find(_appearance_owner, _appearance_pick, _appearance_enemy))
 	for i in list.size():
 		_pick_row(list[i], Vector2(752, 276 + i * 58))
-	_text(self, "点左侧分类翻册 · 点右侧条目在左侧试穿 · 统一 %d 墨锭 · 购买后在图鉴中更换" % Skins.PRICE,
+	_text(self, "点左侧分类翻册 · 点右侧条目在左侧试穿 · 价格见条目 · 购买后在图鉴中更换",
 		Vector2(100, 648), Vector2(1050, 22), 14, DIM)
 
 
@@ -159,15 +159,15 @@ func _owner_row(oid: String, pos: Vector2) -> void:
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.position = pos
-	b.size = Vector2(250, 46)
+	b.size = Vector2(250, 42)
 	b.modulate = Color.WHITE if oid == _appearance_owner else Color(1, 1, 1, 0.78)
 	add_child(b)
-	_text(b, str(info.get("label", oid)), Vector2(14, 1), Vector2(222, 24), 19, PAPER)
+	_text(b, str(info.get("label", oid)), Vector2(14, 0), Vector2(222, 22), 18, PAPER)
 	var sub := "%d 套" % list.size()
 	if worn != "":
 		var d: Dictionary = Skins.find(oid, worn, _appearance_enemy)
 		sub += " · " + str(d.get("name", worn))
-	_text(b, sub, Vector2(14, 24), Vector2(222, 18), 13, GOLD if worn != "" else DIM)
+	_text(b, sub, Vector2(14, 21), Vector2(222, 18), 12, GOLD if worn != "" else DIM)
 	b.pressed.connect(func():
 		_appearance_owner = oid
 		_appearance_pick = ""
@@ -191,7 +191,14 @@ func _build_stage(d: Dictionary) -> void:
 		return
 	var sid := str(d["id"])
 	var ok := _skin_loadable(sid)
-	_text(self, str(d.get("name", sid)), Vector2(372, 548), Vector2(368, 26), 21, GOLD)
+	var title := str(d.get("name", sid))
+	var tag := str(d.get("tag", ""))
+	if tag != "":
+		title += " · " + tag
+	_text(self, title, Vector2(372, 546), Vector2(368, 24), 20, GOLD)
+	var desc := str(d.get("desc", ""))
+	if desc != "":
+		_text(self, desc, Vector2(392, 570), Vector2(328, 26), 12, DIM)
 	if ok:
 		var data = load(Skins.data_path(_appearance_owner, sid, _appearance_enemy))
 		var sprite = ClassDB.instantiate("SpineSprite")
@@ -208,17 +215,10 @@ func _build_stage(d: Dictionary) -> void:
 
 	var owned := Skins.owned(_appearance_owner, sid)
 	var worn := Skins.worn(_appearance_owner) == sid
-	var affordable := Meta.ink >= Skins.PRICE
-	var status := "当前穿戴"
-	var color := GOLD
+	var price := Skins.price_of(d)
+	var affordable := Meta.ink >= price
 	if not ok:
-		status = "素材待补 · 暂不可购买"
-		color = RED
-	elif not worn:
-		status = "已拥有 · 穿戴后在图鉴中生效" if owned else "尚未拥有"
-		color = DIM
-	_text(self, status, Vector2(372, 574), Vector2(368, 20), 14, color)
-	if not ok:
+		_text(self, "素材待补 · 暂不可购买", Vector2(372, 598), Vector2(368, 40), 15, RED)
 		return
 	if worn:
 		var b := _button(self, "使 用 中", Vector2(372, 598), Vector2(368, 40), func(): pass)
@@ -226,10 +226,10 @@ func _build_stage(d: Dictionary) -> void:
 	elif owned:
 		_button(self, "穿    戴", Vector2(372, 598), Vector2(368, 40), _wear_pick)
 	elif affordable:
-		_button(self, "购买 · %d 墨锭" % Skins.PRICE, Vector2(372, 598), Vector2(368, 40), _buy_pick)
+		_button(self, "购买 · %d 墨锭" % price, Vector2(372, 598), Vector2(368, 40), _buy_pick)
 	else:
-		var b := _button(self, "墨锭不足 · 需 %d" % Skins.PRICE, Vector2(372, 598), Vector2(368, 40), func(): pass)
-		b.disabled = true
+		var b2 := _button(self, "墨锭不足 · 需 %d" % price, Vector2(372, 598), Vector2(368, 40), func(): pass)
+		b2.disabled = true
 
 
 ## 右侧条目：只负责选中，买 / 穿都在左侧试衣台确认
@@ -248,9 +248,27 @@ func _pick_row(d: Dictionary, pos: Vector2) -> void:
 	b.size = Vector2(398, 52)
 	b.modulate = Color.WHITE if sel else Color(1, 1, 1, 0.78)
 	add_child(b)
-	var title := _text(b, str(d.get("name", sid)), Vector2(18, 2), Vector2(232, 26), 19, PAPER)
+	var pic := str(d.get("portrait", ""))
+	var text_x := 18.0
+	var title_w := 222.0
+	if pic != "" and ResourceLoader.exists(pic):
+		var thumb := TextureRect.new()
+		thumb.texture = load(pic)
+		thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		thumb.position = Vector2(8, 8)
+		thumb.size = Vector2(36, 36)
+		thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(thumb)
+		text_x = 52.0
+		title_w = 190.0
+	var title := _text(b, str(d.get("name", sid)), Vector2(text_x, 1), Vector2(title_w, 24), 18, PAPER)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	var st := "%d 墨锭" % Skins.PRICE
+	var tag := str(d.get("tag", ""))
+	if tag != "":
+		var tag_text := _text(b, tag, Vector2(text_x, 26), Vector2(title_w, 16), 11, DIM)
+		tag_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	var st := "%d 墨锭" % Skins.price_of(d)
 	var color := RED
 	if broken:
 		st = "素材待补"
@@ -292,11 +310,14 @@ func _skin_loadable(sid: String) -> bool:
 	return Skins.loadable(_appearance_owner, sid, _appearance_enemy)
 
 
-## 试穿动作：优先站姿（所有角色都被映射成 stand），实在没有就退回第一个动画
+## 试穿动作：优先皮肤指定的 preview，其次站姿（所有角色都被映射成 stand），最后退回第一个动画
 func _idle_anim(data, d: Dictionary) -> String:
 	var names := {}
 	for a in data.call("get_animations"):
 		names[str(a.call("get_name"))] = true
+	var preview := str(d.get("preview", ""))
+	if preview != "" and names.has(preview):
+		return preview
 	var amap: Dictionary = d.get("anim", {})
 	for cand in ["stand", "idle", "daiji"]:
 		var n := str(amap.get(cand, cand))

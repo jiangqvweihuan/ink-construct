@@ -1,0 +1,16 @@
+[remap]
+
+importer="spine.atlas"
+type="SpineAtlasResource"
+uid="uid://cg5v85selvaxi"
+path="res://.godot/imported/skeleton.atlas-368131849f9f2b8d8f1b07397d0bdc4f.spatlas"
+
+[deps]
+
+source_file="res://art/characters/player/skins/z001/zj4/skeleton.atlas"
+dest_files=["res://.godot/imported/skeleton.atlas-368131849f9f2b8d8f1b07397d0bdc4f.spatlas"]
+
+[params]
+
+normal_map_prefix="n"
+specular_map_prefix="s"
