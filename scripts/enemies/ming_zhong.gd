@@ -512,8 +512,10 @@ func _update_root_follow() -> void:
 	if not _root_follow or _root_bone == null:
 		return
 	var off := _root_offset()
-	sprite.position.x = -off
-	global_position.x = _root_start_x + off
+	# 根骨位移不能越过地图墙：夹住节点后按实际落点重算 sprite 补偿
+	var px := _clamp_battle_x(_root_start_x + off)
+	sprite.position.x = -(px - _root_start_x)
+	global_position.x = px
 
 
 func _reset_root_follow() -> void:
@@ -522,10 +524,23 @@ func _reset_root_follow() -> void:
 	_root_follow = false
 	var off := _root_offset()
 	if _root_bone != null:
-		global_position.x = _root_start_x + off
+		global_position.x = _clamp_battle_x(_root_start_x + off)
 		_root_bone.call("set_x", _root_bone_base)
 	if sprite != null:
 		sprite.position = Vector2.ZERO
+
+
+## 地图内可站立 x 范围：场景在 _ready 写入 battle_width；未标注时按 1920 兜底。
+func _clamp_battle_x(x: float) -> float:
+	var width := 1920.0
+	var scene := get_tree().current_scene
+	if scene != null and scene.has_meta("battle_width"):
+		width = float(scene.get_meta("battle_width"))
+	var pad := 40.0
+	var r = get("body_radius")
+	if r != null:
+		pad = maxf(pad, float(r))
+	return clampf(x, pad, width - pad)
 
 
 func mind_status_count() -> int:

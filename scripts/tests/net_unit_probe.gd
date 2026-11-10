@@ -9,6 +9,7 @@ extends Node
 const Cfg = preload("res://scripts/net/net_config.gd")
 const Proto = preload("res://scripts/net/net_protocol.gd")
 const Discovery = preload("res://scripts/net/lan_discovery.gd")
+const LocalCoop = preload("res://scripts/systems/local_coop.gd")
 
 var fail := 0
 
@@ -32,6 +33,158 @@ func _run() -> void:
 	await _test_discovery()
 	await _test_lan_panel()
 	await _test_room_host()
+	_test_lan_permissions()
+	await _test_lan_input_source()
+	await _test_lan_choices()
+
+
+# ---------------------------------------------------------------- 联机权限 / 输入 / 三选一回归
+
+## 回归：房主与客机的化身选择各自独立，且房间清理/重连后不丢
+func _test_lan_permissions() -> void:
+	var err := LanNet.host_room("权限测试房", Run.MODE_ADVENTURE, 1, "c021")
+	_check("perm_host_room", err == "" and LanNet.my_skull() == "c021", err)
+	_check("perm_host_member_skull", str(LanNet.members[1].get("skull", "")) == "c021")
+	LanNet.set_my_skull("c013")
+	_check("perm_host_change", str(LanNet.room.get("skull", "")) == "c013" and LanNet.my_skull() == "c013")
+
+	# 模拟客机：成员条目暂空时必须回落到本机 my_pick，而不是变成"未选择"
+	var uid := multiplayer.get_unique_id()
+	LanNet.role = "client"
+	LanNet.my_pick = ""
+	LanNet.members = {
+		42: {"name": "房主", "slot": 0, "ready": true, "skull": "c021"},
+		uid: {"name": "客机", "slot": 1, "ready": true, "skull": ""},
+	}
+	LanNet.my_pick = "c023"
+	_check("perm_client_fallback", LanNet.my_skull() == "c023", LanNet.my_skull())
+	LanNet.set_my_skull("z000")
+	_check("perm_client_pick", LanNet.my_skull() == "z000"
+		and str(LanNet.members[uid].get("skull", "")) == "z000")
+	_check("perm_independent", str(LanNet.members[42].get("skull", "")) == "c021")
+
+	# 房间清理 / 重置后选择仍在，重进房间可直接沿用
+	LanNet.teardown("", false)
+	_check("perm_pick_survive_reset", LanNet.my_pick == "z000", LanNet.my_pick)
+	LanNet.role = ""
+
+
+## 回归：客机采样本机设备输入（PC 的 P1 键位 / 移动端触屏），不再绑 P2 通道
+func _test_lan_input_source() -> void:
+	LocalCoop.ensure_input()
+	LanNet.role = "client"
+	LanNet.state = "playing"
+	# 关掉 LanNet 的自动采样，避免后台 _process 提前消费 just_pressed（测试要手动触发）
+	LanNet.set_process(false)
+	Input.action_release("attack")
+	LanNet._pending_just.clear()
+	var ev := InputEventAction.new()
+	ev.action = "attack"
+	ev.pressed = true
+	Input.parse_input_event(ev)
+	await get_tree().process_frame
+	LanNet._sample_input_edges()
+	_check("input_base_action", LanNet._pending_just.has("attack"), str(LanNet._pending_just.keys()))
+	# 必须松开，否则后续注入同一动作时不会再产生 just_pressed（Godot 只在未按下时记录按下帧）
+	Input.action_release("attack")
+	LanNet._pending_just.clear()
+
+	# 只按 P2 键不应该被客机采样到（旧 bug：PC 客机被迫用方向键，移动端完全无输入）
+	var ev2 := InputEventAction.new()
+	ev2.action = LocalCoop.action(1, "attack")
+	ev2.pressed = true
+	Input.parse_input_event(ev2)
+	await get_tree().process_frame
+	LanNet._sample_input_edges()
+	_check("input_no_p2", not LanNet._pending_just.has("attack"), str(LanNet._pending_just.keys()))
+	Input.action_release(LocalCoop.action(1, "attack"))
+	LanNet._pending_just.clear()
+
+	# 移动端：TouchControls 注入的是基础动作，客机采样能直接读到
+	TouchControls._tap("attack")
+	_check("touch_injects_base", Input.is_action_pressed("attack"))
+	LanNet._pending_just.clear()
+	LanNet._sample_input_edges()
+	_check("touch_sampled", LanNet._pending_just.has("attack"), str(LanNet._pending_just.keys()))
+	Input.action_release("attack")
+	TouchControls._taps.clear()
+	LanNet.set_process(true)
+
+	# 移动端客机的技能环 / 横划必须落在自己槽位的角色上
+	var a := SlotStub.new()
+	a.input_slot = 0
+	var b := SlotStub.new()
+	b.input_slot = 1
+	add_child(a)
+	add_child(b)
+	a.add_to_group("player")
+	b.add_to_group("player")
+	Run.net_role = "client"
+	Run.net_slot = 1
+	_check("touch_targets_local_slot", TouchControls._player() == b)
+	a.remove_from_group("player")
+	b.remove_from_group("player")
+	a.queue_free()
+	b.queue_free()
+	Run.net_role = ""
+	Run.net_slot = 0
+	LanNet._pending_just.clear()
+	LanNet.role = ""
+	LanNet.state = "idle"
+
+
+## 回归：祝福 / 通关强化两端各自选、各写各的槽位；房主必须等所有人选完才推进
+func _test_lan_choices() -> void:
+	Run.start(Run.MODE_ADVENTURE, "c021", 1, true)
+	Run.set_net_players(2)
+	Run.set_slot_skull(1, "c012")
+	LanNet.teardown("", false)
+	LanNet.host_room("选择测试房", Run.MODE_ADVENTURE, 1, "c021")
+	LanNet.state = "playing"
+	LanNet.members[42] = {"name": "客机", "slot": 1, "ready": true, "skull": "c012"}
+
+	# 祝福：全队同牌，各选各的
+	LanNet.host_begin_choice("blessing")
+	_check("choice_open", LanNet._choice_open)
+	var cards0: Array = LanNet._choice_cards.get(0, [])
+	var cards1: Array = LanNet._choice_cards.get(1, [])
+	_check("choice_cards", cards0.size() == 3 and cards1.size() == 3)
+	_check("choice_blocks_proceed", not LanNet.choices_complete())
+	LanNet.submit_choice("blessing", str(cards0[0]))
+	_check("choice_wait_others", LanNet._choice_open and not LanNet.choices_complete())
+	LanNet._record_choice(1, str(cards1[1]))
+	_check("choice_finished", not LanNet._choice_open and LanNet.choices_complete())
+	_check("choice_slot0", Run.blessing == str(cards0[0]), Run.blessing)
+	_check("choice_slot1", Run.blessing_of(1) == str(cards1[1]), Run.blessing_of(1))
+
+	# HP 赐福按槽位单独计入上限（+2）
+	Run.slot_blessing[3] = ""
+	Run.set_blessing(1, "hp")
+	var without := Run.calculated_max_hp("c012", 2)
+	var with_hp := Run.calculated_max_hp("c012", 1)
+	_check("choice_blessing_hp_slot", with_hp == without + 2, "%d/%d" % [with_hp, without])
+
+	# 通关强化：按各自槽位与流派等级发牌，各自落盘
+	LanNet.host_begin_choice("upgrade")
+	var up0: Array = LanNet._choice_cards.get(0, [])
+	var up1: Array = LanNet._choice_cards.get(1, [])
+	_check("choice_upgrade_cards", up0.size() == 3 and up1.size() == 3)
+	LanNet.submit_choice("upgrade", str(up0[0]))
+	LanNet._record_choice(1, str(up1[0]))
+	_check("choice_upgrade_slot0", Run.level(str(up0[0]), 0) >= 1)
+	_check("choice_upgrade_slot1", Run.level(str(up1[0]), 1) >= 1 and Run.slot_upgrades.has(1))
+	if str(up0[0]) != str(up1[0]):
+		_check("choice_upgrade_independent", Run.level(str(up1[0]), 0) == 0)
+
+	LanNet.teardown("", false)
+	Run.net_role = ""
+	Run.active = false
+	Run.set_net_players(1)
+
+
+class SlotStub:
+	extends Node
+	var input_slot := 0
 
 
 # ---------------------------------------------------------------- 大厅 UI

@@ -66,16 +66,27 @@ func _build() -> void:
 			"desc": "同屏共战\n双人协作",
 			"cb": _open_coop,
 		})
+		# 对战需要两套键位，只在电脑端开放
+		entries.append({
+			"title": "本 机 对 战",
+			"desc": "同屏互搏\n一决胜负",
+			"cb": _open_pvp_local,
+		})
 	entries.append({
 		"title": "局 域 网 联 机",
 		"desc": "隔屏同游\n组网对局",
 		"cb": _open_lan,
 	})
 
-	var total := entries.size() * CARD_W + (entries.size() - 1) * CARD_GAP
+	# 四张卡时收窄卡宽，保证 1280 宽下仍能一行居中放下
+	var card_w := CARD_W
+	if entries.size() >= 4:
+		card_w = (vw - 80.0 - float(entries.size() - 1) * 32.0) / float(entries.size())
+	var gap := 32.0 if entries.size() >= 4 else CARD_GAP
+	var total := entries.size() * card_w + (entries.size() - 1) * gap
 	var x0 := (vw - total) * 0.5
 	for i in entries.size():
-		_make_card(entries[i], x0 + i * (CARD_W + CARD_GAP))
+		_make_card(entries[i], x0 + i * (card_w + gap), card_w)
 
 	var back := TextureButton.new()
 	back.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
@@ -158,25 +169,25 @@ func _make_title() -> void:
 	_label("择  途", Vector2(0, 200), Vector2(vw, 46), 36, PAPER)
 
 
-func _make_card(info: Dictionary, x: float) -> void:
+func _make_card(info: Dictionary, x: float, card_w := CARD_W) -> void:
 	var b := TextureButton.new()
 	b.texture_normal = InkTex.load("res://art/ui/menu/btn_normal.png")
 	b.texture_pressed = InkTex.load("res://art/ui/menu/btn_clicked.png")
 	b.ignore_texture_size = true
 	b.stretch_mode = TextureButton.STRETCH_SCALE
 	b.position = Vector2(x, CARD_Y)
-	b.size = Vector2(CARD_W, CARD_H)
+	b.size = Vector2(card_w, CARD_H)
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	add_child(b)
 
-	_card_label(b, str(info["title"]), Vector2(0, 52), Vector2(CARD_W, 44), 30, PAPER)
+	_card_label(b, str(info["title"]), Vector2(0, 52), Vector2(card_w, 44), 28, PAPER)
 	var seal := ColorRect.new()
 	seal.color = Color(RED.r, RED.g, RED.b, 0.8)
-	seal.position = Vector2(CARD_W * 0.5 - 30.0, 112)
+	seal.position = Vector2(card_w * 0.5 - 30.0, 112)
 	seal.size = Vector2(60, 2)
 	seal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	b.add_child(seal)
-	_card_label(b, str(info["desc"]), Vector2(10, 132), Vector2(CARD_W - 20, 82), 16, DIM)
+	_card_label(b, str(info["desc"]), Vector2(10, 132), Vector2(card_w - 20, 82), 16, DIM)
 
 	b.mouse_entered.connect(func(): b.modulate = Color(1.12, 1.07, 0.9))
 	b.mouse_exited.connect(func(): b.modulate = Color.WHITE)
@@ -232,6 +243,17 @@ func _open_coop() -> void:
 	LocalCoop.ensure_input()
 	_start_panel = load("res://scenes/ui/start_panel.tscn").instantiate()
 	_start_panel.local_coop = true
+	_start_panel.tree_exited.connect(_on_start_panel_exited)
+	add_child(_start_panel)
+
+
+## 本机对战：同一张选角卷，两名玩家共用本机已解锁角色池
+func _open_pvp_local() -> void:
+	if _panel_open():
+		return
+	LocalCoop.ensure_input()
+	_start_panel = load("res://scenes/ui/start_panel.tscn").instantiate()
+	_start_panel.pvp_local = true
 	_start_panel.tree_exited.connect(_on_start_panel_exited)
 	add_child(_start_panel)
 

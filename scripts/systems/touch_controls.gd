@@ -98,7 +98,15 @@ func _pause_rect() -> Rect2:
 
 func _player() -> Node:
 	var list := get_tree().get_nodes_in_group("player")
-	return null if list.is_empty() else list[0]
+	if list.is_empty():
+		return null
+	# 联机时本机只控制自己那一槽：客机不能用 player 组的第一个节点（那是房主的镜像），
+	# 否则技能环会读错角色、横划闪避会去改对手的朝向。
+	if Run.net_role != "":
+		for p in list:
+			if int(p.get("input_slot")) == int(Run.net_slot):
+				return p
+	return list[0]
 
 
 func _battle_active() -> bool:

@@ -60,6 +60,7 @@ var _foe_sync := 0.0
 
 
 func _ready() -> void:
+	set_meta("battle_width", ARENA_W)
 	BGM.play_bgm("battle")
 	_build_backdrop()
 	_build_arena_bodies()

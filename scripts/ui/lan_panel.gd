@@ -195,7 +195,7 @@ func _build_menu() -> void:
 	_text("房 间 名", Vector2(left, 170), Vector2(110, 26), 15, DIM)
 	_name_edit = _line_edit(Vector2(left, 196), Vector2(left_w, 40), "墨构 · 房主")
 	_text("玩 法", Vector2(left, 252), Vector2(110, 26), 15, DIM)
-	_mode_opt = _option(Vector2(left, 278), Vector2(left_w, 40), ["冒 险 模 式", "无 尽 模 式"], 0)
+	_mode_opt = _option(Vector2(left, 278), Vector2(left_w, 40), ["冒 险 模 式", "无 尽 模 式", "对 战 模 式"], 0)
 	_text("问 境", Vector2(left, 334), Vector2(110, 26), 15, DIM)
 	var diffs: Array = []
 	for d in Run.DIFFICULTIES:
@@ -231,8 +231,10 @@ func _build_room() -> void:
 	var left := MARGIN
 	var title := str(LanNet.room.get("name", "局域网房间"))
 	_text(title, Vector2(left, 112), Vector2(700, 34), 26, PAPER)
-	var mode_text := "无尽" if str(LanNet.room.get("mode", "adventure")) == Run.MODE_ENDLESS else "冒险"
-	var diff_label := _diff_name(int(LanNet.room.get("difficulty", 1)))
+	var mode_raw := str(LanNet.room.get("mode", "adventure"))
+	var is_pvp := mode_raw == Run.MODE_PVP
+	var mode_text := "对战" if is_pvp else ("无尽" if mode_raw == Run.MODE_ENDLESS else "冒险")
+	var diff_label := "一决胜负" if is_pvp else _diff_name(int(LanNet.room.get("difficulty", 1)))
 	_text("%s · %s · 房间号 %d" % [mode_text, diff_label, 1], Vector2(left, 148), Vector2(700, 24), 15, DIM)
 	UiKit.rule(_body, Vector2(left, 186), Vector2(WIN_SIZE.x - MARGIN * 2.0, 1), Color(PAPER, 0.12))
 
@@ -261,30 +263,34 @@ func _build_room() -> void:
 	var info_y := 250.0
 	_info_row(info_x, info_y, "玩 法", mode_text)
 	_info_row(info_x, info_y + 40.0, "问 境", diff_label)
-	_info_row(info_x, info_y + 80.0, "人 数", "%d / 4" % maxi(1, LanNet.members.size()))
+	_info_row(info_x, info_y + 80.0, "人 数", "%d / %d" % [maxi(1, LanNet.members.size()), 2 if is_pvp else 4])
 	_info_row(info_x, info_y + 120.0, "房 主", _host_name())
 
 	var is_host := LanNet.role == "host"
-	# 客机在房间里自选化身：上报主机后按槽位分配，两边可以用不同角色
-	if is_host:
-		_info_row(info_x, info_y + 160.0, "我 的 化 身",
-			_char_name(str(LanNet.room.get("skull", ""))))
-	else:
-		_text("我 的 化 身", Vector2(info_x, info_y + 160.0), Vector2(110, 26), 15, DIM)
-		var chars := _unlocked_chars()
-		var labels: Array = []
-		for id in chars:
-			labels.append(_char_name(str(id)))
-		var sel := chars.find(LanNet.my_skull())
-		var opt := _option(Vector2(info_x, info_y + 188.0), Vector2(280, 40), labels, maxi(0, sel))
-		opt.item_selected.connect(_on_client_skull.bind(chars))
+	# 房主与客机都在房间里自选化身：各自上报主机后按槽位分配，互不覆盖。
+	# 选择会持久化在 LanNet.my_pick，房间清理/重连后仍然保留。
+	var chars := _unlocked_chars()
+	var labels: Array = []
+	for id in chars:
+		labels.append(_char_name(str(id)))
+	_text("我 的 化 身", Vector2(info_x, info_y + 160.0), Vector2(110, 26), 15, DIM)
+	var mine := LanNet.my_skull()
+	var sel := chars.find(mine) if mine != "" else -1
+	var opt := _option(Vector2(info_x, info_y + 188.0), Vector2(280, 40), labels, maxi(0, sel))
+	opt.item_selected.connect(_on_my_skull.bind(chars))
+	if mine == "" and not chars.is_empty():
+		# 进房先给个默认化身并上报，避免客机没动手选时主机因"尚未选择化身"卡住
+		LanNet.set_my_skull(str(chars[0]))
 	var ready := _local_ready()
 	if is_host:
-		_button("开 始 对 局", Vector2(left, 486), Vector2(300, 50), _on_start, true)
+		_button("开 始 对 战" if is_pvp else "开 始 对 局", Vector2(left, 486), Vector2(300, 50), _on_start, true)
 	else:
 		_button("取 消 准 备" if ready else "我 准 备 好 了", Vector2(left, 486), Vector2(300, 50), _on_toggle_ready, true)
 	_button("离 开 房 间", Vector2(left + 320, 486), Vector2(220, 50), _on_leave)
-	_text("队友就绪后即可开始" if is_host else "等待房主开始…", Vector2(left, 540), Vector2(620, 22), 14, DIM)
+	if is_pvp:
+		_text("各自从本机已解锁化身中选择 · 先胜两局者赢" if not is_host else "对战为 1v1，需恰好 2 人", Vector2(left, 540), Vector2(620, 22), 14, DIM)
+	else:
+		_text("队友就绪后即可开始" if is_host else "等待房主开始…", Vector2(left, 540), Vector2(620, 22), 14, DIM)
 
 
 func _member_row(x: float, y: float, who: String, ready: bool, host: bool, char_name := "") -> void:
@@ -296,8 +302,8 @@ func _member_row(x: float, y: float, who: String, ready: bool, host: bool, char_
 	_text("已就绪" if ready else "未就绪", Vector2(x + 500, y + 2), Vector2(120, 26), 15, GOLD if ready else DIM)
 
 
-## 客机在房间里换化身
-func _on_client_skull(index: int, chars: Array) -> void:
+## 房间内改自己的化身（房主 / 客机同一套逻辑）
+func _on_my_skull(index: int, chars: Array) -> void:
 	if index >= 0 and index < chars.size():
 		LanNet.set_my_skull(str(chars[index]))
 
@@ -319,7 +325,11 @@ func _host_name() -> String:
 func _on_host() -> void:
 	var diff := _diff_opt.selected
 	var char_id := str(_chars[_char_opt.selected]) if not _chars.is_empty() else Skulls.DEFAULT_ID
-	var mode := Run.MODE_ADVENTURE if _mode_opt.selected == 0 else Run.MODE_ENDLESS
+	var mode := Run.MODE_ADVENTURE
+	if _mode_opt.selected == 1:
+		mode = Run.MODE_ENDLESS
+	elif _mode_opt.selected == 2:
+		mode = Run.MODE_PVP
 	_host_char = char_id
 	var err := LanNet.host_room(_name_edit.text, mode, diff, char_id)
 	if err != "":
@@ -359,10 +369,12 @@ func _join(ip: String, port: int) -> void:
 
 
 func _on_start() -> void:
-	# 房间视图里选项控件已被释放，统一以 LanNet.room 里保存的开房配置为准
+	# 房间视图里选项控件已被释放，统一以 LanNet 里保存的开房配置与本人最新选择为准
 	var mode := str(LanNet.room.get("mode", Run.MODE_ADVENTURE))
 	var diff := int(LanNet.room.get("difficulty", 1))
-	var char_id := str(LanNet.room.get("skull", _host_char))
+	var char_id := LanNet.my_skull()
+	if char_id == "":
+		char_id = _host_char
 	if char_id == "":
 		char_id = Skulls.DEFAULT_ID
 	var err := LanNet.start_game(mode, diff, char_id)

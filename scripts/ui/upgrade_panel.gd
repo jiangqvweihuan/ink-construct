@@ -5,6 +5,7 @@ extends CanvasLayer
 
 signal purchased
 signal proceed
+signal picked(key: String)
 
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const UiKit = preload("res://scripts/ui/ui_kit.gd")
@@ -24,13 +25,22 @@ var _proceeding := false
 var title_text := "" # 试炼场等复用入口可覆盖标题；正式房间留空
 var proceed_text := "继续前进"
 
+## 联机：牌面与槽位由主机下发；客机只上报选择，等待房主推进。
+var preset_cards: Array = []
+var buy_slot := 0
+var apply_locally := true
+var online := false
+var show_proceed := true
+var _hint: Label
+
 
 func _ready() -> void:
 	layer = 8
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().paused = true # 挑强化时时间停住，战场不再动弹
-	_cards = Run.roll_cards(3)
-	_rerolls_left = Meta.shop_level("upgrade_reroll") + int(Run.blessing == "reroll") # 每个强化面板恢复永久与赐福次数
+	_cards = preset_cards.duplicate() if not preset_cards.is_empty() else Run.roll_cards(3, buy_slot)
+	# 每个强化面板恢复永久与赐福次数（按自己槽位的赐福判断）
+	_rerolls_left = Meta.shop_level("upgrade_reroll") + int(Run.blessing_of(buy_slot) == "reroll")
 	var sfx := AudioStreamPlayer.new()
 	sfx.bus = "SFX"
 	add_child(sfx)
@@ -60,9 +70,15 @@ func _ready() -> void:
 	add_child(_card_root)
 	_build_cards()
 
-	_proceed_button = _make_button(proceed_text, 584, _on_proceed, 380.0, null)
-	_reroll_button = _make_button("", 584, _reroll, 660.0)
-	_update_reroll()
+	if show_proceed:
+		_proceed_button = _make_button(proceed_text, 584, _on_proceed, 380.0, null)
+	else:
+		# 客机不掌控房间推进：选完只提示等待房主
+		_hint = _make_label("", 600, 20, Color(0.78, 0.74, 0.66))
+	# 联机牌面由主机统一发放，重随会让各端分叉，客机与房主都不提供重随
+	if not online:
+		_reroll_button = _make_button("", 584, _reroll, 660.0)
+		_update_reroll()
 
 
 func _on_proceed() -> void:
@@ -82,7 +98,7 @@ func _reroll() -> void:
 		_rerolls_left -= 1
 	elif not Run.consume_supply_reroll():
 		return
-	_cards = Run.roll_cards(3)
+	_cards = Run.roll_cards(3, buy_slot)
 	_build_cards()
 	_update_reroll()
 
@@ -161,7 +177,7 @@ func _build_cards() -> void:
 		b.add_child(path)
 
 		var tag := Label.new()
-		tag.text = ("%d / 3" % int(info.get("tier", 1))) if is_form else ("%d / %d" % [Run.level(key) + 1, int(info.get("max", 1))])
+		tag.text = ("%d / 3" % int(info.get("tier", 1))) if is_form else ("%d / %d" % [Run.level(key, buy_slot) + 1, int(info.get("max", 1))])
 		tag.size = Vector2(70, 26)
 		tag.position = Vector2(236, 20)
 		tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -171,7 +187,7 @@ func _build_cards() -> void:
 		b.add_child(tag)
 
 		var title := Label.new()
-		title.text = str(info["label"]) if is_form else "%s  Lv%d" % [str(info["label"]), Run.level(key) + 1]
+		title.text = str(info["label"]) if is_form else "%s  Lv%d" % [str(info["label"]), Run.level(key, buy_slot) + 1]
 		title.size = Vector2(286, 44)
 		title.position = Vector2(22, 60)
 		title.add_theme_color_override("font_color", _theme_text(int(info.get("theme", 0))) if is_form else PAPER)
@@ -224,7 +240,17 @@ func _build_cards() -> void:
 func _on_card(key: String) -> void:
 	if _bought:
 		return
-	if not Run.buy(key):
+	if online:
+		# 联机：不在本机加属性，只上送选择；主机写入各自槽位后再同步回来
+		_play_sfx(SFX_REWARD)
+		_bought = true
+		_build_cards()
+		_update_reroll()
+		if _hint != null:
+			_hint.text = "已选择，等待房主推进…"
+		picked.emit(key)
+		return
+	if not Run.buy(key, buy_slot):
 		_play_sfx(SFX_CLICK)
 		return
 	_play_sfx(SFX_REWARD)

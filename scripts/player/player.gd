@@ -16,6 +16,7 @@ const SpinePoseMixer := preload("res://scripts/systems/spine_pose_mixer.gd")
 const Settings = preload("res://scripts/ui/settings.gd") # 改键后 HUD 键名要读 InputMap
 const LocalCoop = preload("res://scripts/systems/local_coop.gd") # 本机双人：P2 走 p2_ 前缀动作
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
+const PvpTuning := preload("res://scripts/pvp/pvp_tuning.gd") # 对战数值：治疗/控制/持续伤害共用
 const DMG_COLOR := Color(0.18, 0.36, 0.43) # 石青：玩家受伤数字
 
 ## 击倒保护：任意形态触发倒地动作后，5 秒内不再被击倒（全形态默认原则，不写进被动）
@@ -25,6 +26,9 @@ const KNOCK_COOLDOWN := 5.0
 ## 队列动画提前接管的时长：spine 在结束前一个混合时长（default_mix=0.2）就把下一段混进来，
 ## root_motion 技能必须在此之前结算位移，否则读到的是被 stand 拉回途中的根骨值（多留一帧余量）
 const ROOT_MIX_LEAD := 0.24
+
+## 场景未标注 battle_width 时的兜底地图宽度（正式房间 / 对战竞技场均为 1920）
+const DEFAULT_BATTLE_W := 1920.0
 
 ## 技能 action -> HUD 按键字母
 const KEY_LABELS := {"skill": "K", "skill_sweep": "L", "skill_ult": "U", "skill_i": "I", "skill_o": "O", "skill_p": "P"}
@@ -43,6 +47,36 @@ var _footstep_timer := 0.0
 @export var input_slot := 0
 ## 联机镜像：为 true 时跳过整段物理/AI，只由 NetSync 用主机快照写入表现状态
 var net_puppet := false
+## 玩家对战：伤害改由 pvp_rules.gd 结算，并广播 pvp_strike；回合间隙用 pvp_frozen 定身
+var pvp_mode := false
+var pvp_frozen := false
+# ---------- PVP 状态（仅 pvp_mode 读写；与 PvE 的受伤/控制计时完全分离） ----------
+var _pvp_stop_time := 0.0
+var _pvp_stop_caster: Node = null
+var _pvp_root_time := 0.0
+var _pvp_stun_time := 0.0
+var _pvp_slow_time := 0.0
+var _pvp_slow_scale := 1.0
+var _pvp_bleed_time := 0.0
+var _pvp_bleed_stacks := 0
+var _pvp_bleed_acc := 0.0
+var _pvp_poison_time := 0.0
+var _pvp_poison_acc := 0.0
+var _pvp_vuln_time := 0.0
+var _pvp_frenzy_time := 0.0
+var _pvp_pressure := false
+var _pvp_cd_cursed := false
+## 红蝶在 PVP 中按回合计一次，不写 Run 的全局标记（两位玩家同选 c021 也不会互相吞掉）
+var _pvp_butterfly_used := false
+## 红蝶复活起身保护：这段时间内双方伤害都不结算，避免刚复活就被同一套连段秒回
+var _pvp_revive_guard := 0.0
+## 红蝶复活后的每秒生命流失（与 PvE 同一套机制，PVP 同样生效）
+var _pvp_butterfly_drain := false
+var _pvp_butterfly_tick := 0.0
+## 红尘：被绛弦实际伤害后叠在攻击方身上的怨层，每 3 层使其每段伤害 -1
+var _pvp_grudge := 0
+## 剑宗：被剑仙实际伤害后治疗减半，持续到本回合结束
+var _pvp_heal_cut := false
 var net_anim_loop := true
 @export var run_speed := 240.0
 @export var accel := 2200.0    # 启动加速度（"踩油门"）
@@ -62,6 +96,8 @@ var net_anim_loop := true
 signal hp_changed(current: int, maximum: int)
 signal died
 signal skull_changed(id: String)
+## 玩家对战：普攻/技能到命中帧时广播本次判定参数，由 pvp_rules.gd 结算；PvE 不监听
+signal pvp_strike(spec: Dictionary)
 
 enum State { IDLE, RUN, JUMP, FALL, DASH, ATTACK, SKILL, HURT, DEAD }
 var state: int = State.IDLE
@@ -709,7 +745,7 @@ func _build_tick(delta: float) -> void:
 		if _bait_time <= 0.0:
 			_expire_bait()
 	for zone in _branch_zones:
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in _foes():
 			var p := e as Node2D
 			if p == null or int(e.get("hp")) <= 0:
 				continue
@@ -760,14 +796,28 @@ func _scar_ring() -> void:
 		FX.spawn(scene, "slash", Vector2(_scar_x, global_position.y - 52.0),
 			{"scale": 1.15, "flip": _scar_facing < 0, "z": 21})
 	_play_sfx("skill_blade")
+	# PVP：刀痕中心可能不在脚下，按“与刀痕中心的距离 + 刀痕射程”近似成双向判定
+	if pvp_mode:
+		var center_dx := _scar_x - global_position.x
+		_emit_pvp_strike({
+			"damage": _scar_damage + damage_bonus + _buff_now(),
+			"range": absf(center_dx) + _scar_range,
+			"height": 120.0,
+			"both": true,
+		})
 	var hits := 0
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
 		if absf(p.global_position.x - _scar_x) > _scar_range + _radius_of(p):
 			continue
 		if absf(p.global_position.y - global_position.y) > 120.0:
+			continue
+		# PVP：伤害由 pvp_strike 统一结算，这里只负责挂流血与命中反馈
+		if pvp_mode:
+			_apply_hit_bleed(p, {"bleed": _scar_bleed})
+			hits += 1
 			continue
 		var dealt := _damage_enemy(p, _scar_damage + damage_bonus + _buff_now())
 		if dealt <= 0:
@@ -827,7 +877,7 @@ func _plum_zone_tick(delta: float) -> void:
 		var zone: Dictionary = _plum_zones[i]
 		zone["time"] = float(zone["time"]) - delta
 		var ending := float(zone["time"]) <= 0.0
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in _foes():
 			var p := e as Node2D
 			if p == null or int(e.get("hp")) <= 0:
 				continue
@@ -936,7 +986,7 @@ func _expire_bait() -> void:
 		_bait_time = 0.0
 		return
 	if _bait_root:
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in _foes():
 			if int(e.get("hp")) > 0 and e.get("_target") == _bait:
 				e.call("root", 1.5)
 	_bait.queue_free()
@@ -1084,6 +1134,9 @@ func _exit_tree() -> void:
 func _process(delta: float) -> void:
 	if _pose_mixer == null or _anim_state == null:
 		return
+	# 时停期间冻结骨骼推进，与 Boss 的 sprite 停帧一致
+	if pvp_mode and _pvp_stop_time > 0.0:
+		return
 	var step := delta
 	if not _pending_anim.is_empty():
 		var entry = _anim_state.call("set_animation", _pending_anim, _pending_loop, 0)
@@ -1098,7 +1151,12 @@ func _process(delta: float) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if net_puppet:
+	if net_puppet or pvp_frozen:
+		return
+	_pvp_status_tick(delta)
+	# 时停：完全静止（不跑重力/状态机/技能计时），只保留计时本身
+	if pvp_mode and _pvp_stop_time > 0.0:
+		velocity = Vector2.ZERO
 		return
 	fx.tick(delta, state == State.DEAD)
 	if _saint_immune():
@@ -1168,6 +1226,8 @@ func _physics_process(delta: float) -> void:
 
 	if _stun_time > 0.0 and state != State.HURT and state != State.DEAD:
 		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
+	elif _pvp_stun_time > 0.0 and state != State.HURT and state != State.DEAD:
+		velocity.x = move_toward(velocity.x, 0.0, brake * delta)
 	else:
 		match state:
 			State.IDLE, State.RUN:
@@ -1184,6 +1244,13 @@ func _physics_process(delta: float) -> void:
 				_hurt_tick(delta)
 			State.DEAD:
 				velocity.x = 0.0
+
+	# PVP 定身/减速：定身只锁位移，仍可照常出手；减速按系数削弱水平速度
+	if pvp_mode and state != State.DEAD:
+		if _pvp_root_time > 0.0:
+			velocity.x = 0.0
+		elif _pvp_slow_time > 0.0:
+			velocity.x *= _pvp_slow_scale
 
 	# 残血待机：待机时按血量比例实时切换（技能/受击/倒地结束后也会自动接管）
 	if state == State.IDLE:
@@ -1213,11 +1280,15 @@ func _pipa_passive_tick(delta: float) -> void:
 	if _pipa_sorrow_timer > 0.0:
 		return
 	_pipa_sorrow_timer = 27.0 if _form_node("z002_grudge_1") else 30.0
-	for e in get_tree().get_nodes_in_group("enemies"):
+	# PVP：全房神伤没有碰撞体，按全屏判定广播一次（伤害由 pvp_rules 结算）
+	if pvp_mode:
+		_emit_pvp_strike({"damage": 5, "full_screen": true, "both": true, "height": 9999.0, "knockback": 0.0})
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
-		_damage_enemy(p, 5)
+		if not pvp_mode:
+			_damage_enemy(p, 5)
 		if int(e.get("hp")) > 0 and p.has_method("amplify_debuffs"):
 			p.call("amplify_debuffs")
 	fx.world("E54061", global_position + Vector2(0.0, -180.0), "action", false,
@@ -1254,7 +1325,7 @@ func _innate_passive_tick(delta: float) -> void:
 			_spawn_passive_text("炎骨 · 觉醒", Color(0.9, 0.38, 0.2))
 			FX.spawn(get_tree().current_scene, "fire_pillar", global_position, {"scale": 0.8})
 		if _stolen("c008_evil_buddha"):
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in _foes():
 				if int(e.get("hp")) > 0 and e.has_method("set_evil_buddha_pressure"):
 					e.call("set_evil_buddha_pressure", true)
 		_stolen_history_time += delta
@@ -1385,7 +1456,7 @@ func _air_move(delta: float) -> void:
 func _chase_air_target() -> bool:
 	var best: Node2D = null
 	var best_dist := 420.0
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -1395,6 +1466,7 @@ func _chase_air_target() -> bool:
 			best_dist = d
 	if best != null:
 		global_position = best.global_position + Vector2(-facing * 75.0, 0.0)
+		global_position.x = _clamp_battle_x(global_position.x)
 		velocity = Vector2.ZERO
 		return true
 	return false
@@ -1417,8 +1489,14 @@ func _dash_tick(delta: float) -> void:
 func _sword_dash_sweep() -> void:
 	if skull_id != "z000" or not _form_node("z000_wind_2"):
 		return
+	# PVP：游身回身扫是闪避结束的独立判定，不在普攻/技能命中帧内
+	if pvp_mode:
+		_emit_pvp_strike({
+			"damage": 1 + damage_bonus + _mastery_dmg + _buff_now(),
+			"range": 150.0, "height": 100.0, "both": true,
+		})
 	var did_hit := false
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -1448,8 +1526,14 @@ func _sword_dash_sweep() -> void:
 func _dash_attack() -> bool:
 	if _dash_attack_dmg <= 0:
 		return false
+	# PVP：疾刃是冲刺结束后的独立判定，不在普攻/技能命中帧内，需要单独广播
+	if pvp_mode:
+		_emit_pvp_strike({
+			"damage": _dash_attack_dmg + damage_bonus + _buff_now(),
+			"range": 130.0, "height": 80.0,
+		})
 	var did_hit := false
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -1511,15 +1595,28 @@ func _deal_hit(h = null) -> void:
 	# 远程形态：发投射物，命中由投射物自己结算（伤害带上局内强化与契合加伤）
 	if atk.has("projectile"):
 		# 双发（剑仙流派）：额外投射物纵向错开齐发；剑气·初/续 与 御剑·极 在此加伤
+		var shot_damage := int(atk["damage"]) + damage_bonus + _mastery_dmg + _proj_damage_bonus + _buff_now()
 		for i in proj_extra + 1:
-			_spawn_projectile(atk["projectile"], int(atk["damage"]) + damage_bonus + _mastery_dmg + _proj_damage_bonus + _buff_now(), "voice_sword_hit", i * 26.0)
+			_spawn_projectile(atk["projectile"], shot_damage, "voice_sword_hit", i * 26.0)
+		# PVP 近似：远程普攻按发射瞬间的射程与伤害结算
+		_emit_pvp_strike({
+			"damage": shot_damage,
+			"range": float((atk["projectile"] as Dictionary).get("range", 420.0)),
+			"height": 140.0, "both": true,
+		})
 		return
 	# 命中段：旧格式是纯秒数（沿用本段统一 damage/range），
 	# 新格式是字典（一段动画里多段不同伤害/范围，如梅剑鞭击后接突刺）
 	var spec: Dictionary = h if h is Dictionary else atk
 	if spec.has("projectile"):
+		var spec_damage := int(spec.get("damage", atk.get("damage", 1))) + damage_bonus + _mastery_dmg + _proj_damage_bonus + _buff_now()
 		for i in proj_extra + 1:
-			_spawn_projectile(spec["projectile"], int(spec.get("damage", atk.get("damage", 1))) + damage_bonus + _mastery_dmg + _proj_damage_bonus + _buff_now(), "voice_sword_hit", i * 26.0)
+			_spawn_projectile(spec["projectile"], spec_damage, "voice_sword_hit", i * 26.0)
+		_emit_pvp_strike({
+			"damage": spec_damage,
+			"range": float((spec["projectile"] as Dictionary).get("range", 420.0)),
+			"height": 140.0, "both": true,
+		})
 		return
 	var dmg := int(spec.get("damage", atk.get("damage", 1))) + damage_bonus + _mastery_dmg + _attack_damage_bonus + _buff_now()
 	var final_attack := _attack_idx == attacks.size() - 1
@@ -1530,12 +1627,18 @@ func _deal_hit(h = null) -> void:
 		dmg += 1 # 无影·初：闪避后的下一次普攻
 	var reach := float(spec.get("range", atk.get("range", 100.0))) * range_scale * _attack_range_scale
 	var side_any := bool(spec.get("both", atk.get("both", false)))
+	# PVP：与 PvE 使用同一套射程/高度/朝向参数，交给 pvp_rules 判定对手是否被扫到
+	_emit_pvp_strike({
+		"damage": dmg, "range": reach,
+		"height": float(spec.get("height", atk.get("height", 70.0))),
+		"both": side_any, "path": false,
+	})
 	var pull := float(spec.get("pull", 0.0)) # 鞭击拉回：命中后把敌人拽到身前这个距离
 	if pull > 0.0 and skull_id == "c023" and _form_node("c023_lash_2"):
 		pull = 120.0
 	var did_hit := false
 	var pulled := 0 # 已拉回的敌人数，多目标依次错开 34px 免得叠成一坨
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null:
 			continue
@@ -1577,7 +1680,7 @@ func _deal_hit(h = null) -> void:
 			_pull_enemy(p, want_x)
 			if skull_id == "c023" and _own("c023_bind_1"):
 				p.call("root", 0.5) # 缠枝·初：即使没撞到近敌，被拉者也必定定身
-				for other_e in get_tree().get_nodes_in_group("enemies"):
+				for other_e in _foes():
 					var other := other_e as Node2D
 					if other == null or other == p or int(other_e.get("hp")) <= 0:
 						continue
@@ -1600,7 +1703,10 @@ func _deal_hit(h = null) -> void:
 
 ## 连刃·极：末段首次命中追加一次双向范围斩，固定 1 伤。
 func _combo_finish_wave() -> void:
-	for e in get_tree().get_nodes_in_group("enemies"):
+	# PVP：追加斩独立于技能命中帧，必须单独广播一次判定，否则对手永远收不到这段伤害
+	if pvp_mode:
+		_emit_pvp_strike({"damage": 1, "range": 240.0, "height": 120.0, "both": true})
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -1614,6 +1720,10 @@ func _combo_finish_wave() -> void:
 ## 返回实际扣血，供八音总伤与测试核对，不靠 source_x 猜测攻击者身份。
 func _damage_enemy(target: Node, amount: int) -> int:
 	if target == null or not is_instance_valid(target) or amount <= 0 or int(target.get("hp")) <= 0:
+		return 0
+	# PVP：伤害只在 pvp_rules.handle_strike 里按对战系数结算一次；
+	# 这里被 _foes() 遍历到对手玩家时只负责挂状态，绝不重复扣血。
+	if pvp_mode and ("pvp_mode" in target) and bool(target.get("pvp_mode")):
 		return 0
 	amount += Achievements.bonus_int("damage") # 称号加伤：统一在伤害入口加，覆盖普攻/技能/持续段
 	if _stolen_divine and _stolen("c032_divine_favor"):
@@ -1823,6 +1933,21 @@ func _pull_enemy(p: Node2D, want_x: float) -> void:
 		p.global_position.x = want_x
 
 
+## 技能效果作用目标：PvE 为 enemies 组；PVP 为另一名对手玩家。
+## 目标抽象只负责"挂状态"，PVP 伤害仍由 pvp_rules 统一结算（见 _damage_enemy 的去重）。
+func _foes() -> Array:
+	if pvp_mode:
+		var out: Array = []
+		for n in get_tree().get_nodes_in_group("pvp_players"):
+			if n == self or not is_instance_valid(n):
+				continue
+			if int(n.get("hp")) <= 0:
+				continue
+			out.append(n)
+		return out
+	return get_tree().get_nodes_in_group("enemies")
+
+
 ## 击退撞人 / 撞墙后的搬山联动。
 func on_knock_collision(victim: Node2D, other: Node2D) -> void:
 	if skull_id != "c013" or not _own("c013_mountain_1"):
@@ -1860,15 +1985,15 @@ func on_enemy_slammed(p: Node2D, pos: Vector2) -> void:
 
 ## 砸落的落点效果。Boss 不被普通击飞，改为短硬直；已落地者不再被自己的冲击二次击飞。
 func _slam_aoe(pos: Vector2, stun_only := false, exclude: Node2D = null) -> void:
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or p == exclude or int(e.get("hp")) <= 0:
 			continue
 		if absf(p.global_position.x - pos.x) > 180.0 + _radius_of(p) or absf(p.global_position.y - pos.y) > 150.0:
 			continue
-		var boss := e.has_method("stop_tier") and str(e.call("stop_tier")) == "boss"
-		if stun_only or boss:
-			p.call("stun", 1.5 if not boss else 0.8)
+		var is_boss: bool = e.has_method("stop_tier") and str(e.call("stop_tier")) == "boss"
+		if stun_only or is_boss:
+			p.call("stun", 1.5 if not is_boss else 0.8)
 		else:
 			p.call("launch", 1 if p.global_position.x >= pos.x else -1, 130.0, 430.0)
 	FX.spawn(get_tree().current_scene, "ink_hit", pos + Vector2(0, -40), {"scale": 1.0})
@@ -1917,7 +2042,7 @@ func _on_build_hit(p: Node2D, move_id: String) -> void:
 		if move_id == "skill02" and _own("c023_plum_2") and bool(_plum_marks.get(id, {}).get("marked", false)):
 			_plum_marks.erase(id)
 			p.call("root", 2.0)
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in _foes():
 				var other := e as Node2D
 				if other != null and other != p and int(e.get("hp")) > 0 and other.global_position.distance_to(p.global_position) <= 280.0:
 					other.call("apply_poison", 4.0)
@@ -1944,7 +2069,7 @@ func _on_build_hit(p: Node2D, move_id: String) -> void:
 			_k_sealed.erase(id)
 			p.call("stun", 1.2)
 			if _form_node("z000_edge_3"):
-				for e in get_tree().get_nodes_in_group("enemies"):
+				for e in _foes():
 					var other := e as Node2D
 					if other == null or other == p or int(e.get("hp")) <= 0:
 						continue
@@ -2030,7 +2155,7 @@ func _try_unification() -> void:
 	var ready := _sword_seals.has("K") and _sword_seals.has("L") and _sword_seals.has("U")
 	if not ready and not awaken_free:
 		return
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -2079,8 +2204,10 @@ func _skill_tick(delta: float) -> void:
 	# 画面看到的动作与原来一模一样，但人物真的走到了动画终点（命中判定 / 投射物出手点也都在正确位置）
 	if _skill_root_follow and _root_bone != null:
 		var off := _root_offset()
-		sprite.position.x = -off
-		global_position.x = _skill_root_x + off
+		# 根骨位移同样不能越过地图墙：夹住后把 sprite 补偿量按实际落点重算，画面不抖
+		var px := _clamp_battle_x(_skill_root_x + off)
+		sprite.position.x = -(px - _skill_root_x)
+		global_position.x = px
 	# root_motion 收尾：队列里的 stand 会在结束前一个混合时长（默认 0.2s）就接管轨道、把根骨往 0 拉，
 	# 所以必须赶在混合开始前结算位移（再多留一帧余量），然后零混合瞬切 stand——人物正好停在动画终点
 	if _skill_root_follow and t >= _skill_dur * _skill_speed - ROOT_MIX_LEAD:
@@ -2098,7 +2225,7 @@ func _skill_tick(delta: float) -> void:
 	# 不能等收招帧才切——队列里自动接续的 stand 会在旧位置抢先起播、混出一帧残影（残影根因）；
 	# 提前切，缝在动画还在播时合上，path 命中仍在收招帧从终点回扫整段路径
 	if _skill_teleport > 0.0 and t >= _skill_dur * _skill_speed - 0.12:
-		global_position.x += facing * _skill_teleport
+		global_position.x = _clamp_battle_x(global_position.x + facing * _skill_teleport)
 		_skill_teleport = 0.0
 		if _anim_state != null:
 			# 全程零混合做手术：clear_track 自身也会按默认混合把旧轨道淡出（旧姿势带 600px
@@ -2145,11 +2272,17 @@ func _skill_tick(delta: float) -> void:
 	if not stop.is_empty() and not _stop_done and t >= float(stop.get("at", 0.5)):
 		_stop_done = true
 		var stop_dur := float(stop.get("mob", 10.0)) + _stop_bonus # 时停·初：全档位 +0.25 秒
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in _foes():
 			if int(e.get("hp")) <= 0:
 				continue
 			var tier := str(e.call("stop_tier")) if e.has_method("stop_tier") else "mob"
-			e.call("time_stop", float(stop.get(tier, 10.0)) + _stop_bonus)
+			var dur := float(stop.get(tier, 10.0)) + _stop_bonus
+			if ("pvp_mode" in e) and bool(e.get("pvp_mode")):
+				# 敌方玩家按 BOSS 档位处理（stop_tier 返回 boss），并把施法者交给对方，
+				# 让时停自然结束时能回报 on_time_stop_end（止时·极的定身与尾伤）。
+				e.call("time_stop", dur, self)
+			else:
+				e.call("time_stop", dur)
 			if e is Node2D:
 				fx.attach_stop_target(e)
 		# 时停·续：定住的这段时间里全伤害 +2（独立槽，_buff_now 取最高）
@@ -2171,7 +2304,7 @@ func _skill_tick(delta: float) -> void:
 			fx.sync_persistent(state == State.DEAD)
 		# 自带位移动画兜底：正常尾声已提前 0.12s 瞬移+切 stand（见上），这里只兜底位置
 		if _skill_teleport > 0.0:
-			global_position.x += facing * _skill_teleport
+			global_position.x = _clamp_battle_x(global_position.x + facing * _skill_teleport)
 			_skill_teleport = 0.0
 		# 收招兜底：命中段 at 略晚于动画时长时（镇岳定山 at=3.12 > 3.05），
 		# 靠计时器驱动永远触发不到 t>=at，整段伤害会凭空丢失——退出这一帧补结算
@@ -2207,7 +2340,8 @@ func _set_blink(on: bool) -> void:
 	if on == _blink_active:
 		return
 	_blink_active = on
-	for e in get_tree().get_nodes_in_group("enemies"):
+	# 穿怪豁免只针对 PvE 敌人：PVP 中双方不应互相穿透
+	for e in get_tree().get_nodes_in_group(&"enemies"):
 		if not e is PhysicsBody2D:
 			continue
 		if on:
@@ -2232,10 +2366,23 @@ func _reset_root_follow() -> void:
 	_skill_root_follow = false
 	var off := _root_offset()
 	if _root_bone != null:
-		global_position.x = _skill_root_x + off
+		global_position.x = _clamp_battle_x(_skill_root_x + off)
 		_root_bone.call("set_x", _root_bone_base)
 	if sprite:
 		sprite.position = Vector2.ZERO
+
+
+## 地图内可站立 x 范围：场景在 _ready 写入 battle_width；未标注时按 1920 兜底。
+func _battle_width() -> float:
+	var scene := get_tree().current_scene
+	if scene != null and scene.has_meta("battle_width"):
+		return float(scene.get_meta("battle_width"))
+	return DEFAULT_BATTLE_W
+
+
+func _clamp_battle_x(x: float) -> float:
+	var pad := maxf(24.0, body_radius)
+	return clampf(x, pad, _battle_width() - pad)
 
 
 func _deal_skill_hit(h: Dictionary) -> void:
@@ -2256,6 +2403,12 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		if skull_id == "c021" and _skill_name == "skill02-cankao" and _own("c021_feather_2") and _feathers > 0:
 			shot_spec["split"] = int(shot_spec.get("split", 0)) + _feathers
 			_feathers = 0
+		# PVP 近似：远程技能按发射瞬间的射程与伤害结算，不追踪飞行中的投射物
+		_emit_pvp_strike({
+			"damage": shot_damage,
+			"range": float(shot_spec.get("range", 420.0)),
+			"height": 140.0, "both": true,
+		})
 		for i in proj_extra + 1:
 			_spawn_projectile(shot_spec, shot_damage, str(h.get("sfx", "")), i * 26.0)
 		var shot_heal := h.duplicate(true)
@@ -2304,7 +2457,15 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			{"scale": 0.2, "bottom": true, "offset": Vector2(0.0, 22.0), "flip": facing < 0, "fx_role": "skill_hit"})
 	if full and skull_id == "z003" and _skill_name == "sky_skill18_02":
 		fx.fullscreen("E54012", "action3")
-	for e in get_tree().get_nodes_in_group("enemies"):
+	# PVP：技能命中帧只报一次参数（射程已含 c013 震岳初的额外放大），由 pvp_rules 结算
+	_emit_pvp_strike({
+		"damage": dmg, "range": skill_range,
+		"height": float(h["height"]),
+		"both": bool(h.get("both", false)),
+		"full_screen": full, "path": bool(h.get("path", false)),
+		"start_x": _skill_start_x,
+	})
+	for e in _foes():
 		var p := e as Node2D
 		if p == null:
 			continue
@@ -2369,7 +2530,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		if skull_id == "c021" and _skill_name == "skill5-" and _own("c021_bait_3") and _bait_time > 0.0 and is_instance_valid(_bait):
 			var left := minf(global_position.x, _bait.global_position.x) - 35.0
 			var right := maxf(global_position.x, _bait.global_position.x) + 35.0
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in _foes():
 				var p := e as Node2D
 				if p != null and int(e.get("hp")) > 0 and p.global_position.x >= left and p.global_position.x <= right \
 						and absf(p.global_position.y - global_position.y) <= 120.0:
@@ -2393,7 +2554,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 func _deal_charm() -> void:
 	var target: Node2D = null
 	var nearest := INF
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -2419,7 +2580,7 @@ func _deal_charm() -> void:
 	if _own("z002_allure_1"):
 		var extra: Node2D = null
 		var extra_nearest := INF
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in _foes():
 			var other := e as Node2D
 			if other == null or other == target or int(e.get("hp")) <= 0 or not e.has_method("apply_charm"):
 				continue
@@ -2451,7 +2612,7 @@ func _deal_mind_detonate() -> void:
 	var base_damage := 8 + (2 if _form_node("z002_grudge_2") else 0)
 	var hit_any := false
 	var mind_bursts: Array = []
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0 or not p.has_method("detonate_mind"):
 			continue
@@ -2471,7 +2632,7 @@ func _deal_mind_detonate() -> void:
 				mind_bursts.append(p.global_position)
 	# 溅射统一在全房引爆后结算；溅射击杀只返冷却，不再递归产生溅射。
 	for pos in mind_bursts:
-		for other_e in get_tree().get_nodes_in_group("enemies"):
+		for other_e in _foes():
 			var other := other_e as Node2D
 			if other == null or int(other_e.get("hp")) <= 0 or other.global_position.distance_to(pos) > 240.0:
 				continue
@@ -2483,7 +2644,7 @@ func _deal_mind_detonate() -> void:
 				_skill_cds[_skill_name] = maxf(0.0, float(_skill_cds[_skill_name]) - 3.0)
 			FX.spawn(get_tree().current_scene, "ink_hit", other.global_position + Vector2(0, -60), {"scale": 0.35})
 	var survivors: Array = []
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		if int(e.get("hp")) > 0 and e.has_method("apply_transferred_debuff"):
 			survivors.append(e)
 	for target in survivors:
@@ -2575,7 +2736,7 @@ func _try_pipa_scapegoat(amount: int, _attacker: Node = null) -> int:
 	if skull_id != "z002" or amount < hp or hp <= 0 or not has_battle_passive("z002_ephemeral"):
 		return amount
 	var candidates: Array = []
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		if e.has_method("can_red_scapegoat") and bool(e.call("can_red_scapegoat")):
 			candidates.append(e)
 	if candidates.is_empty():
@@ -2610,6 +2771,11 @@ func _skill_hit_sustain() -> void:
 
 
 func _restore_hp(amount: int) -> void:
+	# PVP：治疗效果按对战系数折算，避免续航型角色无限拉血
+	if pvp_mode and amount > 0:
+		amount = maxi(1, int(roundf(float(amount) * PvpTuning.HEAL_SCALE)))
+		if _pvp_heal_cut:
+			amount = maxi(1, int(ceilf(float(amount) * 0.5))) # 剑宗：治疗减半
 	var cap := max_hp + extra_hp_cap()
 	if state == State.DEAD or hp >= cap or amount <= 0:
 		return
@@ -2669,7 +2835,7 @@ func on_pipa_sound_hit(target: Node2D) -> void:
 	if target.has_method("apply_frenzy"):
 		target.call("apply_frenzy", 6.0)
 	var candidates: Array = []
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var other := e as Node2D
 		if other == null or other == target or int(e.get("hp")) <= 0 or not e.has_method("apply_frenzy"):
 			continue
@@ -2689,7 +2855,7 @@ func on_dagger_hit(p: Node2D, pos: Vector2, from_split := false) -> void:
 		_leave_dagger(pos)
 	if from_split and _own("c021_feather_3") and int(p.get("hp")) > 0:
 		p.call("root", 1.2)
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in _foes():
 			var other := e as Node2D
 			if other == null or other == p or int(e.get("hp")) <= 0:
 				continue
@@ -2749,7 +2915,7 @@ func _recall_daggers() -> void:
 		var targets: Array = []
 		for dagger in _daggers:
 			var pos: Vector2 = dagger["pos"]
-			for e in get_tree().get_nodes_in_group("enemies"):
+			for e in _foes():
 				var p := e as Node2D
 				if p != null and int(e.get("hp")) > 0 and not targets.has(p) \
 						and absf(p.global_position.x - pos.x) <= 150.0 + _radius_of(p):
@@ -2799,7 +2965,7 @@ func on_poison_kill(victim: Node2D) -> void:
 	if skull_id != "c023" or not _form_node("c023_venom_3"):
 		return
 	var candidates: Array = []
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or p == victim or int(e.get("hp")) <= 0:
 			continue
@@ -2823,7 +2989,11 @@ func on_time_stop_end(p: Node2D) -> void:
 			p.call("slow", 4.0, 0.45)
 	_time_marks.erase(id)
 	if _form_node("z003_time_3") and int(p.get("hp")) > 0:
-		_damage_enemy(p, 1)
+		if pvp_mode and ("pvp_mode" in p) and bool(p.get("pvp_mode")):
+			# PVP：尾伤同样由 pvp_rules 换算，避免走 _damage_enemy 的 PvE 通道
+			_emit_pvp_strike({"damage": 1, "full_screen": true, "both": true, "height": 9999.0, "knockback": 0.0})
+		else:
+			_damage_enemy(p, 1)
 		hit_scored()
 
 
@@ -2881,7 +3051,7 @@ func _apply_self_shield(spec: Dictionary) -> void:
 	fx.sync_persistent(state == State.DEAD)
 	if skull_id == "c013" and _own("c013_bell_1"):
 		var pulled := 0
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in _foes():
 			var p := e as Node2D
 			if p != null and int(e.get("hp")) > 0 and absf(p.global_position.x - global_position.x) <= 340.0 + _radius_of(p) \
 					and absf(p.global_position.y - global_position.y) <= 160.0:
@@ -2902,7 +3072,7 @@ func _shatter_bell() -> void:
 	_shield_time = 0.0
 	fx.sync_persistent(state == State.DEAD)
 	_bell_shell = _own("c013_bell_3")
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p != null and int(e.get("hp")) > 0 and absf(p.global_position.x - global_position.x) <= 360.0 + _radius_of(p) \
 				and absf(p.global_position.y - global_position.y) <= 170.0:
@@ -2953,6 +3123,11 @@ func _apply_skill_heal(h: Dictionary) -> void:
 		used_precepts = _precepts
 		heal_amt += used_precepts
 	if heal_amt > 0:
+		# PVP：技能回血同样按对战系数折算
+		if pvp_mode:
+			heal_amt = maxi(1, int(roundf(float(heal_amt) * PvpTuning.HEAL_SCALE)))
+			if _pvp_heal_cut:
+				heal_amt = maxi(1, int(ceilf(float(heal_amt) * 0.5))) # 剑宗：治疗减半
 		var total_heal := heal_amt + _heal_bonus
 		var received := total_heal * (2 if skull_id == "z000" and has_battle_passive("z000_immortal") else 1)
 		var missing := maxi(0, max_hp + extra_hp_cap() - hp)
@@ -2976,8 +3151,17 @@ func _apply_skill_heal(h: Dictionary) -> void:
 ## 技能持续伤害段（梅剑·转鞭）：每 interval 秒对前后方范围内的所有敌人各打一次。
 ## 不顿帧、不震屏——0.5s 一跳的持续伤害如果每跳都卡一下，打起来会抖。
 func _deal_skill_tick(tick: Dictionary) -> void:
+	# PVP：持续伤害段不在 _deal_skill_hit 的命中帧里，需要单独补一次判定
+	if pvp_mode:
+		_emit_pvp_strike({
+			"damage": _stolen_skill_damage(int(tick["damage"]) + _tick_damage_bonus + damage_bonus + _buff_now()),
+			"range": float(tick["range"]) * range_scale * _tick_range_scale,
+			"height": float(tick.get("height", 120.0)),
+			"both": bool(tick.get("both", false)),
+			"knockback": 0.0,
+		})
 	var did_hit := false
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -3011,7 +3195,7 @@ func try_reflect_ranged(damage: int, from_x: float, attacker: Node = null) -> bo
 	else:
 		var dir := signf(from_x - global_position.x)
 		var best := INF
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in get_tree().get_nodes_in_group(&"enemies"):
 			var p := e as Node2D
 			if p == null or int(e.get("hp")) <= 0:
 				continue
@@ -3157,8 +3341,9 @@ func get_skill_key(n: String) -> String:
 	var action := str(cfg.get("action", ""))
 	if action == "":
 		return "-"
-	# 优先读 InputMap（设置里改键后 HUD 跟着变），读不到再退回写死表
-	if input_slot != 0:
+	# 优先读 InputMap（设置里改键后 HUD 跟着变），读不到再退回写死表。
+	# 联机客机虽然占 1 号槽，但用的是自己设备上的 P1/触屏输入，不能显示本机双人的 P2 键位。
+	if input_slot != 0 and Run.net_role == "":
 		return LocalCoop.key_label(action)
 	var s := Settings.action_label(action)
 	return s if s != "-" else str(KEY_LABELS.get(action, "-"))
@@ -3255,7 +3440,7 @@ func _return_dash() -> void:
 	var left := minf(start.x, _return_mark.x) - 30.0
 	var right := maxf(start.x, _return_mark.x) + 30.0
 	var did_hit := false
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -3267,6 +3452,7 @@ func _return_dash() -> void:
 		if _own("z003_returning_3") and _outbound_hits.has(p.get_instance_id()):
 			p.call("stun", 1.5) # 去程与返程交叉命中：破招
 	global_position = _return_mark
+	global_position.x = _clamp_battle_x(global_position.x)
 	_return_time = 0.0
 	_outbound_hits.clear()
 	_clear_return_mark()
@@ -3385,7 +3571,7 @@ func _start_skill(n: String) -> void:
 	if skull_id == "z002" and bool(cfg.get("once_per_awaken", false)):
 		_pipa_o_used = true
 		_pipa_wave_hits.clear()
-	_parry_ready = skull_id == "c023" and n == "skill02" and _own("c023_counter_1")
+	_parry_ready = skull_id == "c023" and n == "skill02" and (_own("c023_counter_1") or _form_node("c023_counter_1"))
 	if _parry_ready:
 		# 回环·初：格挡是隐藏状态，起手必须给一个看得见的架势提示
 		FX.spawn(get_tree().current_scene, "telegraph", global_position + Vector2(0, -60), {"scale": 0.7, "mod": Color(0.9, 0.75, 0.3, 0.8)})
@@ -3478,7 +3664,7 @@ func _start_skill(n: String) -> void:
 		_apply_self_shield({"hits": 1, "time": 6.0})
 		# 苦行·极：三戒 U 同时展开钟鸣，把周围敌人拉到身前
 		var pulled := 0
-		for e in get_tree().get_nodes_in_group("enemies"):
+		for e in _foes():
 			var p := e as Node2D
 			if p != null and int(e.get("hp")) > 0 and absf(p.global_position.x - global_position.x) <= 340.0 + _radius_of(p) \
 					and absf(p.global_position.y - global_position.y) <= 160.0:
@@ -3569,6 +3755,7 @@ func _try_stolen_era(attacker: Node, move: Dictionary) -> void:
 	if not _stolen_history.is_empty():
 		past = _stolen_history[0]["position"]
 	global_position = past
+	global_position.x = _clamp_battle_x(global_position.x)
 	FX.spawn(get_tree().current_scene, "speedline", past, {"scale": 0.8, "mod": Color(0.55, 0.78, 0.82, 0.7)})
 	_spawn_passive_text("璀璨时代 · 回溯", Color(0.55, 0.78, 0.82))
 
@@ -3619,7 +3806,7 @@ func _try_stolen_madness_damage(amount: int, attacker: Node, move: Dictionary) -
 func _stolen_death_burst() -> void:
 	if not _stolen("c037_burst"):
 		return
-	for e in get_tree().get_nodes_in_group("enemies"):
+	for e in _foes():
 		var p := e as Node2D
 		if p == null or int(e.get("hp")) <= 0:
 			continue
@@ -3730,12 +3917,19 @@ func swap_skull(id: String) -> void:
 	_time_marks.clear()
 	_apply_profile(id)
 	_setup_spine()
-	Run.skull_id = id # 局外养成的击杀/通关记账按当前形态归属，换头后立刻同步
-	# 换形态后按新角色的定位生命重算上限；局内还要同步 Run 的真实上限。
+	# 局外养成的击杀/通关记账按 P1 当前形态归属；联机客机的镜像换形不得覆盖主机下发的身份。
+	if int(input_slot) == 0:
+		Run.skull_id = id
+	# 换形态后按新角色的定位生命重算上限；局内还要同步 Run 的真实上限（只有 0 号槽写全局值）。
 	set_upgrades(_upgrades)
-	if Run.active:
-		Run.max_hp = Run.calculated_max_hp()
-		max_hp = effective_max_hp(Run.max_hp)
+	if pvp_mode:
+		# 对战生命上限统一由 pvp_tuning 决定：中途换人不该按 PvE 定位血量（8/12/60）缩水
+		max_hp = PvpTuning.MAX_HP
+	elif Run.active:
+		var cap := Run.calculated_max_hp(id, int(input_slot))
+		if int(input_slot) == 0:
+			Run.max_hp = cap
+		max_hp = effective_max_hp(cap)
 	hp = mini(hp, max_hp)
 	hp_changed.emit(hp, max_hp)
 	_play_sfx("voice_skill_cast")
@@ -3762,7 +3956,10 @@ func _counter_attack(attacker: Node) -> bool:
 	elif _own("c023_counter_2"):
 		var old_pos := global_position
 		global_position = p.global_position
+		global_position.x = _clamp_battle_x(global_position.x)
 		p.global_position = old_pos
+		if p is CharacterBody2D:
+			p.global_position.x = _clamp_battle_x(p.global_position.x)
 		_hurt_invincible = maxf(_hurt_invincible, 0.6)
 	else:
 		_pull_enemy(p, global_position.x + facing * 90.0)
@@ -4521,8 +4718,9 @@ func _cut_damage(cut: Dictionary) -> void:
 func _try_revive(knockback: Vector2) -> bool:
 	var can_revive := false
 	var red_butterfly := false
-	if Run.blessing == "revive" and not Run.blessing_used:
-		Run.blessing_used = true
+	var slot := int(input_slot)
+	if Run.blessing_of(slot) == "revive" and not Run.blessing_used_of(slot):
+		Run.set_blessing_used(slot, true)
 		can_revive = true
 	elif Run.supply_revive and not Run.supply_revive_used:
 		Run.supply_revive_used = true
@@ -4532,8 +4730,8 @@ func _try_revive(knockback: Vector2) -> bool:
 		Run.c021_red_butterfly_used = true
 		# 上限按「自己槽位的化身」算：本机双人时 Run.max_hp 是 P1 的全局值，
 		# 直接拿它给 P2 复活会把红蝶的 100 点压成 P1 的 8 点，起身七八秒就烧没了。
-		var butterfly_max := Run.calculated_max_hp(skull_id)
-		if int(input_slot) == 0:
+		var butterfly_max := Run.calculated_max_hp(skull_id, slot)
+		if slot == 0:
 			Run.max_hp = butterfly_max
 		max_hp = butterfly_max
 		_red_butterfly_left = 1.0
@@ -4542,8 +4740,10 @@ func _try_revive(knockback: Vector2) -> bool:
 		return false
 	Achievements.event("revives")
 	if max_hp <= 0 and _stolen("c009_madness"):
-		Run.max_hp = maxi(1, Run.calculated_max_hp())
-		max_hp = Run.max_hp
+		var stolen_cap := maxi(1, Run.calculated_max_hp(skull_id, slot))
+		if slot == 0:
+			Run.max_hp = stolen_cap
+		max_hp = stolen_cap
 	_clear_bleed()
 	_stop_skill_loop()
 	fx.clear_all()
@@ -4647,7 +4847,11 @@ func _perfect_dodge(attacker: Node = null, incoming_damage: int = 0) -> void:
 			_world_add(mark_dn)
 	if skull_id == "c021" and has_battle_passive("c021_flash") and incoming_damage > 0 \
 			and attacker != null and is_instance_valid(attacker) and int(attacker.get("hp")) > 0:
-		_damage_enemy(attacker, incoming_damage) # 闪身只回敬这一段原始伤害，不再叠加玩家加伤
+		# 闪身只回敬这一段原始伤害，不再叠加玩家加伤；PvP 走专用受击避免被 _damage_enemy 去重
+		if pvp_mode and ("pvp_mode" in attacker) and bool(attacker.get("pvp_mode")):
+			attacker.call("pvp_apply_damage", incoming_damage, Vector2.ZERO, null)
+		else:
+			_damage_enemy(attacker, incoming_damage)
 	_play_sfx("weapon_sword") # 侧身擦过的嗖声当闪避音
 	Achievements.event("perfect_dodges")
 	var dn := DAMAGE_NUMBER.new()
@@ -4690,6 +4894,556 @@ func die() -> void:
 	if hold != "":
 		_queue(hold, true)
 	died.emit()
+
+
+# ---------- 玩家对战（PVP） ----------
+
+## 普攻/技能到达命中帧时只广播判定参数，由 pvp_rules.gd 结算；
+## PvE 路径不读这个信号，pvp_mode 为 false 时完全静默。
+func _emit_pvp_strike(spec: Dictionary) -> void:
+	if pvp_mode:
+		pvp_strike.emit(spec)
+
+
+## PvP 实际伤害回调（pvp_rules 扣血后调用）：接回“造成实际伤害后”的被动与技能总伤。
+## 护盾、反伤、复活保护挡下的攻击不会扣血，因此也不会误触发。
+func on_pvp_damage_dealt(amount: int, target: Node) -> void:
+	if not pvp_mode or amount <= 0:
+		return
+	_skill_damage_total += amount
+	_on_innate_damage(target, amount)
+
+
+## PVP 专用受击：按 PvE 的防御顺序接入技能无敌、完美闪避、招架、金刚反伤、受击无敌、
+## 金钟罩、圣僧与暗夜；红蝶按回合提供一次复活。只有持续伤害/控制走独立的 PvP 适配层。
+func pvp_apply_damage(amount: int, knockback: Vector2 = Vector2.ZERO, attacker: Node = null) -> void:
+	if not pvp_mode or state == State.DEAD or amount <= 0:
+		return
+	if _pvp_revive_guard > 0.0:
+		return
+	# 技能无敌帧
+	if _invincible:
+		_invincible_hit_feedback(attacker, {})
+		return
+	# 完美闪避：冲刺窗口内免伤，并结算闪身等收益
+	if state == State.DASH:
+		_perfect_dodge(attacker, amount)
+		return
+	# 回环招架：挡下首次近战并反击控制
+	if _parry_ready and attacker != null and is_instance_valid(attacker) and _counter_attack(attacker):
+		Achievements.event("parries")
+		return
+	# 金刚反伤
+	if _skill_reflect and attacker != null and is_instance_valid(attacker) and attacker.has_method("pvp_apply_damage"):
+		_pvp_reflect_to(attacker, amount)
+		return
+	# 受击无敌：与 PvE 同序，但用更短的 PvP 窗口避免吞掉连段
+	if _hurt_invincible > 0.0:
+		_invincible_hit_feedback(attacker, {})
+		return
+	# 金钟罩
+	if _shield_hits > 0:
+		_pvp_block_with_shield()
+		return
+	# 圣僧：单次伤害封顶
+	if _saint_immune():
+		amount = mini(amount, PvpTuning.SAINT_HIT_CAP)
+	# 暗夜：20% 概率免伤
+	if skull_id == "z003" and has_battle_passive("z003_night") and randf() < 0.2:
+		_passive_block_feedback(attacker, {}, "暗夜", "z003_night")
+		return
+	if hp - amount <= 0 and _pvp_try_revive():
+		_pvp_after_revive()
+		return
+	hp = maxi(0, hp - amount)
+	hp_changed.emit(hp, max_hp)
+	_on_pipa_damaged(attacker) # 红尘：实际受伤后给攻击方叠怨
+	_hurt_invincible = maxf(_hurt_invincible, PvpTuning.HURT_INVINCIBLE)
+	_spawn_number(amount, DMG_COLOR, 130.0, false)
+	if hp <= 0:
+		velocity = Vector2.ZERO
+		die()
+		return
+	_begin_attack_recovery_if_needed()
+	_reset_root_follow()
+	state = State.HURT
+	_hurt_phase = ""
+	_hurt_getup_dur = 0.0
+	var pvp_hurt_anim := str(anim_map.get("hurt", ""))
+	_hurt_timer = maxf(hurt_time, float(_anim_durations.get(pvp_hurt_anim, hurt_time)))
+	_stop_skill_loop()
+	fx.clear_skill()
+	velocity = knockback
+	_idle_queued = false
+	_invincible = false
+	if pvp_hurt_anim != "":
+		_play(pvp_hurt_anim, false)
+	_play_sfx("hit_fist")
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.45, "flip": knockback.x > 0.0})
+	Feel.hitstop(0.03)
+	Feel.shake(2.5, 0.1)
+
+
+## 金刚反伤：PvP 中挨打不扣血，按原始伤害弹回攻击方；反伤本身不再触发对方反伤。
+func _pvp_reflect_to(attacker: Node, amount: int) -> void:
+	var reflected := amount + _reflect_bonus
+	attacker.call("pvp_apply_damage", reflected, Vector2.ZERO, null)
+	var ap := attacker as Node2D
+	if ap != null:
+		FX.spawn(get_tree().current_scene, "ink_hit", ap.global_position + Vector2(0, -60), {"scale": 0.4})
+		var dn := DAMAGE_NUMBER.new()
+		dn.setup(str(reflected), Color(0.72, 0.45, 0.3), reflected)
+		dn.global_position = ap.global_position + Vector2(0, -140)
+		_world_add(dn)
+	var guard_dn := DAMAGE_NUMBER.new()
+	guard_dn.setup("金刚 · 反伤", Color(0.9, 0.75, 0.3))
+	guard_dn.global_position = global_position + Vector2(0, -150)
+	_world_add(guard_dn)
+	_play_sfx("voice_fan_hit")
+	Feel.hitstop(0.05)
+	Feel.shake(3.0, 0.1)
+
+
+## 金钟罩挡下 PvP 一击：与 PvE 同一套反馈，但不进入受击硬直、不打断正在出手。
+func _pvp_block_with_shield() -> void:
+	_shield_hits -= 1
+	if _shield_hits <= 0:
+		_shield_time = 0.0
+	fx.sync_persistent(state == State.DEAD)
+	var shield_dn := DAMAGE_NUMBER.new()
+	shield_dn.setup("金钟罩", Color(0.9, 0.75, 0.3))
+	shield_dn.global_position = global_position + Vector2(0, -150)
+	_world_add(shield_dn)
+	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.5})
+	_play_sfx("golden_bell_block")
+	Feel.hitstop(0.06)
+	Feel.shake(3.0, 0.1)
+	_shield_heal_once()
+
+
+## 红蝶 PvP 复活：每个回合一次，回半血并清空持续伤害与控制，避免复活即被 DOT 烧死。
+func _pvp_try_revive() -> bool:
+	if skull_id != "c021" or _pvp_butterfly_used or not has_battle_passive("c021_red_butterfly"):
+		return false
+	_pvp_butterfly_used = true
+	hp = maxi(1, int(roundf(float(max_hp) * PvpTuning.REVIVE_HP_RATIO)))
+	_pvp_revive_guard = PvpTuning.REVIVE_GUARD
+	_pvp_butterfly_drain = true
+	_pvp_butterfly_tick = 0.0
+	_pvp_bleed_time = 0.0
+	_pvp_bleed_stacks = 0
+	_pvp_bleed_acc = 0.0
+	_pvp_poison_time = 0.0
+	_pvp_poison_acc = 0.0
+	_pvp_vuln_time = 0.0
+	_pvp_frenzy_time = 0.0
+	_pvp_stun_time = 0.0
+	_pvp_root_time = 0.0
+	_pvp_slow_time = 0.0
+	_pvp_slow_scale = 1.0
+	_shield_hits = 0
+	_shield_time = 0.0
+	return true
+
+
+## 红蝶复活演出：起身 + 红蝶特效 + 专属音效，血量在此之前已经写好。
+func _pvp_after_revive() -> void:
+	hp_changed.emit(hp, max_hp)
+	_stop_skill_loop()
+	fx.clear_all()
+	_begin_attack_recovery_if_needed()
+	_reset_root_follow()
+	_skill_name = ""
+	_skill_timer = 0.0
+	_skill_teleport = 0.0
+	_skill_tick_acc = 0.0
+	_parry_ready = false
+	_bell_shell = false
+	state = State.HURT
+	_hurt_phase = ""
+	_hurt_getup_dur = 0.0
+	var getup_anim := str(anim_map.get("getup", anim_map.get("hurt", "")))
+	_hurt_timer = float(_anim_durations.get(getup_anim, hurt_time))
+	velocity = Vector2.ZERO
+	_idle_queued = true
+	if getup_anim != "":
+		_play(getup_anim, false)
+	_queue(anim_map["idle"], true)
+	fx.attach("E54015", Vector2(0.0, -64.0), "action", false,
+		{"scale": 0.5 * _body_fx_scale(), "fx_role": "revive"})
+	_play_full_sfx("assassin_revive", 0.0)
+	var dn := DAMAGE_NUMBER.new()
+	dn.setup("红蝶", Color(0.78, 0.3, 0.38))
+	dn.global_position = global_position + Vector2(0, -165)
+	_world_add(dn)
+	Feel.hitstop(0.05)
+
+
+## 回合重置：回满本轮血量，清掉受击/技能/增益残留，再放回出生点。
+func pvp_reset(spawn: Vector2) -> void:
+	hp = max_hp
+	global_position = spawn
+	velocity = Vector2.ZERO
+	state = State.IDLE
+	facing = 1
+	_apply_facing()
+	# 上一回合可能停在倒地/躺尸动画上，先把 Spine 轨道和待播队列清干净再回待机
+	if _anim_state != null and _anim_state.has_method("clear_tracks"):
+		_anim_state.call("clear_tracks")
+	_pending_anim = ""
+	_pending_queue.clear()
+	_current_anim = ""
+	_hurt_timer = 0.0
+	_hurt_phase = ""
+	_hurt_getup_dur = 0.0
+	_hurt_chain.clear()
+	_hurt_seg_left = 0.0
+	_hurt_invincible = 0.0
+	_hurt_cast_key = ""
+	_stun_time = 0.0
+	_invincible = false
+	_mo_ting_grabbed = false
+	_passive_seal_time = 0.0
+	_jump_buf = 0.0
+	_jump_seal = 0.0
+	_dash_seal = 0.0
+	_cripple_time = 0.0
+	_attack_idx = -1
+	_attack_hits.clear()
+	_attack_recovery = 0.0
+	_attack_queued = false
+	_skill_name = ""
+	_skill_timer = 0.0
+	_shield_hits = 0
+	_shield_time = 0.0
+	_pvp_butterfly_used = false # 红蝶按回合恢复：每回合都能触发一次
+	_pvp_revive_guard = 0.0
+	_pvp_butterfly_drain = false
+	_pvp_butterfly_tick = 0.0
+	_pvp_grudge = 0
+	_pvp_heal_cut = false
+	_buff_timer = 0.0
+	_awaken_time = 0.0
+	_idle_queued = false
+	return_all_sui_yue_passives()
+	clear_fen_ding_burn()
+	_dismiss_stolen_sword_clone()
+	_clear_scar()
+	_clear_plum_zones()
+	_clear_return_mark()
+	clear_ming_zhong_effects()
+	_clear_bleed()
+	_stop_skill_loop()
+	fx.clear_all()
+	_set_blink(false)
+	if str(anim_map.get("idle", "")) != "":
+		_play(str(anim_map["idle"]), true)
+	hp_changed.emit(hp, max_hp)
+	_clear_pvp_status()
+
+
+# ---------- PVP 状态适配：与被 _foes() 遍历到的敌人接口同名 ----------
+
+## 时停分档：玩家在 PVP 中按 BOSS 档位处理，取 stop["boss"] 的时长
+func stop_tier() -> String:
+	return "boss" if pvp_mode else "mob"
+
+
+## 时间暂停（将去未还）：无视霸体/前摇直接打断，冻结全部状态计时，到点回报施法者
+func time_stop(dur: float, caster: Node = null) -> void:
+	if not pvp_mode or state == State.DEAD or dur <= 0.0:
+		return
+	_pvp_stop_time = maxf(_pvp_stop_time, minf(dur, PvpTuning.TIME_STOP_MAX))
+	if caster != null:
+		_pvp_stop_caster = caster
+	if state != State.HURT:
+		_stop_skill_loop()
+		_attack_idx = -1
+		_attack_hits.clear()
+		state = State.IDLE
+		_idle_queued = false
+		if str(anim_map.get("idle", "")) != "":
+			_play(str(anim_map["idle"]), true)
+	velocity = Vector2.ZERO
+
+
+## 定身：可以照常出手，但不能移动
+func root(dur: float, _ignore_armor := false) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	_pvp_root_time = maxf(_pvp_root_time, maxf(0.0, dur * PvpTuning.CONTROL_SCALE))
+
+
+## 枝界持续约束：每帧延续定身，不重复播控制反馈
+func contain(dur: float, ignore_armor := false) -> void:
+	root(dur, ignore_armor)
+
+
+## 硬控：锁定移动与全部操作，并打断正在释放的技能
+func stun(dur: float, _ignore_armor := false) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	_pvp_stun_time = maxf(_pvp_stun_time, maxf(0.0, dur * PvpTuning.CONTROL_SCALE))
+	if state != State.HURT:
+		_stop_skill_loop()
+		state = State.IDLE
+		_idle_queued = false
+	velocity.x = 0.0
+
+
+func slow(dur: float, scale := 0.6) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	_pvp_slow_time = maxf(_pvp_slow_time, dur)
+	_pvp_slow_scale = clampf(scale, 0.2, 1.0)
+
+
+func launch(dir: int, vx: float, vy: float, _ignore_armor := false) -> void:
+	if not pvp_mode or state == State.DEAD or _pvp_stop_time > 0.0:
+		return
+	velocity = Vector2(float(dir) * vx, -vy)
+	if is_on_floor():
+		_set_state(State.JUMP)
+
+
+func knock_back(dir: int, force: float, _impact := 1, _ignore_armor := false) -> void:
+	if not pvp_mode or state == State.DEAD or _pvp_stop_time > 0.0:
+		return
+	velocity.x = float(dir) * clampf(force * 0.5, 0.0, 420.0)
+
+
+## 流血：每层每秒 1 伤，上限 5 层；层数越高 DOT 越疼
+func apply_bleed(layers := 1) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	_pvp_bleed_stacks = mini(BLEED_MAX, _pvp_bleed_stacks + maxi(1, layers))
+	_pvp_bleed_time = maxf(_pvp_bleed_time, BLEED_DUR * PvpTuning.BLEED_SCALE)
+
+
+## 中毒：每秒 1 伤，持续 dur 秒
+func apply_poison(dur: float) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	_pvp_poison_time = maxf(_pvp_poison_time, dur)
+
+
+## 易伤：期间受到的所有伤害按 ratio 放大（与对战基础系数叠乘）
+func apply_vulnerable(dur: float, _ratio := 0.25) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	_pvp_vuln_time = maxf(_pvp_vuln_time, dur)
+
+
+## 躁动：期间受到的伤害小幅放大（给 frenzy 类技能一个 PVP 收益）
+func apply_frenzy(dur: float, _empower := false) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	_pvp_frenzy_time = maxf(_pvp_frenzy_time, dur)
+
+
+## 摄心：1v1 中转为短硬控（不回血、不叛变），时长受对战控制系数与 2 秒上限约束
+func apply_charm(dur: float) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	_pvp_stun_time = maxf(_pvp_stun_time, minf(dur * PvpTuning.CONTROL_SCALE, 2.0))
+	if state != State.HURT:
+		_stop_skill_loop()
+		state = State.IDLE
+		_idle_queued = false
+	velocity.x = 0.0
+
+
+## 心魔引爆：把六感引爆折算为一次固定伤害（PvE 的六感层数机制不搬进 1v1）
+func detonate_mind(base_damage: int, _from_x := 0.0, _boosted := false) -> void:
+	if not pvp_mode or state == State.DEAD:
+		return
+	_pvp_tick_damage(maxi(1, base_damage))
+
+
+## 转移负面：1v1 中按类别落成流血/硬控/定身/易伤，保证 z002 的引爆链不空转
+func apply_transferred_debuff(info: Dictionary) -> void:
+	if not pvp_mode or state == State.DEAD or _saint_immune():
+		return
+	match str(info.get("id", "")):
+		"bleed", "cut", "fen_ding_burn":
+			apply_bleed(maxi(1, int(info.get("stacks", 1))))
+		"stun":
+			stun(maxf(float(info.get("time", 0.0)), 1.0), true)
+		"jump_seal", "dash_seal", "cripple":
+			root(maxf(float(info.get("time", 0.0)), 1.0), true)
+		_:
+			_pvp_vuln_time = maxf(_pvp_vuln_time, maxf(1.0, float(info.get("time", 1.0))))
+
+
+## 邪佛神伤：延长现有负面状态，并追加一段易伤
+func amplify_debuffs() -> void:
+	if not pvp_mode or _saint_immune():
+		return
+	_pvp_bleed_time *= 1.5
+	_pvp_poison_time *= 1.5
+	_pvp_frenzy_time *= 1.5
+	_pvp_vuln_time = maxf(_pvp_vuln_time, 4.0)
+
+
+## 邪佛压场：自身造成的伤害折算降低
+func set_evil_buddha_pressure(on: bool) -> void:
+	if pvp_mode:
+		_pvp_pressure = on
+
+
+## 换房诅咒：一次性给现有技能冷却加 1.5 秒
+func apply_room_cd_curse() -> void:
+	if not pvp_mode or _pvp_cd_cursed or _saint_immune():
+		return
+	_pvp_cd_cursed = true
+	for n in _skill_cds:
+		_skill_cds[n] = float(_skill_cds[n]) + 1.5
+
+
+## 受击方伤害倍率（易伤/躁动），由 pvp_rules 与自身 DOT 结算读取
+func pvp_damage_taken_scale() -> float:
+	var s := 1.0
+	if _pvp_vuln_time > 0.0:
+		s *= PvpTuning.VULN_SCALE
+	if _pvp_frenzy_time > 0.0:
+		s *= PvpTuning.FRENZY_SCALE
+	return s
+
+
+## 攻击方伤害倍率（邪佛压场），由 pvp_rules 读取
+func pvp_damage_scale() -> float:
+	return PvpTuning.PRESSURE_SCALE if _pvp_pressure else 1.0
+
+
+## 攻击方固定加伤（局外称号 + 目标特化），由 pvp_rules 在倍率结算后追加。
+func pvp_flat_damage_bonus(target: Node) -> int:
+	var bonus := Achievements.bonus_int("damage")
+	if target == null or not is_instance_valid(target):
+		return bonus
+	if skull_id == "c023" and _form_node("c023_venom_2") and float(target.get("_pvp_poison_time")) > 0.0:
+		bonus += 1 # 淬毒·续：目标身上有毒时每段 +1
+	if skull_id == "z003" and _form_node("z003_chase_2") \
+			and target.has_method("is_on_floor") and not bool(target.call("is_on_floor")):
+		bonus += 1 # 追风·续：目标浮空时每段 +1
+	return bonus
+
+
+## 红尘：每 3 层怨使自身每段伤害 -1（由 pvp_rules 在倍率阶段扣除）
+func pvp_grudge_penalty() -> int:
+	return int(_pvp_grudge / 3) if pvp_mode else 0
+
+
+## 红尘叠怨：绛弦受到实际伤害后调用
+func add_grudge(layers: int) -> void:
+	if not pvp_mode or layers <= 0:
+		return
+	_pvp_grudge += layers
+	_spawn_passive_text("怨 %d" % _pvp_grudge, Color(0.72, 0.42, 0.78))
+
+
+## 剑宗：被剑仙实际伤害后治疗减半，持续到本回合结束
+func apply_sword_sect() -> void:
+	if not pvp_mode or _pvp_heal_cut:
+		return
+	_pvp_heal_cut = true
+	_spawn_passive_text("剑宗 · 减疗", Color(0.55, 0.78, 0.82))
+
+
+func _pvp_status_tick(delta: float) -> void:
+	if not pvp_mode:
+		return
+	_pvp_revive_guard = maxf(0.0, _pvp_revive_guard - delta)
+	# 时停：彻底冻结（含 DOT 与其他控制计时），到点回报施法者
+	if _pvp_stop_time > 0.0:
+		_pvp_stop_time = maxf(0.0, _pvp_stop_time - delta)
+		if _pvp_stop_time <= 0.0:
+			var caster := _pvp_stop_caster
+			_pvp_stop_caster = null
+			if is_instance_valid(caster) and caster.has_method("on_time_stop_end"):
+				caster.call("on_time_stop_end", self)
+		return
+	# 红蝶：复活后的每秒生命流失（时停期间冻结，与 PvE 一致）
+	if _pvp_butterfly_drain and state != State.DEAD:
+		_pvp_butterfly_tick += delta
+		while _pvp_butterfly_tick >= 1.0 and state != State.DEAD:
+			_pvp_butterfly_tick -= 1.0
+			hp = maxi(0, hp - 1)
+			hp_changed.emit(hp, max_hp)
+			_spawn_number(1, DMG_COLOR, 130.0, false)
+			if hp <= 0:
+				velocity = Vector2.ZERO
+				die()
+	if state == State.DEAD:
+		return
+	_pvp_root_time = maxf(0.0, _pvp_root_time - delta)
+	_pvp_stun_time = maxf(0.0, _pvp_stun_time - delta)
+	_pvp_slow_time = maxf(0.0, _pvp_slow_time - delta)
+	if _pvp_slow_time <= 0.0:
+		_pvp_slow_scale = 1.0
+	_pvp_vuln_time = maxf(0.0, _pvp_vuln_time - delta)
+	_pvp_frenzy_time = maxf(0.0, _pvp_frenzy_time - delta)
+	if _pvp_bleed_time > 0.0 and _pvp_bleed_stacks > 0:
+		_pvp_bleed_time = maxf(0.0, _pvp_bleed_time - delta)
+		_pvp_bleed_acc += delta
+		while _pvp_bleed_acc >= 1.0 and _pvp_bleed_stacks > 0:
+			_pvp_bleed_acc -= 1.0
+			_pvp_tick_damage(_pvp_bleed_stacks)
+			if state == State.DEAD:
+				return
+		if _pvp_bleed_time <= 0.0:
+			_pvp_bleed_stacks = 0
+			_pvp_bleed_acc = 0.0
+	if _pvp_poison_time > 0.0:
+		_pvp_poison_time = maxf(0.0, _pvp_poison_time - delta)
+		_pvp_poison_acc += delta
+		while _pvp_poison_acc >= 1.0:
+			_pvp_poison_acc -= 1.0
+			_pvp_tick_damage(1)
+			if state == State.DEAD:
+				return
+
+
+## PVP 持续伤害：直扣血、不进受击硬直；致命时同样先走红蝶复活，复活失败才统一死亡
+func _pvp_tick_damage(amount: int) -> void:
+	if not pvp_mode or state == State.DEAD or amount <= 0:
+		return
+	if _pvp_revive_guard > 0.0:
+		return
+	amount = maxi(1, int(roundf(float(amount) * pvp_damage_taken_scale())))
+	if _saint_immune():
+		amount = mini(amount, PvpTuning.SAINT_HIT_CAP)
+	if hp - amount <= 0 and _pvp_try_revive():
+		_pvp_after_revive()
+		return
+	var dealt := mini(amount, hp)
+	hp = maxi(0, hp - amount)
+	hp_changed.emit(hp, max_hp)
+	_spawn_number(dealt, DMG_COLOR, 130.0, false)
+	if hp <= 0:
+		velocity = Vector2.ZERO
+		die()
+
+
+func _clear_pvp_status() -> void:
+	_pvp_stop_time = 0.0
+	_pvp_stop_caster = null
+	_pvp_root_time = 0.0
+	_pvp_stun_time = 0.0
+	_pvp_slow_time = 0.0
+	_pvp_slow_scale = 1.0
+	_pvp_bleed_time = 0.0
+	_pvp_bleed_stacks = 0
+	_pvp_bleed_acc = 0.0
+	_pvp_poison_time = 0.0
+	_pvp_poison_acc = 0.0
+	_pvp_vuln_time = 0.0
+	_pvp_frenzy_time = 0.0
+	_pvp_pressure = false
+	_pvp_cd_cursed = false
+	_pvp_grudge = 0
+	_pvp_heal_cut = false
+	_pvp_butterfly_drain = false
+	_pvp_butterfly_tick = 0.0
 
 
 # ---------- 内部工具 ----------

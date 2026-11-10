@@ -6,6 +6,7 @@ extends CanvasLayer
 const InkTex = preload("res://scripts/ui/ink_tex.gd")
 const UiKit = preload("res://scripts/ui/ui_kit.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
+const PvpPool = preload("res://scripts/pvp/pvp_pool.gd")
 const SFX_CLICK := preload("res://audio/sfx/click.wav")
 const SFX_RUN_EMBARK := preload("res://audio/sfx/run_embark.wav")
 const SFX_BACK := preload("res://audio/sfx/ui_back.wav")
@@ -29,6 +30,8 @@ var _step := 0 # 0 择路 / 1 问境 / 2 化身
 var _supply := ""
 ## 本机双人：由启动的模式选择界面置 true，启程时把双人标记写进 Run
 var local_coop := false
+## 本机对战：复用同一套双人槽位选角，但启程后进入 PVP 竞技场
+var pvp_local := false
 var _sfx: AudioStreamPlayer
 var _start_button: TextureButton
 var _starting := false
@@ -38,6 +41,12 @@ var _portrait: TextureRect = null
 func _ready() -> void:
 	layer = 10
 	_supply = Meta.selected_supply
+	# 本机对战跳过择路/问境，直接进入双人化身页
+	if pvp_local:
+		_mode = Run.MODE_PVP
+		_step = 2
+		_ensure_char_for(0)
+		_ensure_char_for(1)
 	_sfx = AudioStreamPlayer.new()
 	_sfx.bus = "SFX"
 	_sfx.stream = SFX_CLICK
@@ -50,6 +59,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 	_play_sfx(SFX_BACK)
+	if pvp_local:
+		queue_free()
+		return
 	if _step > 0:
 		_step -= 1
 		_refresh()
@@ -75,8 +87,10 @@ func _build() -> void:
 
 	var titles := ["择  路", "问  境", "化  身"]
 	var subtitles := ["", "只改敌众与敌锋", "选化身与开局补给"]
-	_label("行 旅 卷 · 本 机 双 人" if local_coop else "行 旅 卷", 72, 16, RED)
-	if local_coop:
+	if pvp_local:
+		subtitles[2] = "双方各选一名化身 · 仅限已解锁"
+	_label("行 旅 卷 · 本 机 对 战" if pvp_local else ("行 旅 卷 · 本 机 双 人" if local_coop else "行 旅 卷"), 72, 16, RED)
+	if _two_slots():
 		_text("P2：方向键 + 小键盘 1~8", Vector2(760, 72), Vector2(460, 26), 13, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 	_label(titles[_step], 98, 38, PAPER)
 	_label(subtitles[_step], 146, 16, DIM)
@@ -96,10 +110,10 @@ func _build() -> void:
 				_difficulty_card(i)
 			_button("上 一 步", 100, 585, _back, SFX_BACK)
 		2:
-			if local_coop:
+			if _two_slots():
 				_slot_tabs()
 			_character_step()
-			_button("上 一 步", 100, 590, _back, SFX_BACK)
+			_button("返  回" if pvp_local else "上 一 步", 100, 590, _back, SFX_BACK)
 			_start_button = _button("启  程", 930, 590, _start_run, null)
 
 
@@ -115,8 +129,16 @@ func _refresh() -> void:
 
 
 func _back() -> void:
+	if pvp_local:
+		_close()
+		return
 	_step = maxi(0, _step - 1)
 	_refresh()
+
+
+## 是否有两个本地槽位：本机双人 / 本机对战
+func _two_slots() -> bool:
+	return local_coop or pvp_local
 
 
 func _close() -> void:
@@ -179,7 +201,9 @@ func _ensure_char_for(slot: int) -> void:
 		return
 	var pick := ""
 	var fallback := ""
-	for id in Skulls.ids():
+	# 本机对战：两个槽位都从同一套本机已解锁池里取人
+	var ids: Array = PvpPool.unlocked_ids() if pvp_local else Skulls.ids()
+	for id in ids:
 		if not Meta.is_unlocked(str(id)):
 			continue
 		if fallback == "":
@@ -201,14 +225,21 @@ func _start_run() -> void:
 		return
 	if _mode == "" or _char == "" or not Meta.is_unlocked(_char):
 		return
-	if local_coop:
+	if _two_slots():
 		_ensure_char_for(1)
 		if _char2 == "" or not Meta.is_unlocked(_char2):
 			return
+	if pvp_local and not (PvpPool.can_pick(_char) and PvpPool.can_pick(_char2)):
+		return
 	_starting = true
 	if is_instance_valid(_start_button):
 		_start_button.disabled = true
 	_play_sfx(SFX_RUN_EMBARK)
+	if pvp_local:
+		# 本机对战：两名玩家共用本机已解锁角色池，选角在面板里就已按 Meta 过滤
+		Run.start_pvp({0: _char, 1: _char2}, true)
+		await LoadVeil.transition_to("res://scenes/pvp/pvp_arena.tscn", "正在入阵")
+		return
 	Meta.select_supply(_supply)
 	Run.start(_mode, _char, _difficulty, local_coop, _char2 if local_coop else "")
 	await LoadVeil.transition_to("res://scenes/world/room_01.tscn", "正在入卷")
@@ -301,7 +332,7 @@ func _slot_tabs() -> void:
 
 func _character_step() -> void:
 	_ensure_char_for(_pick_slot)
-	if local_coop:
+	if _two_slots():
 		_ensure_char_for(0)
 		_ensure_char_for(1)
 	var ids := Skulls.ids()
@@ -336,7 +367,7 @@ func _character_step() -> void:
 	if cur != "":
 		var profile: Dictionary = Skulls.get_profile(cur)
 		var head := str(profile["label"])
-		if local_coop:
+		if _two_slots():
 			head = "%s · %s" % ["P1" if _pick_slot == 0 else "P2", head]
 		_text(head, Vector2(812, 240), Vector2(300, 38), 26, GOLD if bool(profile.get("hero", false)) else PAPER, HORIZONTAL_ALIGNMENT_LEFT)
 		_text(str(profile.get("name", "")), Vector2(812, 278), Vector2(300, 26), 15, DIM, HORIZONTAL_ALIGNMENT_LEFT)
@@ -348,7 +379,8 @@ func _character_step() -> void:
 			_text("动 作 预 览", Vector2(800, 326), Vector2(360, 24), 13, RED)
 			_rule(Vector2(850, 522), Vector2(260, 2))
 			_make_preview()
-	_supply_selector()
+	if not pvp_local:
+		_supply_selector()
 
 
 func _char_card(id: String, i: int, parent: Control) -> void:
@@ -379,7 +411,7 @@ func _char_card(id: String, i: int, parent: Control) -> void:
 		_card_text(card, Meta.mastery_text(id), Vector2(2, 160), Vector2(118, 24), 13, RED)
 		var mark := "选 择"
 		var mark_color := DIM
-		if local_coop:
+		if _two_slots():
 			# 双人：卡片上直接标出被 P1 / P2 选中的情况，切页也不会看漏
 			var tags: Array = []
 			if id == _char:
@@ -392,7 +424,7 @@ func _char_card(id: String, i: int, parent: Control) -> void:
 		elif id == _char:
 			mark = "已 选"
 			mark_color = RED
-		_card_text(card, mark, Vector2(0, 202), Vector2(122, 24), 12 if local_coop else 13, mark_color)
+		_card_text(card, mark, Vector2(0, 202), Vector2(122, 24), 12 if _two_slots() else 13, mark_color)
 	else:
 		_card_text(card, "？？？", Vector2(0, 34), Vector2(122, 38), 22, PAPER)
 		_card_text(card, Meta.unlock_hint(id), Vector2(4, 94), Vector2(114, 76), 12, DIM)

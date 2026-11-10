@@ -13,6 +13,11 @@ signal session_ended(reason: String)
 signal net_notice(text: String)
 signal link_lost(reason: String)
 signal link_restored()
+## 开局祝福 / 通关强化的三选一请求：payload = {kind, token, cards, slot}
+## 房主与客机都会收到（房主收到的是自己那组），房间据此弹出本机面板。
+signal choice_requested(payload: Dictionary)
+## 主机确认所有人的选择都已落盘（客机据此关闭等待态并应用同步后的 Run）。
+signal choice_resolved(kind: String)
 
 const Cfg = preload("res://scripts/net/net_config.gd")
 const Proto = preload("res://scripts/net/net_protocol.gd")
@@ -22,6 +27,7 @@ const Skulls = preload("res://scripts/player/skulls.gd")
 
 const MENU_SCENE := "res://scenes/ui/main_menu.tscn"
 const ROOM_SCENE := "res://scenes/world/room_01.tscn"
+const PVP_SCENE := "res://scenes/pvp/pvp_arena.tscn"
 
 var role := "" # "" / "host" / "client"
 var state := "idle" # idle / hosting / joining / lobby / playing / reconnecting
@@ -49,6 +55,17 @@ var _remote_just := {}
 var _remote_just_at := {}
 var _remote_axis := {}
 var _last_input_ms := 0
+
+## 本机玩家选定的化身：离开房间 / 房间重置后仍保留，重进时自动上报。
+var my_pick := ""
+## 三选一（祝福 / 通关强化）的联机状态；主机权威，客机只提交自己的选择。
+var _choice_kind := ""
+var _choice_seq := 0
+var _choice_open := false
+var _choice_elapsed := 0.0
+var _choice_cards := {} # slot -> Array[String]
+var _choice_done := {} # slot -> key
+var _pending_choice: Dictionary = {} # 客机：房间场景就绪前收到的请求先缓冲
 
 var _hb_acc := 0.0
 var _ping_sent_ms := 0
@@ -82,6 +99,7 @@ func _process(delta: float) -> void:
 	_prune_reserved()
 	_tick_heartbeat(delta)
 	_tick_reconnect(delta)
+	_tick_choice(delta)
 	if role == "client" and state == "playing":
 		_sample_input_edges()
 		_pump_input(delta)
@@ -96,12 +114,16 @@ func host_room(room_name: String, mode: String, difficulty: int, skull: String) 
 	role = "host"
 	state = "hosting"
 	local_slot = 0
+	if skull == "":
+		skull = my_pick if my_pick != "" else _default_pick()
+	my_pick = skull
 	room = {
 		"name": room_name.strip_edges() if room_name.strip_edges() != "" else "墨构 · 房主",
 		"mode": mode, "difficulty": clampi(difficulty, 0, 4), "skull": skull,
-		"max": Cfg.MAX_PLAYERS,
+		"max": 2 if mode == Run.MODE_PVP else Cfg.MAX_PLAYERS,
 	}
-	members = {1: {"name": str(room["name"]), "slot": 0, "ready": true, "token": "host"}}
+	# 房主自己也要在成员表里带上化身，大厅成员行与开局校验都按这张表读
+	members = {1: {"name": str(room["name"]), "slot": 0, "ready": true, "token": "host", "skull": skull}}
 	discovery = Discovery.new()
 	if not discovery.start_host(Callable(self, "_beacon_info")):
 		var why := discovery.error
@@ -146,41 +168,91 @@ func start_game(mode: String, difficulty: int, skull: String) -> String:
 		return "当前状态不可开始"
 	if members.size() < 2:
 		return "需要至少一名队友加入后才能开始"
+	var is_pvp := mode == Run.MODE_PVP
+	if is_pvp and members.size() != 2:
+		return "对战模式需要恰好 2 名玩家"
 	room["mode"] = mode
 	room["difficulty"] = clampi(difficulty, 0, 4)
+	if skull == "":
+		skull = my_skull()
+	if skull == "":
+		skull = _default_pick()
 	room["skull"] = skull
+	if members.has(1):
+		members[1]["skull"] = skull
 	_host_game_config = {"mode": mode, "difficulty": int(room["difficulty"]), "skull": skull}
 	state = "playing"
 	Run.net_role = "host"
 	Run.net_slot = 0
-	Run.start(mode, skull, int(room["difficulty"]), true)
-	# 每个成员在自己的大厅里选的化身分别落到各自槽位，联机也能一人一角色
-	for id in members:
-		var m: Dictionary = members[id]
-		var pick := str(m.get("skull", ""))
-		if pick != "":
-			Run.set_slot_skull(int(m.get("slot", 0)), pick)
-	Run.set_net_players(members.size()) # start() 会重置人数，必须在开局后写入
+	if is_pvp:
+		# 对战：主机与客机各自在本机已解锁池里选人，主机只校验角色 id 合法
+		if not Meta.is_unlocked(skull):
+			state = "lobby"
+			Run.net_role = ""
+			return "房主化身未解锁，请重新选择"
+		var guest_skull := ""
+		for id in members:
+			if int(members[id].get("slot", 0)) == 1:
+				guest_skull = str(members[id].get("skull", ""))
+		if guest_skull == "" or not Skulls.ids().has(guest_skull):
+			state = "lobby"
+			Run.net_role = ""
+			return "客机尚未选择化身"
+		Run.start_pvp({0: skull, 1: guest_skull}, false)
+		Run.set_net_players(2)
+	else:
+		Run.start(mode, skull, int(room["difficulty"]), true)
+		# 每个成员在自己的大厅里选的化身分别落到各自槽位，联机也能一人一角色
+		for id in members:
+			var m: Dictionary = members[id]
+			var pick := str(m.get("skull", ""))
+			if pick != "":
+				Run.set_slot_skull(int(m.get("slot", 0)), pick)
+		Run.set_net_players(members.size()) # start() 会重置人数，必须在开局后写入
 	_rpc_game_start.rpc({"config": _host_game_config, "run": run_payload()})
 	_emit_lobby()
 	session_started.emit(_host_game_config)
-	_go(ROOM_SCENE, "正在联机入卷")
+	_go(_play_scene(), "正在联机入阵" if is_pvp else "正在联机入卷")
 	return ""
 
 
-## 自己在大厅里选中的化身（主机取房间设置，客机取自己成员条目）
+## 自己在大厅里选中的化身（主机取房间设置，客机取自己成员条目）。
+## 成员条目为空时回落到本机持久化的 my_pick：重连 / 房间重置后不会丢选择。
 func my_skull() -> String:
 	if role == "client":
 		var m: Dictionary = members.get(multiplayer.get_unique_id(), {})
-		return str(m.get("skull", ""))
-	return str(room.get("skull", ""))
+		var picked := str(m.get("skull", ""))
+		return picked if picked != "" else my_pick
+	return str(room.get("skull", "")) if str(room.get("skull", "")) != "" else my_pick
 
 
-## 客机把选中的化身报给主机；开局时按槽位分配，互不覆盖
+## 最近一次解锁可用的化身，用作默认选择。
+func _default_pick() -> String:
+	for id in Skulls.ids():
+		if Meta.is_unlocked(str(id)):
+			return str(id)
+	var all := Skulls.ids()
+	return str(all[0]) if not all.is_empty() else ""
+
+
+## 选中的化身报给主机；开局时按槽位分配，互不覆盖。房主自己也走同一条路径，
+## 这样"房主 / 客机"在开局选择上的权限完全对等，且选择会持久化到本机。
 func set_my_skull(skull: String) -> void:
-	if role != "client" or skull == "":
+	if skull == "" or not Skulls.ids().has(skull):
 		return
-	rpc_id(1, "_rpc_skull", skull)
+	my_pick = skull
+	if role == "host":
+		room["skull"] = skull
+		if members.has(1):
+			members[1]["skull"] = skull
+		_emit_lobby()
+	elif role == "client":
+		var uid := multiplayer.get_unique_id()
+		if members.has(uid):
+			members[uid]["skull"] = skull
+		if multiplayer.has_multiplayer_peer() and uid != 1 and (state == "lobby" or state == "playing"):
+			# 没有真实连接（离线测试）或自己就是服务端时不发 RPC，避免 "RPC on yourself" 报错
+			rpc_id(1, "_rpc_skull", skull)
 
 
 ## 客户端就绪状态
@@ -238,6 +310,12 @@ func teardown(reason := "", notify := false) -> void:
 	_remote_just_at.clear()
 	_remote_axis.clear()
 	_reserved.clear()
+	_choice_kind = ""
+	_choice_open = false
+	_choice_elapsed = 0.0
+	_choice_cards.clear()
+	_choice_done.clear()
+	_pending_choice.clear()
 	_reconnecting = false
 	_reconnect_left = 0
 	Run.net_role = ""
@@ -273,6 +351,9 @@ func run_payload() -> Dictionary:
 		"players": Run.player_count(),
 		"net_slots": Run.slot_hp.duplicate(),
 		"net_skulls": Run.slot_skull.duplicate(),
+		"net_upgrades": Run.slot_upgrades.duplicate(true),
+		"net_blessings": Run.slot_blessing.duplicate(),
+		"net_blessing_used": Run.slot_blessing_used.duplicate(),
 	}
 
 
@@ -328,6 +409,132 @@ func remote_axis(slot: int) -> int:
 	return int(_remote_axis.get(slot, 0))
 
 
+# ---------------------------------------------------------------- 开局祝福 / 通关强化（三选一）
+
+## 主机发起一次三选一：祝福全队看同一组牌，通关强化按各自槽位的流派等级发牌。
+## 房主与客机都会在本机弹面板，选择只落到自己槽位（独立选择、独立生效）。
+func host_begin_choice(kind: String) -> void:
+	if role != "host" or state != "playing":
+		return
+	_choice_kind = kind
+	_choice_seq += 1
+	_choice_open = true
+	_choice_elapsed = 0.0
+	_choice_done.clear()
+	_choice_cards.clear()
+	var slots := _choice_slots()
+	var shared: Array = []
+	if kind == "blessing":
+		var pool: Array = Run.BLESSINGS.keys()
+		pool.shuffle()
+		shared = pool.slice(0, mini(3, pool.size()))
+	for s in slots:
+		_choice_cards[int(s)] = shared.duplicate() if kind == "blessing" else Run.roll_cards(3, int(s))
+	# 房主自己也弹面板
+	choice_requested.emit({"kind": kind, "token": _choice_seq,
+		"cards": (_choice_cards.get(0, []) as Array).duplicate(), "slot": 0})
+	var peers := multiplayer.get_peers()
+	for id in members:
+		if int(id) == 1 or not peers.has(int(id)):
+			continue
+		var s := int(members[id].get("slot", -1))
+		if s < 0 or not _choice_cards.has(s):
+			continue
+		_rpc_choice_request.rpc_id(int(id), {"kind": kind, "token": _choice_seq,
+			"cards": (_choice_cards[s] as Array).duplicate(), "slot": s})
+
+
+func _choice_slots() -> Array:
+	var out: Array = [0]
+	for id in members:
+		var s := int(members[id].get("slot", -1))
+		if s > 0 and not out.has(s):
+			out.append(s)
+	out.sort()
+	return out
+
+
+## 本机提交选择：客机只发 key 给主机，房主直接落盘。
+func submit_choice(kind: String, key: String) -> void:
+	if kind != _choice_kind or key == "":
+		return
+	if role == "host":
+		_record_choice(0, key)
+	elif role == "client":
+		rpc_id(1, "_rpc_choice", key)
+
+
+## 房主记录某槽位的选择（客机 RPC 与房主本机共用）。
+func _record_choice(slot: int, key: String) -> void:
+	if not _choice_open or slot < 0:
+		return
+	var cards: Array = _choice_cards.get(slot, [])
+	if not cards.has(key):
+		return
+	_choice_done[slot] = key
+	if _choice_kind == "blessing":
+		Run.set_blessing(slot, key)
+		if key == "hp":
+			# 赐福「生命」的 +2 由 calculated_max_hp 计入；这里把该槽位当前血量补到新上限
+			if slot == 0:
+				Run.max_hp = Run.calculated_max_hp("", 0)
+				Run.hp = Run.max_hp
+			else:
+				Run.slot_hp[slot] = Run.calculated_max_hp(Run.slot_skull_of(slot), slot)
+	elif _choice_kind == "upgrade":
+		Run.buy(key, slot)
+	if _all_chosen():
+		_finish_choice()
+
+
+func _all_chosen() -> bool:
+	for s in _choice_cards.keys():
+		if not _choice_done.has(int(s)):
+			return false
+	return true
+
+
+## 房主推进前检查：所有人都选完了才能换房；没有进行中的选择时视为可推进。
+func choices_complete() -> bool:
+	return not _choice_open or _all_chosen()
+
+
+func _finish_choice() -> void:
+	var kind := _choice_kind
+	_choice_open = false
+	_choice_elapsed = 0.0
+	_emit_event({"kind": "choice_done", "choice": kind, "run": run_payload()})
+	choice_resolved.emit(kind)
+
+
+## 兜底：有人掉线/挂机时，25 秒后用每组第一张自动补齐，避免卡死推进。
+func _tick_choice(delta: float) -> void:
+	if role != "host" or not _choice_open:
+		return
+	_choice_elapsed += delta
+	if _choice_elapsed < 25.0:
+		return
+	for s in _choice_cards.keys():
+		if _choice_done.has(int(s)):
+			continue
+		var cards: Array = _choice_cards[int(s)]
+		if not cards.is_empty():
+			_record_choice(int(s), str(cards[0]))
+	if _choice_open:
+		_finish_choice()
+
+
+## 客机：房间场景就绪前收到的三选一请求先缓冲，避免切场景时丢请求。
+func take_pending_choice(kind := "") -> Dictionary:
+	if _pending_choice.is_empty():
+		return {}
+	if kind != "" and str(_pending_choice.get("kind", "")) != kind:
+		return {}
+	var d := _pending_choice.duplicate()
+	_pending_choice.clear()
+	return d
+
+
 func remote_link_age_ms() -> int:
 	return Time.get_ticks_msec() - _last_input_ms if _last_input_ms > 0 else -1
 
@@ -370,6 +577,9 @@ func _rpc_join(d: Dictionary) -> void:
 			slot = int(r.get("slot", 1))
 		_reserved.erase(token)
 	if not resumed:
+		if str(room.get("mode", "")) == Run.MODE_PVP and members.size() >= 2:
+			_rpc_join_result.rpc_id(sender, {"ok": false, "reason": "对战房间已满（1v1）"})
+			return
 		slot = _free_slot()
 		if slot < 0:
 			_rpc_join_result.rpc_id(sender, {"ok": false, "reason": "房间已满（最多 4 人）"})
@@ -377,7 +587,9 @@ func _rpc_join(d: Dictionary) -> void:
 	if token == "" or not resumed:
 		token = _make_token()
 	var name := str(d.get("name", "墨客")).substr(0, 16)
-	members[sender] = {"name": name, "slot": slot, "ready": false, "token": token, "skull": ""}
+	# 重连时保留客机此前选好的化身，不能用空串覆盖掉
+	var prev_skull := str(members.get(sender, {}).get("skull", "")) if resumed else ""
+	members[sender] = {"name": name, "slot": slot, "ready": false, "token": token, "skull": prev_skull}
 	# 开局后中途加入/重连：人数立即影响后续波次的难度行
 	if state == "playing":
 		Run.set_net_players(members.size())
@@ -408,6 +620,12 @@ func _rpc_join_result(d: Dictionary) -> void:
 	local_slot = int(d.get("slot", 1))
 	var resumed := bool(d.get("resumed", false))
 	state = str(d.get("state", "lobby"))
+	# 房间清理 / 重连后恢复自己的化身选择，并立即上报主机，避免"客机尚未选择化身"卡住开局
+	if state == "lobby":
+		if my_pick == "":
+			my_pick = _default_pick()
+		if my_pick != "":
+			set_my_skull(my_pick)
 	_host_game_config = d.get("game", {}) if d.get("game", {}) is Dictionary else {}
 	_last_pong_ms = Time.get_ticks_msec()
 	_reconnecting = false
@@ -419,7 +637,7 @@ func _rpc_join_result(d: Dictionary) -> void:
 		_apply_run_sync(d.get("run", {}) if d.get("run", {}) is Dictionary else {})
 		session_started.emit(_host_game_config)
 		if auto_enter_room:
-			_go(ROOM_SCENE, "正在联机入卷")
+			_go(_play_scene(), "正在联机入卷")
 
 
 @rpc("any_peer", "call_remote", "reliable", Cfg.CH_CONTROL)
@@ -472,11 +690,14 @@ func _rpc_game_start(data: Dictionary) -> void:
 		return
 	var cfg = data.get("config", {})
 	_host_game_config = cfg if cfg is Dictionary else {}
+	# 以开局配置为准覆盖房间模式，确保客户端也进到正确场景（对战 / PvE）
+	if _host_game_config.has("mode"):
+		room["mode"] = str(_host_game_config["mode"])
 	state = "playing"
 	_apply_run_sync(data.get("run", {}) if data.get("run", {}) is Dictionary else {})
 	session_started.emit(_host_game_config)
 	if auto_enter_room:
-		_go(ROOM_SCENE, "正在联机入卷")
+		_go(_play_scene(), "正在联机入卷")
 
 
 @rpc("authority", "call_remote", "reliable", Cfg.CH_CONTROL)
@@ -499,13 +720,41 @@ func _rpc_event(ev: Dictionary) -> void:
 	match str(ev.get("kind", "")):
 		"room_change":
 			_apply_run_sync(ev.get("run", {}) if ev.get("run", {}) is Dictionary else {})
-			_go(ROOM_SCENE, "正在入卷")
+			_go(_play_scene(), "正在入卷")
+		"choice_done":
+			# 主机确认所有人的选择已落盘：客机应用同步后的 Run 并关闭等待态
+			_pending_choice.clear()
+			var run: Dictionary = ev.get("run", {}) if ev.get("run", {}) is Dictionary else {}
+			if not run.is_empty():
+				_apply_run_sync(run)
+			choice_resolved.emit(str(ev.get("choice", "")))
 		"session_end":
 			var reason := str(ev.get("reason", "对局已结束"))
 			teardown(reason, true)
 			_go(MENU_SCENE, "正在收卷")
 		"notice":
 			net_notice.emit(str(ev.get("text", "")))
+
+
+# ---------------------------------------------------------------- RPC：三选一（祝福 / 通关强化）
+
+@rpc("authority", "call_remote", "reliable", Cfg.CH_CONTROL)
+func _rpc_choice_request(d: Dictionary) -> void:
+	if role != "client":
+		return
+	# 房间场景可能还没 _ready：先缓冲，房间就绪后用 take_pending_choice() 取
+	_pending_choice = d.duplicate(true)
+	choice_requested.emit(d)
+
+
+@rpc("any_peer", "call_remote", "reliable", Cfg.CH_CONTROL)
+func _rpc_choice(key: String) -> void:
+	if role != "host":
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	if sender <= 0 or not members.has(sender):
+		return
+	_record_choice(int(members[sender].get("slot", -1)), key)
 
 
 # ---------------------------------------------------------------- RPC：心跳与输入
@@ -672,8 +921,11 @@ func _on_peer_disconnected(id: int) -> void:
 # ---------------------------------------------------------------- 内部节拍
 
 func _sample_input_edges() -> void:
+	# 客机永远采样「本机设备」的输入：PC 用设置里的 P1 键位，移动端由 TouchControls
+	# 注入同名基础动作。绝不能走 LocalCoop 的 P2 通道——那会让 PC 客机只能用方向键，
+	# 而移动端根本没有 P2 触屏映射，表现为完全无法操作。
 	for a in Cfg.ACTIONS:
-		if Input.is_action_just_pressed(LocalCoop.action(1, a)):
+		if Input.is_action_just_pressed(str(a)):
 			_pending_just[str(a)] = true
 
 
@@ -686,12 +938,12 @@ func _pump_input(delta: float) -> void:
 		return
 	var held: Array = []
 	for a in Cfg.ACTIONS:
-		if Input.is_action_pressed(LocalCoop.action(1, a)):
+		if Input.is_action_pressed(str(a)):
 			held.append(a)
 	var axis := 0
-	if Input.is_action_pressed(LocalCoop.action(1, "move_left")):
+	if Input.is_action_pressed("move_left"):
 		axis -= 1
-	if Input.is_action_pressed(LocalCoop.action(1, "move_right")):
+	if Input.is_action_pressed("move_right"):
 		axis += 1
 	var just: Array = _pending_just.keys()
 	_pending_just.clear()
@@ -836,6 +1088,12 @@ func _apply_run_sync(d: Dictionary) -> void:
 	Run.skull_id = str(d.get("skull", Run.skull_id))
 	var up = d.get("upgrades", {})
 	Run.upgrades = (up as Dictionary).duplicate(true) if up is Dictionary else {}
+	var sup = d.get("net_upgrades", {})
+	Run.slot_upgrades = (sup as Dictionary).duplicate(true) if sup is Dictionary else {}
+	var sbl = d.get("net_blessings", {})
+	Run.slot_blessing = (sbl as Dictionary).duplicate() if sbl is Dictionary else {}
+	var sbu = d.get("net_blessing_used", {})
+	Run.slot_blessing_used = (sbu as Dictionary).duplicate() if sbu is Dictionary else {}
 	Run.blessing = str(d.get("blessing", ""))
 	Run.boss_id = str(d.get("boss", ""))
 	var queue = d.get("boss_queue", [])
@@ -859,6 +1117,15 @@ func _apply_run_sync(d: Dictionary) -> void:
 		Run.slot_skull = (skulls as Dictionary).duplicate()
 	Run.slot_dead.clear()
 	Run.slot_revive.clear()
+	if Run.mode == Run.MODE_PVP:
+		# 对战的双方化身随 Run 一起下发；客户端据此生成本地镜像角色
+		Run.pvp_skulls = Run.slot_skull.duplicate(true)
+		Run.pvp_local = false
+
+
+## 当前房间应进入的场景：PvE 回房间，对战进竞技场
+func _play_scene() -> String:
+	return PVP_SCENE if str(room.get("mode", "")) == Run.MODE_PVP else ROOM_SCENE
 
 
 func _go(path: String, veil_text: String) -> void:

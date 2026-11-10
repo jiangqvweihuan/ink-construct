@@ -16,6 +16,12 @@ var _cards: Array = []
 var _card_root: Node
 var _reroll_button: TextureButton
 
+## 联机时由主机下发牌面；选择只上送主机，不在本机写 Run（避免双端各加一次）。
+var preset_cards: Array = []
+var online := false
+var apply_locally := true
+var _picking := false
+
 
 func _ready() -> void:
 	layer = 8
@@ -43,14 +49,19 @@ func _ready() -> void:
 	_card_root = Node.new()
 	add_child(_card_root)
 	_roll_cards()
-	_reroll_button = _make_button("重随 ×%d" % Run.blessing_rerolls, Vector2(520, 520), _reroll)
-	_update_reroll()
+	# 联机时牌面由主机统一发放，重随会让各端牌面分叉，直接不提供重随
+	if not online:
+		_reroll_button = _make_button("重随 ×%d" % Run.blessing_rerolls, Vector2(520, 520), _reroll)
+		_update_reroll()
 
 
 func _roll_cards() -> void:
-	var ids := Run.BLESSINGS.keys()
-	ids.shuffle()
-	_cards = ids.slice(0, 3)
+	if not preset_cards.is_empty():
+		_cards = preset_cards.duplicate()
+	else:
+		var ids := Run.BLESSINGS.keys()
+		ids.shuffle()
+		_cards = ids.slice(0, 3)
 	for c in _card_root.get_children():
 		c.queue_free()
 	for i in _cards.size():
@@ -75,16 +86,22 @@ func _update_reroll() -> void:
 		label.text = "重随 ×%d" % Run.blessing_rerolls
 
 
-## 选中一个赐福：写入 Run 并立刻结算能立刻结算的部分（续命留到阵亡时）
+## 选中一个赐福：单机写入 Run 并立刻结算能立刻结算的部分（续命留到阵亡时）。
+## 联机时只发出选择，由主机统一写入自己槽位后再同步回来。
 func pick(id: String) -> void:
-	if Run.blessing != "":
+	if _picking:
 		return
-	Run.blessing = id
-	Achievements.event("blessings_picked")
-	match id:
-		"hp":
-			Run.hp += 2 # apply_to 重算上限时会带上赐福的 +2，这里先把当前血量加上
-	get_tree().paused = false
+	if apply_locally and Run.blessing != "":
+		return
+	_picking = true
+	if apply_locally:
+		Run.blessing = id
+		Achievements.event("blessings_picked")
+		match id:
+			"hp":
+				Run.hp += 2 # apply_to 重算上限时会带上赐福的 +2，这里先把当前血量加上
+		# 单机选中即恢复时间；联机要等主机确认全员选完（choice_resolved）再恢复
+		get_tree().paused = false
 	chosen.emit(id)
 	queue_free()
 

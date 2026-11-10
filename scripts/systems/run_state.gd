@@ -14,10 +14,13 @@ const FORM_BASE_HP := {
 const RED_BUTTERFLY_HP := 100
 
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
+const PvpTuning := preload("res://scripts/pvp/pvp_tuning.gd") # 对战生命上限：开局写入各槽位
 
 ## 两种模式：冒险 = 三关 + Boss 通关；无尽 = 每层都是「三小关 + 一个 Boss」，Boss 倒下进下一层
 const MODE_ADVENTURE := "adventure"
 const MODE_ENDLESS := "endless"
+## 玩家对战：竞技场由 scripts/pvp/pvp_arena.gd 接管，不走 PvE 的房间/敌人/强化流程
+const MODE_PVP := "pvp"
 
 ## 五档问境：只调整普通怪数量与所有敌方攻击，不改敌人血量/速度；默认第二档「落笔」。
 const DIFFICULTIES := [
@@ -172,6 +175,9 @@ var balance_scaling := true
 var mode := MODE_ADVENTURE # adventure / endless
 ## 本机双人：true 时房间会额外生成 P2（方向键 + 小键盘），单人局保持 false
 var local_coop := false
+## 玩家对战：两槽选角（slot -> 化身 id）与「是否本机同屏」；arena 只读这两项，PvE 流程不读
+var pvp_skulls: Dictionary = {}
+var pvp_local := false
 ## 局域网联机："" = 离线；"host" = 主机；"client" = 客户端镜像
 var net_role := ""
 var net_slot := 0 # 联机时本机控制的输入槽（主机 0 / 客户端 1）
@@ -209,9 +215,13 @@ var last_hit := {} # 玩家最后一次实际扣血的攻击者/招式/伤害，
 var meta_snapshot := {} # 开局时的 Meta 快照，结算面板 diff 出本局收获
 ## 联机实际人数（含主机）。LanNet 在加入/离开时维护，用于选 ENEMY_BALANCE 行。
 var net_players := 1
-## 多人：每个输入槽独立生命与化身；强化、赐福整局共享。
+## 多人：每个输入槽独立生命、化身、强化与赐福；只有重随次数仍按整局计。
 var slot_hp: Dictionary = {} # slot -> int
 var slot_skull: Dictionary = {} # slot -> 化身 id（P1/P2 可各选不同角色）
+## slot 0 仍以 upgrades / blessing 为准（单机与所有旧调用不变），这里只存 1 号及以后的槽位。
+var slot_upgrades: Dictionary = {} # slot -> {key: 等级}
+var slot_blessing: Dictionary = {} # slot -> 赐福 id
+var slot_blessing_used: Dictionary = {} # slot -> 续命赐福是否已消耗
 var slot_dead: Dictionary = {} # slot -> true（本房间已阵亡，等待下一房间复活）
 var slot_revive: Dictionary = {} # slot -> true（下一房间以 50% 上限自动复活）
 var last_death_slot := -1 # 最后阵亡的槽位；失败结算据此选立绘与「殁于」对应角色
@@ -224,14 +234,19 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1,
 	Achievements.begin_run() # 本局统计清零：无伤 / 速通 / 空手这些单局条件靠它
 	active = true
 	local_coop = coop
+	pvp_skulls.clear()
+	pvp_local = false
 	mode = MODE_ENDLESS if new_mode == MODE_ENDLESS else MODE_ADVENTURE
 	difficulty = clampi(new_difficulty, 0, DIFFICULTIES.size() - 1)
 	depth = 1
 	room_index = 0
 	skull_id = new_skull if new_skull != "" else "c021"
 	upgrades = {}
+	slot_upgrades.clear()
 	blessing = ""
+	slot_blessing.clear()
 	blessing_used = false
+	slot_blessing_used.clear()
 	blessing_rerolls = Meta.shop_level("blessing_reroll")
 	supply_revive = false
 	supply_revive_used = false
@@ -273,9 +288,101 @@ func start(new_mode := MODE_ADVENTURE, new_skull := "c021", new_difficulty := 1,
 	slot_hp[0] = hp
 
 
+## 玩家对战开局：只记录双方化身与本地/联机身份，血量、回合与胜负由 PvP 规则模块管理。
+## 不调用 Achievements.begin_run，避免把对战计入 PvE 的单局统计。
+func start_pvp(skulls: Dictionary, local := false) -> void:
+	BGM.stop_voice()
+	active = true
+	local_coop = local
+	pvp_local = local
+	mode = MODE_PVP
+	difficulty = 1
+	depth = 1
+	room_index = 0
+	pvp_skulls = skulls.duplicate(true)
+	slot_skull = skulls.duplicate(true)
+	skull_id = str(pvp_skulls.get(0, "c021"))
+	upgrades = {}
+	slot_upgrades.clear()
+	blessing = ""
+	slot_blessing.clear()
+	blessing_used = false
+	slot_blessing_used.clear()
+	blessing_rerolls = 0
+	supply_revive = false
+	supply_revive_used = false
+	supply_hp = 0
+	supply_upgrade_rerolls = 0
+	max_hp_loss = 0
+	guard_available = false
+	c021_dance_kills = 0
+	c021_red_butterfly_used = false
+	c021_revive_cap = 0
+	c013_damage_hits = 0
+	c013_buddha = 0
+	c023_ink_bonus = 0
+	z003_kill_counts.clear()
+	z003_stolen.clear()
+	z003_madness_hp = 0
+	last_hit = {}
+	last_death_slot = -1
+	boss_defeated = []
+	boss_phase = 0
+	boss_id = ""
+	boss_queue = []
+	slot_hp.clear()
+	slot_dead.clear()
+	slot_revive.clear()
+	for slot in pvp_skulls:
+		slot_hp[int(slot)] = PvpTuning.MAX_HP
+	net_players = clampi(pvp_skulls.size(), 1, 4)
+	max_hp = PvpTuning.MAX_HP
+	hp = PvpTuning.MAX_HP
+	meta_snapshot = Meta.snapshot()
+	Score.reset()
+
+
+## 某槽位的强化表：0 号槽沿用 upgrades（单机与旧调用直接写该字段也能生效）。
+func upgrades_of(slot := 0) -> Dictionary:
+	if int(slot) == 0:
+		return upgrades
+	var s := int(slot)
+	if not slot_upgrades.has(s):
+		slot_upgrades[s] = {}
+	return slot_upgrades[s]
+
+
+## 某槽位的赐福：0 号槽沿用 blessing。
+func blessing_of(slot := 0) -> String:
+	if int(slot) == 0:
+		return blessing
+	return str(slot_blessing.get(int(slot), ""))
+
+
+func set_blessing(slot: int, id: String) -> void:
+	if slot == 0:
+		blessing = id
+	else:
+		slot_blessing[slot] = id
+
+
+func blessing_used_of(slot := 0) -> bool:
+	if int(slot) == 0:
+		return blessing_used
+	return bool(slot_blessing_used.get(int(slot), false))
+
+
+func set_blessing_used(slot: int, used: bool) -> void:
+	if slot == 0:
+		blessing_used = used
+	else:
+		slot_blessing_used[slot] = used
+
+
 ## 化身固有生命与所有局内外上限修正统一走这里；红蝶触发后固定为 100（仍会被削上限）。
 ## form_id 留空 = 本局主角（P1）；本机双人的 P2 传自己槽位的化身，生命按各自角色计算。
-func calculated_max_hp(form_id := "") -> int:
+## slot 决定读取哪一槽的强化/赐福，缺省 0 保持旧行为。
+func calculated_max_hp(form_id := "", slot := 0) -> int:
 	var id := form_id if form_id != "" else skull_id
 	if id == "c021" and c021_red_butterfly_used:
 		# 联机复活会把上限封到 50（c021_revive_cap）；未复活时仍是完整 100。
@@ -284,7 +391,7 @@ func calculated_max_hp(form_id := "") -> int:
 			butterfly = mini(butterfly, c021_revive_cap)
 		return maxi(1, butterfly - max_hp_loss)
 	var form_base := form_base_hp(id)
-	return maxi(1, form_base + level("hp") + (2 if blessing == "hp" else 0) \
+	return maxi(1, form_base + level("hp", slot) + (2 if blessing_of(slot) == "hp" else 0) \
 		+ Meta.start_hp_bonus() + Meta.form_hp_bonus(id) + Achievements.bonus_int("hp") \
 		+ supply_hp - max_hp_loss + z003_madness_hp)
 
@@ -375,6 +482,8 @@ func cap_enemy_hit(amount: int, target_max_hp: int) -> int:
 func player_count() -> int:
 	if not active:
 		return 1
+	if mode == MODE_PVP:
+		return clampi(net_players, 1, 4)
 	if net_role != "":
 		return clampi(net_players, 1, 4)
 	return 2 if local_coop else 1
@@ -496,7 +605,7 @@ func advance() -> void:
 		slot_revive.erase(slot)
 		slot_dead.erase(slot)
 		var form := slot_skull_of(int(slot))
-		slot_hp[int(slot)] = revive_hp_for(form, calculated_max_hp(form))
+		slot_hp[int(slot)] = revive_hp_for(form, calculated_max_hp(form, int(slot)))
 	# 无尽：打完 Boss 进下一层（三小关重来，Boss 换一只，数值更高）
 	if mode == MODE_ENDLESS and room_index > ROOMS.size():
 		depth += 1
@@ -513,8 +622,8 @@ func cleared_room_count() -> int:
 	return maxi(0, depth - 1) * (ROOMS.size() + 1) + clampi(room_index, 0, ROOMS.size())
 
 
-func level(key: String) -> int:
-	return int(upgrades.get(key, 0))
+func level(key: String, slot := 0) -> int:
+	return int(upgrades_of(slot).get(key, 0))
 
 
 
@@ -527,21 +636,22 @@ func card_info(key: String) -> Dictionary:
 
 ## 卡池轮转：每次三选一保证「一条正在走的流派 · 一条新流派 · 一张通用」，
 ## 一局的 3 次强化刚好能把一条流派从"初"推到"极"，选择即流派。
-func roll_cards(count: int = 3) -> Array:
+func roll_cards(count: int = 3, slot := 0) -> Array:
+	var form := slot_skull_of(int(slot))
 	var gen: Array = [] # 通用池：还没满级
 	for k in UPGRADES:
-		if level(k) < int(UPGRADES[k]["max"]):
+		if level(k, slot) < int(UPGRADES[k]["max"]):
 			gen.append(k)
 	var cont: Array = [] # 已开张流派的下一个层级（前置已拥有）
 	var fresh: Array = [] # 还没开张的流派第一层
 	for k in FORM_UPGRADES:
 		var info: Dictionary = FORM_UPGRADES[k]
-		if not (info["forms"] as Array).has(skull_id) or level(k) >= int(info["max"]):
+		if not (info["forms"] as Array).has(form) or level(k, slot) >= int(info["max"]):
 			continue
 		var req := str(info.get("req", ""))
 		if req == "":
 			fresh.append(k)
-		elif level(req) > 0:
+		elif level(req, slot) > 0:
 			cont.append(k)
 	var picked: Array = []
 	_take_random(cont, picked, count)
@@ -568,17 +678,19 @@ func _take_random(pool: Array, into: Array, count: int) -> void:
 	into.append(pool[randi() % pool.size()])
 
 
-## 免费选择一项通关强化。成功会立刻影响本房间的玩家（room 负责调用 apply_to）
-func buy(key: String) -> bool:
+## 免费选择一项通关强化。成功会立刻影响本槽位的玩家（room 负责调用 apply_to）。
+## slot 决定写进哪一槽的强化表：联机每个玩家各选各的，0 号槽行为与旧版一致。
+func buy(key: String, slot := 0) -> bool:
 	var info: Dictionary = card_info(key)
 	if info.is_empty():
 		return false
-	if level(key) >= int(info["max"]):
+	var ups := upgrades_of(int(slot))
+	if int(ups.get(key, 0)) >= int(info["max"]):
 		return false
-	upgrades[key] = level(key) + 1
+	ups[key] = int(ups.get(key, 0)) + 1
 	Achievements.event("upgrades_picked")
-	if key == "hp":
-		max_hp = calculated_max_hp()
+	if key == "hp" and int(slot) == 0:
+		max_hp = calculated_max_hp("", 0)
 		hp = max_hp # 买了加血就回满，下一层的起始血量一并提高
 	return true
 
@@ -612,10 +724,10 @@ func apply_to(player, slot := -1) -> void:
 		return
 	var s := _slot_of(player, slot)
 	var form := slot_skull_of(s)
-	player.set_upgrades(upgrades)
+	player.set_upgrades(upgrades_of(s))
 	if player.skull_id != form:
 		player.swap_skull(form)
-	var cap := calculated_max_hp(form)
+	var cap := calculated_max_hp(form, s)
 	if s == 0:
 		max_hp = cap # 结算 / HUD 仍以 P1 为准
 	player.max_hp = player.effective_max_hp(cap) if player.has_method("effective_max_hp") else cap

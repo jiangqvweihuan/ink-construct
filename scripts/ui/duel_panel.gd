@@ -154,7 +154,12 @@ func _build_config(root: Control) -> void:
 	_build_size_stepper(root)
 	_build_card(root, CARD_X[0], true)
 	_build_card(root, CARD_X[1], false)
-	_btn(root, "开 始 对 决", Vector2(480, 616), Vector2(320, 64), 26, _start_battle)
+	var start_btn := _btn(root, "开 始 对 决", Vector2(480, 616), Vector2(320, 64), 26, _start_battle)
+	if _red_ids.is_empty() or _blue_ids.is_empty():
+		start_btn.disabled = true
+		start_btn.modulate = Color(1, 1, 1, 0.35)
+		UiKit.label(root, "图鉴尚未收录任何敌人 · 先去闯关击败它们再来斗蛐蛐",
+			Vector2(0, 584), Vector2(1280, 26), 15, DIM, HORIZONTAL_ALIGNMENT_CENTER, false)
 
 
 ## 每队人数：红蓝共用一套（同一场里双方人数相等，打起来才公平）
@@ -307,8 +312,8 @@ func _build_result(root: Control) -> void:
 
 # ============================ 公共 ============================
 
-func _btn(parent: Node, text: String, pos: Vector2, size: Vector2, font_size: int, cb: Callable) -> void:
-	UiKit.texture_button(parent, text, pos, size, font_size, PAPER, func():
+func _btn(parent: Node, text: String, pos: Vector2, size: Vector2, font_size: int, cb: Callable) -> TextureButton:
+	return UiKit.texture_button(parent, text, pos, size, font_size, PAPER, func():
 		_sfx.stream = SFX_CLICK
 		_sfx.play()
 		cb.call())
@@ -341,7 +346,7 @@ func stat_text(key: String, v: float) -> String:
 ## 点名录：已选 → 取消（至少留一个）；未选 → 加入，满员就顶掉最后一位。
 ## 图鉴里不存在的角色不允许进入队伍。
 func _toggle(is_red: bool, id: String) -> void:
-	if not Roster.in_codex(id):
+	if not Roster.is_unlocked(id):
 		return
 	var ids: Array = _red_ids if is_red else _blue_ids
 	if ids.has(id):
@@ -393,10 +398,12 @@ func _sanitize(ids: Array) -> Array:
 
 
 func _start_battle() -> void:
-	_sfx.stream = SFX_DECIDE
-	_sfx.play()
 	_red_ids = _sanitize(_red_ids)
 	_blue_ids = _sanitize(_blue_ids)
+	if _red_ids.is_empty() or _blue_ids.is_empty():
+		return # 图鉴未收录任何可用敌人时不允许开局
+	_sfx.stream = SFX_DECIDE
+	_sfx.play()
 	_mode = "battle"
 	start_requested.emit(_red_ids.duplicate(), _blue_ids.duplicate(),
 		_red_stats.duplicate(), _blue_stats.duplicate())

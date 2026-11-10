@@ -238,8 +238,8 @@ func _build_one_bar(p: Node2D, cx: float, half: float) -> void:
 		masks.append(mask)
 		var key := ""
 		if i == 0:
-			# P2（及联机客机）的普攻键是 1，不是 P1 的设置键
-			key = LocalCoop.key_label("attack") if int(p.get("input_slot")) != 0 else Settings.action_label("attack")
+			# 只有本机双人的 P2 用 1 键；联机客机虽然占 1 号槽，用的仍是自己设备的 P1 设置键
+			key = LocalCoop.key_label("attack") if (int(p.get("input_slot")) != 0 and Run.net_role == "") else Settings.action_label("attack")
 		else:
 			key = str(p.get_skill_key(skill_id))
 		if TouchControls.active:

@@ -25,10 +25,14 @@ const ENEMY_SCENES := {
 }
 
 
-## 斗蛐蛐的已解锁角色列表。当前与图鉴收录完全同源；
-## 以后若接入其他解锁来源，只改这里（或调用 entries() 显式传入名单）。
+## 斗蛐蛐的已解锁角色列表：必须由图鉴真实收录（击败过）才可出战。
 static func unlocked_ids() -> Array:
-	return ENEMY_ORDER + BOSS_ORDER
+	var out: Array = []
+	for id in ENEMY_ORDER + BOSS_ORDER:
+		var sid := str(id)
+		if is_unlocked(sid):
+			out.append(sid)
+	return out
 
 
 ## 图鉴里真实收录的角色 id：与图鉴页签共用同一份数据源。
@@ -45,19 +49,24 @@ static func in_codex(id: String) -> bool:
 	return EnemyTypes.TYPES.has(id)
 
 
-## 出战前最后一道过滤：只保留图鉴内可用的角色，去重并保持原顺序。
+## 是否已在图鉴中解锁（击败收录）：斗蛐蛐可选权限的唯一判据。
+static func is_unlocked(id: String) -> bool:
+	return in_codex(id) and Meta.enemy_kills(id) > 0
+
+
+## 出战前最后一道过滤：只保留已解锁且图鉴内可用的角色，去重并保持原顺序。
 static func available_ids(ids: Array) -> Array:
 	var out: Array = []
 	for id in ids:
 		var sid := str(id)
-		if in_codex(sid) and not out.has(sid):
+		if is_unlocked(sid) and not out.has(sid):
 			out.append(sid)
 	return out
 
 
-## 名录：默认取已解锁列表；传入 unlocked 可覆盖（仍逐项校验图鉴数据）。
+## 名录：默认展示全部图鉴条目，未解锁的只占位且不可选。
 static func entries(unlocked: Array = []) -> Array:
-	var ids: Array = unlocked if not unlocked.is_empty() else unlocked_ids()
+	var ids: Array = unlocked if not unlocked.is_empty() else ENEMY_ORDER + BOSS_ORDER
 	var list: Array = []
 	for id in ids:
 		var sid := str(id)
@@ -99,5 +108,6 @@ static func _entry(id: String) -> Dictionary:
 		"scene": str(BossTypes.SCENES.get(id, BossTypes.DEFAULT_SCENE)) if boss else str(ENEMY_SCENES.get(id, BossTypes.DEFAULT_SCENE)),
 		"scale": float(t.get("scale", 1.0)),
 		"radius": float(t.get("body_radius", 30.0)),
-		"available": true,
+		# 图鉴未收录（未击败过）只占位展示，绝不进入可选/可出战名单
+		"available": is_unlocked(id),
 	}

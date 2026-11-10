@@ -24,6 +24,7 @@ var _boss
 var _hud
 var _ended := false
 var _proceeding := false
+var _pending_proceed := false # 联机：房主已点前进但还有队友没选完
 var _log: FileAccess
 
 
@@ -36,6 +37,8 @@ func p(msg) -> void:
 
 
 func _ready() -> void:
+	# 供玩家/敌人技能位移读取地图宽度，根骨与瞬移类技能据此夹在地图墙内
+	set_meta("battle_width", ROOM_W)
 	# 不再强制窗口大小：用户在设置里选的分辨率会被这里覆盖打回 1280x720
 	BGM.play_bgm("battle") # 进房间切战斗 BGM（破阵）
 	BGM.stop_voice() # 联机客机不调 Run.start，这里兜底：进局就停旁白，整局不再触发
@@ -45,9 +48,14 @@ func _ready() -> void:
 	Achievements.room_begin() # 本房受伤清零，用于无伤房判定
 	_build_background()
 	_build_ground()
+	_connect_lan_choices()
 	if Run.net_role == "client":
 		# 客户端镜像：敌人/Boss/波次全部由主机权威生成，本地只建背景、两名玩家与 HUD
 		_build_actors_client()
+		# 主机可能在本场景 _ready 之前就发来了祝福请求，先取出补弹
+		var pending := LanNet.take_pending_choice()
+		if not pending.is_empty():
+			_on_choice_requested(pending)
 	else:
 		_build_actors()
 		_show_blessing() # 每局第一层出发前的赐福三选一（测试/嵌套实例化时不弹）
@@ -557,8 +565,12 @@ func _show_blessing() -> void:
 	if auto_demo or get_tree().current_scene != self:
 		_show_mobile_guide() # 没有赐福挡着，教程直接上
 		return
-	if Run.room_index != 0 or Run.blessing != "":
+	if Run.room_index != 0 or Run.blessing_of(0) != "":
 		_show_mobile_guide()
+		return
+	if Run.net_role == "host":
+		# 联机：主机统一发牌，两端各自弹自己的面板、各自选（客机收到请求后再弹）
+		LanNet.host_begin_choice("blessing")
 		return
 	var b = load("res://scenes/ui/blessing_panel.tscn").instantiate()
 	b.name = "Blessing"
@@ -567,6 +579,67 @@ func _show_blessing() -> void:
 		_apply_to_all()
 		_show_mobile_guide()) # 赐福关掉之后再上讲操作课，两张时停卡不叠在一起
 	add_child(b)
+
+
+# ---------------------------------------------------------------- 联机三选一（祝福 / 强化）
+
+func _connect_lan_choices() -> void:
+	if Run.net_role == "":
+		return
+	if not LanNet.choice_requested.is_connected(_on_choice_requested):
+		LanNet.choice_requested.connect(_on_choice_requested)
+	if not LanNet.choice_resolved.is_connected(_on_choice_resolved):
+		LanNet.choice_resolved.connect(_on_choice_resolved)
+
+
+## 主机下发了三选一（或客机补取到缓冲请求）：按类型弹出本机面板。
+## 联机面板不写 Run、不留重随：选择只上送主机，等 choice_resolved 再统一应用。
+func _on_choice_requested(d: Dictionary) -> void:
+	var kind := str(d.get("kind", ""))
+	var cards = d.get("cards", [])
+	if kind == "blessing":
+		if get_node_or_null("Blessing") != null:
+			return
+		var b = load("res://scenes/ui/blessing_panel.tscn").instantiate()
+		b.name = "Blessing"
+		b.online = true
+		b.apply_locally = false
+		b.preset_cards = cards if cards is Array else []
+		b.chosen.connect(func(id): LanNet.submit_choice(kind, str(id)))
+		add_child(b)
+	elif kind == "upgrade":
+		if get_node_or_null("Upgrade") != null:
+			return
+		var u = load("res://scenes/ui/upgrade_panel.tscn").instantiate()
+		u.name = "Upgrade"
+		u.online = true
+		u.apply_locally = false
+		u.buy_slot = int(Run.net_slot)
+		u.show_proceed = Run.net_role == "host"
+		u.preset_cards = cards if cards is Array else []
+		u.picked.connect(func(key): LanNet.submit_choice(kind, str(key)))
+		u.proceed.connect(_on_proceed)
+		add_child(u)
+
+
+## 主机确认所有人选完：应用各自槽位的加成，关掉等待中的面板并恢复暂停。
+func _on_choice_resolved(kind: String) -> void:
+	get_tree().paused = false
+	# 祝福选完就上阵，本端面板可以收掉；强化还要用房主的「继续前进」推进，
+	# 房主面板保留到点击前进（换房时随场景销毁），客机只关掉自己的等待面板。
+	var keep_upgrade := kind != "blessing" and Run.net_role == "host"
+	for n in ["Blessing", "Upgrade"]:
+		if n == "Upgrade" and keep_upgrade:
+			continue
+		var panel := get_node_or_null(n)
+		if panel != null:
+			panel.queue_free()
+	_apply_to_all()
+	if kind == "blessing":
+		_show_mobile_guide()
+	if _pending_proceed:
+		_pending_proceed = false
+		_on_proceed()
 
 
 ## 触屏版首次进第一场战斗：单独弹一张大字教程卡，讲清拖动 / 点按 / 上划 / 长按
@@ -586,6 +659,16 @@ func _show_mobile_guide() -> void:
 
 ## 清空房间后的免费三选一强化：选取一项奖励，或直接前进
 func _show_upgrade() -> void:
+	if Run.net_role == "host":
+		# 联机：主机发牌，各端各自选；房主点前进时会等所有人选完再换房
+		LanNet.host_begin_choice("upgrade")
+		return
+	if Run.net_role == "client":
+		# 客机没有本地清场事件，正常走 RPC；若请求早于场景就绪则从缓冲补弹
+		var d := LanNet.take_pending_choice("upgrade")
+		if not d.is_empty():
+			_on_choice_requested(d)
+		return
 	if get_node_or_null("Upgrade") != null:
 		return
 	var u = load("res://scenes/ui/upgrade_panel.tscn").instantiate()
@@ -601,6 +684,10 @@ func _on_upgrade_bought() -> void:
 
 func _on_proceed() -> void:
 	if _proceeding:
+		return
+	# 联机房主：还有队友没选完就先挂起，等 choice_resolved 再继续推进
+	if Run.net_role == "host" and not LanNet.choices_complete():
+		_pending_proceed = true
 		return
 	_proceeding = true
 	Run.advance()
