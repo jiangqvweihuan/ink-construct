@@ -32,7 +32,7 @@ const TAB_STATUS := 2
 const TAB_STORY := 3
 
 ## 敌人收录顺序：杂兵 → 精英 → Boss（Boss 追加在末尾，顺序按 boss_types.ROSTER）
-const ENEMY_ORDER := ["c016", "c017", "c035", "c018", "c012", "c037"]
+const ENEMY_ORDER := ["c016", "c017", "c035", "c033", "c018", "c012", "c037"]
 
 ## 化身招式正式资料：顺序分别对应 attacks 与 hud_skills；按钮只展示正式名。
 const FORM_ATTACK_TEXT := {
@@ -183,6 +183,7 @@ const ENEMY_ATTACK_NAMES := {
 	"c037": {"skill01": "亭台剑", "skill03": "转", "cangjian": "藏剑式", "jijian": "断楹祭剑"},
 	"c019": {"p1_thrust": "断岳飞锋", "p1_rain": "飞锋三叠", "p1_sweep": "拂尘剑幕", "p1_ring": "回锋阵"},
 	"c019_sp": {"p2_flash": "焚锋一闪", "p2_rain": "万刃归冢", "p2_prison": "剑狱天倾", "p2_combo": "冢前百刃"},
+	"c033": {"skill15": "踏歌", "skill09_03": "回雪"},
 }
 const ENEMY_ATTACK_MECH := {
 	"c032": {
@@ -243,6 +244,10 @@ const ENEMY_ATTACK_MECH := {
 		"skill03": "冷却 7.2 秒；造成 2 点伤害并击退。同一目标每次实际受创后，「转」对它的伤害永久 +1；不同目标分别计算",
 		"cangjian": "冷却 9.6 秒；每次随机施展三种藏剑架势之一，三段伤害 1/2/3，末段附一组割伤，在 3 秒与 6 秒时各失去 1 点生命，多组独立计时",
 		"jijian": "生命低于一半时自动触发，每场战斗仅一次；随机施展两种祭剑架势之一并回满生命。此后自身每段实际伤害都额外附一组独立割伤",
+	},
+	"c033": {
+		"skill15": "普攻，无独立冷却；轻身点踢，造成 1 点伤害",
+		"skill09_03": "冷却 9.6 秒；旋身回踢，身前身后均可命中，造成 2 点伤害并附加 1 层流血。每层每秒造成 1 点伤害，持续 5 秒，最多 5 层，新层刷新持续时间",
 	},
 	"c019": {
 		"p1_thrust": "普攻，无独立冷却；向前递剑，造成 2 点伤害。起手时消耗全部剑势，每层使本招伤害 +1，最多按 2 层结算，最高 4 伤；未命中也会消耗",
@@ -313,6 +318,10 @@ const ENEMY_ATTACK_LORE := {
 		"skill03": "初执魔剑时，他每转一周便要削碎一套茶具，索性把桌椅全搬进亭外。后来亭空了，剑却越转越顺；同一个人若肯站在原地多看几转，他便会把对方当成旧客，一剑比一剑招待得隆重。",
 		"cangjian": "三座旧亭各藏一种剑谱：临水亭藏刺，听雨亭藏撩，断山口那座藏回身。亭主只记得自己把剑藏好了，却忘了究竟藏在哪一座；于是每次出手，连他也要等剑现身才知今日行的是哪家的礼。",
 		"jijian": "亭塌那夜，一根主楹先断。他上撩魔剑挑开坠瓦，再把剑插进亭心，以剑代柱撑起旧业。魔剑答应借他一条完整的命，代价是从此每笔人情都要由来客用割伤偿还。",
+	},
+	"c033": {
+		"skill15": "舞姬练步时，脚尖先点地再起身，一步只踏半拍。她把半拍藏在裙下，等来客以为她要退，才用足尖替鼓点补上后半声。",
+		"skill09_03": "旧班排练《回雪》，要连转三周，水袖扫过前后两盏灯。她收袖成刃，转势不减；血珠顺着裙摆甩出去，像替那盏没人再点的灯续上火。",
 	},
 	"c019": {
 		"p1_thrust": "守冢人不轻易拔剑。断岳只是把剑尖从鞘中递出半寸，试来人是否配看冢中旧剑；剑势积得越深，这半寸便越难躲。",
@@ -418,6 +427,18 @@ const ENEMY_PASSIVES := {
 		"desc": "双剑斩首段或旋斩实伤获得 1 层剑意，最多 3 层；每层使后续每次命中伤害 +1，永不消耗。三层触发「剑意凝华」：生成唯一的同步分身，复制当前朝向与动作，后续同步出招并造成同等直伤、普通流血与封闪避；分身以约 60% 不透明的淡青水墨虚影和脚下淡青墨环区分，无敌、不可选中，不叠剑意、不再繁殖，本体死亡即消失",
 		"lore": "阁中不许剑仆有自己的剑意，他便把每一次问答藏进斗笠下的朱绦。三层剑意圆满时，那个总被命令收剑的自己终于从雨里走出；朱丝如今系的是剑影，不再是他。",
 	},
+	"c033": [
+		{
+			"name": "残舞",
+			"desc": "任意伤害使生命降至 35% 及以下时触发一次：出手冷却 ×0.72、移动速度 ×1.3；不回复生命，恢复生命不会撤销",
+			"lore": "她原本只是替主角垫场的小伶，曲终便该退到台侧。可每次被逼到绝境，她反而把鼓点踩得更急；既然没人替她收场，她就自己把最后一段舞跳完。",
+		},
+		{
+			"name": "彩头",
+			"desc": "每累计击败 5 名舞姬，获得 1 墨锭",
+			"lore": "看客散尽后，妆奁里总会多出几枚赏钱。她从不数是谁给的，只把彩头收好，等下一场无人喝彩的夜戏开锣。",
+		},
+	],
 	"c019": [
 		{
 			"name": "守冢剑势",
@@ -440,7 +461,7 @@ const CARD_H := 62.0
 const CARD_STEP_X := 200.0
 const CARD_STEP_Y := 70.0
 const CARD_COLS := 2
-const CARD_MAX := 12
+const CARD_MAX := 16
 const ENEMY_GROUP_H := 24.0
 const ENEMY_CARD_H := 44.0
 const ENEMY_CARD_STEP_Y := 48.0
@@ -492,6 +513,7 @@ const LORE := {
 	"z002": "苏挽音曾是乱世宫中的琵琶乐师，最盛时一曲未终，殿外三军也会放轻脚步。城破那夜，帝王携金帛西逃，只命她留下奏曲安定人心。她便独坐空殿，把《黍离》从黄昏弹到天明，弦上不是亡国之音，是百姓最后一点不肯屈服的恨。宫门再开时，听曲的乱军已自相残杀，她却抱着琵琶走入人海，自此隐去乐师名姓，只称「绛弦」。她仍爱惜每一根弦，仍会在月下校音，只是再不为权贵献艺。有人说她以魔音摄心，她只答：心若无愧，何惧一曲故国。",
 	"c017": "身高逾丈的蛮族力士，巨斧拖地，走一步便有石屑翻飞。他走得不快，却从不停在原地等人；一旦认准猎物，便拖着巨斧一步步赶上去。",
 	"c035": "他曾是城门边的剃头匠，听遍过路人的秘密，却从不接话。后来有人花钱让他割掉一个叛徒的舌头，他收了钱，仍把那人的头发剃得很齐整。此后铺子没了，椅上多了另一种客人；他仍旧沉默，仍旧从椅后下刀。",
+	"c033": "舞姬原是临江戏班里专替主角垫场的小伶，鼓点一响便要上台，曲终之前没人记得她的名字。她把这口气练进足尖：既然没人看，就把每一步都踩成杀招。戏班散后，她仍在无人搭台的夜里起舞；谁若鼓掌，她便转身补上最后一记回旋。",
 	"c018": "他曾是戏班里专演夜游神的双刀伶人，一双银镰在灯影里交错，像一轮不肯缺的月。班主说戏最要紧是懂得收，可他压轴的《血月绽花》从没等到谢幕——戏班欠下血债，那夜台下比台上先见了红。此后他仍按旧锣鼓点出手，只是再没人替他敲响收场那一声。",
 	"c012": "他原是听雨阁替名家喂招的剑仆，只有斗笠，没有题名。阁主说剑意不可过三，免得仆比主先懂剑；阁毁那夜，他第一次使完第三层，雨里便站起另一个自己，替他斩断了那句「不许赢」。从此他带双剑远行，一名「问」，一名「答」——问尽来客，也终于开始回答自己。",
 	"c037": "他原是渡头青亭的主人，青衣迎客，剑只用来裁茶、削笺、替迷路人斩开荆棘。墨堂来夺亭那夜，他拔出了亭基下祖辈封存的绿色魔剑；剑保住了亭，也顺着他的规矩一寸寸吃掉旧主。如今他仍守在原地，见客先施礼，三剑不差分毫，只在生命将尽时以剑代楹、向魔物再赊一命。来客若看见他死后重新站起，便会明白：青魇从来不是那柄剑的名字，而是亭主留在人间的最后一场噩梦。",
@@ -776,7 +798,7 @@ func _status_catalog() -> Array:
 
 func _collection_progress() -> Dictionary:
 	var progress := {"enemy": 0, "enemy_total": 0, "form": 0, "form_total": 0}
-	# 百相收集总数仍只统计正史 11 项；c019 是独立挑战首领，只出现在卡片列表，不挤占 11/11 基线。
+	# 百相收集总数统计正史 12 项（7 杂兵/精英 + 5 首领）；c019 是番外首领，只出现在卡片列表，不挤占 12/12 基线。
 	for id in ENEMY_ORDER + BossTypes.ROSTER:
 		progress["enemy_total"] += 1
 		if Meta.enemy_kills(id) > 0:
@@ -824,6 +846,16 @@ func _enemy_kind(t: Dictionary, is_boss: bool) -> String:
 	if is_boss:
 		return "首领"
 	return "精英" if bool(t.get("elite", false)) else "杂兵"
+
+
+## 图鉴详情里的掉落说明：只显示真实配置，没配掉落的敌人不占行。
+func _drop_text(t: Dictionary) -> String:
+	var drop: Dictionary = t.get("drop", {})
+	var ink := int(drop.get("ink", 0))
+	var every := int(drop.get("every", 0))
+	if ink <= 0 or every <= 0:
+		return ""
+	return "掉落 · 每 %d 杀 +%d 墨锭" % [every, ink]
 
 
 func _make_card(e: Dictionary, i: int, origin_y := CARD_Y, compact := false) -> void:
@@ -1138,10 +1170,15 @@ func _story_detail_text(entry: Dictionary) -> String:
 	var text := "[font_size=30][color=#f2e9d8]%s[/color][/font_size]\n" % str(entry["title"])
 	text += "[color=#c89440]%s ｜ %s[/color]\n\n" % [str(entry["volume"]), str(entry["subtitle"])]
 	if bool(entry.get("locked", false)):
+		var progress := _collection_progress()
 		text += "[font_size=18][color=#e8dfc4]页缘还留着一处空白，要等所有同行者与敌手都在图鉴中显名。[/color][/font_size]\n"
 		text += "\n[font_size=20][color=#a8332a]显影条件[/color][/font_size]\n"
-		text += "\n收录全部普通敌人、精英与首领，并解锁全部六名化身。\n"
-		text += "敌人须至少击败一次；化身须满足各自解锁条件或完成买断。两项进度须同时集齐。\n"
+		text += "\n收录全部 %d 名正史敌人、精英与首领，并解锁全部 %d 名可解锁化身（含卷外命墨烬生）。\n" % [
+			int(progress["enemy_total"]), int(progress["form_total"])]
+		text += "番外首领不计入此条件；敌人须至少击败一次，化身须满足各自解锁条件或完成买断。两项进度须同时集齐。\n"
+		text += "\n当前进度：敌人 %d / %d · 化身 %d / %d。\n" % [
+			int(progress["enemy"]), int(progress["enemy_total"]),
+			int(progress["form"]), int(progress["form_total"])]
 		text += "\n[color=#8a857a]这页卷外手记游离于残卷正史之外，只作纪念，不改变任何战斗或关卡规则。[/color]"
 		return text
 	text += "[font_size=18][color=#e8dfc4]%s[/color][/font_size]\n" % str(entry["summary"])
@@ -1382,10 +1419,14 @@ func _model(id: String) -> Dictionary:
 				"tags": [], "data": str(t["data"]),
 				"lore": "还没有击败过这只敌人。\n在战斗中击杀它之后，这里会亮出它的来历、招式与数值。",
 				"view_scale": 1.0, "idle": "stand", "actions": []}
+		var stat_text := "已击败 %d 次" % times
+		var drop_text := _drop_text(t)
+		if not drop_text.is_empty():
+			stat_text += " ｜ " + drop_text
 		return {
 			"id": id, "locked": false, "title": str(t["label"]),
 			"sub": str(t.get("codex_sub", "%s · 生命 %d" % [_enemy_kind(t, is_boss), int(t.get("hp", 0))])),
-			"stat": "已击败 %d 次" % times,
+			"stat": stat_text,
 			"tags": StatusCodex.tags_for(id),
 			"lore": str(LORE.get(id, "")),
 			"data": str(t["data"]),

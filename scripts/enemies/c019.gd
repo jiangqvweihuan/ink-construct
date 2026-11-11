@@ -21,6 +21,10 @@ var _phase2_enraged := false
 var _p1_marks := 0
 var _p1_mark_cast := -1 # 本次起手是否已经积过剑势，多段命中只算一次
 var _p1_thrust_bonus := 0 # 断岳飞锋起手时锁定的剑势加成
+# 斗蛐蛐：把玩家在面板里调好的生命/出手/移速保留到二阶段，避免换形后数值跳回配置值。
+var _duel_phase2_hp := -1
+var _duel_phase2_cd := -1.0
+var _duel_phase2_speed := -1.0
 
 
 func _ready() -> void:
@@ -34,6 +38,9 @@ func _ready() -> void:
 	_p1_marks = 0
 	_p1_mark_cast = -1
 	_p1_thrust_bonus = 0
+	_duel_phase2_hp = -1
+	_duel_phase2_cd = -1.0
+	_duel_phase2_speed = -1.0
 
 
 ## Boss 基座只装配阶段/速度，通用招式表仍由本类补齐。
@@ -117,6 +124,10 @@ func _start_phase_two() -> void:
 	_p1_marks = 0
 	_p1_mark_cast = -1
 	_p1_thrust_bonus = 0
+	if duel_mode:
+		_duel_phase2_hp = max_hp
+		_duel_phase2_cd = attack_cooldown
+		_duel_phase2_speed = chase_speed
 	_phase_two = true
 	hp = 0
 	# 先锁无敌与演出状态，再刷新 HUD：信号回调里若有人补刀也不会二次结算死亡。
@@ -154,6 +165,13 @@ func _swap_to_phase_two() -> void:
 		sprite = null
 	_anim_state = null
 	_apply_type()
+	if duel_mode:
+		if _duel_phase2_hp > 0:
+			max_hp = _duel_phase2_hp
+		if _duel_phase2_cd > 0.0:
+			attack_cooldown = _duel_phase2_cd
+		if _duel_phase2_speed > 0.0:
+			chase_speed = _duel_phase2_speed
 	_setup_spine()
 	_set_capsule(64.0, 260.0)
 	max_hp = maxi(1, max_hp)

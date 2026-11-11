@@ -148,7 +148,7 @@ func _refresh() -> void:
 
 func _build_config(root: Control) -> void:
 	UiKit.label(root, "斗 蛐 蛐", Vector2(0, 2), Vector2(1280, 50), 40, PAPER, HORIZONTAL_ALIGNMENT_CENTER, false)
-	UiKit.label(root, "全部杂兵与首领同场 · 点名录可多选 · 拉数值 · 全自动观战",
+	UiKit.label(root, "图鉴收录后可出战 · 全部杂兵与首领同场 · 点名录可多选 · 全自动观战",
 		Vector2(0, 50), Vector2(1280, 20), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER, false)
 	_btn(root, "返  回", Vector2(36, 18), Vector2(120, 44), 18, func(): back_requested.emit())
 	_build_size_stepper(root)

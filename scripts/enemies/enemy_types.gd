@@ -174,7 +174,7 @@ const TYPES := {
 		# 首招是无冷却普攻；主动技有独立冷却，靠近身合规优先。
 		"attack_rules": {
 			"skill15": {"weight": 1.0},
-			"skill09_03": {"cooldown": 9.6, "random": false},
+			"skill09_03": {"cooldown": 9.6}, # 主动技必须留在随机池内，否则永远不会起手
 		},
 		"hp": 5,
 		"patrol_speed": 85.0,

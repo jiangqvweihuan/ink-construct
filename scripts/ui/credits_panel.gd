@@ -87,6 +87,7 @@ const CREDITS_LYRICS := [
 const CREDITS := [
 	{"t": "title", "s": "墨  构"},
 	{"t": "sub", "s": "InkConstruct"},
+	{"t": "sub", "s": "Version 1.0.0 · 正式版"},
 
 	{"t": "section", "s": "制作"},
 	{"t": "person", "s": "将去未还 —— 制作人 / 独立开发"},
@@ -118,9 +119,12 @@ const CREDITS := [
 	{"t": "section", "s": "质量管理"},
 	{"t": "role", "s": "测试"},
 	{"t": "person", "s": "将去未还 —— 全流程实测与回归验证"},
-	{"t": "role", "s": "外部测试"},
-	{"t": "person", "s": ""},
-	{"t": "person", "s": ""},
+	{"t": "role", "s": "外部测试 · 测试游戏 / Bug 排查"},
+	{"t": "person", "s": "life"},
+	{"t": "person", "s": "xxxg"},
+	{"t": "person", "s": "江莫枯"},
+	{"t": "person", "s": "XSXZ"},
+	{"t": "person", "s": "yuanyang"},
 
 	{"t": "section", "s": "软件与素材署名"},
 	{"t": "role", "s": "引擎"},

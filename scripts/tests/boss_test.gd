@@ -30,7 +30,7 @@ func _ready() -> void:
 	add_child(room)
 	await get_tree().create_timer(0.5).timeout
 	var intro = room.get_node_or_null("BossDuelIntro")
-	if BossTypes.ROSTER.has(Run.boss_id):
+	if BossTypes.is_codex_boss(Run.boss_id):
 		p("duel intro created=" + str(intro != null) + " anim=" + str(BossTypes.get_boss(Run.boss_id).get("intro", {})))
 		if intro == null:
 			get_tree().quit(1)

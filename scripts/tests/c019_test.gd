@@ -38,6 +38,7 @@ func _ready() -> void:
 	_check(BossTypes.BOSSES.has("c019") and BossTypes.BOSSES.has("c019_sp"), "双形态 Boss 配置已注册")
 	_check(not BossTypes.ROSTER.has("c019_sp"), "二阶段形态不单独进随机池")
 	_check(BossTypes.codex_order().has("c019") and not BossTypes.ROSTER.has("c019"), "图鉴收录剑冢但不进随机轮换")
+	_check(BossTypes.encounter_pool().has("c019"), "番外首领已加入普通 / 无尽可遭遇池")
 	_check(int(p1["hp"]) + int(p2["hp"]) == int(c032["hp"]), "双阶段总血量对标鸣钟 68")
 	var p1_attacks: Array = p1["stages"][0]["attacks"]
 	var p2_attacks: Array = p2["stages"][0]["attacks"]
@@ -186,5 +187,25 @@ func _ready() -> void:
 
 	boss.take_damage(999, 0.0)
 	_check(boss.state == boss.State.DEAD, "二阶段空血正常死亡")
+
+	# 斗蛐蛐：换形后保留面板调好的生命 / 出手 / 移速，不跳回配置值
+	var duel_boss = load("res://scenes/enemies/bosses/boss.tscn").instantiate()
+	duel_boss.set_script(C019Script)
+	duel_boss.type_id = "c019"
+	duel_boss.duel_mode = true
+	duel_boss.position = Vector2(900, 560)
+	add_child(duel_boss)
+	await get_tree().process_frame
+	duel_boss.max_hp = 50
+	duel_boss.hp = 50
+	duel_boss.attack_cooldown = 1.0
+	duel_boss.chase_speed = 200.0
+	duel_boss._start_phase_two()
+	duel_boss._swap_to_phase_two()
+	_check(duel_boss.type_id == "c019_sp" and duel_boss.max_hp == 50 and duel_boss.hp == 50 \
+		and absf(duel_boss.attack_cooldown - 1.0) < 0.001 and absf(duel_boss.chase_speed - 200.0) < 0.001,
+		"斗蛐蛐换形保留面板生命/出手/移速")
+	duel_boss.queue_free()
 	print("[C019] DONE checks=%d failed=%d" % [_checks, _failed])
+	print("[C019] 自动测试已完成，场景将退出；实测战斗请运行 res://scenes/tests/c019_arena.tscn")
 	get_tree().quit()

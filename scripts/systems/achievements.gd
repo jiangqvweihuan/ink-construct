@@ -33,6 +33,7 @@ const BEASTS := [
 	{"id": "c016", "name": "刀客", "boss": false},
 	{"id": "c017", "name": "蛮兵", "boss": false},
 	{"id": "c035", "name": "刺客", "boss": false},
+	{"id": "c033", "name": "舞姬", "boss": false},
 	{"id": "c018", "name": "双镰", "boss": false},
 	{"id": "c037", "name": "青魇剑主", "boss": false},
 	{"id": "c012", "name": "青笠剑客", "boss": false},
@@ -155,8 +156,9 @@ const ACHIEVEMENTS := [
 	{"id": "e_c016_100", "name": "刀客百斩", "desc": "累计击败 100 名刀客", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c016", "target": 100},
 	{"id": "e_c017_100", "name": "蛮兵百斩", "desc": "累计击败 100 名蛮兵", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c017", "target": 100},
 	{"id": "e_c018_100", "name": "双镰百斩", "desc": "累计击败 100 名双镰", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c018", "target": 100},
+	{"id": "e_c033_100", "name": "舞姬百斩", "desc": "累计击败 100 名舞姬", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c033", "target": 100},
 	{"id": "e_boss10", "name": "青魇十伐", "desc": "累计击败 10 名青魇剑主", "cat": CAT_BEAST, "tier": 3, "ink": 18, "stat": "enemy_c037", "target": 10},
-	{"id": "e_all", "name": "百相入卷", "desc": "收录全部 11 种敌人与首领", "cat": CAT_BEAST, "tier": 3, "ink": 28, "stat": "enemy_all", "target": 11, "title": "百相"},
+	{"id": "e_all", "name": "百相入卷", "desc": "收录全部 12 种敌人与首领", "cat": CAT_BEAST, "tier": 3, "ink": 28, "stat": "enemy_all", "target": 12, "title": "百相"},
 	{"id": "e_boss_all", "name": "首领全讨", "desc": "五种首领各击败一次", "cat": CAT_BEAST, "tier": 3, "ink": 24, "stat": "boss_types", "target": 5},
 
 	# ---------- 墨缘 ----------

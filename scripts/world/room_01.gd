@@ -376,7 +376,7 @@ func _spawn_boss() -> void:
 	_boss.died.connect(_on_boss_died)
 	add_child(_boss)
 	_boss.entrance()
-	if BossTypes.ROSTER.has(Run.boss_id):
+	if BossTypes.is_codex_boss(Run.boss_id):
 		var intro := BOSS_DUEL_INTRO.new()
 		intro.name = "BossDuelIntro"
 		# 在场玩家一起进对峙：本机双人 2 人、联机主机按实际人数最多 4 人

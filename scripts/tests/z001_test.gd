@@ -80,6 +80,15 @@ func _ready() -> void:
 	for a in base_data.call("get_animations"):
 		base_names[str(a.call("get_name"))] = true
 
+	# 图鉴排序与解锁条件：烬生必须紧跟绛弦，且双条件完全一致
+	var z1_unlock: Dictionary = Meta.UNLOCKS.get("z001", {})
+	var z2_unlock: Dictionary = Meta.UNLOCKS.get("z002", {})
+	_check(int(z1_unlock.get("clears", -1)) == int(z2_unlock.get("clears", -2)) \
+		and int(z1_unlock.get("kills", -1)) == int(z2_unlock.get("kills", -2)) \
+		and str(z1_unlock.get("hint", "")) == str(z2_unlock.get("hint", "")), "烬生与绛弦解锁条件完全一致")
+	var form_order: Array = Skulls.ids()
+	_check(form_order.find("z001") == form_order.find("z002") + 1, "烬生图鉴条目排在绛弦之后")
+
 	# 形态表 / 动画映射
 	_check(p.anim_map["idle"] == "stand" and p.anim_map["run"] == "run", "待机 123 / 跑步 69 映射正确")
 	_check(p.hud_skills.size() == 5 and BattleStatus.skill_name(p, 0) == "焚骨三叩" \

@@ -535,7 +535,8 @@ func difficulty_label() -> String:
 
 
 func _roll_bosses() -> void:
-	var pool := BossTypes.ROSTER.duplicate()
+	# 正史五首领 + 番外首领剑冢：番外不进故事名册，但普通/无尽 Boss 房均可遭遇。
+	var pool := BossTypes.encounter_pool()
 	# 无尽跨层不能连续抽到同一只；池内至少两只时排除上一层的 Boss。
 	if mode == MODE_ENDLESS and boss_id != "" and pool.size() > 1:
 		pool.erase(boss_id)

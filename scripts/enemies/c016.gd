@@ -2075,6 +2075,18 @@ func _direct_damage(amount: int, color: Color = DMG_COLOR) -> void:
 		die()
 		return
 	_check_limit()
+	_check_enrage() # 流血/灼烧等持续伤害同样能触发低血机制
+
+
+## 低血狂暴：任意来源使生命不高于阈值时触发一次，缩短出手间隔并提速。
+func _check_enrage() -> void:
+	if _enrage_below <= 0.0 or _enraged or state == State.DEAD or hp <= 0:
+		return
+	if float(hp) / float(maxi(1, max_hp)) > _enrage_below:
+		return
+	_enraged = true
+	attack_cooldown *= _enrage_cd
+	chase_speed *= _enrage_speed
 
 
 ## 砸落（银夜空中派生）：直线下坠，落地只向玩家回报一次，再接原有落地硬直。
@@ -2207,11 +2219,8 @@ func take_damage(amount: int, source_x: float) -> void:
 	# 断楹祭剑：严格低于半血才触发；回满并取消当前受击/出手，每个实体仅一次。
 	if _check_limit():
 		return
-	# 半血狂暴（青笠）：跌破阈值触发一次，出手更密、追得更紧——越残越凶
-	if _enrage_below > 0.0 and not _enraged and float(hp) / float(max_hp) <= _enrage_below:
-		_enraged = true
-		attack_cooldown *= _enrage_cd
-		chase_speed *= _enrage_speed
+	# 半血狂暴（舞姬/青笠）：跌破阈值触发一次，出手更密、追得更紧——越残越凶
+	_check_enrage()
 	# 倒地链没播完：伤害、数字、墨花和死亡全都正常结算，只锁住受击动画防重入。
 	if _hurt_chain_active:
 		_flash()

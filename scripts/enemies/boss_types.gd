@@ -12,8 +12,17 @@ const DEFAULT_ID := "_debug"
 ## 一局随机登场哪一个 Boss（_debug 仅供 boss_test 冒烟，不进随机池）
 const ROSTER := ["c009", "c015a1", "c001", "c008", "c032"]
 ## 图鉴额外收录：不属于五首领随机轮换的独立挑战首领。
-## 只影响图鉴卡片，不参与 ROSTER 抽选、正史五首领统计与无尽跨层。
+## 只影响图鉴卡片，不参与 ROSTER 抽选、正史十二相统计与无尽跨层。
 const CODEX_EXTRA := ["c019"]
+## 番外首领可遭遇池：普通冒险与无尽 Boss 房都能抽到，但不写入正史五首领名册。
+const EXTRA_ENCOUNTERS := ["c019"]
+
+static func encounter_pool() -> Array:
+	var out: Array = ROSTER.duplicate()
+	for id in EXTRA_ENCOUNTERS:
+		if not out.has(id):
+			out.append(id)
+	return out
 
 static func codex_order() -> Array:
 	var out: Array = ROSTER.duplicate()
@@ -302,7 +311,7 @@ const BOSSES := {
 	"c019": {
 		"label": "剑冢",
 		"codex_sub": "首领 · 生命 32 → 36（双形态）",
-		"codex_bonus": true, # 图鉴计数单列「番外首领」，不挤占正史 11 项
+		"codex_bonus": true, # 图鉴计数单列「番外首领」，不挤占正史 12 项
 		"data": "res://art/characters/enemies/bosses/c019/c019_data.tres",
 		"scale": 0.52, # 骨架 385.6px -> 约 200px
 		"codex_scale": 0.62,

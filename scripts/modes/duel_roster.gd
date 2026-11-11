@@ -10,8 +10,8 @@ const EnemyTypes := preload("res://scripts/enemies/enemy_types.gd")
 const BossTypes := preload("res://scripts/enemies/boss_types.gd")
 const Codex := preload("res://scripts/ui/codex_panel.gd")
 
-const ENEMY_ORDER := ["c016", "c017", "c035", "c037", "c018", "c012"]
-const BOSS_ORDER := ["c009", "c015a1", "c001", "c008", "c032"]
+const ENEMY_ORDER := ["c016", "c017", "c035", "c033", "c037", "c018", "c012"]
+const BOSS_ORDER := ["c009", "c015a1", "c001", "c008", "c032", "c019"]
 
 const UNKNOWN_NAME := "不可用·未知"
 
@@ -19,6 +19,7 @@ const ENEMY_SCENES := {
 	"c016": "res://scenes/enemies/c016.tscn",
 	"c017": "res://scenes/enemies/c017.tscn",
 	"c035": "res://scenes/enemies/c035.tscn",
+	"c033": "res://scenes/enemies/c033.tscn",
 	"c037": "res://scenes/enemies/c037_elite.tscn",
 	"c018": "res://scenes/enemies/c018_elite.tscn",
 	"c012": "res://scenes/enemies/c012_elite.tscn",
@@ -35,16 +36,16 @@ static func unlocked_ids() -> Array:
 	return out
 
 
-## 图鉴里真实收录的角色 id：与图鉴页签共用同一份数据源。
+## 图鉴里真实收录的角色 id：与图鉴页签共用同一份数据源（含番外首领剑冢）。
 static func codex_ids() -> Array:
-	return Codex.ENEMY_ORDER + BossTypes.ROSTER
+	return Codex.ENEMY_ORDER + BossTypes.codex_order()
 
 
 ## 该 id 是否是图鉴内存在的角色：既要有图鉴条目，也要有真实战斗数据。
 static func in_codex(id: String) -> bool:
 	if not codex_ids().has(id):
 		return false
-	if BossTypes.ROSTER.has(id):
+	if BossTypes.is_codex_boss(id):
 		return BossTypes.BOSSES.has(id)
 	return EnemyTypes.TYPES.has(id)
 
@@ -99,7 +100,7 @@ static func _entry(id: String) -> Dictionary:
 			"radius": 30.0,
 			"available": false,
 		}
-	var boss := BossTypes.ROSTER.has(id)
+	var boss := BossTypes.is_codex_boss(id)
 	var t: Dictionary = BossTypes.BOSSES.get(id, {}) if boss else EnemyTypes.TYPES.get(id, {})
 	return {
 		"id": id,
