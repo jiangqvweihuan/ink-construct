@@ -176,6 +176,19 @@ func _test_lan_choices() -> void:
 	if str(up0[0]) != str(up1[0]):
 		_check("choice_upgrade_independent", Run.level(str(up1[0]), 0) == 0)
 
+	# 客机侧回归：收到三选一请求必须写下 _choice_kind，submit_choice 才能通过类型校验。
+	# 旧 bug：客机从未写入该字段，选择被静默丢弃，主机只能等 25 秒超时，画面整段卡死。
+	LanNet.role = "client"
+	LanNet.state = "playing"
+	LanNet._choice_kind = ""
+	LanNet._pending_choice.clear()
+	LanNet._rpc_choice_request({"kind": "upgrade", "token": 7, "cards": up1.duplicate(), "slot": 1})
+	_check("choice_client_armed", LanNet._choice_kind == "upgrade", LanNet._choice_kind)
+	_check("choice_client_pending", (LanNet._pending_choice.get("cards", []) as Array).size() == 3)
+	# 关闭后必须解除武装：迟到的点击不能串进下一次三选一
+	LanNet._rpc_event({"kind": "choice_done", "choice": "upgrade", "run": {}})
+	_check("choice_client_disarmed", LanNet._choice_kind == "", LanNet._choice_kind)
+
 	LanNet.teardown("", false)
 	Run.net_role = ""
 	Run.active = false

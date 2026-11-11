@@ -455,6 +455,8 @@ func _choice_slots() -> Array:
 
 
 ## 本机提交选择：客机只发 key 给主机，房主直接落盘。
+## 客机的 _choice_kind 必须在收到请求时写入，否则这里的类型校验会把选择静默丢掉，
+## 主机永远等不齐所有人，只能靠 25 秒超时兜底——表现为选完赐福后画面整段卡死。
 func submit_choice(kind: String, key: String) -> void:
 	if kind != _choice_kind or key == "":
 		return
@@ -503,8 +505,18 @@ func _finish_choice() -> void:
 	var kind := _choice_kind
 	_choice_open = false
 	_choice_elapsed = 0.0
+	_choice_kind = "" # 关闭后不再接受选择，避免迟到的手指点进下一次三选一
 	_emit_event({"kind": "choice_done", "choice": kind, "run": run_payload()})
 	choice_resolved.emit(kind)
+
+
+## 某个槽位迟迟没有提交时用该组第一张补齐；选择关闭后不再写入。
+func _autofill_slot(slot: int) -> void:
+	if not _choice_open or _choice_done.has(slot):
+		return
+	var cards: Array = _choice_cards.get(slot, [])
+	if not cards.is_empty():
+		_record_choice(slot, str(cards[0]))
 
 
 ## 兜底：有人掉线/挂机时，25 秒后用每组第一张自动补齐，避免卡死推进。
@@ -515,11 +527,9 @@ func _tick_choice(delta: float) -> void:
 	if _choice_elapsed < 25.0:
 		return
 	for s in _choice_cards.keys():
-		if _choice_done.has(int(s)):
-			continue
-		var cards: Array = _choice_cards[int(s)]
-		if not cards.is_empty():
-			_record_choice(int(s), str(cards[0]))
+		if not _choice_open:
+			break
+		_autofill_slot(int(s))
 	if _choice_open:
 		_finish_choice()
 
@@ -598,6 +608,11 @@ func _rpc_join(d: Dictionary) -> void:
 		"state": state, "room": room.duplicate(true), "game": _host_game_config.duplicate(true),
 		"run": run_payload() if state == "playing" else {},
 	})
+	# 重连落在三选一进行中：把当前请求补发给该客机，否则它的席位会一直等超时
+	if state == "playing" and _choice_open and _choice_cards.has(slot) and not _choice_done.has(slot):
+		var cards: Array = _choice_cards.get(slot, [])
+		_rpc_choice_request.rpc_id(sender, {"kind": _choice_kind, "token": _choice_seq,
+			"cards": cards.duplicate(), "slot": slot})
 	_emit_lobby()
 
 
@@ -630,6 +645,10 @@ func _rpc_join_result(d: Dictionary) -> void:
 	_last_pong_ms = Time.get_ticks_msec()
 	_reconnecting = false
 	_reconnect_left = 0
+	# 断线期间的三选一请求可能已经结束：旧缓冲必须作废，否则重连进场会再弹一次
+	# 永远等不到 choice_done 的面板，把本机永久暂停。若主机仍在选择中，随后会补发新请求。
+	_pending_choice.clear()
+	_choice_kind = ""
 	joined.emit(resumed)
 	if resumed:
 		link_restored.emit()
@@ -657,6 +676,8 @@ func _rpc_leave() -> void:
 			Run.slot_revive.erase(left_slot)
 			Run.slot_dead[left_slot] = true
 			Run.set_net_players(members.size())
+			# 三选一进行中离开：立即补齐该席位，别让剩下的人一直停在暂停画面
+			_autofill_slot(left_slot)
 	_emit_lobby()
 	_emit_event({"kind": "notice", "text": "队友已离开房间"})
 	if _peer != null:
@@ -724,6 +745,7 @@ func _rpc_event(ev: Dictionary) -> void:
 		"choice_done":
 			# 主机确认所有人的选择已落盘：客机应用同步后的 Run 并关闭等待态
 			_pending_choice.clear()
+			_choice_kind = "" # 本次三选一结束，迟到的点击不再上送
 			var run: Dictionary = ev.get("run", {}) if ev.get("run", {}) is Dictionary else {}
 			if not run.is_empty():
 				_apply_run_sync(run)
@@ -742,6 +764,10 @@ func _rpc_event(ev: Dictionary) -> void:
 func _rpc_choice_request(d: Dictionary) -> void:
 	if role != "client":
 		return
+	# 客机必须记住本次三选一的类型与序号：submit_choice 用 _choice_kind 校验类型，
+	# 漏写会让客机的每一次选择都被丢弃，主机只能等到 25 秒超时后才自动补齐。
+	_choice_kind = str(d.get("kind", ""))
+	_choice_seq = int(d.get("token", _choice_seq))
 	# 房间场景可能还没 _ready：先缓冲，房间就绪后用 take_pending_choice() 取
 	_pending_choice = d.duplicate(true)
 	choice_requested.emit(d)
@@ -913,6 +939,8 @@ func _on_peer_disconnected(id: int) -> void:
 			"name": m.get("name", "队友"), "slot": m.get("slot", 1),
 			"until": Time.get_ticks_msec() + int(Cfg.RECONNECT_GRACE * 1000.0),
 		}
+		# 三选一进行中掉线：不能把全队锁在暂停里等一个已经不在的席位，先按第一张补齐
+		_autofill_slot(gone_slot)
 		net_notice.emit("队友已断开，保留席位 %d 秒等待重连" % int(Cfg.RECONNECT_GRACE))
 	else:
 		_emit_lobby()
