@@ -13,6 +13,7 @@ const NORMAL_SCENES := [
 	"res://scenes/enemies/c016.tscn", # 刀客
 	"res://scenes/enemies/c017.tscn", # 蛮兵
 	"res://scenes/enemies/c035.tscn", # 刺客
+	"res://scenes/enemies/c033.tscn", # 舞姬
 ]
 const ELITE_SCENES := [
 	"res://scenes/enemies/c037_elite.tscn", # 青魇剑主

@@ -38,7 +38,7 @@ const EXPECTED_STATUS_IDS := [
 	"frost", "feathers", "daggers", "bait", "precepts", "air_follow", "sword_seals",
 	"return_mark", "skill_cancel_ready", "wind_final", "stolen_wall_guard", "stolen_era",
 	"regen", "bloodthirst", "sword_intent", "bloom_cooldown", "limit_cut", "turn_stacks", "red_scapegoat",
-	"ming_heroic", "divine_favor", "fen_awaken", "eye_passive",
+	"ming_heroic", "divine_favor", "fen_awaken", "eye_passive", "sword_momentum", "wanren_grief",
 	"bleed", "cut", "jump_seal", "dash_seal", "stun", "root", "slow", "time_stop",
 	"poison", "frenzy", "charm", "grudge", "six_senses", "mind_shock", "transferred_debuffs",
 	"red_butterfly", "branch_zone", "plum_marks", "openings", "k_sealed", "seal_targets", "time_marks",
@@ -787,8 +787,8 @@ func _ready() -> void:
 		# 全图鉴玩家文案审计：只检查最终展示文本，内部动画键与判定配置可以继续存在。
 		var forbidden: Array = ["号动画", "号变身", "【待定】", "第 6 阶段", "低权重", "前后判定", "出招时刻即判定命中", "px", "skill01", "skill02", "skill03", "skill04", "skill05", "skill06", "transform", "cankao"]
 		var clean_text := true
-		for id in codex.ENEMY_ORDER + codex.BossTypes.ROSTER:
-			var is_boss: bool = codex.BossTypes.ROSTER.has(id)
+		for id in codex.ENEMY_ORDER + codex.BossTypes.codex_order():
+			var is_boss: bool = codex.BossTypes.is_codex_boss(id)
 			var data: Dictionary = codex.BossTypes.get_boss(id) if is_boss else codex.EnemyTypes.get_type(id)
 			# 直接生成全部动作资料，未收录的 Boss 也必须接受审计，不能空遍历假通过。
 			for action in codex._enemy_actions(data, is_boss, str(id)):
@@ -798,6 +798,31 @@ func _ready() -> void:
 						clean_text = false
 						p("文案穿帮 %s / %s / %s" % [str(id), str(action.get("label", "")), str(term)])
 		p("全部敌人与Boss图鉴无开发术语/资源键/占位文案=%s（期望 true）" % clean_text)
+
+		# 剑冢：一张卡合并两阶段 8 招，二阶段按钮必须切换 C019_sp 演示骨架
+		var c019_actions: Array = codex._enemy_actions(codex.BossTypes.get_boss("c019"), true, "c019")
+		var c019_attacks := 0
+		for action in c019_actions:
+			if str(action.get("kind", "")) == "enemy_atk":
+				c019_attacks += 1
+		assert(c019_attacks == 8, "剑冢图鉴必须展示两阶段共 8 招")
+		assert((codex.ENEMY_PASSIVES.get("c019", []) as Array).size() == 2, "剑冢图鉴必须展示两阶段被动")
+		Meta.seen["c019"] = 1
+		codex._select("c019")
+		await get_tree().process_frame
+		await get_tree().process_frame
+		assert(codex._acts.size() >= 8, "剑冢图鉴动作按钮数量不足")
+		var p2_pick := -1
+		for i in codex._acts.size():
+			if str(codex._acts[i].get("data", "")).ends_with("c019_sp_data.tres"):
+				p2_pick = i
+				break
+		assert(p2_pick >= 0, "剑冢图鉴缺少二阶段招式按钮")
+		codex._pick(p2_pick)
+		await get_tree().process_frame
+		assert(codex._preview_data_path.ends_with("c019_sp_data.tres"), "二阶段招式必须切换到 C019_sp 演示骨架")
+		Meta.seen.erase("c019")
+		p("剑冢图鉴 8 招 + 两阶段被动 + 二阶段骨架切换校验通过")
 
 		# 有原画的首领默认展示完整立绘；切到动作后才创建 Spine 与招式按钮。
 		codex._select("c009")
@@ -1119,7 +1144,7 @@ func _ready() -> void:
 		codex._refresh()
 		await get_tree().process_frame
 		await get_tree().process_frame
-		assert(not codex._developer_unlocked() and codex._story_detail.get_parsed_text().contains("敌人 0/11 · 化身 6/6"), "只解锁全部化身不能显影卷外手记")
+		assert(not codex._developer_unlocked() and codex._story_detail.get_parsed_text().contains("敌人 0/11 · 化身 7/7"), "只解锁全部化身不能显影卷外手记")
 
 		for dev_id in codex.ENEMY_ORDER + BossTypes.ROSTER:
 			Meta.add_enemy_kill(str(dev_id))
@@ -1165,7 +1190,7 @@ func _ready() -> void:
 		for id in EXPECTED_STATUS_IDS:
 			assert(not expected_status_set.has(id), "独立预期状态 ID 不得重复：" + str(id))
 			expected_status_set[id] = true
-		assert(EXPECTED_STATUS_IDS.size() == 76, "独立预期状态数必须固定为 76")
+		assert(EXPECTED_STATUS_IDS.size() == 78, "独立预期状态数必须固定为 78")
 		for e in status_entries:
 			var id := str(e.get("id", ""))
 			var kind := str(e.get("kind", ""))
@@ -1198,12 +1223,15 @@ func _ready() -> void:
 		for id in status_ids:
 			assert(expected_status_set.has(id), "状态目录出现未预期条目：" + str(id))
 		assert(status_ids.size() == EXPECTED_STATUS_IDS.size(), "状态目录总数必须与独立预期双向一致")
-		assert(buff_count == 40 and debuff_count == 36, "状态目录必须为 40 增益 + 36 减益")
+		assert(buff_count == 42 and debuff_count == 36, "状态目录必须为 42 增益 + 36 减益")
 		assert(status_shape_ok, "全部状态的结构、标题、摘要、规则、来源与运行时映射必须完整")
 
-		# 人物词条：独立 35 项基线、17 名角色双向覆盖、四组释义与指定纠错。
+		# 人物词条：独立 35 项基线、17 名正史角色 + 独立首领剑冢、四组释义与指定纠错。
 		assert(EXPECTED_TAG_IDS.size() == 35, "人物词条独立预期必须固定为 35 项")
-		assert(StatusCodex.TAG_ACTOR_ORDER == EXPECTED_STORY_ACTORS, "词条角色顺序必须覆盖同一组 17 名正式角色")
+		for story_actor in EXPECTED_STORY_ACTORS:
+			assert(StatusCodex.TAG_ACTOR_ORDER.has(story_actor), "词条角色顺序必须覆盖正史角色：" + str(story_actor))
+		assert(StatusCodex.TAG_ACTOR_ORDER.size() == EXPECTED_STORY_ACTORS.size() + 1 \
+			and StatusCodex.TAG_ACTOR_ORDER.has("c019"), "词条角色 = 17 名正史 + 独立首领剑冢")
 		var tag_entries: Array = StatusCodex.tag_entries()
 		var tag_ids: Array = []
 		var tag_groups := {"战斗定位": 0, "招式机制": 0, "来历与势力": 0, "收录等阶": 0}
@@ -1218,9 +1246,15 @@ func _ready() -> void:
 				assert(StatusCodex.TAG_INFO.has(tag_name), "角色标签缺少释义：%s / %s" % [str(actor), tag_name])
 				actor_seen[tag_name] = true
 				used_tags[tag_name] = true
-		assert(StatusCodex.TAGS.size() == EXPECTED_STORY_ACTORS.size(), "人物标签表不得遗漏或新增非正式角色")
+		assert(StatusCodex.TAGS.size() == EXPECTED_STORY_ACTORS.size() + 1, "人物标签表 = 17 名正史 + 独立首领剑冢")
 		for actor in StatusCodex.TAGS:
+			if str(actor) == "c019":
+				continue # 独立挑战首领只进图鉴与状态词条，不进故事正史名册
 			assert(expected_actor_set.has(str(actor)), "人物标签表出现非正式角色：" + str(actor))
+		var c019_tag_list: Array = StatusCodex.tags_for("c019")
+		assert(c019_tag_list.size() == 5 and c019_tag_list.has("首领"), "剑冢人物词条必须为 5 项且包含首领")
+		for tag_name in c019_tag_list:
+			assert(StatusCodex.TAG_INFO.has(str(tag_name)), "剑冢标签缺少释义：" + str(tag_name))
 		for e in tag_entries:
 			var id := str(e["id"])
 			var tag_name := str(e["name"])
@@ -1233,6 +1267,8 @@ func _ready() -> void:
 			var members: Array = e.get("member_ids", [])
 			assert(not members.is_empty(), "词条必须至少挂接一名正式角色：" + id)
 			for member in members:
+				if str(member) == "c019":
+					continue # 独立首领可挂正式词条，不计入 17 名正史角色集合
 				assert(expected_actor_set.has(str(member)), "词条挂接了非正式角色：%s / %s" % [id, str(member)])
 				assert(StatusCodex.tags_for(str(member)).has(tag_name), "词条与角色标签挂载不一致：%s / %s" % [id, str(member)])
 		assert(tag_ids == EXPECTED_TAG_IDS, "35 个词条必须按独立预期双向一致且顺序稳定")
@@ -1252,9 +1288,9 @@ func _ready() -> void:
 		for e in codex._entries():
 			status_unlocked_ok = status_unlocked_ok and not bool(e["locked"])
 		assert(status_unlocked_ok, "全部状态必须默认解锁，不读取击杀或化身解锁")
-		assert(codex._status_buttons.size() == status_entries.size() + tag_entries.size(), "状态按钮数必须等于 75 项战斗状态与 35 项人物词条之和")
+		assert(codex._status_buttons.size() == status_entries.size() + tag_entries.size(), "状态按钮数必须等于 78 项战斗状态与 35 项人物词条之和")
 		assert(codex._status_list.get_v_scroll_bar().max_value > codex._status_list.get_v_scroll_bar().page, "战斗状态与人物词条目录必须可纵向滚动")
-		p("状态目录 75 项 + 词条 35 项 结构=%s 增益/减益=%d/%d 全解锁=%s 按钮=%d（期望 true / 40/35 / true / 110）" % [
+		p("状态目录 78 项 + 词条 35 项 结构=%s 增益/减益=%d/%d 全解锁=%s 按钮=%d（期望 true / 42/36 / true / 113）" % [
 			status_shape_ok, buff_count, debuff_count, status_unlocked_ok, codex._status_buttons.size()])
 		await _shot("07i_codex_status")
 
@@ -1285,8 +1321,8 @@ func _ready() -> void:
 			if not item_ok:
 				status_ui_ok = false
 				p("状态 UI 条目缺漏：" + id)
-		assert(status_ui_ok, "75 项战斗状态与 35 项人物词条必须逐项可选且完整显示")
-		p("状态页全条目真实按钮遍历与详情覆盖=%s（期望 true / 110 项）" % status_ui_ok)
+		assert(status_ui_ok, "78 项战斗状态与 35 项人物词条必须逐项可选且完整显示")
+		p("状态页全条目真实按钮遍历与详情覆盖=%s（期望 true / 113 项）" % status_ui_ok)
 
 		codex._select("tag_化身")
 		await get_tree().process_frame
@@ -1385,6 +1421,7 @@ func _ready() -> void:
 			"z000": {"attack": ["松间问鹤", "流云回锋", "骤雨听剑", "玉宇挑月"], "skill": ["千锋回雪", "月华斩", "步月登霄", "一剑惊鸿", "剑奉山河", "惊鸿燕返"]},
 			"z002": {"attack": ["冰弦初响", "促柱追声", "急雨敲窗", "余音入魔"], "skill": ["踏弦", "黍离", "摄心", "红尘劫", "八音断识", "心魔引"]},
 			"z003": {"attack": ["袖里青蛇", "揽月上霄", "断雁回风"], "skill": ["崩云", "飞星送客", "万籁停晷", "长夜明火", "舜华斩", "天倾"]},
+			"z001": {"attack": ["烬火三叠"], "skill": ["焚骨三叩", "烬灭斩", "余烬重燃", "焚影掠", "烬火燎原"]},
 		}
 		var form_names_ok := true
 		var form_details_ok := true
@@ -1551,8 +1588,8 @@ func _assert_story_canon_ref(codex: Node, ref: String) -> void:
 			assert(parts.size() == 2, "名册正史引用格式错误：" + ref)
 			match parts[1]:
 				"forms":
-					assert(Skulls.ids().size() == 6, "正式化身必须为六名")
-					for id in ["c021", "c013", "c023", "z000", "z002", "z003"]:
+					assert(Skulls.ids().size() == 7, "正式化身必须为七名")
+					for id in ["c021", "c013", "c023", "z000", "z002", "z003", "z001"]:
 						assert(Skulls.ids().has(id), "化名名册缺少：" + id)
 				"enemies":
 					for id in ["c016", "c017", "c035", "c018", "c012", "c037"]:

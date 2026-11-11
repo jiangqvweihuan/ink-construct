@@ -6,6 +6,7 @@ extends Node2D
 const PlayerClass := preload("res://scripts/player/player.gd")
 const Skulls = preload("res://scripts/player/skulls.gd")
 const BattleStatus = preload("res://scripts/ui/battle_status.gd")
+const Codex = preload("res://scripts/ui/codex_panel.gd")
 
 var _checks := 0
 var _failed := 0
@@ -74,6 +75,10 @@ func _ready() -> void:
 	Meta.persist = false
 	var p := _make_player()
 	var bonus := Achievements.bonus_int("damage")
+	var base_data = load(str(Skulls.SKULLS["z001"]["data"]))
+	var base_names := {}
+	for a in base_data.call("get_animations"):
+		base_names[str(a.call("get_name"))] = true
 
 	# 形态表 / 动画映射
 	_check(p.anim_map["idle"] == "stand" and p.anim_map["run"] == "run", "待机 123 / 跑步 69 映射正确")
@@ -94,59 +99,140 @@ func _ready() -> void:
 	var hits: Array = atk["hits"]
 	_check(str(atk["anim"]) == "3" and hits.size() == 3, "J 绑定动画 2 并分三段")
 	_check(int(hits[0]["damage"]) == 2 and int(hits[1]["damage"]) == 2 and int(hits[2]["damage"]) == 3, "J 伤害 2 / 2 / 3")
+	_check(absf(float(hits[0]["at"]) - 0.38) < 0.001 and absf(float(hits[1]["at"]) - 0.94) < 0.001 \
+		and absf(float(hits[2]["at"]) - 1.82) < 0.001, "J 命中帧对齐三次挥击峰值")
+	_check(absf(float(hits[0]["range"]) - 90.0) < 0.001 and absf(float(hits[1]["range"]) - 125.0) < 0.001 \
+		and absf(float(hits[2]["range"]) - 115.0) < 0.001, "J 三段射程对齐剪影")
 	_check(float(hits[2]["vulnerable"]["time"]) == 10.0, "J 末段易伤 10 秒")
 	var tj := _target(450, 100)
 	p._attack_idx = 0
 	p._deal_hit({"damage": 3, "range": 200.0, "height": 200.0,
 		"vulnerable": {"ratio": 0.25, "time": 10.0}})
 	_check(tj.hp == 100 - 3 - bonus and tj.vulnerable == 10.0, "J 末段命中实际挂上 10 秒易伤")
+	tj.hp = 0
+	var tj_edge := _target(400 + 90 + 30 - 1, 100)
+	p._deal_hit({"damage": 2, "range": 90.0, "height": 200.0})
+	_check(tj_edge.hp == 100 - 2 - bonus, "J 首段在 90px 边缘命中")
+	tj_edge.hp = 0
+	var tj_far := _target(400 + 90 + 30 + 10, 100)
+	p._deal_hit({"damage": 2, "range": 90.0, "height": 200.0})
+	_check(tj_far.hp == 100, "J 首段超出 90px 不命中")
+	tj_far.hp = 0
 
 	# K：动画 6 连播 3 次，每轮 2 段 1 伤，合计 6
 	p._skill_cds.clear()
 	p._start_skill("burn_k")
 	_check(p._skill_anim == "atk03" and p._skill_hits.size() == 6, "K 连播 3 次 × 2 段")
+	_check(absf(float(p._skill_hits[0]["at"]) - 0.12) < 0.001 and absf(float(p._skill_hits[1]["at"]) - 0.22) < 0.001,
+		"K 命中帧对齐双峰 0.12 / 0.22")
+	_check(absf(float(p.skill_config["burn_k"]["range"]) - 170.0) < 0.001 \
+		and not bool(p.skill_config["burn_k"].get("both", false)), "K 射程 170 且只判身前")
 	var total := 0
 	for h in p._skill_hits:
 		total += int(h["damage"])
 	_check(total == 6, "K 总伤害 6")
 	_check(absf(p._skill_dur - 0.45 * 3.0) < 0.001, "K 总时长 = 3 个动画周期（实际 %.3f）" % p._skill_dur)
+	var tk := _target(450, 100)
+	var k_hits: Array = p._skill_hits.duplicate(true)
+	p._skill_hits.clear()
+	for hh in k_hits:
+		p._deal_skill_hit(hh)
+	_check(tk.hp == 100 - 6 - 6 * bonus, "K 六段实际结算合计 6 伤")
+	tk.hp = 0
+	var tk_far := _target(700, 100)
+	p._skill_name = "burn_k"
+	p._skill_start_x = p.global_position.x
+	p._deal_skill_hit({"at": 0.0, "damage": 1, "range": 170.0, "height": 200.0})
+	_check(tk_far.hp == 100, "K 超出 170px 不命中")
+	tk_far.hp = 0
+	for round in 3:
+		var tr := _target(450, 100)
+		p.state = p.State.IDLE
+		p._skill_timer = 0.0
+		p._skill_cds.clear()
+		p._start_skill("burn_k")
+		var round_hits: Array = p._skill_hits.duplicate(true)
+		p._skill_hits.clear()
+		for hh in round_hits:
+			p._deal_skill_hit(hh)
+		_check(tr.hp == 100 - 6 - 6 * bonus, "K 第 %d 轮六段伤害稳定" % (round + 1))
+		tr.hp = 0
 
 	# L：5 + 已损生命 20%（Boss 10%）
+	var lcfg: Dictionary = p.skill_config["burn_l"]
+	var lh: Dictionary = lcfg["hits"][0]
+	_check(absf(float(lh["at"]) - 1.21) < 0.001 and absf(float(lh["range"]) - 150.0) < 0.001,
+		"L 命中帧 1.21s / 射程 150 对齐落刀峰值")
 	var t := _target(450, 50)
 	t.max_hp = 100
 	p._skill_name = "burn_l"
 	p._skill_start_x = p.global_position.x
-	p._deal_skill_hit({"at": 0.0, "damage": 5, "range": 200.0, "height": 200.0,
+	p._deal_skill_hit({"at": 0.0, "damage": 5, "range": 150.0, "height": 200.0,
 		"execute": {"normal": 0.2, "boss": 0.1}})
 	_check(t.hp == 50 - 15 - bonus, "L 对普通目标 5 + 已损 50 的 20% = 15")
 	t.hp = 50
 	t.max_hp = 100
 	t.stop_kind = "boss"
-	p._deal_skill_hit({"at": 0.0, "damage": 5, "range": 200.0, "height": 200.0,
+	p._deal_skill_hit({"at": 0.0, "damage": 5, "range": 150.0, "height": 200.0,
 		"execute": {"normal": 0.2, "boss": 0.1}})
 	_check(t.hp == 50 - 10 - bonus, "L 对 Boss 追伤改为已损 10% = 10")
+	t.hp = 0
+	var tl_edge := _target(400 + 150 + 30 - 1, 100)
+	p._skill_start_x = p.global_position.x
+	p._deal_skill_hit({"at": 0.0, "damage": 5, "range": 150.0, "height": 200.0})
+	_check(tl_edge.hp == 100 - 5 - bonus, "L 在 150px 边缘命中")
+	tl_edge.hp = 0
+	var tl_far := _target(400 + 150 + 30 + 10, 100)
+	p._deal_skill_hit({"at": 0.0, "damage": 5, "range": 150.0, "height": 200.0})
+	_check(tl_far.hp == 100, "L 超出 150px 不命中")
+	tl_far.hp = 0
 
 	# O：路径小怪秒杀 / 精英固定 8
+	var ocfg: Dictionary = p.skill_config["burn_o"]
+	var oh: Dictionary = ocfg["hits"][0]
+	_check(absf(float(oh["at"]) - 0.95) < 0.001 and absf(float(oh["range"]) - 150.0) < 0.001,
+		"O 命中帧 0.95s / 射程 150 对齐现身斩")
 	t.hp = 30
 	t.max_hp = 30
 	t.stop_kind = "mob"
 	p._skill_start_x = p.global_position.x - 60.0
-	p._deal_skill_hit({"at": 0.0, "range": 160.0, "height": 140.0, "path": true, "damage": 8,
+	p._deal_skill_hit({"at": 0.0, "range": 150.0, "height": 140.0, "path": true, "damage": 8,
 		"dash_kill": {"elite_damage": 8}})
 	_check(t.hp == 0, "O 路径普通小怪直接秒杀")
 	t.hp = 50
 	t.max_hp = 50
 	t.stop_kind = "elite"
-	p._deal_skill_hit({"at": 0.0, "range": 160.0, "height": 140.0, "path": true, "damage": 8,
+	p._deal_skill_hit({"at": 0.0, "range": 150.0, "height": 140.0, "path": true, "damage": 8,
 		"dash_kill": {"elite_damage": 8}})
 	_check(t.hp == 42, "O 对精英固定 8 伤")
+	t.hp = 0
+	var to_far := _target(400 + 150 + 30 + 40, 100)
+	p._skill_start_x = p.global_position.x
+	p._deal_skill_hit({"at": 0.0, "range": 150.0, "height": 140.0, "path": true, "damage": 8,
+		"dash_kill": {"elite_damage": 8}})
+	_check(to_far.hp == 100, "O 落点超出 150px 不命中")
+	to_far.hp = 0
 
 	# P：正前方 12 伤 + 5 秒眩晕
+	var pcfg: Dictionary = p.skill_config["burn_p"]
+	var ph: Dictionary = pcfg["hits"][0]
+	_check(absf(float(ph["at"]) - 0.34) < 0.001 and absf(float(ph["range"]) - 280.0) < 0.001,
+		"P 命中帧 0.34s / 射程 280 对齐火线")
 	t.hp = 100
 	t.max_hp = 100
 	t.stunned = 0.0
-	p._deal_skill_hit({"at": 0.0, "damage": 12, "range": 300.0, "height": 200.0, "stun": 5.0})
+	p._skill_start_x = p.global_position.x
+	p._deal_skill_hit({"at": 0.0, "damage": 12, "range": 280.0, "height": 200.0, "stun": 5.0})
 	_check(t.hp == 100 - 12 - bonus and t.stunned == 5.0, "P 12 伤 + 5 秒眩晕")
+	t.hp = 0
+	var tp_edge := _target(400 + 280 + 30 - 1, 100)
+	p._deal_skill_hit({"at": 0.0, "damage": 12, "range": 280.0, "height": 200.0, "stun": 5.0})
+	_check(tp_edge.hp == 100 - 12 - bonus and tp_edge.stunned == 5.0, "P 在 280px 边缘命中并眩晕")
+	tp_edge.hp = 0
+	var tp_far := _target(400 + 280 + 30 + 10, 100)
+	p._deal_skill_hit({"at": 0.0, "damage": 12, "range": 280.0, "height": 200.0, "stun": 5.0})
+	_check(tp_far.hp == 100 and tp_far.stunned == 0.0, "P 超出 280px 不命中")
+	tp_far.hp = 0
 
 	# 受击阈值：≤4 不打断技能；≥5 进入倒地链
 	p.hp = 10
@@ -172,24 +258,41 @@ func _ready() -> void:
 	p._start_skill("burn_i")
 	_check(p.hp == p.max_hp, "I 将生命恢复至满值")
 
-	# 燃尽：致命伤不死亡，后续伤害扣上限；回血退出
+	# 燃尽：致命伤不死亡并保留 1 点生命，后续伤害扣上限；回血退出
 	p.state = p.State.IDLE
 	p._hurt_invincible = 0.0
 	p.hp = 3
 	p.max_hp = 10
 	p.hurt(5, Vector2.ZERO, null)
-	_check(p.hp == 0 and bool(p._z001_burnout) and p.state != p.State.DEAD, "致命伤进入燃尽而非死亡")
+	_check(p.hp == 1 and bool(p._z001_burnout) and p.state != p.State.DEAD, "致命伤进入燃尽并保留 1 点生命")
 	p._hurt_invincible = 0.0
 	p.hurt(4, Vector2.ZERO, null)
-	_check(p.max_hp == 6 and p.hp == 0 and bool(p._z001_burnout), "燃尽期间伤害改为扣生命上限")
+	_check(p.max_hp == 6 and p.hp == 1 and bool(p._z001_burnout), "燃尽期间伤害改为扣生命上限")
 	p._restore_hp(2)
-	_check(not bool(p._z001_burnout) and p.hp == 2, "获得回血立即退出燃尽并正常回血")
-	p.max_hp = 3
-	p.hp = 0
+	_check(not bool(p._z001_burnout) and p.hp == 3, "获得回血立即退出燃尽并正常回血")
+
+	# 持续伤害不能绕过燃尽：割伤 / 焚鼎灼烧只扣上限，不直接判死
+	p.state = p.State.IDLE
+	p.max_hp = 10
+	p.hp = 1
+	p._z001_burnout = true
+	p._cut_damage({"attacker": null, "move": {}})
+	_check(p.max_hp == 9 and p.hp == 1 and p.state != p.State.DEAD, "燃尽期间割伤只扣生命上限")
+	var t_burn := _target(450, 100)
+	p._fen_ding_burn_stacks = 1
+	p._fen_ding_burn_left = 0.0
+	p._fen_ding_burn_source = t_burn
+	p._fen_ding_burn_tick(0.0)
+	_check(p.max_hp == 8 and p.hp == 1 and p.state != p.State.DEAD, "燃尽期间灼烧只扣生命上限")
+	p.clear_fen_ding_burn()
+
+	# 上限清零才判死
+	p.max_hp = 1
+	p.hp = 1
 	p._z001_burnout = true
 	p._hurt_invincible = 0.0
 	p.hurt(5, Vector2.ZERO, null)
-	_check(p.state == p.State.DEAD, "生命上限清零后判定死亡")
+	_check(p.state == p.State.DEAD and p.hp == 0, "生命上限清零后判定死亡")
 
 	# 战狂：5 次受击 / 5 次击杀各叠 1 层；伤害追加；换房清空
 	var p2 := _make_player()
@@ -210,6 +313,51 @@ func _ready() -> void:
 	_check(before - t2.hp == 5 + 2 + bonus, "每层战意追加等量焚烧伤害")
 	p2.on_room_enter()
 	_check(p2._z001_fury == 0 and p2._z001_kill_acc == 0 and p2._z001_hit_acc == 0, "换房清空战意与累计")
+
+	# 图鉴文案与实际逻辑一致
+	var atk_text: Array = Codex.FORM_ATTACK_TEXT.get("z001", [])
+	_check(atk_text.size() == 1 and str(atk_text[0]["num"]).contains("2 / 2 / 3") \
+		and str(atk_text[0]["num"]).contains("10 秒"), "图鉴普攻说明包含三段伤害与 10 秒易伤")
+	var passives: Array = Codex.FORM_PASSIVES.get("z001", [])
+	_check(passives.size() == 2 and str(passives[0]["desc"]).contains("1 点生命") \
+		and str(passives[0]["desc"]).contains("生命上限"), "图鉴燃尽说明与最低生命阈值一致")
+	var skill_text: Array = Codex.FORM_SKILL_TEXT.get("z001", [])
+	_check(skill_text.size() == 5, "图鉴五条主动技能说明齐全")
+	_check(str(skill_text[3]["num"]).contains("240") and str(skill_text[3]["num"]).contains("8 伤"),
+		"图鉴 O 位移与固定伤害说明一致")
+	_check(str(skill_text[4]["num"]).contains("280") and str(skill_text[4]["num"]).contains("5 秒"),
+		"图鉴 P 范围与眩晕说明一致")
+	var lore := str(Codex.LORE.get("z001", ""))
+	_check(lore.length() > 120 and lore.contains("墨堂") and lore.contains("六人之约"), "图鉴背景故事已补全且不与六人之约冲突")
+
+	# 图鉴动作页：五个技能必须使用真实动画名，且都可点击播放
+	var codex = load("res://scenes/ui/codex_panel.tscn").instantiate()
+	add_child(codex)
+	await get_tree().process_frame
+	codex._tab = Codex.TAB_FORM
+	codex._sel = "z001"
+	codex._show_portrait = false
+	codex._refresh()
+	await get_tree().process_frame
+	var labels: Array = []
+	for a in codex._acts:
+		labels.append(str(a["label"]))
+	_check(labels.has("烬火三叠") and labels.has("焚骨三叩") and labels.has("烬灭斩") \
+		and labels.has("余烬重燃") and labels.has("焚影掠") and labels.has("烬火燎原"), "图鉴烬生动作条目齐全")
+	var anims_ok := true
+	for a in codex._acts:
+		if str(a["kind"]) != "skill":
+			continue
+		for nm in a["anims"]:
+			if not base_names.has(str(nm)):
+				anims_ok = false
+	_check(anims_ok, "图鉴技能动画名均真实存在")
+	for i in codex._acts.size():
+		if str(codex._acts[i]["kind"]) == "skill":
+			codex._pick(i)
+	_check(true, "图鉴五个技能动作均可播放")
+	codex.queue_free()
+	await get_tree().process_frame
 
 	print("[Z1] DONE checks=%d failed=%d" % [_checks, _failed])
 	get_tree().quit(1 if _failed > 0 else 0)

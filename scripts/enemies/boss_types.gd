@@ -11,6 +11,19 @@ const DEFAULT_ID := "_debug"
 
 ## 一局随机登场哪一个 Boss（_debug 仅供 boss_test 冒烟，不进随机池）
 const ROSTER := ["c009", "c015a1", "c001", "c008", "c032"]
+## 图鉴额外收录：不属于五首领随机轮换的独立挑战首领。
+## 只影响图鉴卡片，不参与 ROSTER 抽选、正史五首领统计与无尽跨层。
+const CODEX_EXTRA := ["c019"]
+
+static func codex_order() -> Array:
+	var out: Array = ROSTER.duplicate()
+	for id in CODEX_EXTRA:
+		if not out.has(id):
+			out.append(id)
+	return out
+
+static func is_codex_boss(id: String) -> bool:
+	return codex_order().has(id)
 
 ## 正式房与试炼场共用同一场景 / 专属脚本来源，禁止两边各维护一份映射。
 const DEFAULT_SCENE := "res://scenes/enemies/bosses/boss.tscn"
@@ -22,6 +35,7 @@ const SCENES := {
 const SCRIPT_OVERRIDES := {
 	"c008": "res://scripts/enemies/sui_yue.gd",
 	"c032": "res://scripts/enemies/ming_zhong.gd",
+	"c019": "res://scripts/enemies/c019.gd",
 }
 
 const BOSSES := {
@@ -283,6 +297,96 @@ const BOSSES := {
 		},
 		"move_pool": {"skill03-cankao": ["skill03-cankao", "skill04-cankao"]},
 		"fx": {"hit": {"name": "ink_claw", "scale": 0.4}, "enter": {"name": "pillar", "scale": 0.65}},
+	},
+	# ---------- 剑冢 · 一阶段：守冢剑主，浮剑成阵，远距离压制 ----------
+	"c019": {
+		"label": "剑冢",
+		"codex_sub": "首领 · 生命 32 → 36（双形态）",
+		"codex_bonus": true, # 图鉴计数单列「番外首领」，不挤占正史 11 项
+		"data": "res://art/characters/enemies/bosses/c019/c019_data.tres",
+		"scale": 0.52, # 骨架 385.6px -> 约 200px
+		"codex_scale": 0.62,
+		"body_radius": 38.0,
+		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
+		"hp": 32,
+		"patrol_speed": 60.0,
+		"chase_speed": 155.0,
+		"patrol_range": 160.0,
+		"idle_time": 0.8,
+		"detect_range": 9999.0,
+		"lose_range": 9999.0,
+		"attack_range": 320.0,
+		"keep_dist": 250.0,
+		"attack_cooldown": 2.8,
+		"attack_lunge": 0.0,
+		"hit_height": 170.0,
+		"hurt_time": 0.5,
+		"armor": 99,
+		"telegraph": true,
+		"pick": "nearest",
+		"dead_min": 2.4,
+		"number_y": -230.0,
+		"stage_at": [],
+		"stages": [{"attacks": ["p1_thrust", "p1_rain", "p1_sweep", "p1_ring"], "attack_cooldown": 2.8, "chase_speed": 155.0}],
+		# 图鉴：同一张「剑冢」卡片内合并展示二阶段四招，按钮切换对应骨架。
+		"codex_forms": ["c019_sp"],
+		# 剪影探针实测（0.52 缩放）：断岳 285；飞锋 282/303/336；剑幕 193/160；回锋阵 416/261/392。
+		"ranges": {"p1_thrust": 285.0, "p1_rain": [280.0, 300.0, 335.0], "p1_sweep": [190.0, 160.0], "p1_ring": [410.0, 260.0, 390.0]},
+		"hit_at": {"p1_thrust": 1.33, "p1_rain": [0.31, 0.92, 1.33], "p1_sweep": [0.41, 0.61], "p1_ring": [0.73, 0.94, 1.04]},
+		"move_anims": {"p1_thrust": "skill06", "p1_rain": "skill01", "p1_sweep": "skill02", "p1_ring": "skill03"},
+		"both": {"p1_sweep": true, "p1_ring": true},
+		"damage": {"p1_thrust": 2, "p1_rain": [2, 2, 3], "p1_sweep": [2, 2], "p1_ring": [1, 1, 2]},
+		"attack_rules": {
+			"p1_thrust": {"cooldown": 0.0, "max": 300.0},
+			"p1_rain": {"cooldown": 16.0, "max": 340.0},
+			"p1_sweep": {"cooldown": 20.0, "max": 210.0},
+			"p1_ring": {"cooldown": 28.0, "max": 420.0},
+		},
+		"fx": {"hit": {"name": "ink_claw", "scale": 0.32}, "enter": {"name": "pillar", "scale": 0.55}, "transform": {"name": "crack", "scale": 0.40}},
+	},
+	# ---------- 剑冢 · 二阶段：万刃归冢（同一 BOSS 的第二形态，不单独进随机池） ----------
+	"c019_sp": {
+		"label": "剑冢·万刃",
+		"data": "res://art/characters/enemies/bosses/c019_sp/c019_sp_data.tres",
+		"scale": 0.58, # 骨架包围盒 799px；站姿本体实测 426.7px -> 约 247px（一阶段约 202px）
+		"codex_scale": 0.60,
+		"body_radius": 60.0,
+		"anim": {"idle": "stand", "patrol": "run", "chase": "speed_run", "hurt": "atked_heavy", "dead": "atked_fall_end"},
+		"hp": 36,
+		"patrol_speed": 60.0,
+		"chase_speed": 170.0,
+		"patrol_range": 160.0,
+		"idle_time": 0.8,
+		"detect_range": 9999.0,
+		"lose_range": 9999.0,
+		"attack_range": 220.0,
+		"keep_dist": 140.0,
+		"attack_cooldown": 2.1,
+		"attack_lunge": 0.0,
+		"hit_height": 230.0,
+		"hurt_time": 0.5,
+		"armor": 99,
+		"telegraph": true,
+		"pick": "nearest",
+		"dead_min": 2.4,
+		"number_y": -300.0,
+		"stage_at": [],
+		"stages": [{"attacks": ["p2_flash", "p2_rain", "p2_prison", "p2_combo"], "attack_cooldown": 2.1, "chase_speed": 170.0}],
+		# 剪影探针实测（0.30 缩放）：焚锋 132；万刃 129；剑狱 206；百刃 84。
+		# 实战放大到 0.58 后按 1.9333 倍等比换算，判定与刀光仍严格对齐。
+		"ranges": {"p2_flash": 251.0, "p2_rain": 271.0, "p2_prison": 406.0, "p2_combo": [164.0, 164.0]},
+		"hit_at": {"p2_flash": 0.32, "p2_rain": 2.25, "p2_prison": 2.48, "p2_combo": [1.05, 1.66]},
+		"move_anims": {"p2_flash": "skill04_02", "p2_rain": "skill01", "p2_prison": "skill3", "p2_combo": "skill04_01"},
+		"both": {"p2_prison": true},
+		"damage": {"p2_flash": 2, "p2_rain": 4, "p2_prison": 3, "p2_combo": [1, 2]},
+		"attack_rules": {
+			# max 跟随实际刀光射程，避免近身招被 keep_dist(140) 卡成永不触发
+			"p2_flash": {"cooldown": 0.0, "max": 260.0},
+			"p2_rain": {"cooldown": 14.0, "max": 280.0},
+			"p2_prison": {"cooldown": 24.0, "max": 416.0},
+			"p2_combo": {"cooldown": 16.0, "max": 174.0},
+		},
+		"fx": {"hit": {"name": "ink_claw", "scale": 0.5}, "enter": {"name": "pillar", "scale": 0.5}, "transform": {"name": "crack", "scale": 0.40}},
 	},
 }
 

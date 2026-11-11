@@ -304,6 +304,8 @@ var _z001_burnout := false # 生命归零后进入燃尽：后续伤害改为扣
 var _z001_fury := 0 # 战意层数：每层使全部伤害 +N，不设上限
 var _z001_kill_acc := 0 # 本房累计击杀（每 5 次 +1 层战意）
 var _z001_hit_acc := 0 # 本房累计受击（每 5 次 +1 层战意）
+## 燃尽期间保留的最低生命：生命上限未清空前，生命值不会低于此值，避免空血判定误杀。
+const Z001_BURNOUT_MIN_HP := 1
 # ---------- 银夜·将去未还专属机制（形态表注入，其他形态全为默认值=关闭） ----------
 var _qg_jump_mul := 1.0 # 轻功：跳跃初速倍率（明显跳得更高）
 var _qg_hover := 0.0 # 轻功：跃过顶点后空中滞留时长
@@ -419,9 +421,9 @@ func _register_pipa_passives() -> void:
 	Meta.register_battle_passive("z003_charm_call", {"form": "z003", "owned": true, "name": "魅唤",
 		"desc": "使用 P 时随机召唤一名已夺取被动的实体协助作战；召唤物数值不变，只攻击敌人。", "boss_effect": {}})
 	Meta.register_battle_passive("z001_burnout", {"form": "z001", "owned": true, "name": "燃尽一切吧",
-		"desc": "生命归零时不死亡，后续受到的伤害改为扣除生命上限，直至上限清零才判定死亡；期间获得任意回血即恢复正常的生命扣除逻辑。", "boss_effect": {}})
+		"desc": "受到致命伤时保留 1 点生命进入燃尽，不死亡；后续受到的所有伤害（含流血、灼烧、割伤）改为扣除生命上限，上限清零才判定死亡；期间获得任意回血即恢复正常的生命扣除逻辑。", "boss_effect": {}})
 	Meta.register_battle_passive("z001_war_fury", {"form": "z001", "owned": true, "name": "战狂",
-		"desc": "当前房间每累计击杀 5 名敌人或累计受到 5 次伤害，获得 1 层无上限的战意；每层使全部伤害附加等量焚烧伤害。切换房间清空层数。", "boss_effect": {}})
+		"desc": "当前房间每累计击杀 5 名敌人或累计受到 5 次伤害，获得 1 层无上限的战意；每层使全部伤害额外附加等量焚烧伤害（不参与敌方减伤倍率）。切换房间清空层数。", "boss_effect": {}})
 
 
 ## 把形态表里的动画映射 / 普攻段 / 技能表 / HUD 顺序装到实例上
@@ -1888,7 +1890,7 @@ func _z001_enter_burnout() -> bool:
 	if skull_id != "z001" or pvp_mode or _z001_burnout or not has_battle_passive("z001_burnout"):
 		return false
 	_z001_burnout = true
-	hp = 0
+	hp = Z001_BURNOUT_MIN_HP # 保留最低生命阈值：不死亡，但也不能以 0 血进入后续系统
 	hp_changed.emit(hp, max_hp)
 	_spawn_passive_text("燃尽", Color(1.0, 0.55, 0.25))
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70),
@@ -1902,7 +1904,8 @@ func _z001_burnout_take_damage(amount: int) -> void:
 	if amount <= 0 or state == State.DEAD:
 		return
 	max_hp = maxi(0, max_hp - amount)
-	hp = 0
+	# 上限未清空前保留最低生命；上限归零时才放开到 0 并判死。
+	hp = mini(max_hp, maxi(Z001_BURNOUT_MIN_HP, hp)) if max_hp > 0 else 0
 	if Run.active:
 		Run.set_slot_hp(input_slot, hp)
 		if input_slot == 0:
@@ -2559,6 +2562,18 @@ func _deal_skill_hit(h: Dictionary) -> void:
 			{"scale": 0.2, "bottom": true, "offset": Vector2(0.0, 22.0), "flip": facing < 0, "fx_role": "skill_hit"})
 	if full and skull_id == "z003" and _skill_name == "sky_skill18_02":
 		fx.fullscreen("E54012", "action3")
+	# 烬生 P：巨型斩焰覆盖整个正前方 AOE，让 280px 判定有等宽的表现
+	if skull_id == "z001" and _skill_name == "burn_p":
+		var p_scene := get_tree().current_scene
+		if p_scene != null:
+			FX.spawn(p_scene, "slash", global_position + Vector2(facing * 140.0, -70.0),
+				{"scale": 0.65, "flip": facing < 0, "z": 12, "mod": Color(1.0, 0.72, 0.45, 0.9)})
+	# 烬生 O：闪身落点的现身斩，路径没有命中目标时也能看见这一刀
+	elif skull_id == "z001" and _skill_name == "burn_o":
+		var o_scene := get_tree().current_scene
+		if o_scene != null:
+			FX.spawn(o_scene, "slash", global_position + Vector2(facing * 60.0, -60.0),
+				{"scale": 0.45, "flip": facing < 0, "z": 12, "mod": Color(1.0, 0.55, 0.35, 0.9)})
 	# PVP：技能命中帧只报一次参数（射程已含 c013 震岳初的额外放大），由 pvp_rules 结算
 	_emit_pvp_strike({
 		"damage": dmg, "range": skill_range,
@@ -2579,9 +2594,10 @@ func _deal_skill_hit(h: Dictionary) -> void:
 		var hit_ok := full
 		if not hit_ok and dy <= h["height"]:
 			if h.get("path", false):
-				# 路径判定：闪现扫过的整条线段 + 落点正前方 range
-				var x0: float = minf(_skill_start_x, global_position.x) - 20.0
-				var x1: float = maxf(_skill_start_x, global_position.x) + 20.0
+				# 路径判定：闪现扫过的整条线段 + 落点正前方 range（线段两端补上目标体积，避免擦边漏判）
+				var reach_pad := 20.0 + _radius_of(p)
+				var x0: float = minf(_skill_start_x, global_position.x) - reach_pad
+				var x1: float = maxf(_skill_start_x, global_position.x) + reach_pad
 				var in_path: bool = p.global_position.x >= x0 and p.global_position.x <= x1
 				var ahead := dx == 0.0 or (dx > 0.0) == (facing > 0)
 				hit_ok = in_path or (ahead and absf(dx) <= skill_range + _radius_of(p))
@@ -4369,7 +4385,7 @@ func hurt(amount: int = 1, knockback: Vector2 = Vector2.ZERO, attacker: Node = n
 		_set_blink(false) # 受击打断技能：闪现的碰撞例外一并清掉，别带着穿怪状态进硬直
 		_reset_root_follow() # 技能被受击打断：把根骨位移结算进节点，别把骨架留在偏移位置
 	var dealt := mini(amount, hp) # 过量伤害不计入镰碎回血；反伤/护盾/闪避在上方已直接返回
-	hp -= amount
+	hp = maxi(0, hp - amount) # 不留负数生命：燃尽以 0 血为边界，由被动接管
 	if dealt > 0:
 		_z001_on_hit_taken() # 战狂：每次实际受击累计，满 5 次叠 1 层战意
 	Achievements.hurt_event(dealt)
@@ -4758,8 +4774,12 @@ func _fen_ding_burn_tick(delta: float) -> void:
 	var source := _fen_ding_burn_source
 	_on_pipa_damaged(source)
 	amount = _try_pipa_scapegoat(amount, source)
+	if _z001_burnout:
+		_fen_ding_burn_left = fen_ding_burn_interval()
+		_z001_burnout_take_damage(amount) # 燃尽期间灼烧同样只扣生命上限
+		return
 	var dealt := mini(amount, hp)
-	hp -= amount
+	hp = maxi(0, hp - amount)
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(dealt, DMG_COLOR, 130.0)
 	FX.spawn(get_tree().current_scene, "fire_hit", global_position + Vector2(0, -70), {"scale": 0.35})
@@ -4768,6 +4788,8 @@ func _fen_ding_burn_tick(delta: float) -> void:
 	_fen_ding_burn_left = fen_ding_burn_interval()
 	if hp <= 0:
 		_record_last_hit(source, {"anim": "fen_ding_burn", "hit_at": 0.0}, dealt)
+		if _z001_enter_burnout():
+			return
 		if _try_revive(Vector2.ZERO):
 			return
 		die()
@@ -4809,7 +4831,7 @@ func _bleed_damage() -> void:
 		_z001_burnout_take_damage(amount) # 燃尽期间流血同样只扣生命上限
 		return
 	var dealt := mini(amount, hp)
-	hp -= amount
+	hp = maxi(0, hp - amount)
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(dealt, DMG_COLOR, 130.0)
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.22})
@@ -4876,14 +4898,19 @@ func _cut_damage(cut: Dictionary) -> void:
 		attacker = null
 	_on_pipa_damaged(attacker)
 	amount = _try_pipa_scapegoat(amount, attacker)
+	if _z001_burnout:
+		_z001_burnout_take_damage(amount) # 燃尽期间割伤同样只扣生命上限
+		return
 	var dealt := mini(amount, hp)
-	hp -= amount
+	hp = maxi(0, hp - amount)
 	hp_changed.emit(hp, max_hp)
 	_spawn_number(dealt, DMG_COLOR, 130.0)
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70), {"scale": 0.22})
 	if hp > 0:
 		return
 	_record_last_hit(attacker, cut.get("move", {}), dealt)
+	if _z001_enter_burnout():
+		return
 	if _try_revive(Vector2.ZERO):
 		_cuts.clear()
 		_cut_casts.clear()

@@ -41,6 +41,8 @@ const BEASTS := [
 	{"id": "c001", "name": "武车", "boss": true},
 	{"id": "c008", "name": "碎岳", "boss": true},
 	{"id": "c032", "name": "鸣钟", "boss": true},
+	# 独立挑战首领：计入 boss_kills 与专属成就，但不挤占「五首领 / 十一相」全收集进度。
+	{"id": "c019", "name": "剑冢", "boss": true, "bonus": true},
 ]
 
 const FORMS := [
@@ -149,6 +151,7 @@ const ACHIEVEMENTS := [
 	{"id": "e_c001", "name": "讨 · 武车", "desc": "击败首领武车", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c001", "target": 1},
 	{"id": "e_c008", "name": "讨 · 碎岳", "desc": "击败首领碎岳", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c008", "target": 1},
 	{"id": "e_c032", "name": "讨 · 鸣钟", "desc": "击败首领鸣钟", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c032", "target": 1},
+	{"id": "e_c019", "name": "讨 · 剑冢", "desc": "击败双形态首领剑冢", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c019", "target": 1},
 	{"id": "e_c016_100", "name": "刀客百斩", "desc": "累计击败 100 名刀客", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c016", "target": 100},
 	{"id": "e_c017_100", "name": "蛮兵百斩", "desc": "累计击败 100 名蛮兵", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c017", "target": 100},
 	{"id": "e_c018_100", "name": "双镰百斩", "desc": "累计击败 100 名双镰", "cat": CAT_BEAST, "tier": 2, "ink": 12, "stat": "enemy_c018", "target": 100},
@@ -544,6 +547,8 @@ func refresh_meta() -> void:
 	var beasts := 0
 	var bosses := 0
 	for b in BEASTS:
+		if bool(b.get("bonus", false)):
+			continue # 独立挑战首领不计入百相 11 与五首领全收集
 		if Meta.enemy_kills(str(b["id"])) > 0:
 			if bool(b["boss"]):
 				bosses += 1

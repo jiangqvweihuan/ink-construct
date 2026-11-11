@@ -182,34 +182,37 @@ const SKULLS := {
 		"hurt_tiers": {"heavy": 999, "knockdown": 5},
 		"knock_chain": ["atked_heavy", "atked_fall_end", "getup"],
 		"low_hp_ratio": 0.2,
-		# J 普攻：动画 2（"3"，2.233s）三段 2 / 2 / 3，末段挂 10 秒易伤
+		# J 普攻：动画 2（"3"，2.233s）三段 2 / 2 / 3，末段挂 10 秒易伤。
+		# 命中时刻对齐剪影峰值（0.38/0.94/1.82s），射程按峰值伸展 88/121/110px 标定。
 		"attacks": [
 			{
 				"anim": "3", "lock": 2.233, "lunge": 90.0, "cast_sfx": "weapon_sword",
 				"hits": [
-					{"at": 0.55, "damage": 2, "range": 110.0, "height": 110.0, "sfx": "hit_heavy"},
-					{"at": 1.15, "damage": 2, "range": 115.0, "height": 110.0, "sfx": "hit_heavy"},
-					{"at": 1.85, "damage": 3, "range": 125.0, "height": 110.0, "sfx": "hit_heavy",
+					{"at": 0.38, "damage": 2, "range": 90.0, "height": 110.0, "sfx": "hit_heavy"},
+					{"at": 0.94, "damage": 2, "range": 125.0, "height": 110.0, "sfx": "hit_heavy"},
+					{"at": 1.82, "damage": 3, "range": 115.0, "height": 110.0, "sfx": "hit_heavy",
 						"vulnerable": {"ratio": 0.25, "time": 10.0}},
 				],
 			},
 		],
 		"skills": {
-			# K 焚骨三叩：动画 6（atk03）连播 3 次，每轮中段快速两记 1 伤，合计 6 伤
+			# K 焚骨三叩：动画 6（atk03）连播 3 次，每轮双峰 0.12/0.22s 各 1 伤，合计 6 伤。
+			# 剪影峰值 184px，射程取 170；只判身前（动画没有回身段）。
 			"burn_k": {
 				"action": "skill", "cooldown": 6.0, "anim": "atk03", "repeat": 3,
 				"repeat_hits": [
-					{"at": 0.18, "damage": 1},
-					{"at": 0.27, "damage": 1},
+					{"at": 0.12, "damage": 1},
+					{"at": 0.22, "damage": 1},
 				],
-				"range": 125.0, "height": 110.0, "both": true,
+				"range": 170.0, "height": 110.0,
 				"sfx": "hit_heavy", "cast_sfx": "weapon_sword",
 			},
-			# L 烬灭斩：动画 86（skill23）蓄力猛击，5 伤 + 已损生命 20%（Boss 10%）额外伤害
+			# L 烬灭斩：动画 86（skill23）蓄力猛击，5 伤 + 已损生命 20%（Boss 10%）额外伤害。
+			# 落刀峰值在 1.21s、剪影 151px，命中与射程同步到 1.21s / 150px。
 			"burn_l": {
 				"action": "skill_sweep", "cooldown": 8.0, "anim": "skill23", "poise": true,
 				"hits": [{
-					"at": 0.95, "range": 160.0, "height": 120.0, "damage": 5,
+					"at": 1.21, "range": 150.0, "height": 120.0, "damage": 5,
 					"execute": {"normal": 0.2, "boss": 0.1}, "sfx": "skill_blade",
 				}],
 			},
@@ -219,20 +222,22 @@ const SKULLS := {
 				"pool": ["mie_03", "skill12_02"], "align_max": true,
 				"heal_full": true, "hits": [],
 			},
-			# O 焚影掠：动画 73（skill03）向前闪身约 240px；路径小怪秒杀，精英 / Boss 固定 8 伤
+			# O 焚影掠：动画 73（skill03）向前闪身约 240px；路径小怪秒杀，精英 / Boss 固定 8 伤。
+			# 现身处斩击在 0.95s、剪影 137px，命中与射程对齐为 0.95s / 150px。
 			"burn_o": {
 				"action": "skill_o", "cooldown": 9.0, "anim": "skill03",
 				"blink_from": 0.15, "blink_to": 0.75, "blink_speed": 400.0, "phase": true,
 				"hits": [{
-					"at": 0.75, "range": 160.0, "height": 140.0, "path": true, "damage": 8,
+					"at": 0.95, "range": 150.0, "height": 140.0, "path": true, "damage": 8,
 					"dash_kill": {"elite_damage": 8}, "sfx": "skill_blade",
 				}],
 			},
-			# P 烬火燎原：动画 95（skill14_02）正前方大范围 12 伤 + 5 秒眩晕
+			# P 烬火燎原：动画 95（skill14_02）正前方 280px 大范围 12 伤 + 5 秒眩晕。
+			# 火线在 0.34s 起燃，命中对齐该帧；范围由同步播放的巨型斩焰特效覆盖。
 			"burn_p": {
 				"action": "skill_p", "cooldown": 18.0, "anim": "skill14_02", "poise": true,
 				"hits": [{
-					"at": 0.55, "range": 280.0, "height": 150.0, "damage": 12,
+					"at": 0.34, "range": 280.0, "height": 150.0, "damage": 12,
 					"stun": 5.0, "sfx": "skill_boom",
 				}],
 			},

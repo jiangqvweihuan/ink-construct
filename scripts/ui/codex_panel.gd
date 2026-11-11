@@ -54,6 +54,9 @@ const FORM_ATTACK_TEXT := {
 		{"name": "骤雨听剑", "num": "4 段 × 1 伤 ｜ 每段晕眩 0.8 秒", "mech": "前后连续四斩，每段造成 1 点伤害并晕眩 0.8 秒，可打断正在起手的敌人。", "lore": "暴雨夜，她在碑前以剑尖接住四种雨声：穿松、打叶、落石、敲碑。四声连成一式，剑落如雨，挨剑的人连下一句喝问也说不完整。"},
 		{"name": "玉宇挑月", "num": "2 伤 ｜ 击飞", "mech": "连段收尾向上挑剑，造成 2 点伤害并将敌人挑到空中，落地后短暂硬直。", "lore": "师父说剑碑最高处刻着一轮月，她信了多年，练到能挑落碑顶枯叶才看清那只是凿痕。月亮虽假，这一挑倒真能送人离尘。"},
 	],
+	"z001": [
+		{"name": "烬火三叠", "num": "3 段 2 / 2 / 3 伤 ｜ 末段易伤 10 秒", "mech": "三段刀势依次造成 2、2、3 点伤害；第三段命中后附加 10 秒易伤，目标受到的伤害提高 25%。", "lore": "他焚卷时从不数刀，只数火什么时候旺。第一刀引火，第二刀添势，第三刀落下，纸灰便替火记住了那个名字。后来这套节拍落到人身上，仍是一样：三声之后，伤口会替火记住对手。"},
+	],
 	"z002": [
 		{"name": "冰弦初响", "num": "1 伤 ｜ 近身弦音", "mech": "拨响第一声短音，造成 1 点伤害。", "lore": "宫中教习说，名曲第一音要像冰面初裂，轻得几乎听不见，却教满座知道寒冬已至。她至今仍用这一声提醒来客：曲已经开始。"},
 		{"name": "促柱追声", "num": "2 伤 ｜ 近身弦音", "mech": "移柱急拨，续前音造成 2 点伤害。", "lore": "旧宫宴上的舞步总比乐声急，她只得移柱催弦追赶。如今面前换作刀光，她仍不肯慢半拍，第二音总比敌人的念头先到。"},
@@ -106,11 +109,11 @@ const FORM_SKILL_TEXT := {
 		{"name": "天倾", "num": "全房 8 伤 ｜ 本房全部伤害 +3", "mech": "觉醒中可用。对全房敌人造成 8 点伤害；每个房间首次施展额外使本房全部伤害 +3，后续施展不再重复加持。", "lore": "雷雨天众人收摊，他偏爬上废塔，要看清一道雷究竟有多重。塔尖被劈没了，他抱着剑滚下来，头发竖了三日。再出剑时，天光仍从高处压落；至于他学到的道理，据说是「下次先躲，再谈天道」。"},
 	],
 	"z001": [
-		{"name": "焚骨三叩", "num": "3 轮 × 2 段 × 1 伤 ｜ 合计 6 伤", "mech": "同一段蹈火刀势连演三轮，每轮中段快速叩击两次，每次 1 点伤害；三次循环合计 6 点。", "lore": "他第一次点火烧的是自己的旧屋。火舌舔上梁柱时，他忽然听见木头爆裂的节拍，便照着那节拍挥刀：一叩问身世，二叩问归处，三叩把来路一并烧断。"},
-		{"name": "烬灭斩", "num": "5 伤 ｜ 已损生命 20%（Boss 10%）额外伤害", "mech": "蓄力后重斩，造成 5 点基础伤害；对普通目标追加其已损失生命的 20%，对首领改为 10%。", "lore": "他从不给对手留全尸，也不给自己留退路。刀落之前先看对方还剩多少气，余下的那部分，正好够他把火烧得更旺。"},
-		{"name": "余烬重燃", "num": "生命恢复至满值 ｜ 两种觉醒演出随机", "mech": "以两种蹈火姿态之一完成觉醒，动作结束前将生命恢复至当前上限。", "lore": "有人问他烧成灰以后还剩下什么。他说剩下温度。只要灰里还有一点红，就还能把自己重新点起来。"},
-		{"name": "焚影掠", "num": "位移约 240px ｜ 路径小怪秒杀 ｜ 精英 / Boss 固定 8 伤", "mech": "向前闪身穿过战场，路径上的普通小怪直接死亡；精英与首领各受 8 点固定伤害。", "lore": "他追一队逃兵时穿过整条火巷，鞋底烧穿了也没停。后来那一夜的幸存者只记得一道影子贴着墙过去，火却像认得他一样分开了。"},
-		{"name": "烬火燎原", "num": "正前方大范围 12 伤 ｜ 晕眩 5 秒", "mech": "以刀势引爆身前大片火线，对正前方范围内所有敌人造成 12 点伤害并眩晕 5 秒。", "lore": "他烧过山、烧过桥，也烧过自己答应的退路。到最后只剩这一式：把身后所有犹疑都点着，让前面的路只能往前走。"},
+		{"name": "焚骨三叩", "num": "3 轮 × 2 段 ｜ 每段 1 伤 ｜ 合计 6 伤", "mech": "同一段蹈火刀势连演三轮，每轮中段快速叩击两次，每次 1 点伤害；三次循环合计 6 点。", "lore": "他第一次点火，烧的是墨堂后院判死的废卷。火舌舔上纸角时，他听见木头爆裂的节拍，便照着那节拍挥刀：一叩问身世，二叩问归处，三叩把来路一并烧断。"},
+		{"name": "烬灭斩", "num": "5 伤 ｜ 已损生命 20%（Boss 10%）额外伤害", "mech": "蓄力后重斩，造成 5 点基础伤害；对普通目标追加其已损失生命的 20%，对首领改为 10%。", "lore": "他从不给对手留退路，也不给自己留退路。刀落之前先看对方还剩多少气，余下的那部分，正好够他把火烧得更旺。"},
+		{"name": "余烬重燃", "num": "生命恢复至满值 ｜ 两种觉醒演出随机", "mech": "以两种蹈火姿态之一完成觉醒，动作结束前将生命恢复至当前上限。", "lore": "有人问他烧成灰以后还剩下什么。他说剩下温度。只要灰里还有一点红，就还能把自己重新点起来；胸口那半页纸，也还没到该熄的时候。"},
+		{"name": "焚影掠", "num": "位移约 240px ｜ 路径小怪秒杀 ｜ 精英 / Boss 8 伤（另加战意焚烧）", "mech": "向前闪身穿过战场，路径上的普通小怪直接死亡；精英与首领各受 8 点基础伤害，并另计战意焚烧。", "lore": "他替六人追一页被风卷走的封轴，穿过整条火巷，鞋底烧穿了也没停。后来那一夜的同行者只记得一道影子贴着墙过去，火却像认得他一样分开了。"},
+		{"name": "烬火燎原", "num": "正前方 280px 大范围 12 伤 ｜ 晕眩 5 秒", "mech": "以刀势引爆身前 280px 火线，对范围内所有敌人造成 12 点伤害并眩晕 5 秒。", "lore": "他烧过山、烧过桥，也烧过自己答应的退路。到最后只剩这一式：把身后所有犹疑都点着，让前面的路只能往前走。"},
 	],
 }
 
@@ -144,8 +147,8 @@ const FORM_PASSIVES := {
 		{"name": "魅唤", "desc": "使用 P 时保留原招式效果，并从已夺取被动的实体中随机召唤 1 名协助者；同时最多存在 1 名，协助者数值不变，只攻击敌人，不追击也不误伤执卷者", "lore": "他记账从不用墨，谁欠他一场架，就在影子里留一道名字。缺钱时他翻酒账，缺帮手时也翻；被叫来的人多半不情愿，却又没法否认那一笔。至于招谁，全看他那天手指停在哪一页。"},
 	],
 	"z001": [
-		{"name": "燃尽一切吧", "desc": "生命归零时不死亡，后续受到的伤害改为扣除生命上限；上限清零才判死。期间获得任意回血，立即恢复正常的生命扣除逻辑", "lore": "他在火场里救过人，也丢过人。后来他学会先把自己点着：只要还能烧，就不算倒下；等到连灰都烧完了，才算真正认输。"},
-		{"name": "战狂", "desc": "当前房间每累计击杀 5 名敌人或累计受到 5 次伤害，叠 1 层无上限战意；每层使全部伤害附加等量焚烧伤害；换房清空", "lore": "他每杀一人便在刀背刻一道，每挨一刀也在刀背刻一道；两边的刻痕从不互相抵消。有人劝他歇一歇，他反问：火什么时候嫌柴多？"},
+		{"name": "燃尽一切吧", "desc": "受到致命伤时保留 1 点生命进入燃尽，不死亡；此后受到的所有伤害（含流血、灼烧、割伤）改为扣除生命上限，生命上限归零才判定死亡；期间获得任意回血，立即退出燃尽并恢复正常生命扣除逻辑", "lore": "他在火场里救过人，也丢过人。后来他学会先把自己点着：只要还能烧，就不算倒下；等到连灰都烧完了，才算真正认输。只有胸口那半页纸，他始终没舍得点。"},
+		{"name": "战狂", "desc": "当前房间每累计击杀 5 名敌人或累计受到 5 次伤害，获得 1 层无上限战意；每层使全部伤害额外附加等量焚烧伤害，焚烧不受敌方减伤影响；换房清空", "lore": "他每送走一页执念，便在刀背刻一道；每挨一刀，也在同一处刻一道。两边的刻痕从不互相抵消。有人劝他歇一歇，他反问：火什么时候嫌柴多？"},
 	],
 }
 
@@ -178,6 +181,8 @@ const ENEMY_ATTACK_NAMES := {
 	"c018": {"skill01": "镰舞", "skill02": "镰碎", "skill03": "镰意绽花"},
 	"c012": {"skill01": "双剑斩", "skill02": "旋斩"},
 	"c037": {"skill01": "亭台剑", "skill03": "转", "cangjian": "藏剑式", "jijian": "断楹祭剑"},
+	"c019": {"p1_thrust": "断岳飞锋", "p1_rain": "飞锋三叠", "p1_sweep": "拂尘剑幕", "p1_ring": "回锋阵"},
+	"c019_sp": {"p2_flash": "焚锋一闪", "p2_rain": "万刃归冢", "p2_prison": "剑狱天倾", "p2_combo": "冢前百刃"},
 }
 const ENEMY_ATTACK_MECH := {
 	"c032": {
@@ -239,6 +244,18 @@ const ENEMY_ATTACK_MECH := {
 		"cangjian": "冷却 9.6 秒；每次随机施展三种藏剑架势之一，三段伤害 1/2/3，末段附一组割伤，在 3 秒与 6 秒时各失去 1 点生命，多组独立计时",
 		"jijian": "生命低于一半时自动触发，每场战斗仅一次；随机施展两种祭剑架势之一并回满生命。此后自身每段实际伤害都额外附一组独立割伤",
 	},
+	"c019": {
+		"p1_thrust": "普攻，无独立冷却；向前递剑，造成 2 点伤害。起手时消耗全部剑势，每层使本招伤害 +1，最多按 2 层结算，最高 4 伤；未命中也会消耗",
+		"p1_rain": "冷却 16 秒；三柄浮剑依次落下，三段分别造成 2／2／3 点伤害。每次独立起手首次实际命中时积累 1 层剑势，多段命中只算一次",
+		"p1_sweep": "冷却 20 秒；回身横扫，身前身后均可命中，两段各造成 2 点伤害。首次实际命中积累 1 层剑势",
+		"p1_ring": "冷却 28 秒；三段回锋阵依次覆盖远、近、远三个范围，分别造成 1／1／2 点伤害，前后均可命中。首次实际命中积累 1 层剑势",
+	},
+	"c019_sp": {
+		"p2_flash": "普攻，无独立冷却；近身一闪，造成 2 点伤害。一阶段生命归零后不会死亡，而是以「百剑开冢」无敌换形并回满二阶段生命，登场结束另有 1.2 秒僵直",
+		"p2_rain": "冷却 14 秒；短暂蓄势后重击，造成 4 点伤害；起手到落剑间隔较长，可提前闪避",
+		"p2_prison": "冷却 24 秒；以剑狱之势横扫，身前身后均可命中，造成 3 点伤害",
+		"p2_combo": "冷却 16 秒；近身两段连刺，分别造成 1／2 点伤害；起手快、收招短，专门惩罚贴身",
+	},
 }
 const ENEMY_ATTACK_LORE := {
 	"c032": {
@@ -296,6 +313,18 @@ const ENEMY_ATTACK_LORE := {
 		"skill03": "初执魔剑时，他每转一周便要削碎一套茶具，索性把桌椅全搬进亭外。后来亭空了，剑却越转越顺；同一个人若肯站在原地多看几转，他便会把对方当成旧客，一剑比一剑招待得隆重。",
 		"cangjian": "三座旧亭各藏一种剑谱：临水亭藏刺，听雨亭藏撩，断山口那座藏回身。亭主只记得自己把剑藏好了，却忘了究竟藏在哪一座；于是每次出手，连他也要等剑现身才知今日行的是哪家的礼。",
 		"jijian": "亭塌那夜，一根主楹先断。他上撩魔剑挑开坠瓦，再把剑插进亭心，以剑代柱撑起旧业。魔剑答应借他一条完整的命，代价是从此每笔人情都要由来客用割伤偿还。",
+	},
+	"c019": {
+		"p1_thrust": "守冢人不轻易拔剑。断岳只是把剑尖从鞘中递出半寸，试来人是否配看冢中旧剑；剑势积得越深，这半寸便越难躲。",
+		"p1_rain": "冢中残剑按旧主生前的出手次序浮起，一柄接一柄落下。三叠并非招式名，而是守冢人替三位无名剑客留下的试炼。",
+		"p1_sweep": "拂尘剑幕本是扫墓的动作。他扫开碑前落叶，也扫开逼近冢门的活人；剑锋甩到身后时，仍记得替背后那柄断剑留一个位置。",
+		"p1_ring": "回锋阵起时，四面残剑同时归位，像替一座空冢补齐缺失的碑石。阵眼中的人若不肯退，便会被三面剑锋依次问过来历。",
+	},
+	"c019_sp": {
+		"p2_flash": "万刃醒来后，守冢人不再需要拔剑。焚锋一闪只是他抬手引路，真正出鞘的是冢中第一柄认得杀意的残剑。",
+		"p2_rain": "万刃归冢不是收剑，而是让所有断刃同时想起自己曾经的名字。剑落之前有很长一段寂静，那是冢底在逐柄点名。",
+		"p2_prison": "剑狱天倾时，整座剑冢的重量压在剑脊上。守冢人已分不清自己是人是冢，只知道要把来客留在碑前，替旧主守完最后一班。",
+		"p2_combo": "冢前百刃是最近身的一式：他不再指挥浮剑，只以残躯亲自递出两记短刺，像当年替师父试剑时那样，一进一退，不留余地。",
 	},
 }
 const ENEMY_PASSIVES := {
@@ -389,6 +418,18 @@ const ENEMY_PASSIVES := {
 		"desc": "双剑斩首段或旋斩实伤获得 1 层剑意，最多 3 层；每层使后续每次命中伤害 +1，永不消耗。三层触发「剑意凝华」：生成唯一的同步分身，复制当前朝向与动作，后续同步出招并造成同等直伤、普通流血与封闪避；分身以约 60% 不透明的淡青水墨虚影和脚下淡青墨环区分，无敌、不可选中，不叠剑意、不再繁殖，本体死亡即消失",
 		"lore": "阁中不许剑仆有自己的剑意，他便把每一次问答藏进斗笠下的朱绦。三层剑意圆满时，那个总被命令收剑的自己终于从雨里走出；朱丝如今系的是剑影，不再是他。",
 	},
+	"c019": [
+		{
+			"name": "守冢剑势",
+			"desc": "一阶段每次技能独立起手期间，首次实际命中积累 1 层剑势，最多 2 层；断岳飞锋起手时消耗全部层数，每层使该招伤害 +1，落空也会消耗。换形态时清空",
+			"lore": "守冢人替无名剑客试锋，从不把剑势一次用尽。飞锋、剑幕与回锋阵每真正碰到一次来客，冢中便有一柄残剑认下这道伤口；等他终于递出断岳，那些认过主的剑意便一并压在剑尖上。",
+		},
+		{
+			"name": "万刃同悲",
+			"desc": "二阶段生命降至 50% 时永久强化：全部直接伤害提高 15%，出手冷却缩短 20%，追击速度提高 15%。恢复生命不会撤销",
+			"lore": "万刃归冢后，冢底的断剑仍记得各自的主人。守冢人的生命每折去一半，剑鸣便低一分；低到最后，所有残剑都不再等他号令，自行循着同一份悲意出鞘。",
+		},
+	],
 }
 
 ## 条目卡：化身 2 列 × 6 行；敌人按分类标题分组，以紧凑卡片容纳各组。
@@ -459,11 +500,14 @@ const LORE := {
 	"c001": "双马拖曳的钢铁战车，车厢里封着仍在听令的墨兵。它不懂退让，只会撞向校场尽头，再掉头放出一轮新的追兵。",
 	"c008": "碎岳原是悬空寺的香账僧，专管把香火钱与所求之事逐笔记清。日子久了，他发现功德簿上满是求寿、求财、求逢凶化吉，却没有一笔肯写自己该做什么。他索性把簿子改成借契：庇佑可以领，须拿最倚仗的本领作抵押。住持将他逐出山门，他反手把多年烂账捆在佛像背上拖走，半面山墙随之塌下，「碎岳」由此得名。如今他仍逢人先盘账：对方倒下，是抵押到期；自己倒下，便认作坏账核销。",
 	"c032": "她曾是战神座前的女武神，也是神军溃败后唯一没有卸甲的人。诸神把战神遗骨铸成一口无舌之钟，命她永远镇守；她便拆下钟架上的两根骨槌，磨成双斧，从此既守钟，也替钟开口。年月太久，她已忘了自己的本名，只答「鸣钟」。她守的早不是神谕，而是钟里那一点不肯熄灭的旧主战意；若有来客能逼她解开腕上封链，便能听见神骸再次轰鸣，也能见识诸神如何越过血肉，直接给一个人写下结局。",
+	"c019": "剑冢原本只是乱世里一处无名的埋剑地，断刃层层压着旧主的姓名。守冢的剑主不肯让任何一柄剑再被带出山谷，便把残剑养成浮阵，日复一日替亡者试锋。直到有人踏进冢门，他才第一次把阵眼收回掌中；而当最后一柄守冢剑折断，埋在冢底的万刃便尽数醒来，借他的躯壳重新认主。",
+	"c019_sp": "万刃归冢之后，守冢人的躯壳成了剑冢的出口。千百柄残剑不再守墓，而是循着最后一位剑主的杀意倾泻而出；每断一刃，冢中便多一声回响。",
 	"c021": "冷红绫原是临江戏班的舞姬，水袖一扬，满堂灯火都随她转身。班主讲她舞步太利，像袖里藏刀，她便索性将红绫裁短，换成两柄匕首。戏班失火那夜，她沿着唱熟的鼓点穿过浓烟，把最后一个孩子送出后门，自己却再没找到回去的路。此后她蒙面入行，只接那些无人敢接的活；价钱可以少谈，受邀看舞的人却一个也不能留。有人说她冷血，她从不辩。火场里喊哑的嗓子唱不得曲，唯有双匕仍记得旧拍：一进，一退，旋身时红裙如幕，落幕便见血。",
 	"c013": "定山年少时在破庙挑水劈柴，最怕师父让他诵经，却最爱替山下农户赶野猪。寺里禅杖轻，他使着总像拈草，便捡矿场废铁打成狼牙棒，一棒下去，连庙门石阶也缺了半角。师父罚他面壁，他真在壁前站了三年，不是悔过，是在等心口那口恶气沉下去。后来山洪冲寺，他独自扛着断梁让香客先走，从此得了「定山」这个名号。如今他仍不擅讲慈悲，只把道理立在棒下：肯退一步的，留路；欺人太甚的，先问过他这一身不肯倒的骨头。",
 	"c023": "白疏影生在西岭剑庐，幼时替人守炉，见的不是名剑出匣，而是钝铁回炉。她偏在废剑堆里捡出一柄软剑，缠上院中折梅，练出一身似鞭非鞭的路数。同门笑她剑不正，她便在下山那夜以一枝梅花连败七场，从此再没人问她师承。多年风雪早把青丝洗白，她仍穿旧黑袍，仍会在出手前拂去刃上的花瓣。只是梅香里藏着淬过的苦毒，沾身者初时不觉得疼，等察觉时，寒气已随血脉行远。她不争剑魁，也不收弟子，只在每年花信时回一次空山，把赢来的剑埋在老梅根下。",
 	"z000": "洛惊鸿曾在天姥山守一座无人朝拜的剑碑，晨扫落叶，暮读残铭。师父只教她一个「听」字：听风擦过剑脊，听来客呼吸乱在何处，听完才准出剑。她用了十年，把满山松涛听成一部剑谱，下山时却连剑穗也未换新的。后来江湖盛传她一剑能惊飞鸿，真正见过的人却只记得她收剑很轻，像怕惊动檐下的雨。她不立门派，也不替谁正名，遇到欺人者便递上一句「请出剑」。若对方执意不退，她的下一剑总比话音先到；青衣掠过处，尘未扬，胜负已定。",
 	"z003": "将去未还原是雪岭脚下的药商，后来卖过伞、说过书，也替人押过几趟不太平的镖。活计换得多，唯独嘴快、手快、学招快没改过。输给他的人常发现，自己最得意的一式会在他的影子里重演，像旧招不肯随主人散场，世人便称他「影殇」。他嫌这名字太丧气，仍忙着赶下一顿热饭、下一场热闹；只有月下拔剑时，满地影子比他人先安静。",
+	"z001": "赤烬原是墨堂火房的焚卷人。被判作无法修补的残页都要经他的手化为灰，他从不问页里是谁，直到听见妹妹的声音从一张焦边纸里喊他。他劈开炉门抢出那半页，火却顺着衣袖烧掉了他的姓名与半张脸；墨堂将他与残页一并封入废卷。残卷山谷收拢时，他成了没有写完的余烬，纸上妹妹只剩半句未竟的话，他便以「烬生」为名。六人争的是让众生有下一笔，他争的是让已经烧到一半的页面有机会自己熄灭；因此他不入六人之约，只在封线烧不开时现身。他答应过妹妹，等所有被封死的页面都能自行合上，就把这具借火而行的身体还给灰。",
 }
 
 var _tab := TAB_STORY
@@ -471,6 +515,10 @@ var _sel := "" # 当前选中的条目 id
 var _sfx: AudioStreamPlayer
 
 var _preview = null # 演示台用的 SpineSprite
+var _preview_data_path := "" # 当前演示骨架路径：双形态条目按招式切换
+var _preview_base_data := "" # 卡片默认形态骨架
+var _preview_base_scale := 1.0
+var _preview_base_idle := "stand"
 var _medal_fx: Node2D = null # 精英 / Boss 专属勋章演示
 var _portrait: TextureRect = null
 var _show_portrait := true # 有原画的条目默认展示原画；动作页保留完整 Spine 演示
@@ -575,11 +623,20 @@ func _build() -> void:
 		_build_story_list(entries)
 	else:
 		var got := 0
+		var bonus_total := 0
+		var bonus_got := 0
 		for e in entries:
-			if not bool(e["locked"]):
+			if bool(e.get("bonus", false)):
+				bonus_total += 1
+				if not bool(e["locked"]):
+					bonus_got += 1
+			elif not bool(e["locked"]):
 				got += 1
-		_make_label("%s %d / %d ｜ 点选招式查看解析" % ["已收录" if _tab == TAB_ENEMY else "已解锁", got, entries.size()],
-			Vector2(70, 104), Vector2(470, 26), 13, DIM)
+		var total := entries.size() - bonus_total
+		var head := "%s %d / %d" % ["已收录" if _tab == TAB_ENEMY else "已解锁", got, total]
+		if _tab == TAB_ENEMY and bonus_total > 0:
+			head += " ｜ 番外首领 %d / %d" % [bonus_got, bonus_total]
+		_make_label(head + " ｜ 点选招式查看解析", Vector2(70, 104), Vector2(470, 26), 13, DIM)
 
 		# 先搭演示与详情，再铺条目卡：招式动画会甩出演示台，卡片后画才能盖住溢出的部分
 		_build_detail()
@@ -624,6 +681,10 @@ func _refresh() -> void:
 		remove_child(c)
 		c.queue_free()
 	_preview = null
+	_preview_data_path = ""
+	_preview_base_data = ""
+	_preview_base_scale = 1.0
+	_preview_base_idle = "stand"
 	_medal_fx = null
 	_portrait = null
 	_pose_mixer = null
@@ -684,14 +745,14 @@ func _entries() -> Array:
 				var n := Meta.enemy_kills(id)
 				out.append({"id": id, "locked": n <= 0, "label": str(t["label"]), "group": kind,
 					"sub": kind if n > 0 else "尚未收录"})
-		for id in BossTypes.ROSTER:
+		for id in BossTypes.codex_order():
 			if not BossTypes.BOSSES.has(id):
 				continue
 			var b: Dictionary = BossTypes.get_boss(id)
 			var nb := Meta.enemy_kills(id)
 			var boss_kind := _enemy_kind(b, true)
 			out.append({"id": id, "locked": nb <= 0, "label": str(b["label"]), "group": boss_kind,
-				"sub": boss_kind if nb > 0 else "尚未收录"})
+				"sub": boss_kind if nb > 0 else "尚未收录", "bonus": bool(b.get("codex_bonus", false))})
 	elif _tab == TAB_FORM:
 		for id in Skulls.ids():
 			var p: Dictionary = Skulls.get_profile(id)
@@ -715,6 +776,7 @@ func _status_catalog() -> Array:
 
 func _collection_progress() -> Dictionary:
 	var progress := {"enemy": 0, "enemy_total": 0, "form": 0, "form_total": 0}
+	# 百相收集总数仍只统计正史 11 项；c019 是独立挑战首领，只出现在卡片列表，不挤占 11/11 基线。
 	for id in ENEMY_ORDER + BossTypes.ROSTER:
 		progress["enemy_total"] += 1
 		if Meta.enemy_kills(id) > 0:
@@ -1158,11 +1220,15 @@ func _build_detail() -> void:
 			if data == null or not data.call("is_skeleton_data_loaded"):
 				data = null
 			else:
-				_make_preview(data, float(m["view_scale"]), str(m["idle"]))
+				_preview_base_data = str(m["data"])
+				_preview_base_scale = float(m["view_scale"])
+				_preview_base_idle = str(m["idle"])
+				_preview_data_path = _preview_base_data
+				_make_preview(data, _preview_base_scale, _preview_base_idle)
 
 	if _tab == TAB_ENEMY and not m.is_empty() and not bool(m["locked"]):
 		var enemy_id := str(m["id"])
-		var is_boss := BossTypes.ROSTER.has(enemy_id)
+		var is_boss := BossTypes.is_codex_boss(enemy_id)
 		var enemy_cfg: Dictionary = BossTypes.get_boss(enemy_id) if is_boss else EnemyTypes.get_type(enemy_id)
 		if is_boss or bool(enemy_cfg.get("elite", false)):
 			_medal_fx = SpineFX.spawn(self, "E21019", Vector2(STAGE_X + STAGE_W - 46, STAGE_Y + 54), {
@@ -1243,11 +1309,15 @@ func _build_detail() -> void:
 		_desc_rt.text = "[color=#8a857a]演示暂时不可用，仍可查看文字资料。[/color]"
 		return
 
-	# 动作按钮：先按骨架里真实存在的动画过滤，再铺 8 列网格
-	var anims := _anim_names(data)
+	# 动作按钮：先按各招式所属骨架过滤真实动画，再铺 8 列网格（剑冢两阶段共用一张卡）
+	var anims_cache: Dictionary = {}
 	var built: Array = []
 	for a in m["actions"]:
-		if _trim_anims(a, anims):
+		var form_path := str(a.get("data", m["data"]))
+		if not anims_cache.has(form_path):
+			var form_data = load(form_path)
+			anims_cache[form_path] = _anim_names(form_data) if form_data != null else _anim_names(data)
+		if _trim_anims(a, anims_cache[form_path]):
 			built.append(a)
 	if built.size() > ACT_MAX:
 		built = built.slice(0, ACT_MAX)
@@ -1304,7 +1374,7 @@ func _model(id: String) -> Dictionary:
 	if id == "":
 		return {}
 	if _tab == TAB_ENEMY:
-		var is_boss := BossTypes.ROSTER.has(id)
+		var is_boss := BossTypes.is_codex_boss(id)
 		var t: Dictionary = BossTypes.get_boss(id) if is_boss else EnemyTypes.get_type(id)
 		var times := Meta.enemy_kills(id)
 		if times <= 0:
@@ -1314,7 +1384,7 @@ func _model(id: String) -> Dictionary:
 				"view_scale": 1.0, "idle": "stand", "actions": []}
 		return {
 			"id": id, "locked": false, "title": str(t["label"]),
-			"sub": "%s · 生命 %d" % [_enemy_kind(t, is_boss), int(t.get("hp", 0))],
+			"sub": str(t.get("codex_sub", "%s · 生命 %d" % [_enemy_kind(t, is_boss), int(t.get("hp", 0))])),
 			"stat": "已击败 %d 次" % times,
 			"tags": StatusCodex.tags_for(id),
 			"lore": str(LORE.get(id, "")),
@@ -1382,10 +1452,13 @@ func _form_actions(p: Dictionary, form_id: String) -> Array:
 		if not skills.has(key):
 			continue
 		var cfg: Dictionary = skills[key]
-		var pool: Array = cfg.get("pool", [key])
+		# 技能键不一定等于动画名（烬生 burn_k 等）：没有 pool 时优先取显式 anim
+		var pool: Array = (cfg.get("pool", []) as Array).duplicate()
+		if pool.is_empty():
+			pool = [str(cfg.get("anim", key))]
 		var action := {
 			"label": "无名式",
-			"anims": (pool as Array).duplicate(),
+			"anims": pool,
 			"kind": "skill", "src": cfg,
 		}
 		if i < skill_text.size():
@@ -1406,36 +1479,53 @@ func _form_actions(p: Dictionary, form_id: String) -> Array:
 
 func _enemy_actions(t: Dictionary, is_boss: bool, id: String) -> Array:
 	var out: Array = []
-	var names: Array = []
+	# 一张图鉴卡可合并多个形态：剑冢在一阶段卡片内同时展示二阶段四招，并附带各自的骨架路径。
+	var forms: Array = [{"id": id, "cfg": t}]
 	if is_boss:
-		for st in t.get("stages", []):
-			for n in st.get("attacks", []):
-				if not names.has(str(n)):
-					names.append(str(n))
-	else:
-		for n in t.get("attacks", []):
-			names.append(str(n))
+		for fid in t.get("codex_forms", []):
+			var form_id := str(fid)
+			if BossTypes.BOSSES.has(form_id) and form_id != id:
+				forms.append({"id": form_id, "cfg": BossTypes.get_boss(form_id)})
+	var action_seq := 0
+	for form in forms:
+		var form_id := str(form["id"])
+		var cfg: Dictionary = form["cfg"]
+		var names: Array = []
+		if is_boss:
+			for st in cfg.get("stages", []):
+				for n in st.get("attacks", []):
+					if not names.has(str(n)):
+						names.append(str(n))
+		else:
+			for n in cfg.get("attacks", []):
+				names.append(str(n))
 
-	var chains: Dictionary = t.get("attack_chain", {})
-	var chained: Array = []
-	for start in chains:
-		var next_anim := str((chains[start] as Dictionary).get("anim", ""))
-		if not next_anim.is_empty():
-			chained.append(next_anim)
-
-	for i in names.size():
-		var n := str(names[i])
-		if chained.has(n):
-			continue # 连段收尾不是独立招式，不额外生成第四个按钮
-		var attack_names: Dictionary = ENEMY_ATTACK_NAMES.get(id, {})
-		var visual := str((t.get("move_anims", {}) as Dictionary).get(n, n))
-		var visuals: Array = (t.get("move_pool", {}) as Dictionary).get(n, [visual])
-		var action := {"label": str(attack_names.get(n, "招式 %d" % (i + 1))), "anims": visuals, "key": n, "kind": "enemy_atk", "src": t, "id": id}
-		if chains.has(n):
-			var next_anim := str((chains[n] as Dictionary).get("anim", ""))
+		var chains: Dictionary = cfg.get("attack_chain", {})
+		var chained: Array = []
+		for start in chains:
+			var next_anim := str((chains[start] as Dictionary).get("anim", ""))
 			if not next_anim.is_empty():
-				action["sequence"] = [n, next_anim]
-		out.append(action)
+				chained.append(next_anim)
+
+		var attack_names: Dictionary = ENEMY_ATTACK_NAMES.get(form_id, {})
+		for n in names:
+			var move := str(n)
+			if chained.has(move):
+				continue # 连段收尾不是独立招式，不额外生成第四个按钮
+			action_seq += 1
+			var visual := str((cfg.get("move_anims", {}) as Dictionary).get(move, move))
+			var visuals: Array = (cfg.get("move_pool", {}) as Dictionary).get(move, [visual])
+			var action := {"label": str(attack_names.get(move, "招式 %d" % action_seq)),
+				"anims": visuals, "key": move, "kind": "enemy_atk", "src": cfg, "id": form_id}
+			if is_boss:
+				action["data"] = str(cfg["data"])
+				action["view_scale"] = _enemy_scale(cfg, true)
+				action["form_idle"] = str(cfg["anim"]["idle"])
+			if chains.has(move):
+				var next_anim := str((chains[move] as Dictionary).get("anim", ""))
+				if not next_anim.is_empty():
+					action["sequence"] = [move, next_anim]
+			out.append(action)
 
 	var limit: Dictionary = t.get("limit", {})
 	if not limit.is_empty():
@@ -1720,6 +1810,21 @@ func _make_preview(data, view_scale: float, idle: String) -> void:
 	_play(idle)
 
 
+## 双形态图鉴：按招式切换演示骨架（剑冢一阶段 C019 / 二阶段 C019_sp）。
+func _swap_preview(path: String, scale: float, idle: String) -> void:
+	if _preview == null or not is_instance_valid(_preview):
+		return
+	var data = load(path)
+	if data == null or not bool(data.call("is_skeleton_data_loaded")):
+		return
+	_preview.queue_free()
+	_preview = null
+	_pose_mixer = null
+	_make_preview(data, scale, idle)
+	_preview_data_path = path
+	_current_anim = "" # 换骨架后允许同名动画重新起播
+
+
 func _anim_names(data) -> Dictionary:
 	var out := {}
 	for a in data.call("get_animations"):
@@ -1777,6 +1882,11 @@ func _pick(i: int) -> void:
 	_pool = a["anims"]
 	_pool_i = 0
 	_click_sfx()
+
+	var want_path := str(a.get("data", _preview_base_data))
+	if want_path != "" and want_path != _preview_data_path:
+		_swap_preview(want_path, float(a.get("view_scale", _preview_base_scale)),
+			str(a.get("form_idle", _preview_base_idle)))
 
 	var anim := _idle_anim
 	if not _pool.is_empty():

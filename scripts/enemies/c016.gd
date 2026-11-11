@@ -151,6 +151,8 @@ var _enrage_speed := 1.2
 var _enraged := false
 var _bloodthirst: Dictionary = {} # 嗜血：低血永久激活；虚弱动画/减速只随当前血量变化
 var _bloodthirst_active := false
+var _drop_ink := 0 # 击杀掉落：每累计 N 杀给一次墨锭
+var _drop_every := 0
 var _skill_cooldown_scale := 1.0 # 镰意绽花命中后永久减半，不重复叠加
 # 青笠剑意：只由本体实伤叠层；凝华分身读取本体层数，但不叠层、不再繁殖。
 var _sword_intent := 0
@@ -330,6 +332,9 @@ func _apply_type() -> void:
 	_enrage_speed = float(en.get("speed", 1.2))
 	_bloodthirst = t.get("bloodthirst", {})
 	_bloodthirst_active = false
+	var drop: Dictionary = t.get("drop", {})
+	_drop_ink = int(drop.get("ink", 0))
+	_drop_every = int(drop.get("every", 0))
 	_skill_cooldown_scale = 1.0
 	max_hp = maxi(1, int(round(float(t["hp"]) * Run.enemy_hp_mul())))
 	patrol_speed = float(t["patrol_speed"])
@@ -2269,6 +2274,13 @@ func die() -> void:
 		Meta.add_enemy_kill(type_id) # 图鉴：这只敌人（Boss 也走这里）被击败一次，收录 +1
 		Score.add_kill() # 本局击杀计数（结算战绩用）
 		Achievements.note_enemy_killed(type_id, stop_tier() == "elite")
+		# 杂兵掉落：每累计 N 杀给一次墨锭；没有配置的敌人保持原有 0 掉落
+		if _drop_every > 0 and _drop_ink > 0 and Meta.enemy_kills(type_id) % _drop_every == 0:
+			Meta.add_ink(_drop_ink)
+			var drop_dn := DAMAGE_NUMBER.new()
+			drop_dn.setup("墨锭 +%d" % _drop_ink, Color(0.78, 0.62, 0.25))
+			drop_dn.global_position = global_position + Vector2(0, -150)
+			_world_add(drop_dn)
 		# 多人局：每位玩家都拿自己的击杀收益；契合按不同形态各记一次，全局击杀数只计一次
 		var credited: Dictionary = {}
 		for pl in get_tree().get_nodes_in_group("player"):

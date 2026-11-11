@@ -237,7 +237,8 @@ func _spawn_enemy() -> void:
 	_player.cooldown_scale = 0.0
 	_player.dash_cooldown = 0.0
 	_player.hp_changed.emit(_player.hp, _player.max_hp)
-	if info["id"] != "c001": # 武车保留耐久，才能试完整个波次与阵亡流程
+	# 武车保留耐久，才能试完整个波次；剑冢保留真实血量，才能验收空血换形与二阶段。
+	if info["id"] != "c001" and info["id"] != "c019":
 		_enemy.max_hp = GOD_HP
 		_enemy.hp = GOD_HP
 

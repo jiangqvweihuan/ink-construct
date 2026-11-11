@@ -155,6 +155,50 @@ const TYPES := {
 		"bar_y": -120.0,
 		"number_y": -105.0,
 	},
+	# ---------- 舞姬：C033，轻身连踢；残血进入残舞，出招更密 ----------
+	"c033": {
+		"label": "舞姬",
+		"data": "res://art/characters/enemies/c033/c033_data.tres",
+		"scale": 0.30, # 骨架 472.9px -> 约 142px；剪影带长辫与足刃，实际身段约 118px
+		"body_radius": 28.0, # 身段轻，受击面比刀客窄一档
+		"elite": false,
+		"anim": {"idle": "stand", "patrol": "stand", "chase": "stand", "hurt": "atked", "dead": "atked"},
+		"attacks": ["skill15", "skill09_03"],
+		# 剪影实测（0.25 缩放）：skill15 左伸峰值 111px@0.44s；skill09_03 旋身峰 106px@0.55s。
+		# 最终 0.30 缩放按比例换算为 135 / 130px。
+		"hit_at": {"skill15": 0.44, "skill09_03": 0.55},
+		"ranges": {"skill15": 135.0, "skill09_03": 130.0},
+		"both": {"skill09_03": true}, # 旋身踢前后都判，避免背身空刀
+		"damage": {"skill15": 1, "skill09_03": 2},
+		"hit_effects": {"skill09_03": {"bleed": 1}},
+		# 首招是无冷却普攻；主动技有独立冷却，靠近身合规优先。
+		"attack_rules": {
+			"skill15": {"weight": 1.0},
+			"skill09_03": {"cooldown": 9.6, "random": false},
+		},
+		"hp": 5,
+		"patrol_speed": 85.0,
+		"chase_speed": 175.0,
+		"patrol_range": 140.0,
+		"idle_time": 0.8,
+		"detect_range": 280.0,
+		"lose_range": 400.0,
+		"attack_range": 155.0,
+		"keep_dist": 88.0,
+		"attack_cooldown": 1.6,
+		"attack_lunge": 320.0,
+		"hit_height": 100.0,
+		"hurt_time": 0.28,
+		"armor": 0,
+		"telegraph": false,
+		"pick": "random",
+		"enrage": {"below": 0.35, "cd": 0.72, "speed": 1.3}, # 残舞：低血提速、缩短出手间隔
+		"drop": {"ink": 1, "every": 5}, # 每累计击败 5 名舞姬，掉落 1 墨锭
+		"dead_min": 1.8,
+		"bar_w": 44.0,
+		"bar_y": -148.0,
+		"number_y": -130.0,
+	},
 	# ---------- 精英 · 青魇剑主：C037，亭台礼剑与魔剑反噬并存 ----------
 	"c037": {
 		"label": "青魇剑主",

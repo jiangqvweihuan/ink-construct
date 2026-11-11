@@ -6,10 +6,12 @@
 # 测试、调试与导出产物
 tests/out/
 tests/*.log
+tests/*.txt
 tests/*_stdout.txt
 tests/*_stderr.txt
 tests/*.stdout.txt
 tests/*.stderr.txt
+.test_appdata_full/
 .screenshots/
 /build/
 
