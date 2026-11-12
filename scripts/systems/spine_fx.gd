@@ -5,6 +5,9 @@ extends Node2D
 
 static var _data_cache: Dictionary = {}
 static var _self_script: GDScript
+## 联机主机侧世界特效钩子：NetSync 挂上后把战场内的短特效交给客机回放。
+## 参数：fx_id, global_pos, anim, loop, opts, parent
+static var net_hook: Callable = Callable()
 
 var sprite: Node2D
 var _lifetime := -1.0
@@ -102,6 +105,8 @@ static func _make(parent: Node, fx_id: String, pos: Vector2, opts: Dictionary) -
 		push_warning("SpineFX: %s 无动画 %s，改用 %s" % [fx_id, anim, names[0]])
 		anim = names[0]
 	f.play(anim, bool(opts.get("loop", false)), float(opts.get("speed", 1.0)), bool(opts.get("auto_free", true)))
+	if net_hook.is_valid():
+		net_hook.call(fx_id, f.global_position, anim, bool(opts.get("loop", false)), opts, parent)
 	return f
 
 

@@ -3,14 +3,14 @@ extends RefCounted
 ## 局域网联机常量：端口、协议版本、频率与可同步动作。集中放置，便于测试与后续调整。
 
 const APP_ID := "ink_construct"
-const PROTO_VERSION := 2 # v2：局域网最多 4 人，输入按 slot 分发
+const PROTO_VERSION := 3 # v3：快照去掉每帧 Run 冗余，新增轻量世界特效事件
 
 const GAME_PORT := 42422 # ENet 游戏传输端口
 const BEACON_PORT := 42420 # 主机发现端口（监听探测、发送信标）
 const SCAN_PORT := 42421 # 客户端发现端口（接收信标/探测回复）
 
 const MAX_PLAYERS := 4 # 1 主机 + 最多 3 客户端
-const SNAPSHOT_HZ := 20.0 # 世界快照下发频率
+const SNAPSHOT_HZ := 30.0 # 世界快照下发频率：去掉每帧 Run 后带宽反而低于旧的 20Hz
 const INPUT_HZ := 30.0 # 客户端输入上送频率
 
 const BEACON_INTERVAL := 1.0

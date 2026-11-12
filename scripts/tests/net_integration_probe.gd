@@ -23,6 +23,7 @@ var prev_members := 0
 var saw_drop := false
 var saw_rejoin := false
 var play_t := 0.0
+var sent_settlement := false
 
 # 客机侧
 var c_play := 0.0
@@ -35,6 +36,7 @@ var closed_peer := false
 var was_reconnecting := false
 var pre_disconnect_seq := 0
 var reconnect_ok := false
+var settlement_ok := false
 var finished := false
 
 
@@ -50,6 +52,7 @@ func _ready() -> void:
 		LanNet.joined.connect(_on_joined)
 		LanNet.join_failed.connect(_on_join_failed)
 		LanNet.session_started.connect(_on_session_started)
+		LanNet.settlement.connect(_on_settlement)
 		var err2 := LanNet.join_room("127.0.0.1")
 		_check("client_join_call", err2 == "", err2)
 
@@ -80,6 +83,13 @@ func _tick_host(delta: float) -> void:
 	if snap_acc >= 1.0 / Cfg.SNAPSHOT_HZ:
 		snap_acc = 0.0
 		_push_snapshot()
+	# 结算事件传输：客机应在断开重连前收到完整战绩
+	if play_t > 0.8 and not sent_settlement:
+		sent_settlement = true
+		LanNet.host_settlement({
+			"title": "集成结算", "cleared": true, "roster": [], "last_slot": -1,
+			"kills": 7, "max_combo": 5, "last_hit": {}, "boss_defeated": [],
+		})
 	if LanNet.remote_held(1, "attack") or LanNet.remote_axis(1) != 0:
 		saw_remote = true
 	if LanNet.bad_packets > 0:
@@ -134,6 +144,10 @@ func _on_session_started(_cfg: Dictionary) -> void:
 	pass
 
 
+func _on_settlement(d: Dictionary) -> void:
+	settlement_ok = str(d.get("title", "")) == "集成结算" and int(d.get("kills", -1)) == 7
+
+
 func _tick_client(delta: float) -> void:
 	if LanNet.state == "playing":
 		c_play += delta
@@ -171,6 +185,7 @@ func _tick_client(delta: float) -> void:
 		_check("client_snapshot_players", ps_ok)
 		_check("client_snapshot_enemies", es_ok)
 		_check("client_snapshot_seq", LanNet.snapshot_seq > 0, "seq=%d" % LanNet.snapshot_seq)
+		_check("client_settlement", settlement_ok)
 		_check("client_reconnect", reconnect_ok)
 		LanNet.leave()
 		_done()

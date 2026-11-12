@@ -56,6 +56,10 @@ func _ready() -> void:
 		var pending := LanNet.take_pending_choice()
 		if not pending.is_empty():
 			_on_choice_requested(pending)
+		# 结算数据同理：切场景瞬间收到的主机结算先缓冲，场景就绪后立刻弹面板
+		var pending_settle := LanNet.take_pending_settlement()
+		if not pending_settle.is_empty():
+			_show_client_settlement(pending_settle)
 	else:
 		_build_actors()
 		_show_blessing() # 每局第一层出发前的赐福三选一（测试/嵌套实例化时不弹）
@@ -546,18 +550,70 @@ func _physics_process(_delta: float) -> void:
 func _show_settlement(title_text: String, cleared: bool) -> void:
 	if get_node_or_null("Settlement") != null:
 		return
-	# 客户端不跑结算流程，由主机发 session_end 回大厅
+	# 客机不跑主机结算逻辑，等主机下发 settlement 事件后各自展示
 	if Run.net_role == "client":
 		return
-	if Run.net_role == "host":
-		LanNet.host_end_session("对局结束")
-		Run.net_role = ""
-		Run.local_coop = false
 	Achievements.finish_run(cleared) # 单局条件（无伤 / 残血 / 速通 / 空手）在结算前结清
+	var roster := _build_roster()
+	var online_host := Run.net_role == "host"
+	# 先发结算数据再弹本机面板：客机与主机看到同一份战绩，并各自结算本地奖励
+	if online_host:
+		LanNet.host_settlement({
+			"title": title_text, "cleared": cleared,
+			"roster": roster, "last_slot": Run.last_death_slot,
+			"kills": Score.kills, "max_combo": Score.max_combo,
+			"last_hit": Run.last_hit.duplicate(true),
+			"boss_defeated": Run.boss_defeated.duplicate(),
+			"boss_id": Run.boss_id,
+			"ink_bonus": Run.c023_ink_bonus,
+		})
 	var s = load("res://scenes/ui/settlement_panel.tscn").instantiate()
 	s.name = "Settlement"
-	s.setup(title_text, cleared, _build_roster(), Run.last_death_slot)
+	s.setup(title_text, cleared, roster, Run.last_death_slot, online_host, false)
 	add_child(s)
+
+
+## 客机结算：按主机下发的同一份战绩弹面板，并在本地结算自己的局外奖励。
+func _show_client_settlement(d: Dictionary) -> void:
+	if Run.net_role != "client" or get_node_or_null("Settlement") != null:
+		return
+	var roster: Array = d.get("roster", []) if d.get("roster", []) is Array else []
+	var cleared := bool(d.get("cleared", false))
+	Run.last_death_slot = int(d.get("last_slot", -1))
+	var lh = d.get("last_hit", {})
+	Run.last_hit = (lh as Dictionary).duplicate(true) if lh is Dictionary else {}
+	var defeated = d.get("boss_defeated", [])
+	Run.boss_defeated = (defeated as Array).duplicate() if defeated is Array else []
+	Run.boss_id = str(d.get("boss_id", Run.boss_id))
+	Run.c023_ink_bonus = int(d.get("ink_bonus", 0))
+	Run.active = false
+	Score.kills = int(d.get("kills", 0))
+	Score.max_combo = int(d.get("max_combo", 0))
+	if Run.meta_snapshot.is_empty():
+		Run.meta_snapshot = Meta.snapshot()
+	# 本地发奖：每位参与者 +20 契合，首个参与者累计通关数（与主机 _participant_skulls 同口径去重）
+	var first := true
+	var seen := {}
+	for r in roster:
+		if not (r is Dictionary):
+			continue
+		var skull := str(r.get("skull", ""))
+		if skull == "" or seen.has(skull):
+			continue
+		seen[skull] = true
+		Meta.add_clear(skull, first)
+		first = false
+	Achievements.finish_run(cleared)
+	var s = load("res://scenes/ui/settlement_panel.tscn").instantiate()
+	s.name = "Settlement"
+	s.setup(str(d.get("title", "结  算")), cleared, roster, Run.last_death_slot, false, true)
+	add_child(s)
+
+
+## 主机结算事件：房间已就绪时立即弹面板；信号路径已消费缓冲，避免换场景重弹。
+func _on_settlement(d: Dictionary) -> void:
+	LanNet.take_pending_settlement()
+	_show_client_settlement(d)
 
 
 ## 每局第一层出发前弹开局赐福三选一；测试场景（auto_demo）或被别的场景嵌套实例化时不弹
@@ -590,6 +646,8 @@ func _connect_lan_choices() -> void:
 		LanNet.choice_requested.connect(_on_choice_requested)
 	if not LanNet.choice_resolved.is_connected(_on_choice_resolved):
 		LanNet.choice_resolved.connect(_on_choice_resolved)
+	if not LanNet.settlement.is_connected(_on_settlement):
+		LanNet.settlement.connect(_on_settlement)
 
 
 ## 主机下发了三选一（或客机补取到缓冲请求）：按类型弹出本机面板。

@@ -18,6 +18,8 @@ signal link_restored()
 signal choice_requested(payload: Dictionary)
 ## 主机确认所有人的选择都已落盘（客机据此关闭等待态并应用同步后的 Run）。
 signal choice_resolved(kind: String)
+## 主机结算数据：客机据此弹出与主机一致的结算面板并领取本地奖励。
+signal settlement(data: Dictionary)
 
 const Cfg = preload("res://scripts/net/net_config.gd")
 const Proto = preload("res://scripts/net/net_protocol.gd")
@@ -36,6 +38,8 @@ var members: Dictionary = {} # peer_id -> {name, slot, ready, token}
 var local_slot := 0
 var auto_enter_room := true # 测试关闭，避免测试进程加载整张房间
 var latest_snapshot: Dictionary = {}
+var pending_fx: Array = [] # 客机：已收到但尚未回放的特效事件（可靠通道下发，独立累积）
+var fx_received := 0 # 诊断/测试：网络层收到的特效事件数
 var snapshot_seq := 0
 var last_rtt_ms := 0
 var bad_packets := 0
@@ -49,6 +53,7 @@ var _transitioning := false
 var _input_seq := 0
 var _input_acc := 0.0
 var _pending_just := {}
+var _input_flush := false # 本次采样出现了新的按下边沿：立即上送，不再等 30Hz 节拍
 ## 远端输入按 slot 分桶（slot 1~3）；每个元素结构：{action: true} / {action: 毫秒时间戳}
 var _remote_held := {}
 var _remote_just := {}
@@ -66,6 +71,7 @@ var _choice_elapsed := 0.0
 var _choice_cards := {} # slot -> Array[String]
 var _choice_done := {} # slot -> key
 var _pending_choice: Dictionary = {} # 客机：房间场景就绪前收到的请求先缓冲
+var _pending_settlement: Dictionary = {} # 客机：房间场景就绪前收到的结算数据先缓冲
 
 var _hb_acc := 0.0
 var _ping_sent_ms := 0
@@ -102,7 +108,11 @@ func _process(delta: float) -> void:
 	_tick_choice(delta)
 	if role == "client" and state == "playing":
 		_sample_input_edges()
-		_pump_input(delta)
+		if _input_flush:
+			_input_flush = false
+			_pump_input(delta, true)
+		else:
+			_pump_input(delta)
 
 
 # ---------------------------------------------------------------- 房间 / 会话
@@ -264,6 +274,22 @@ func set_ready(ready: bool) -> void:
 		_emit_lobby()
 
 
+## 房主把结算数据同步给所有客机；客机据此显示同一份战绩并本地领奖。
+func host_settlement(data: Dictionary) -> void:
+	if role != "host":
+		return
+	_emit_event({"kind": "settlement", "data": data.duplicate(true)})
+
+
+## 客机：房间场景就绪前收到的结算数据先缓冲，避免切场景时丢失。
+func take_pending_settlement() -> Dictionary:
+	if _pending_settlement.is_empty():
+		return {}
+	var d := _pending_settlement.duplicate(true)
+	_pending_settlement.clear()
+	return d
+
+
 ## 房主推进到下一张房间：先同步 Run，再双方各自切场景
 func host_change_room() -> void:
 	if role != "host":
@@ -304,11 +330,15 @@ func teardown(reason := "", notify := false) -> void:
 	members.clear()
 	room.clear()
 	latest_snapshot.clear()
+	pending_fx.clear()
 	snapshot_seq = 0
 	_remote_held.clear()
 	_remote_just.clear()
 	_remote_just_at.clear()
 	_remote_axis.clear()
+	_pending_just.clear()
+	_input_flush = false
+	_input_acc = 0.0
 	_reserved.clear()
 	_choice_kind = ""
 	_choice_open = false
@@ -316,6 +346,7 @@ func teardown(reason := "", notify := false) -> void:
 	_choice_cards.clear()
 	_choice_done.clear()
 	_pending_choice.clear()
+	_pending_settlement.clear()
 	_reconnecting = false
 	_reconnect_left = 0
 	Run.net_role = ""
@@ -336,6 +367,7 @@ func run_payload() -> Dictionary:
 		"blessing": Run.blessing,
 		"boss": Run.boss_id,
 		"boss_queue": Run.boss_queue.duplicate(),
+		"boss_defeated": Run.boss_defeated.duplicate(),
 		"phase": Run.boss_phase,
 		"hp": Run.hp,
 		"max_hp": Run.max_hp,
@@ -407,6 +439,24 @@ func take_remote_just(slot: int, action: String) -> bool:
 
 func remote_axis(slot: int) -> int:
 	return int(_remote_axis.get(slot, 0))
+
+
+## 主机下发一批世界特效。特效是一次性事件，必须走可靠通道，不能被快照丢包吞掉。
+func push_fx(events: Array) -> void:
+	if role != "host" or state != "playing" or events.is_empty():
+		return
+	if multiplayer.multiplayer_peer == null:
+		return
+	_rpc_fx.rpc(events)
+
+
+## 客机取走所有待回放的世界特效（读即清空）。
+func take_pending_fx() -> Array:
+	if pending_fx.is_empty():
+		return []
+	var out := pending_fx
+	pending_fx = []
+	return out
 
 
 # ---------------------------------------------------------------- 开局祝福 / 通关强化（三选一）
@@ -653,6 +703,8 @@ func _rpc_join_result(d: Dictionary) -> void:
 	if resumed:
 		link_restored.emit()
 	if state == "playing":
+		if Run.meta_snapshot.is_empty():
+			Run.meta_snapshot = Meta.snapshot()
 		_apply_run_sync(d.get("run", {}) if d.get("run", {}) is Dictionary else {})
 		session_started.emit(_host_game_config)
 		if auto_enter_room:
@@ -715,6 +767,8 @@ func _rpc_game_start(data: Dictionary) -> void:
 	if _host_game_config.has("mode"):
 		room["mode"] = str(_host_game_config["mode"])
 	state = "playing"
+	# 客机也要有自己的局内 Meta 基线，结算面板才能展示本局契合/解锁收获
+	Run.meta_snapshot = Meta.snapshot()
 	_apply_run_sync(data.get("run", {}) if data.get("run", {}) is Dictionary else {})
 	session_started.emit(_host_game_config)
 	if auto_enter_room:
@@ -750,9 +804,18 @@ func _rpc_event(ev: Dictionary) -> void:
 			if not run.is_empty():
 				_apply_run_sync(run)
 			choice_resolved.emit(str(ev.get("choice", "")))
+		"settlement":
+			# 主机结算：先缓冲，房间场景就绪后再弹面板；已就绪则立即通知
+			var data: Dictionary = ev.get("data", {}) if ev.get("data", {}) is Dictionary else {}
+			_pending_settlement = data.duplicate(true)
+			settlement.emit(data)
 		"session_end":
 			var reason := str(ev.get("reason", "对局已结束"))
 			teardown(reason, true)
+			# 客机正在看结算时不要强制回主菜单，等玩家看完自己点「回主菜单」
+			var scene := get_tree().current_scene
+			if scene != null and scene.find_child("Settlement", true, false) != null:
+				return
 			_go(MENU_SCENE, "正在收卷")
 		"notice":
 			net_notice.emit(str(ev.get("text", "")))
@@ -834,6 +897,16 @@ func _rpc_input(bytes: PackedByteArray) -> void:
 		at[name] = _last_input_ms
 	_remote_just[slot] = just
 	_remote_just_at[slot] = at
+
+
+@rpc("authority", "call_remote", "reliable", Cfg.CH_CONTROL)
+func _rpc_fx(events: Array) -> void:
+	if role != "client":
+		return
+	fx_received += events.size()
+	pending_fx.append_array(events)
+	if pending_fx.size() > 128:
+		pending_fx = pending_fx.slice(pending_fx.size() - 128)
 
 
 @rpc("authority", "call_remote", "unreliable_ordered", Cfg.CH_SNAPSHOT)
@@ -955,11 +1028,12 @@ func _sample_input_edges() -> void:
 	for a in Cfg.ACTIONS:
 		if Input.is_action_just_pressed(str(a)):
 			_pending_just[str(a)] = true
+			_input_flush = true
 
 
-func _pump_input(delta: float) -> void:
+func _pump_input(delta: float, force := false) -> void:
 	_input_acc += delta
-	if _input_acc < 1.0 / Cfg.INPUT_HZ:
+	if not force and _input_acc < 1.0 / Cfg.INPUT_HZ:
 		return
 	_input_acc = 0.0
 	if multiplayer.multiplayer_peer == null:
@@ -1126,6 +1200,8 @@ func _apply_run_sync(d: Dictionary) -> void:
 	Run.boss_id = str(d.get("boss", ""))
 	var queue = d.get("boss_queue", [])
 	Run.boss_queue = (queue as Array).duplicate() if queue is Array else []
+	var defeated = d.get("boss_defeated", [])
+	Run.boss_defeated = (defeated as Array).duplicate() if defeated is Array else []
 	Run.boss_phase = int(d.get("phase", 0))
 	Run.max_hp = maxi(1, int(d.get("max_hp", Run.max_hp)))
 	Run.hp = clampi(int(d.get("hp", Run.hp)), 1, Run.max_hp)

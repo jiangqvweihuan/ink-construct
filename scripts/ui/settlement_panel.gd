@@ -34,18 +34,24 @@ var _result_anim := ""
 var _last_hit_fx: Node2D
 var _roster: Array = [] # 本次对局全部参与者：{slot, skull, alive, hp, max_hp}
 var _last_death_slot := -1 # 最后阵亡槽位，失败时用它选立绘
+var _net_host := false # 联机房主：离开结算时负责结束会话
+var _net_client := false # 联机客机：只看结算与回主菜单，不能单方面重开
 
 
-func setup(title_text: String, cleared := false, roster: Array = [], last_slot := -1) -> void:
+func setup(title_text: String, cleared := false, roster: Array = [], last_slot := -1, net_host := false, net_client := false) -> void:
 	_title = title_text
 	_cleared = cleared
 	_roster = roster
 	_last_death_slot = last_slot
+	_net_host = net_host
+	_net_client = net_client
 
 
 func _ready() -> void:
 	layer = 8
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# 联机客机此前一直在战斗房间里，鼠标被隐藏；结算必须立刻恢复指针，不能等玩家点一下才醒
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().paused = true
 	_play_sound(SFX_SETTLE)
 	_play_sound(SFX_WIN if _cleared else SFX_LOSE)
@@ -146,7 +152,9 @@ func _build(diff: Dictionary, ink_gain: int) -> void:
 	if rows == 0 and diff["unlocks"].is_empty() and ink_gain <= 0 and gained.is_empty():
 		_make_line("本局无额外收获", DIM, 17, cy)
 
-	_make_button("再来一局", 508, _restart)
+	# 客机不能单方面重开整局，只保留回主菜单；房主仍可再来一局
+	if not _net_client:
+		_make_button("再来一局", 508, _restart)
 	_make_button("回主菜单", 574, _to_menu)
 
 
@@ -453,6 +461,13 @@ func _frac_of(exp: int) -> float:
 
 
 func _restart() -> void:
+	if _net_client:
+		return
+	# 联机房主重开即结束本次联机会话，客机留在结算页自行返回
+	if _net_host:
+		await LanNet.host_end_session("对局结束")
+		Run.net_role = ""
+		Run.local_coop = false
 	get_tree().paused = false
 	# 再来一局保留本机双人的 P2 化身，不要退回成两人同一角色
 	var p2 := str(Run.slot_skull.get(1, "")) if Run.local_coop and Run.net_role == "" else ""
@@ -461,6 +476,10 @@ func _restart() -> void:
 
 
 func _to_menu() -> void:
+	if _net_host:
+		await LanNet.host_end_session("对局结束")
+	elif _net_client:
+		LanNet.teardown("", false)
 	get_tree().paused = false
 	await LoadVeil.transition_to("res://scenes/ui/main_menu.tscn", "正在合卷")
 

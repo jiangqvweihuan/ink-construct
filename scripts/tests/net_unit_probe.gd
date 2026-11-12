@@ -78,6 +78,7 @@ func _test_lan_input_source() -> void:
 	LanNet.set_process(false)
 	Input.action_release("attack")
 	LanNet._pending_just.clear()
+	LanNet._input_flush = false
 	var ev := InputEventAction.new()
 	ev.action = "attack"
 	ev.pressed = true
@@ -85,9 +86,11 @@ func _test_lan_input_source() -> void:
 	await get_tree().process_frame
 	LanNet._sample_input_edges()
 	_check("input_base_action", LanNet._pending_just.has("attack"), str(LanNet._pending_just.keys()))
+	_check("input_flush_edge", LanNet._input_flush)
 	# 必须松开，否则后续注入同一动作时不会再产生 just_pressed（Godot 只在未按下时记录按下帧）
 	Input.action_release("attack")
 	LanNet._pending_just.clear()
+	LanNet._input_flush = false
 
 	# 只按 P2 键不应该被客机采样到（旧 bug：PC 客机被迫用方向键，移动端完全无输入）
 	var ev2 := InputEventAction.new()
@@ -296,10 +299,9 @@ func _test_sanitize() -> void:
 	var es: Array = []
 	for i in 100:
 		es.append([i, "res://scenes/enemies/c016.tscn", 0, 0, 0, 4, 4, 0, 1, "stand", true])
-	var snap := Proto.sanitize_snapshot({"seq": 1, "ps": ps, "es": es, "run": {"depth": 2}})
+	var snap := Proto.sanitize_snapshot({"seq": 1, "ps": ps, "es": es})
 	_check("sanitize_snapshot_players", (snap["ps"] as Array).size() == Cfg.MAX_PLAYERS)
 	_check("sanitize_snapshot_enemies", (snap["es"] as Array).size() == 64)
-	_check("sanitize_snapshot_run", int((snap["run"] as Dictionary).get("depth", 0)) == 2)
 
 
 func _test_beacon() -> void:

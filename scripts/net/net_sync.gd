@@ -1,9 +1,15 @@
 extends Node
 
-## 房间内联机同步：主机按 20Hz 生产快照，客户端消费快照并驱动镜像实体。
+## 房间内联机同步：主机按 30Hz 生产快照，客户端消费快照并驱动镜像实体。
+## 快照只带位置/血量/状态/动画；Run 数据与一次性世界特效走独立事件，避免被快照覆盖。
 ## 单机/本机双人不会创建本节点，所有分支都不影响原有战斗。
 
 const Cfg = preload("res://scripts/net/net_config.gd")
+const SpineFX = preload("res://scripts/systems/spine_fx.gd")
+const WAVE_SPAWNER = preload("res://scripts/systems/wave_spawner.gd")
+const BossTypes = preload("res://scripts/enemies/boss_types.gd")
+
+const FX_MAX_PER_BATCH := 24 # 单帧最多下发的短特效，防止群战刷屏把可靠通道塞满
 
 var room = null # room_01 实例，由房间在 add_child 前注入
 
@@ -15,6 +21,9 @@ var _enemies := {} # net_id -> 敌人节点
 var _etarget := {} # net_id -> 目标状态
 var _ptarget := {} # slot -> 目标状态
 var _missing := {} # net_id -> 首次缺失时间
+var _fx_queue: Array = [] # 主机：等待下发的一批世界特效
+var fx_sent := 0 # 诊断/测试：已下发特效数
+var fx_recv := 0 # 诊断/测试：已回放特效数
 
 
 func _ready() -> void:
@@ -26,16 +35,48 @@ func _ready() -> void:
 		for p in room._players:
 			if is_instance_valid(p):
 				p.net_puppet = true
+				# 快照在 _process 里直接写位置；开着物理插值会被二次插值，表现为敌人/队友抽搐
+				p.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+		# 客机的敌人随首帧快照才实例化：提前把本局会用到的场景读进缓存，避免首次生成卡顿
+		call_deferred("_preload_scenes")
+	elif Run.net_role == "host":
+		SpineFX.net_hook = _record_fx
+
+
+func _exit_tree() -> void:
+	if SpineFX.net_hook.is_valid() and SpineFX.net_hook.get_object() == self:
+		SpineFX.net_hook = Callable()
+
+
+## 客机预加载：普通/精英敌人候选场景 + 当前 Boss 场景。只读缓存，不实例化。
+func _preload_scenes() -> void:
+	if not is_inside_tree():
+		return
+	for path in WAVE_SPAWNER.NORMAL_SCENES + WAVE_SPAWNER.ELITE_SCENES:
+		ResourceLoader.load(str(path), "PackedScene")
+	if Run.is_boss_room():
+		var boss_path := str(BossTypes.SCENES.get(Run.boss_id, BossTypes.DEFAULT_SCENE))
+		if boss_path != "":
+			ResourceLoader.load(boss_path, "PackedScene")
 
 
 func _process(delta: float) -> void:
 	match Run.net_role:
 		"host":
+			# 特效走可靠通道，逐帧冲刷；状态快照仍按 30Hz 发包
+			if not _fx_queue.is_empty():
+				var fx := _take_fx()
+				fx_sent += fx.size()
+				LanNet.push_fx(fx)
 			_acc += delta
 			if _acc >= 1.0 / Cfg.SNAPSHOT_HZ:
 				_acc = 0.0
 				LanNet.push_snapshot(_build())
 		"client":
+			# 特效事件独立累积消费，不随“最新快照”覆盖而丢失
+			var fx := LanNet.take_pending_fx()
+			if not fx.is_empty():
+				_replay_fx(fx)
 			if LanNet.snapshot_seq != _applied_seq and not LanNet.latest_snapshot.is_empty():
 				_applied_seq = LanNet.snapshot_seq
 				_ingest(LanNet.latest_snapshot)
@@ -75,7 +116,8 @@ func _build() -> Dictionary:
 			int(e.hp), int(e.max_hp), int(e.state), int(e.facing),
 			str(e.get("_current_anim")), bool(e.get("net_anim_loop")),
 		])
-	return {"ps": ps, "es": es, "run": LanNet.run_payload()}
+	# Run 数据只在 room_change / choice_done 事件里发；特效走可靠 RPC，不塞进快照
+	return {"ps": ps, "es": es}
 
 
 # ---------------------------------------------------------------- 客户端
@@ -133,10 +175,79 @@ func _spawn_puppet(eid: int, path: String) -> void:
 	if e == null:
 		return
 	e.net_puppet = true
+	e.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	e.set_meta("net_id", eid)
 	e.name = "NetPuppet_%d" % eid
 	room.add_child(e)
 	_enemies[eid] = e
+
+
+## 主机侧：记录战场内的短生命周期 Spine 特效，随下一帧可靠 RPC 下发给客机。
+## 只记录挂在房间节点树里的 Node2D 特效；UI、全屏遮罩与循环特效不同步。
+func _record_fx(fx_id: String, pos: Vector2, anim: String, loop: bool, opts: Dictionary, parent: Node) -> void:
+	if Run.net_role != "host" or room == null or not is_instance_valid(room):
+		return
+	if _fx_queue.size() >= FX_MAX_PER_BATCH or loop or fx_id == "" or anim == "":
+		return
+	if get_tree() == null or get_tree().paused:
+		return
+	if opts.has("cover") or str(opts.get("fx_role", "")) == "full_screen":
+		return
+	if not (parent is Node2D):
+		return
+	var n: Node = parent
+	while n != null and n != room:
+		n = n.get_parent()
+	if n != room:
+		return
+	var raw_offset = opts.get("offset", Vector2.ZERO)
+	var offset: Vector2 = raw_offset if raw_offset is Vector2 else Vector2.ZERO
+	_fx_queue.append([
+		fx_id, pos.x, pos.y, anim, opts.get("scale", 1.0),
+		bool(opts.get("flip", false)), bool(opts.get("center", false)), bool(opts.get("bottom", false)),
+		float(opts.get("height", 0.0)), float(opts.get("width", 0.0)), int(opts.get("z", 20)),
+		offset.x, offset.y,
+	])
+
+
+func _take_fx() -> Array:
+	if _fx_queue.is_empty():
+		return []
+	var out := _fx_queue
+	_fx_queue = []
+	return out
+
+
+## 客机侧：回放主机下发的世界特效。位置用房间本地坐标。
+func _replay_fx(rows) -> void:
+	if rows.is_empty() or room == null or not is_instance_valid(room):
+		return
+	fx_recv += rows.size()
+	for row in rows:
+		if not (row is Array) or row.size() < 11:
+			continue
+		var fx_id := str(row[0])
+		if fx_id == "":
+			continue
+		var opts := {"anim": str(row[3]), "auto_free": true, "z": int(row[10])}
+		opts["scale"] = row[4]
+		if bool(row[5]):
+			opts["flip"] = true
+		if bool(row[6]):
+			opts["center"] = true
+		if bool(row[7]):
+			opts["bottom"] = true
+		if float(row[8]) > 0.0:
+			opts["height"] = float(row[8])
+		if float(row[9]) > 0.0:
+			opts["width"] = float(row[9])
+		if row.size() >= 13:
+			var off := Vector2(float(row[11]), float(row[12]))
+			if off != Vector2.ZERO:
+				opts["offset"] = off
+		var node = SpineFX.spawn(room, fx_id, room.to_local(Vector2(float(row[1]), float(row[2]))), opts)
+		if node != null:
+			node.set_meta("net_fx", fx_id)
 
 
 func _interpolate(delta: float) -> void:

@@ -96,8 +96,7 @@ static func sanitize_snapshot(src: Dictionary) -> Dictionary:
 		if not (row is Array) or es.size() >= 64:
 			continue
 		es.append(row)
-	var run: Dictionary = src.get("run", {}) if src.get("run", {}) is Dictionary else {}
-	return {"seq": int(src.get("seq", 0)), "ps": ps, "es": es, "run": run}
+	return {"seq": int(src.get("seq", 0)), "ps": ps, "es": es}
 
 
 ## 信标/房间信息解析：字段缺失时给安全默认值
