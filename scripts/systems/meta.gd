@@ -84,6 +84,16 @@ const FORM_NODES := {
 	"z003_return_1": {"form": "z003", "path": "无还", "tier": 1, "desc": "O 位移距离 +100"},
 	"z003_return_2": {"form": "z003", "path": "无还", "tier": 2, "desc": "I 觉醒持续时间 +2 秒", "req": "z003_return_1"},
 	"z003_return_3": {"form": "z003", "path": "无还", "tier": 3, "desc": "觉醒中 O 击杀返还 4 秒觉醒", "req": "z003_return_2"},
+
+	"z001_p_ember_1": {"form": "z001", "path": "焚心", "tier": 1, "desc": "K 每段命中使目标易伤 25%，持续 1.5 秒"},
+	"z001_p_ember_2": {"form": "z001", "path": "焚心", "tier": 2, "desc": "K 对易伤目标的伤害 +1", "req": "z001_p_ember_1"},
+	"z001_p_ember_3": {"form": "z001", "path": "焚心", "tier": 3, "desc": "K 击杀目标时立即重置 K 冷却", "req": "z001_p_ember_2"},
+	"z001_p_burnout_1": {"form": "z001", "path": "余烬", "tier": 1, "desc": "燃尽触发时获得 2 层战意"},
+	"z001_p_burnout_2": {"form": "z001", "path": "余烬", "tier": 2, "desc": "燃尽期间受到的上限伤害 -1（最低 1）", "req": "z001_p_burnout_1"},
+	"z001_p_burnout_3": {"form": "z001", "path": "余烬", "tier": 3, "desc": "燃尽期间每击杀 3 名敌人，回复 2 生命并退出燃尽", "req": "z001_p_burnout_2"},
+	"z001_p_fury_1": {"form": "z001", "path": "战意", "tier": 1, "desc": "每 4 次击杀或受击叠 1 层战意"},
+	"z001_p_fury_2": {"form": "z001", "path": "战意", "tier": 2, "desc": "换房时战意保留一半（向下取整）", "req": "z001_p_fury_1"},
+	"z001_p_fury_3": {"form": "z001", "path": "战意", "tier": 3, "desc": "战意达到 10 层后，全部伤害额外 +2", "req": "z001_p_fury_2"},
 }
 
 ## 墨锭商栈：角色买断放在各角色修炼页顶部；独立商栈只卖通用强化、重随与补给。
@@ -93,6 +103,7 @@ const INK_SHOP := {
 	"buyout_z000": {"label": "买断 · 剑仙", "desc": "直接解锁化身「剑仙」，无需击杀条件", "cost": 360, "form": "z000"},
 	"buyout_z002": {"label": "买断 · 绛弦", "desc": "直接解锁化身「绛弦」，无需击杀条件", "cost": 840, "form": "z002"},
 	"buyout_z003": {"label": "买断 · 银夜", "desc": "直接解锁化身「银夜」，无需击杀条件", "cost": 600, "form": "z003"},
+	"buyout_z001": {"label": "买断 · 烬生", "desc": "直接解锁化身「烬生」，无需通关与击杀条件", "cost": 840, "form": "z001"},
 	"start_ink": {"label": "聚墨", "desc": "每级：每局结算墨锭 +2", "costs": [30, 50, 80], "tab": "permanent"},
 	"start_hp": {"label": "固元", "desc": "每局开局生命上限 +1", "costs": [80], "tab": "permanent"},
 	"start_edge": {"label": "初锋", "desc": "每局首个普通房全部伤害 +1", "costs": [120], "tab": "permanent"},
@@ -269,6 +280,9 @@ func battle_passive_info(id: String) -> Dictionary:
 		"回锋": info["boss_effect"] = {"cooldown_on_cast": 0.3 * tier}
 		"止时": info["boss_effect"] = {"desire": 0.15 * tier}
 		"无还": info["boss_effect"] = {"speed": 0.05 * tier, "reach": 0.05 * tier}
+		"焚心": info["boss_effect"] = {"controlled_damage": 1}
+		"余烬": info["boss_effect"] = {"max_hp": tier}
+		"战意": info["boss_effect"] = {"damage": tier}
 	return info
 
 

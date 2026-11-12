@@ -302,8 +302,10 @@ var _pipa_sorrow_timer := 30.0
 # ---------- 烬生·赤烬专属：燃尽 / 战意 ----------
 var _z001_burnout := false # 生命归零后进入燃尽：后续伤害改为扣生命上限
 var _z001_fury := 0 # 战意层数：每层使全部伤害 +N，不设上限
-var _z001_kill_acc := 0 # 本房累计击杀（每 5 次 +1 层战意）
-var _z001_hit_acc := 0 # 本房累计受击（每 5 次 +1 层战意）
+var _z001_kill_acc := 0 # 本房累计击杀（每 4/5 次 +1 层战意）
+var _z001_hit_acc := 0 # 本房累计受击（每 4/5 次 +1 层战意）
+var _z001_p_buff := 0.0 # 烬灭·续：L 命中后 P 增伤窗口
+var _z001_burnout_kills := 0 # 余烬·极：燃尽期间击杀计数
 ## 燃尽期间保留的最低生命：生命上限未清空前，生命值不会低于此值，避免空血判定误杀。
 const Z001_BURNOUT_MIN_HP := 1
 # ---------- 银夜·将去未还专属机制（形态表注入，其他形态全为默认值=关闭） ----------
@@ -462,6 +464,8 @@ func _apply_profile(id: String) -> void:
 	_z001_fury = 0
 	_z001_kill_acc = 0
 	_z001_hit_acc = 0
+	_z001_p_buff = 0.0
+	_z001_burnout_kills = 0
 	# 通用动作接口：闪避时长/速度、受击分档、倒地、残血待机（形态表不配就走默认值）
 	_dash_time_base = float(profile.get("dash_time", dash_time))
 	_dash_speed_base = float(profile.get("dash_speed", dash_speed))
@@ -527,12 +531,15 @@ func hud_extra_hp() -> int:
 
 ## 每次正式进房调用：霜梅先复原，再把本房实际恢复量转换为 K 尾鞭加伤。
 func on_room_enter() -> void:
-	# 战狂只认当前房间：换房即清空战意与两条累计线；燃尽状态随新房间重建一起复原
+	# 战狂只认当前房间：默认清空战意；战狂·续/战意·续改为保留一半
 	if skull_id == "z001":
-		_z001_fury = 0
+		var keep_fury := _own("z001_rage_2") or _form_node("z001_p_fury_2")
+		_z001_fury = int(_z001_fury / 2.0) if keep_fury else 0
 		_z001_kill_acc = 0
 		_z001_hit_acc = 0
 		_z001_burnout = false
+		_z001_p_buff = 0.0
+		_z001_burnout_kills = 0
 	_c023_frost_bonus = 0
 	if skull_id != "c023" or not has_battle_passive("c023_frost_plum"):
 		return
@@ -1184,6 +1191,8 @@ func _physics_process(delta: float) -> void:
 		_clear_saint_debuffs()
 	_mo_ting_burn_tick(delta)
 	_fen_ding_burn_tick(delta)
+	if skull_id == "z001":
+		_z001_p_buff = maxf(0.0, _z001_p_buff - delta) # 烬灭·续：L 命中后的 2 秒 P 增伤窗口
 	_ming_zhong_vulnerable_time = maxf(0.0, _ming_zhong_vulnerable_time - delta)
 	var had_seal := _passive_seal_time > 0.0
 	_passive_seal_time = maxf(0.0, _passive_seal_time - delta)
@@ -1766,8 +1775,9 @@ func _damage_enemy(target: Node, amount: int) -> int:
 		var defend := Run.enemy_taken_scale()
 		if defend < 1.0:
 			amount = maxi(1, int(round(float(amount) * defend)))
-	if skull_id == "z001" and _z001_fury > 0:
-		amount += _z001_fury # 战意：每层追加等量焚烧伤害，不参与敌方减伤倍率
+	var z001_fury := _z001_fury_damage() if skull_id == "z001" else 0
+	if z001_fury > 0:
+		amount += z001_fury # 战意：每层追加等量焚烧伤害，不参与敌方减伤倍率
 	var before := int(target.get("hp"))
 	if target.has_method("take_damage_from"):
 		target.call("take_damage_from", amount, self)
@@ -1867,12 +1877,37 @@ func _z001_add_fury() -> void:
 		{"scale": 0.4, "mod": Color(1.0, 0.55, 0.25, 0.85)})
 
 
+## 战意层数换算成额外焚烧伤害；战意·极在 10 层后再追加 2 点。
+func _z001_fury_damage() -> int:
+	var n := _z001_fury
+	if _form_node("z001_p_fury_3") and _z001_fury >= 10:
+		n += 2
+	return n
+
+
+func _z001_fury_step() -> int:
+	return 4 if (_own("z001_rage_1") or _form_node("z001_p_fury_1")) else 5
+
+
+## 目标身上是否还挂着易伤（敌人与 Boss 都沿用 _vuln_timer 字段）。
+func _z001_is_vulnerable(target: Node) -> bool:
+	var v = target.get("_vuln_timer")
+	return v != null and float(v) > 0.0
+
+
 func _z001_on_kill() -> void:
 	if skull_id != "z001" or not has_battle_passive("z001_war_fury"):
 		return
+	# 余烬·极：燃尽期间每 3 次击杀用余烬复燃，回 2 生命并退出燃尽
+	if _z001_burnout and _form_node("z001_p_burnout_3"):
+		_z001_burnout_kills += 1
+		if _z001_burnout_kills >= 3:
+			_z001_burnout_kills = 0
+			_restore_hp(2)
 	_z001_kill_acc += 1
-	if _z001_kill_acc >= 5:
-		_z001_kill_acc -= 5
+	var step := _z001_fury_step()
+	if _z001_kill_acc >= step:
+		_z001_kill_acc -= step
 		_z001_add_fury()
 
 
@@ -1880,8 +1915,9 @@ func _z001_on_hit_taken() -> void:
 	if skull_id != "z001" or not has_battle_passive("z001_war_fury"):
 		return
 	_z001_hit_acc += 1
-	if _z001_hit_acc >= 5:
-		_z001_hit_acc -= 5
+	var step := _z001_fury_step()
+	if _z001_hit_acc >= step:
+		_z001_hit_acc -= step
 		_z001_add_fury()
 
 
@@ -1890,7 +1926,12 @@ func _z001_enter_burnout() -> bool:
 	if skull_id != "z001" or pvp_mode or _z001_burnout or not has_battle_passive("z001_burnout"):
 		return false
 	_z001_burnout = true
+	_z001_burnout_kills = 0
 	hp = Z001_BURNOUT_MIN_HP # 保留最低生命阈值：不死亡，但也不能以 0 血进入后续系统
+	# 战狂·极 / 余烬·初：燃尽触发时直接获得战意
+	var fury_bonus := (3 if _own("z001_rage_3") else 0) + (2 if _form_node("z001_p_burnout_1") else 0)
+	if fury_bonus > 0:
+		_z001_fury += fury_bonus
 	hp_changed.emit(hp, max_hp)
 	_spawn_passive_text("燃尽", Color(1.0, 0.55, 0.25))
 	FX.spawn(get_tree().current_scene, "ink_hit", global_position + Vector2(0, -70),
@@ -1903,7 +1944,12 @@ func _z001_enter_burnout() -> bool:
 func _z001_burnout_take_damage(amount: int) -> void:
 	if amount <= 0 or state == State.DEAD:
 		return
-	max_hp = maxi(0, max_hp - amount)
+	var reduced := amount
+	if _own("z001_rage_3"):
+		reduced = maxi(1, reduced - _z001_fury)
+	if _form_node("z001_p_burnout_2"):
+		reduced = maxi(1, reduced - 1)
+	max_hp = maxi(0, max_hp - reduced)
 	# 上限未清空前保留最低生命；上限归零时才放开到 0 并判死。
 	hp = mini(max_hp, maxi(Z001_BURNOUT_MIN_HP, hp)) if max_hp > 0 else 0
 	if Run.active:
@@ -1913,10 +1959,10 @@ func _z001_burnout_take_damage(amount: int) -> void:
 	hp_changed.emit(hp, max_hp)
 	_z001_on_hit_taken()
 	var dn := DAMAGE_NUMBER.new()
-	dn.setup("上限 -%d" % amount, Color(1.0, 0.6, 0.25))
+	dn.setup("上限 -%d" % reduced, Color(1.0, 0.6, 0.25))
 	dn.global_position = global_position + Vector2(0, -160)
 	_world_add(dn)
-	_spawn_number(amount, Color(1.0, 0.5, 0.2), 130.0)
+	_spawn_number(reduced, Color(1.0, 0.5, 0.2), 130.0)
 	_play_sfx("hit_fist")
 	Feel.hitstop(0.04)
 	Feel.shake(5.0, 0.16)
@@ -2616,7 +2662,7 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				var tier := str(p.call("stop_tier")) if p.has_method("stop_tier") else "mob"
 				var dash_before := int(p.get("hp"))
 				var fixed := maxi(1, dash_before) if tier != "boss" and tier != "elite" \
-					else int((h["dash_kill"] as Dictionary).get("elite_damage", 8)) + _z001_fury
+					else int((h["dash_kill"] as Dictionary).get("elite_damage", 8)) + _z001_fury_damage()
 				if p.has_method("take_damage_from"):
 					p.call("take_damage_from", fixed, self)
 				else:
@@ -2637,9 +2683,19 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				var is_boss := p.has_method("stop_tier") and str(p.call("stop_tier")) == "boss" \
 					and not (pvp_mode and ("pvp_mode" in p) and bool(p.get("pvp_mode")))
 				var ratio := float(ex.get("boss", 0.1)) if is_boss else float(ex.get("normal", 0.2))
+				if skull_id == "z001" and _own("z001_exec_1"):
+					ratio += 0.05 if is_boss else 0.1 # 烬灭·初：斩杀比例 20%→30%（Boss 10%→15%）
 				var lost_hp := maxi(0, int(p.get("max_hp")) - int(p.get("hp")))
 				hit_damage += int(floor(float(lost_hp) * ratio))
 			hit_damage += _target_damage_bonus(p)
+			if skull_id == "z001":
+				if _skill_name == "burn_k" and _z001_is_vulnerable(p):
+					if _own("z001_ember_2"):
+						hit_damage += 1 # 焚骨·续：K 打易伤目标 +1
+					if _form_node("z001_p_ember_2"):
+						hit_damage += 1 # 焚心·续
+				elif _skill_name == "burn_p" and _z001_p_buff > 0.0:
+					hit_damage += 3 # 烬灭·续：L 命中后的 P 增伤
 			var dealt_now := _damage_enemy(p, hit_damage)
 			_skill_damage_total += dealt_now
 			hit_scored()
@@ -2650,6 +2706,24 @@ func _deal_skill_hit(h: Dictionary) -> void:
 				p.call("apply_vulnerable", float(vuln.get("time", 5.0)), float(vuln.get("ratio", 0.25)))
 			_skill_kinetic(p, h)
 			_apply_hit_control(p, h)
+			# 烬生流派：K 易伤/返冷却、L→P 增伤、P 易伤与击杀返还
+			if skull_id == "z001":
+				if _skill_name == "burn_k":
+					if int(e.get("hp")) > 0 and p.has_method("apply_vulnerable"):
+						if _own("z001_ember_1") or _form_node("z001_p_ember_1"):
+							var vuln_time := 3.0 if _own("z001_ember_1") else 1.5
+							p.call("apply_vulnerable", vuln_time, 0.25)
+					if _own("z001_ember_3"):
+						_skill_cds["burn_k"] = maxf(0.0, float(_skill_cds.get("burn_k", 0.0)) - 0.2)
+					if int(e.get("hp")) <= 0 and (_own("z001_ember_3") or _form_node("z001_p_ember_3")):
+						_skill_cds["burn_k"] = 0.0
+				elif _skill_name == "burn_p" and _own("z001_exec_3"):
+					if int(e.get("hp")) > 0 and p.has_method("apply_vulnerable"):
+						p.call("apply_vulnerable", 8.0, 0.25)
+					if int(e.get("hp")) <= 0:
+						_skill_cds["burn_p"] = maxf(0.0, float(_skill_cds.get("burn_p", 0.0)) - 6.0)
+				elif _skill_name == "burn_l" and _own("z001_exec_2"):
+					_z001_p_buff = 2.0
 			# 剑仙 P：实际造成伤害后才追加 3 秒眩晕与该目标的专属受击特效
 			if skull_id == "z000" and _skill_name == "skill20_03" and dealt_now > 0 and int(e.get("hp")) > 0 \
 					and p.has_method("stun"):
@@ -3824,6 +3898,11 @@ func _start_skill(n: String) -> void:
 		_skill_cd_set *= 0.5 # 淑女：只减半自信期间实际释放的技能
 	if skull_id == "z002" and n == "skill03" and _form_node("z002_echo_2"):
 		_skill_cd_set = maxf(0.1, _skill_cd_set - 1.0)
+	if skull_id == "z001":
+		if n == "burn_k" and _own("z001_ember_2"):
+			_skill_cd_set = maxf(0.1, _skill_cd_set - 1.0)
+		elif n == "burn_l" and _own("z001_exec_2"):
+			_skill_cd_set = maxf(0.1, _skill_cd_set - 1.0)
 	_skill_cd_totals[n] = _skill_cd_set
 	_skill_cds[n] = _skill_cd_set
 	if _room_cd_cursed:
@@ -5527,7 +5606,7 @@ func pvp_damage_scale() -> float:
 func pvp_flat_damage_bonus(target: Node) -> int:
 	var bonus := Achievements.bonus_int("damage")
 	if skull_id == "z001":
-		bonus += _z001_fury # 战意：全部伤害追加等量焚烧
+		bonus += _z001_fury_damage() # 战意：全部伤害追加等量焚烧
 	if target == null or not is_instance_valid(target):
 		return bonus
 	if skull_id == "c023" and _form_node("c023_venom_2") and float(target.get("_pvp_poison_time")) > 0.0:

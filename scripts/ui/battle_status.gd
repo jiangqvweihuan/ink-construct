@@ -47,6 +47,12 @@ static func _add_timed(player, out: Array) -> void:
 	var confidence := float(player.get("_z000_confidence_time"))
 	if confidence > 0.0:
 		_entry(out, "confidence", "buff", "淑女 · 自信", "技能冷却减半，全部伤害提高 1 点。", "%.1f 秒" % confidence)
+	if str(player.get("skull_id")) == "z001":
+		var fury := int(player.get("_z001_fury"))
+		if fury > 0:
+			_entry(out, "z001_fury", "buff", "战意", "每层使全部伤害追加等量焚烧伤害，换房按修炼规则保留。", "%d 层" % fury)
+		if bool(player.get("_z001_burnout")):
+			_entry(out, "z001_burnout", "buff", "燃尽", "致命伤后以余烬续命；后续伤害改为扣除生命上限，获得回血即退出。", "上限 %d" % int(player.get("max_hp")))
 	var stop_buff := float(player.get("_stop_buff_timer"))
 	if stop_buff > 0.0:
 		_entry(out, "stop_buff", "buff", "时停余势", "时停余韵，短时间内伤害提高。", "%.1f 秒" % stop_buff)

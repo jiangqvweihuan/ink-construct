@@ -19,6 +19,7 @@ class Target extends Node2D:
 	var stunned := 0.0
 	var vulnerable := 0.0
 	var vulnerable_ratio := 0.0
+	var _vuln_timer := 0.0
 	var body_radius := 30.0
 
 	func take_damage(amount: int, _source_x := 0.0) -> void:
@@ -34,6 +35,7 @@ class Target extends Node2D:
 		stunned = maxf(stunned, dur)
 
 	func apply_vulnerable(time: float, ratio: float) -> void:
+		_vuln_timer = maxf(_vuln_timer, time)
 		vulnerable = time
 		vulnerable_ratio = ratio
 
@@ -73,6 +75,15 @@ func _target(x: float, hp := 100) -> Target:
 func _ready() -> void:
 	Run.balance_scaling = false
 	Meta.persist = false
+	# 清掉真实存档里可能已购的 z001 修炼/局内卡，保证机制回归可重复
+	for id in Meta.FORM_NODES:
+		if str(Meta.FORM_NODES[id]["form"]) == "z001":
+			Meta.form_nodes.erase(id)
+	for id in Run.FORM_UPGRADES:
+		if (Run.FORM_UPGRADES[id]["forms"] as Array).has("z001"):
+			Run.upgrades.erase(id)
+	# 契合等级会带来普攻 +1，机制回归按无契合基线校验
+	Meta.mastery["z001"] = 0
 	var p := _make_player()
 	var bonus := Achievements.bonus_int("damage")
 	var base_data = load(str(Skulls.SKULLS["z001"]["data"]))
@@ -322,6 +333,140 @@ func _ready() -> void:
 	_check(before - t2.hp == 5 + 2 + bonus, "每层战意追加等量焚烧伤害")
 	p2.on_room_enter()
 	_check(p2._z001_fury == 0 and p2._z001_kill_acc == 0 and p2._z001_hit_acc == 0, "换房清空战意与累计")
+
+	# ---------- 局内流派 / 永久修炼：烬生专属 ----------
+	var z1_cards: Array = []
+	var z1_paths := {}
+	for id in Run.FORM_UPGRADES:
+		var info: Dictionary = Run.FORM_UPGRADES[id]
+		if (info["forms"] as Array).has("z001"):
+			z1_cards.append(str(id))
+			z1_paths[str(info["path"])] = int(z1_paths.get(str(info["path"]), 0)) + 1
+	var path_counts_ok := z1_paths.size() == 3
+	for k in z1_paths:
+		path_counts_ok = path_counts_ok and int(z1_paths[k]) == 3
+	_check(z1_cards.size() == 9 and path_counts_ok, "烬生局内 3 流派 × 3 阶齐全（%d 张）" % z1_cards.size())
+	var z1_nodes: Array = []
+	for id in Meta.FORM_NODES:
+		if str(Meta.FORM_NODES[id]["form"]) == "z001":
+			z1_nodes.append(str(id))
+	var cost_ok := z1_nodes.size() == 9
+	for id in z1_nodes:
+		cost_ok = cost_ok and [35, 65, 110].has(Meta.node_cost(str(id)))
+	_check(cost_ok and Meta.INK_SHOP.has("buyout_z001"), "烬生永久修炼 9 节点/价格梯度/买断齐全")
+	_check(not Run.card_info("z001_ember_1").is_empty() and not Run.card_info("z001_exec_1").is_empty() \
+		and not Run.card_info("z001_rage_1").is_empty(), "烬生三流派首阶均进入局内卡池")
+	Run.skull_id = "z001"
+	Run.slot_skull[0] = "z001"
+	var rolled := Run.roll_cards(3, 0)
+	var rolled_z1 := 0
+	for k in rolled:
+		if (Run.FORM_UPGRADES.get(str(k), {}).get("forms", []) as Array).has("z001"):
+			rolled_z1 += 1
+	_check(rolled_z1 >= 1, "烬生局内三选一能抽到专属流派")
+
+	# 焚骨：K 命中挂易伤；对易伤目标增伤
+	var p3 := _make_player()
+	Run.upgrades["z001_ember_1"] = 1
+	p3._upgrades = Run.upgrades.duplicate()
+	var tv := _target(450, 100)
+	p3._skill_name = "burn_k"
+	p3._skill_start_x = p3.global_position.x
+	p3._deal_skill_hit({"at": 0.0, "damage": 1, "range": 170.0, "height": 200.0})
+	_check(tv.vulnerable == 3.0 and tv._vuln_timer == 3.0, "焚骨·初：K 命中挂 3 秒易伤")
+	Run.upgrades["z001_ember_2"] = 1
+	p3._upgrades = Run.upgrades.duplicate()
+	tv.hp = 100
+	tv._vuln_timer = 3.0
+	var hp_before := tv.hp
+	p3._deal_skill_hit({"at": 0.0, "damage": 1, "range": 170.0, "height": 200.0})
+	_check(hp_before - tv.hp == 2 + bonus, "焚骨·续：K 对易伤目标 +1 伤")
+	# 烬灭：L 斩杀比例提高
+	Run.upgrades["z001_exec_1"] = 1
+	p3._upgrades = Run.upgrades.duplicate()
+	var te := _target(450, 50)
+	te.max_hp = 100
+	p3._skill_name = "burn_l"
+	p3._skill_start_x = p3.global_position.x
+	p3._deal_skill_hit({"at": 0.0, "damage": 5, "range": 150.0, "height": 200.0,
+		"execute": {"normal": 0.2, "boss": 0.1}})
+	_check(te.hp == 50 - 5 - 15 - bonus, "烬灭·初：L 对普通目标斩杀 30%")
+	# L→P 增伤窗口
+	Run.upgrades["z001_exec_2"] = 1
+	p3._upgrades = Run.upgrades.duplicate()
+	te.hp = 0
+	var tl_p := _target(450, 100)
+	p3._skill_name = "burn_l"
+	p3._deal_skill_hit({"at": 0.0, "damage": 5, "range": 150.0, "height": 200.0})
+	_check(is_equal_approx(p3._z001_p_buff, 2.0), "烬灭·续：L 命中开启 2 秒 P 增伤")
+	tl_p.hp = 100
+	p3._skill_name = "burn_p"
+	p3._skill_start_x = p3.global_position.x
+	p3._deal_skill_hit({"at": 0.0, "damage": 12, "range": 280.0, "height": 200.0})
+	_check(tl_p.hp == 100 - 15 - bonus, "烬灭·续：增伤窗口内 P 伤害 +3")
+	# 战狂：4 次一叠
+	Run.upgrades["z001_rage_1"] = 1
+	var p4 := _make_player()
+	p4._upgrades = Run.upgrades.duplicate()
+	p4._z001_fury = 0
+	p4._z001_kill_acc = 0
+	for i in 3:
+		p4._z001_on_kill()
+	_check(p4._z001_fury == 0, "战狂·初：3 次击杀未叠战意")
+	p4._z001_on_kill()
+	_check(p4._z001_fury == 1, "战狂·初：第 4 次击杀叠 1 层")
+	# 战狂·极：燃尽时获得 3 层；燃尽减伤
+	Run.upgrades["z001_rage_3"] = 1
+	p4._upgrades = Run.upgrades.duplicate()
+	p4._z001_burnout = false
+	p4.max_hp = 10
+	p4.hp = 1
+	p4._z001_fury = 0
+	p4._z001_enter_burnout()
+	_check(p4._z001_fury == 3 and p4._z001_burnout, "战狂·极：燃尽触发获得 3 层战意")
+	p4.max_hp = 10
+	p4.hp = 1
+	p4._z001_fury = 3
+	p4._z001_burnout = true
+	p4._z001_burnout_take_damage(5)
+	_check(p4.max_hp == 8, "战狂·极：燃尽期间每层战意减少 1 点上限伤害")
+	# 永久修炼：4 次一叠 / 燃尽减伤 / 燃尽 3 杀复燃
+	Run.upgrades.clear()
+	p4._upgrades = {}
+	Meta.form_nodes["z001_p_fury_1"] = true
+	p4._z001_fury = 0
+	p4._z001_kill_acc = 3
+	p4._z001_burnout = false
+	p4._z001_on_kill()
+	_check(p4._z001_fury == 1, "战意·初：永久修炼把阈值降到 4 次")
+	Meta.form_nodes["z001_p_burnout_2"] = true
+	p4._z001_fury = 0
+	p4.max_hp = 10
+	p4.hp = 1
+	p4._z001_burnout = true
+	p4._z001_burnout_take_damage(5)
+	_check(p4.max_hp == 6, "余烬·续：燃尽上限伤害再 -1")
+	Meta.form_nodes["z001_p_burnout_3"] = true
+	p4.max_hp = 10
+	p4.hp = 1
+	p4._z001_burnout = true
+	p4._z001_burnout_kills = 0
+	p4._z001_kill_acc = 0
+	for i in 3:
+		p4._z001_on_kill()
+	_check(not p4._z001_burnout and p4.hp == 3, "余烬·极：燃尽期间 3 杀回 2 血并退出燃尽")
+	# 战斗状态栏能读到战意/燃尽
+	p4._z001_fury = 2
+	p4._z001_burnout = true
+	var status_ids := {}
+	for e in BattleStatus.entries(p4):
+		status_ids[str(e["id"])] = true
+	_check(status_ids.has("z001_fury") and status_ids.has("z001_burnout"), "战斗状态栏显示战意与燃尽")
+	# 清理测试态，避免影响后续图鉴检查
+	Run.upgrades.clear()
+	for id in Meta.FORM_NODES:
+		if str(Meta.FORM_NODES[id]["form"]) == "z001":
+			Meta.form_nodes.erase(id)
 
 	# 图鉴文案与实际逻辑一致
 	var atk_text: Array = Codex.FORM_ATTACK_TEXT.get("z001", [])

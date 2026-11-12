@@ -157,6 +157,16 @@ const FORM_UPGRADES := {
 	"z003_returning_1": {"label": "去来 · 初", "desc": "O 起手留下 6 秒可见归痕，并记住路径命中者，去程命中额外造成 1 伤", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "去来", "tier": 1, "theme": 2},
 	"z003_returning_2": {"label": "去来 · 续", "desc": "归痕中闪避返程，只叠流血与定身、不伤血", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "去来", "tier": 2, "theme": 2, "req": "z003_returning_1"},
 	"z003_returning_3": {"label": "去来 · 极", "desc": "交叉命中触发破招；返程命中清空闪避冷却（仍受 0.5 秒闪避间隔限制）", "max": 1, "icon": "icon_sword", "forms": ["z003"], "path": "去来", "tier": 3, "theme": 2, "req": "z003_returning_2"},
+	# ---------- 烬生·赤烬：焚骨 / 烬灭 / 战狂 ----------
+	"z001_ember_1": {"label": "焚骨 · 初", "desc": "K 每段命中使目标易伤 25%，持续 3 秒", "max": 1, "icon": "icon_potion", "forms": ["z001"], "path": "焚骨", "tier": 1, "theme": 0},
+	"z001_ember_2": {"label": "焚骨 · 续", "desc": "K 对易伤目标的伤害 +1；K 冷却 -1 秒", "max": 1, "icon": "icon_potion", "forms": ["z001"], "path": "焚骨", "tier": 2, "theme": 0, "req": "z001_ember_1"},
+	"z001_ember_3": {"label": "焚骨 · 极", "desc": "K 每段命中返还 0.2 秒冷却；K 击杀目标时立即重置冷却", "max": 1, "icon": "icon_potion", "forms": ["z001"], "path": "焚骨", "tier": 3, "theme": 0, "req": "z001_ember_2"},
+	"z001_exec_1": {"label": "烬灭 · 初", "desc": "L 斩杀比例由 20% 提至 30%（Boss 10%→15%）", "max": 1, "icon": "icon_sword", "forms": ["z001"], "path": "烬灭", "tier": 1, "theme": 1},
+	"z001_exec_2": {"label": "烬灭 · 续", "desc": "L 命中后 2 秒内 P 伤害 +3；L 冷却 -1 秒", "max": 1, "icon": "icon_sword", "forms": ["z001"], "path": "烬灭", "tier": 2, "theme": 1, "req": "z001_exec_1"},
+	"z001_exec_3": {"label": "烬灭 · 极", "desc": "P 命中的目标易伤 25%，持续 8 秒；P 击杀返还 6 秒冷却", "max": 1, "icon": "icon_sword", "forms": ["z001"], "path": "烬灭", "tier": 3, "theme": 1, "req": "z001_exec_2"},
+	"z001_rage_1": {"label": "战狂 · 初", "desc": "每 4 次击杀或受击叠 1 层战意", "max": 1, "icon": "icon_medal", "forms": ["z001"], "path": "战狂", "tier": 1, "theme": 2},
+	"z001_rage_2": {"label": "战狂 · 续", "desc": "换房时战意保留一半（向下取整），不再全部清空", "max": 1, "icon": "icon_medal", "forms": ["z001"], "path": "战狂", "tier": 2, "theme": 2, "req": "z001_rage_1"},
+	"z001_rage_3": {"label": "战狂 · 极", "desc": "燃尽触发时获得 3 层战意；燃尽期间每层战意使受到的上限伤害 -1（最低 1）", "max": 1, "icon": "icon_medal", "forms": ["z001"], "path": "战狂", "tier": 3, "theme": 2, "req": "z001_rage_2"},
 }
 
 ## 开局赐福：每局出发前三选一（blessing_panel 弹出），效果只在本局生效
